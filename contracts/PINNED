@@ -1,0 +1,13 @@
+# The contract this app is generated against.
+#
+# yuvoy-api PR #50 (feat/m18-hardening) — the 25-path traveller contract the
+# frontend brief documents. master/dev carry 18 paths and no safety gates, so
+# T7 cannot be built against them at all.
+#
+# Re-pin to master the day #50 merges. `pnpm contract:check` fails the build
+# if contracts/openapi.yaml stops matching this ref.
+repo=yuvoy-in/yuvoy-api
+ref=dde8f555c5e94b454ac251a7eba0541d7cd334d2
+branch=feat/m18-hardening
+pr=50
+pinned_on=2026-08-18

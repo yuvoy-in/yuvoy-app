@@ -1,0 +1,14 @@
+# The contracts are a byte-exact MIRROR of yuvoy-api. Formatting them makes
+# them differ from the ref they are pinned to, which is a drift-check failure
+# and, worse, would hide a real upstream change behind a formatting diff.
+contracts/
+
+# Generated. Regenerate with `pnpm codegen`, never hand-edit or reformat.
+src/lib/api/schema.gen.ts
+
+# Vendored by `msw init`.
+public/mockServiceWorker.js
+
+.next/
+node_modules/
+pnpm-lock.yaml

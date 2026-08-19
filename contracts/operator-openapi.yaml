@@ -1,0 +1,1709 @@
+openapi: 3.1.0
+
+info:
+  title: Yuvoy Operator API
+  version: 1.0.0
+  description: >
+    The API behind operators.yuvoy.in — the portal an operator uses to run their
+    business on Yuvoy.
+
+
+    **The tenant boundary is the thing to understand before anything else.**
+    Every operator sees their own bookings, their own travellers, their own
+    earnings. One query that forgets to scope shows a dive shop its
+    competitor's customer list, and there is no version of that we recover from.
+
+
+    So the boundary is structural, not diligent: `operator_id` is read from the
+    session row and is **never accepted as a parameter in any position** — not a
+    path segment, not a query string, not a body field. You will not find one in
+    this document, and its absence is deliberate. A request cannot ask about
+    another operator because there is nowhere to put the question.
+
+
+    A consequence worth stating for client authors: **a row belonging to another
+    operator answers `404`, never `403`.** A 403 would confirm the row exists,
+    which is precisely what somebody probing ids wants to learn. Do not write
+    error handling that distinguishes them, because the server does not.
+
+servers:
+  - url: https://api.yuvoy.in/operator/v1
+    description: Production
+  - url: http://localhost:8093/operator/v1
+    description: Local development (scripts/e2e-local.sh boots this)
+
+tags:
+  - name: auth
+    description: >
+      Phone-primary, because the people running these businesses answer a phone
+      on a boat; email is something they check when they get back, if at all.
+  - name: bookings
+  - name: capacity
+  - name: requests
+    description: >
+      Request-mode departures. The operator holds the seats; we hold nothing
+      until they say yes. Every request has a hard clock, and one that expires
+      unanswered is a traveller who was told no by a timer.
+  - name: relay
+    description: >
+      How an operator talks to a traveller now that phone numbers are gone
+      (D-018). Facts travel in approved templates; free text stays on the
+      status page.
+  - name: day
+    description: >
+      The morning the trip runs. Everything here is designed for one hand on a
+      phone at a jetty with poor signal — an endpoint an operator will not use
+      in that moment is one that gets done from memory afterwards, and a
+      manifest kept from memory disagrees with the boat.
+  - name: account
+    description: >
+      The operator's own account — proving it is really them, changing where
+      the money goes, and who else can get in. Everything here is what somebody
+      holding a stolen session would go for, and none of it is ever urgent,
+      which is what makes the friction affordable.
+  - name: media
+  - name: money
+
+security:
+  - operatorSession: []
+
+paths:
+  /auth/otp:
+    post:
+      tags: [auth]
+      security: []
+      summary: Send a sign-in code
+      description: >
+        **Answers identically for a number we know and one we do not** — same
+        status, same body. Anything else is a directory of which businesses work
+        with us, queryable by anyone with a phone book, and for the operator
+        whose number *is* known it confirms a target worth attacking.
+
+
+        The challenge is recorded either way, so the endpoint's timing cannot
+        become the oracle its body carefully is not.
+
+
+        Rate-limited per IP. Every request costs an SMS once a sender exists, so
+        the limit is a cost control as much as an abuse control.
+      operationId: requestOperatorOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  description: E.164, e.g. `+919000000101`
+      responses:
+        "202":
+          description: Always this.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent, expiresIn]
+                properties:
+                  sent: { type: boolean }
+                  expiresIn: { type: integer, description: Seconds the code stays usable. }
+                  devCode:
+                    type: string
+                    description: >-
+                      **Development only.** Present when the service runs
+                      outside production so the login flow can be exercised
+                      without an SMS account. Never present in production; a
+                      client must never depend on it.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/session:
+    post:
+      tags: [auth]
+      security: []
+      summary: Exchange a code for a session
+      description: >
+        Wrong, expired, used and over-attempted codes all answer `401` with one
+        message, for the same reason the request endpoint has one body.
+
+
+        The returned `operatorId` is for labelling the screen. It is **not
+        accepted back** on any request in this document.
+      operationId: createOperatorSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string }
+                device: { type: string, description: A label the operator recognises. }
+      responses:
+        "201":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, user, operatorId]
+                properties:
+                  token:
+                    type: string
+                    description: >-
+                      Opaque bearer. Present as `Authorization: Bearer <token>`.
+                      Sessions are long-lived on purpose (14 days idle, 90
+                      absolute): an operator checks a manifest from a phone on a
+                      boat with intermittent signal, and forcing a login every
+                      few hours means the manifest is not consulted rather than
+                      consulted securely.
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      name: { type: string }
+                      roles:
+                        type: array
+                        items: { type: string, enum: [OWNER, MANAGER, STAFF] }
+                  operatorId: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AccountNotActive" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    delete:
+      tags: [auth]
+      summary: Sign out
+      description: Revokes this session immediately. The token stops working on the next request.
+      operationId: deleteOperatorSession
+      responses:
+        "204": { description: Signed out. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/step-up:
+    post:
+      tags: [account]
+      summary: Send a code to the owner's phone
+      description: >
+        Elevates this session for ten minutes. The code goes to the **OWNER's**
+        number whoever asks — a compromised MANAGER login must not be able to
+        both request the elevation and receive the code that grants it.
+
+
+        Ten minutes is long enough to fill in bank details on a phone with a bad
+        keyboard, and short enough that a session left open on a shared laptop
+        at a dive shop is not still elevated after lunch.
+      operationId: requestOperatorStepUp
+      responses:
+        "202":
+          description: Sent to the owner.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: boolean }
+                  expiresIn: { type: integer }
+                  devCode:
+                    type: string
+                    description: Development only, exactly as on sign-in. Never in production.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/step-up/verify:
+    post:
+      tags: [account]
+      summary: Use the code
+      description: >
+        The elevation is stamped on the session you already hold rather than
+        returned as a second token — a client with two credentials keeps the
+        elevated one as long as the ordinary one, which is the failure this
+        avoids.
+
+
+        A code raised for one user cannot be spent on another's session, even
+        within the same operator. The point of routing it to the owner is that
+        the owner decides.
+      operationId: verifyOperatorStepUp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "200":
+          description: Elevated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  steppedUpUntil: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /change-requests:
+    get:
+      tags: [account]
+      summary: Changes to this account
+      operationId: listOperatorChangeRequests
+      responses:
+        "200":
+          description: This operator's account changes, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/ChangeRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /change-requests/bank:
+    post:
+      tags: [account]
+      summary: Change where the money goes
+      description: >
+        Three gates, not one: **OWNER only**, a code sent to the owner's phone
+        (`step-up`), and then two 24-hour clocks before anything is live.
+
+
+        The objection window runs **before** approval so the real owner — who is
+        messaged the moment it is raised — can stop it. The cooling window runs
+        **after**, so even an approved change is still catchable. An objection
+        window closing with nobody objecting does *not* approve anything; it
+        moves the request into a human review queue. Auto-approving on silence
+        would make the whole design a delay rather than a control.
+
+
+        Only the **last four digits** of the account number are stored. Nothing
+        in this service pays anybody — the payout run does not read from here —
+        so holding the full number would be a liability with no matching
+        capability. It arrives out of band when a person sets the account up,
+        confirming the last four against what the operator sees on their screen.
+
+
+        One at a time: two open bank changes would mean the second approval
+        silently decides which account wins.
+      operationId: requestBankChange
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accountHolder, accountNumber, ifsc]
+              properties:
+                accountHolder: { type: string }
+                accountNumber: { type: string, description: 9-18 digits. }
+                ifsc:          { type: string, description: "Like HDFC0001234." }
+                bankName:      { type: string }
+      responses:
+        "202":
+          description: Raised, and the owner has been messaged. Not live.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  state: { type: string }
+                  summary: { type: string, description: Masked — last four digits only. }
+                  objectionUntil: { type: string, format: date-time }
+                  whatHappensNext: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: >
+            `step_up_required` — ask for a code first. Also returned to anyone
+            who is not the OWNER.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: "`change_already_in_progress` — cancel the open one first."
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /change-requests/{id}/cancel:
+    post:
+      tags: [account]
+      summary: Stop a change you did not make
+      description: >
+        Works during the objection window **and** during cooling. A cooling
+        change nobody can stop is just a slower mistake.
+
+
+        Deliberately **not** behind step-up. The person most likely to need this
+        is the owner who just received a warning about a change they did not
+        make, and making them pass another code first puts the emergency brake
+        further away than the accelerator.
+      operationId: cancelChangeRequest
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Stopped. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: OWNER only.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >
+            `change_already_decided` — it has already gone through. Distinguished
+            from 404 on purpose: "we cannot find it" and "it already happened"
+            mean very different things to somebody who has just realised their
+            account was compromised.
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /team:
+    get:
+      tags: [account]
+      summary: Who can get in
+      description: Active people and unaccepted invitations, in one list.
+      operationId: listOperatorTeam
+      responses:
+        "200":
+          description: The team.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  team:
+                    type: array
+                    items: { $ref: "#/components/schemas/TeamMember" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [account]
+      summary: Invite somebody
+      description: >
+        OWNER only. `MANAGER` or `STAFF` — **OWNER cannot be invited**, because
+        the owner is the person whose bank account this is, and that is not a
+        thing one login should be able to hand to a phone number.
+
+
+        A number already belonging to any operator is refused with the same
+        message as any other failure, so this endpoint cannot be used to find
+        out which businesses are on Yuvoy — the same reason sign-in answers
+        identically for known and unknown numbers.
+
+
+        Re-inviting the same number replaces the open invitation rather than
+        adding one, so a revoked invite is not undone by an older code still
+        lying around.
+      operationId: inviteOperatorUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, name, role]
+              properties:
+                phone: { type: string }
+                name:  { type: string }
+                role:  { type: string, enum: [MANAGER, STAFF] }
+      responses:
+        "202":
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent: { type: boolean }
+                  devCode: { type: string, description: Development only. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: OWNER only.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: "`cannot_invite` — one message for every failure, deliberately."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /team/accept:
+    post:
+      tags: [account]
+      security: []
+      summary: Accept an invitation
+      description: >
+        Unauthenticated, because accepting an invitation is what somebody does
+        before they have an account. Scoped by the invite code: hashed,
+        attempt-limited, seven-day expiry.
+
+
+        **No session is minted here.** They sign in through the ordinary flow
+        afterwards, so one code path creates operator sessions rather than two —
+        and the second one would be the one written in a hurry.
+      operationId: acceptOperatorInvite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code:  { type: string }
+      responses:
+        "200":
+          description: Accepted. Sign in next.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: boolean }
+                  next: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /team/{id}:
+    delete:
+      tags: [account]
+      summary: Remove somebody
+      description: >
+        Their sessions are revoked in the same transaction. Marking a user
+        removed while leaving a 14-day session alive is the difference between
+        "we removed them" and "we removed them a fortnight from now", and the
+        reason somebody is removed in a hurry is usually that the fortnight
+        matters.
+
+
+        You cannot remove yourself, and you cannot remove the last owner — an
+        account with no owner cannot approve a bank change, receive a step-up
+        code, or invite anybody.
+      operationId: removeOperatorUser
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Removed, and signed out everywhere. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: OWNER only.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`cannot_remove` — yourself, or the last owner."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /me:
+    get:
+      tags: [auth]
+      summary: Who am I and what may I do
+      operationId: getOperatorMe
+      responses:
+        "200":
+          description: The signed-in user.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+                  roles: { type: array, items: { type: string } }
+                  operatorId: { type: string }
+                  canManage:
+                    type: boolean
+                    description: >-
+                      OWNER or MANAGER. Capacity, closed dates, earnings and
+                      listing edits require it — a staff member who can see
+                      today's manifest does not need the margin on it.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/AccountNotActive" }
+
+  /bookings:
+    get:
+      tags: [bookings]
+      summary: My bookings
+      description: >
+        Note the absence of an operator parameter. The tenant comes from the
+        session.
+      operationId: listOperatorBookings
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "200":
+          description: Bookings for this operator only.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/OperatorBooking" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /bookings/{id}:
+    get:
+      tags: [bookings]
+      summary: One booking
+      description: >
+        Another operator's booking answers `404`, identically to one that does
+        not exist.
+      operationId: getOperatorBooking
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The booking.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperatorBooking" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /bookings/{id}/relay:
+    post:
+      tags: [relay]
+      summary: Tell this traveller something
+      description: >
+        Operators do not see traveller phone numbers. This is how you reach
+        them instead.
+
+
+        An intent's `detail` travels inside an approved WhatsApp template and
+        lands on the traveller's phone. A `note` does not: free text is stored
+        against the booking and shown on their status page, and the message
+        they receive is a pointer to it. That split is not a limitation to work
+        around — unapproved text is undeliverable outside a service window, so
+        a "note" that appeared to send as a message would mostly not arrive.
+
+
+        Sending is throttled per operator, not per user, and counts sends
+        rather than recipients.
+      operationId: relayToBooking
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RelayRequest" }
+      responses:
+        "202":
+          description: Queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RelayResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >
+            `nobody_to_tell` — this booking is no longer live, so there was
+            nobody to send to. Deliberately not a success: "sent to 0 people"
+            and "sent" must not look the same.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: "`too_many_updates` — too many relays from this operator this hour."
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /slots/{id}/relay:
+    post:
+      tags: [relay]
+      summary: Tell everyone on this departure
+      description: >
+        The same act as the per-booking relay, addressed to every live booking
+        on the departure. One send, one batch, one throttle count — telling
+        thirty people the boat moved is one act of communication, and counting
+        it per recipient would punish the operator with the fuller boat.
+
+
+        Reaches `converted` bookings and unexpired holds only. A lapsed hold is
+        somebody who is not coming, and a declined request is somebody already
+        told no.
+      operationId: relayToSlot
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RelayRequest" }
+      responses:
+        "202":
+          description: Queued. `recipients` is how many people were reached.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RelayResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`nobody_to_tell` — nobody has a live booking on this departure."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429":
+          description: "`too_many_updates` — too many relays from this operator this hour."
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /requests:
+    get:
+      tags: [requests]
+      summary: Requests waiting for an answer
+      description: >
+        Request-mode departures hold nothing until you accept. A request that
+        expires unanswered is a traveller told no by a clock.
+
+
+        Ordered by how soon each expires rather than when it arrived, because
+        the queue's job is to stop requests dying — so the one closest to death
+        is first. `minutesToAnswer` is computed server-side so every client
+        shows the same number.
+      operationId: listOpenRequests
+      responses:
+        "200":
+          description: Open requests for this operator only.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items: { $ref: "#/components/schemas/OpenRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /requests/{id}/accept:
+    post:
+      tags: [requests]
+      summary: Grant the seats
+      description: >
+        This is the moment the seats come into existence. Before it the
+        departure could sell nothing; after it, it can sell exactly this party.
+
+
+        Taken under the departure's row lock, so two staff answering two
+        requests on two phones cannot together commit more seats than the boat
+        holds. Requires OWNER or MANAGER.
+
+
+        On success the traveller has an ordinary hold with a clock on it — the
+        same thing a direct-booking traveller gets at checkout — and is told to
+        pay before it lapses.
+      operationId: acceptRequest
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Granted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequestAnswer" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: STAFF cannot commit seats.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >
+            `request_not_open` — already answered, or out of time.
+            `grant_ceiling_exceeded` — that would put more people on the
+            departure than it physically holds.
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /requests/{id}/decline:
+    post:
+      tags: [requests]
+      summary: Turn the request down
+      description: >
+        Cheap on purpose. A decline commits nothing and takes no lock, because
+        the failure mode being designed against is an operator who lets
+        requests rot rather than saying no.
+
+
+        `reasonCode` is a closed set. It is for us — an operator who declines
+        everything is visible in aggregate — and the traveller reads a sentence
+        derived from it, which always states that nothing was charged, because
+        in every decline that is true and travellers do not know it.
+      operationId: declineRequest
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reasonCode]
+              properties:
+                reasonCode:
+                  type: string
+                  enum: [no_capacity, weather, not_operating, party_too_large, unsafe_for_party, other]
+      responses:
+        "200":
+          description: Declined.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequestAnswer" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: STAFF cannot answer requests.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`request_not_open` — already answered, or out of time."
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /slots/{id}/manifest:
+    get:
+      tags: [day]
+      summary: Who is coming
+      description: >
+        Confirmed bookings **and live holds**. A party mid-checkout at 08:40 may
+        walk up at 08:55, and a manifest that omits them sends the operator into
+        an argument they cannot win — their `state` is `holding` so the
+        difference is visible. Lapsed holds, cancellations and declines are
+        absent: they are on the record, and the record is not what the operator
+        is holding.
+
+
+        No phone numbers (D-018). `reference` is what matches a walking-up human
+        to a row; the traveller has it in every message we send them.
+
+
+        `?format=csv` returns the same data as a file, deterministically ordered
+        so two exports can be diffed — which is exactly what somebody does when
+        the head count and the app disagree. The CSV ends with a `TOTAL` row,
+        because making somebody add a column of numbers on a dock is how the
+        count goes wrong.
+      operationId: getManifest
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, csv] }
+      responses:
+        "200":
+          description: The departure and everybody on it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Manifest" }
+            text/csv:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /bookings/{id}/attendance:
+    post:
+      tags: [day]
+      summary: Tick somebody off, or say how it ended
+      description: >
+        `arrived` is an observation at the meeting point and is **idempotent** —
+        a second tap on a wet phone keeps the first arrival time and is not an
+        error somebody has to read while eleven people wait.
+
+
+        `completed` and `no_show` are terminal outcomes that money hangs off, so
+        both are refused before the departure time (`409
+        departure_has_not_started`). A trip that completed before it left is a
+        number no payout run can be trusted to have derived honestly.
+
+
+        Re-settling an already-settled booking is refused rather than silently
+        overwritten: an operator who marks a no-show as completed by mistake
+        needs to see that.
+      operationId: markAttendance
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome]
+              properties:
+                outcome: { type: string, enum: [arrived, completed, no_show] }
+      responses:
+        "200":
+          description: Recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  outcome: { type: string }
+                  arrivedAt: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >
+            `departure_has_not_started` — wait until the trip sets off.
+            `not_on_this_departure` — already settled, cancelled or declined.
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /slots/{id}/offline-sales:
+    post:
+      tags: [day]
+      summary: Seats you sold at the counter
+      description: >
+        A **report**, not a request, and it is accepted even when it is bad
+        news. Refusing it would not un-sell the seats — it would only keep our
+        numbers wrong until eleven people and a six-person boat meet at a jetty.
+
+
+        If the report creates an oversell the response says so plainly, names
+        the bookings that lost their seats, and opens an honour incident against
+        the operator. This is the one endpoint in the portal that deliberately
+        refuses to be reassuring: an operator who taps "I sold 3 at the counter"
+        and sees a cheerful tick has not understood what they did to three
+        people who paid us.
+      operationId: recordOfflineSale
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seats]
+              properties:
+                seats: { type: integer, minimum: 1, maximum: 200 }
+                note: { type: string }
+      responses:
+        "200":
+          description: Recorded. Check `oversold` before showing a success state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfflineSaleResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /slots/{id}/call-off:
+    post:
+      tags: [day]
+      summary: This departure cannot run
+      description: >
+        Cancels the departure, cancels every booking on it, refunds all of them
+        **in full**, releases the holds and tells everybody — in one
+        transaction. Cancelling without the refunds would leave people who paid
+        staring at a cancelled trip and their money gone.
+
+
+        Full refunds regardless of the cancellation policy. Those tiers price a
+        traveller changing their mind; nobody changed their mind here, and
+        applying a 50% tier to somebody whose trip was called off by weather is
+        the fastest way to lose a market where every traveller talks to the next
+        one at the same guesthouse.
+
+
+        `confirmSlotId` must equal the departure's own id. Not a boolean: a
+        checkbox is one mis-tap on a wet phone away from cancelling a full boat,
+        and this is the only action in the portal that cannot be undone.
+        Requires OWNER or MANAGER.
+      operationId: callOffDeparture
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reasonCode, confirmSlotId]
+              properties:
+                reasonCode:
+                  type: string
+                  enum: [weather, equipment, staffing, safety, insufficient_numbers]
+                note:
+                  type: string
+                  maxLength: 500
+                  description: >-
+                    Shown on the travellers' status pages. Never rendered into a
+                    message — same rule as the relay.
+                confirmSlotId: { type: string }
+      responses:
+        "200":
+          description: Called off. The numbers are what it cost.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CallOffResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: STAFF cannot call off a departure.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`already_called_off` — everybody on it has already been told."
+
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /slots:
+    get:
+      tags: [capacity]
+      summary: My departures
+      operationId: listOperatorSlots
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Departures with live sold/remaining counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        experienceId: { type: string }
+                        title: { type: string }
+                        startsAt: { type: string, format: date-time }
+                        timezone: { type: string }
+                        seats: { type: integer }
+                        sold: { type: integer }
+                        remaining: { type: integer }
+                        status: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /slots/{id}:
+    patch:
+      tags: [capacity]
+      summary: Change how many seats a departure offers
+      description: >
+        **You cannot reduce a departure below what is already sold.** Not
+        "should not" — the database refuses it, because the alternative is a
+        traveller with a paid booking and no seat, discovered at a jetty at six
+        in the morning.
+
+
+        Reducing to *exactly* what is sold is allowed: that closes the departure
+        without stranding anyone. A refused reduction returns `409` with copy
+        telling the operator what to do instead, which clients should render
+        verbatim rather than replacing with a generic error.
+
+
+        Requires OWNER or MANAGER.
+      operationId: setSlotCapacity
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [seats]
+              properties:
+                seats: { type: integer, minimum: 0, maximum: 200 }
+      responses:
+        "204": { description: Capacity changed. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Would strand travellers who have already paid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /blackouts:
+    post:
+      tags: [capacity]
+      summary: Close dates to new bookings
+      description: >
+        **Closing dates is not cancelling people.** This stops new sales and
+        reports what the operator still owes travellers — including people
+        mid-checkout, whose holds predate the closure and can still complete.
+
+
+        An operator who assumes closing the calendar cancelled the bookings will
+        simply not turn up, so clients must render `note` when
+        `existingBookings > 0`.
+
+
+        Requires OWNER or MANAGER.
+      operationId: addBlackout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to, reasonCode]
+              properties:
+                experienceId: { type: string, description: Omit to close all of this operator's departures. }
+                from: { type: string, format: date }
+                to: { type: string, format: date }
+                reasonCode:
+                  type: string
+                  enum: [WEATHER, MAINTENANCE, STAFF, PERSONAL, SEASONAL, OTHER]
+                note: { type: string }
+      responses:
+        "200":
+          description: Dates closed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  closed: { type: boolean }
+                  existingBookings:
+                    type: integer
+                    description: Bookings and live holds the operator still owes.
+                  note: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /earnings:
+    get:
+      tags: [money]
+      summary: What I have earned
+      description: >
+        Summed from figures **frozen at capture**, so a commission change today
+        cannot restate what was earned last week. `state` is `provisional` until
+        a payout period is locked — say so in the UI, because nobody should plan
+        against a number that can still move.
+
+
+        Requires OWNER or MANAGER.
+      operationId: getOperatorEarnings
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Earnings for the window.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  bookings: { type: integer }
+                  grossPaise: { type: integer }
+                  commissionPaise: { type: integer }
+                  refundsPaise: { type: integer }
+                  netPaise: { type: integer }
+                  state: { type: string, enum: [provisional, open, locked, approved, exported, settled, void] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /experiences/{id}/revisions:
+    post:
+      tags: [capacity]
+      summary: Propose a change to a listing
+      description: >
+        **Never a write to the live listing.** A published listing is what
+        travellers are booking against right now, and editing it in place lets a
+        price change between somebody reading it and somebody paying.
+
+
+        Bookings already made are unaffected either way — their terms were
+        snapshotted at checkout. Clients should say so, because the obvious
+        assumption is the opposite.
+
+
+        Changes to price, safety notes, inclusions, requirements, duration or
+        party size are *material* and need review before going live.
+      operationId: submitExperienceRevision
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: The fields to change. Any subset of the listing.
+              additionalProperties: true
+      responses:
+        "201":
+          description: Proposed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revisionId: { type: string }
+                  state: { type: string }
+                  needsReview: { type: boolean }
+                  note: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /media/upload-intents:
+    post:
+      tags: [media]
+      summary: Get an upload slot for a reel
+      description: >
+        **Bytes never pass through this API.** The browser uploads directly to
+        the video provider over tus, resumable in 5 MB chunks — on a 0.5-3 Mbps
+        island uplink a non-resumable uploader is not slow, it is unusable.
+
+
+        `uploadUrl` is returned **once and never stored server-side**: it is a
+        credential for writing video into our account. Treat it as a secret,
+        use it immediately, and do not persist it client-side either.
+      operationId: createUploadIntent
+      responses:
+        "201":
+          description: An upload slot.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  intentId: { type: string }
+                  uploadUrl: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+                  maxBytes: { type: integer }
+                  maxSeconds: { type: integer }
+                  protocol: { type: string, enum: [tus] }
+                  chunkBytes: { type: integer }
+                  aspectRatio: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: An upload is already in progress for this operator.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /media/upload-intents/{id}/complete:
+    post:
+      tags: [media]
+      summary: Tell us the upload finished
+      description: >
+        A hint that it is worth polling, nothing more — **the client's claim is
+        never trusted.** What decides is whether the provider has an asset that
+        is in our account, ready, with a playback id, a poster and a duration.
+
+
+        `202` with `ready: false` is normal and not an error: the video is still
+        processing. A job keeps polling whether or not the client comes back.
+      operationId: confirmUpload
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The asset exists and is ready.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready: { type: boolean }
+                  mediaAssetId: { type: string }
+        "202":
+          description: Still processing. Poll again.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /media/{id}/rights:
+    post:
+      tags: [media]
+      summary: Attest to rights over this footage
+      description: >
+        **Attesting does not publish.** A reviewer checks it afterwards, and
+        only their approval produces the verified rights record the database
+        requires before a clip can appear anywhere. Say so in the UI — operators
+        reasonably assume attesting is the last step.
+
+
+        `peopleConsentConfirmed` must be an explicit `true` or `false`, never
+        defaulted and never omitted: consent of the people filmed is the one
+        thing a moderator cannot check by watching.
+
+
+        `statementSha256` is the hash of the statement **as it was rendered to
+        the operator**. Sending only a version number would mean that editing
+        the wording without bumping the version silently turns every prior
+        attestation into a claim about words nobody saw.
+      operationId: attestMediaRights
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [statementVersion, statementSha256, rightsType, peopleConsentConfirmed]
+              properties:
+                statementVersion: { type: integer, minimum: 1 }
+                statementSha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+                rightsType: { type: string, enum: [owned, licensed, operator_granted] }
+                thirdPartyRef: { type: string }
+                licenceRef: { type: string }
+                peopleConsentConfirmed: { type: boolean }
+                filmedOn: { type: string, format: date }
+                filmedAtLocation: { type: string }
+      responses:
+        "201":
+          description: Recorded and queued for review.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attestationId: { type: string }
+                  state: { type: string }
+                  note: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /media/{id}/withdraw:
+    post:
+      tags: [media]
+      summary: Take a clip down
+      description: >
+        Two acts that fail independently, and only the first is transactional:
+        it comes off Yuvoy immediately, and the original is deleted at the video
+        provider shortly afterwards by a job. Conflating them would mean a
+        provider outage keeps a clip live that the operator asked us to take
+        down — and the reason they ask is sometimes that somebody in the footage
+        objected, which is not a thing to be waiting on a third party for.
+
+
+        Asking twice succeeds: somebody requesting a clip come down that is
+        already down should be told it is down, not told they did something
+        wrong.
+
+
+        The reason is a closed set because the counts matter —
+        `people_in_it_objected` arriving repeatedly for one operator is a
+        consent problem in how they film, not a series of unrelated takedowns.
+      operationId: withdrawMedia
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [operator_request, people_in_it_objected, no_longer_accurate, rights_lapsed]
+      responses:
+        "200":
+          description: Down.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  withdrawn: { type: boolean }
+                  note: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /media/{id}/publish:
+    post:
+      tags: [media]
+      summary: Put an approved clip on a listing
+      description: >
+        Both the clip and the listing must belong to this operator; otherwise
+        `404`. A clip that has not been approved also answers `404` — it is not
+        yet a thing that can be published.
+      operationId: publishMedia
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [experienceId]
+              properties:
+                experienceId: { type: string }
+                role: { type: string, enum: [hero, gallery], default: gallery }
+      responses:
+        "204": { description: Published. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: This listing already shows as many clips as we display.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  securitySchemes:
+    operatorSession:
+      type: http
+      scheme: bearer
+      description: >-
+        The opaque token from `createOperatorSession`. Not a JWT and carries no
+        claims — it is random with no meaning outside our database, which is
+        what lets it be revoked and lets a stolen one be worthless once it is.
+
+  responses:
+    BadRequest:
+      description: Something in the request needs fixing.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: No session, or one that is no longer valid.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Signed in, but this role may not do it.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    AccountNotActive:
+      description: >-
+        The operator account itself cannot trade right now (suspended or
+        offboarded). Distinct from a role refusal: the person is fine, the
+        business relationship is not.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: >-
+        No such row — **or one belonging to another operator.** Deliberately
+        indistinguishable.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many requests from this address.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_input
+                - unauthorized
+                - forbidden
+                - not_found
+                - conflict
+                - rate_limited
+                - internal_error
+                - session_expired
+                - account_not_active
+                - operator_unavailable
+                - would_strand_travellers
+                - upload_in_progress
+                - media_unavailable
+                # Refused for saying it wrong rather than for lacking
+                # permission. Each is a different next step for the caller: fix
+                # the code, echo the confirmation, pick a role that exists.
+                - invalid_reason_code
+                - confirmation_required
+                - invalid_role
+                # Emitted by handlers and previously undeclared. Found once
+                # the response validator began checking error envelopes rather
+                # than skipping any response whose body nothing described.
+                # You may, but not until a code reaches the OWNER's phone. Distinct from `forbidden`: that one is 'ask for access', this is 'prove it is you'.
+                - step_up_required
+                # That seat request was already answered, or it expired while the screen was open.
+                - request_not_open
+                # Attendance cannot be recorded before the boat leaves.
+                - departure_has_not_started
+                # This departure is already cancelled.
+                - already_called_off
+                # One bank change at a time — two open would mean the second approval silently decides which account wins.
+                - change_already_in_progress
+                # Already approved, rejected or withdrawn.
+                - change_already_decided
+                # That number belongs to somebody, or an OWNER cannot be invited — the first is created by Yuvoy.
+                - cannot_invite
+                # You cannot remove yourself, nor the last OWNER.
+                - cannot_remove
+            message: { type: string, description: Human-readable; safe to show. }
+            details:
+              type: object
+              additionalProperties: true
+              description: Field-level messages, keyed by field name.
+            requestId: { type: string }
+
+    RelayRequest:
+      type: object
+      required: [intent]
+      properties:
+        intent:
+          type: string
+          enum: [time_change, meeting_point_change, weather_watch, bring_item, note]
+        detail:
+          type: string
+          description: >-
+            The one fact this intent carries, and the only operator-supplied
+            value that reaches a phone. Required for every intent except
+            `note`, which carries none.
+
+
+            `time_change` and `weather_watch` take a 24-hour time (`09:30`).
+            `meeting_point_change` takes a place (3–120 characters);
+            `bring_item` takes a thing to bring (2–80). Both are restricted to
+            letters, numbers and basic punctuation — not for injection safety
+            (values are parameterised throughout) but because a template
+            variable holding a URL or a newline renders as something nobody
+            approved, and the provider is entitled to reject the whole message
+            for it.
+        note:
+          type: string
+          maxLength: 500
+          description: >-
+            Free text. Shown on the traveller's status page and **never sent to
+            a phone**. Required when `intent` is `note`, optional alongside any
+            other intent. The cap is a product decision: a relay note is a
+            sentence about a departure, not an essay somebody reads on island
+            3G.
+
+    RelayResult:
+      type: object
+      properties:
+        batchId:
+          type: string
+          description: Groups one send across everyone it reached.
+        intent: { type: string }
+        recipients:
+          type: integer
+          description: How many people were actually told.
+
+    OpenRequest:
+      type: object
+      properties:
+        id: { type: string }
+        slotId: { type: string }
+        experience: { type: string }
+        guests: { type: integer }
+        startsAt: { type: string, format: date-time }
+        timezone: { type: string }
+        requestedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        contactName: { type: string }
+        seatsGrantable:
+          type: integer
+          description: >-
+            Seats still grantable on this departure before its physical
+            capacity is reached. Shown beside the request because "accept" with
+            no sense of what is left is a decision made blind.
+        minutesToAnswer:
+          type: integer
+          description: Never negative. Computed server-side so every client agrees.
+
+    RequestAnswer:
+      type: object
+      properties:
+        id: { type: string }
+        state:
+          type: string
+          description: "`active` after an accept, `released` after a decline."
+        holdExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Set on acceptance: the traveller now holds seats with a clock on
+            them, and must pay before it lapses. Null on a decline.
+
+    Manifest:
+      type: object
+      properties:
+        slotId: { type: string }
+        experience: { type: string }
+        startsAt: { type: string, format: date-time }
+        timezone: { type: string }
+        meetingPoint: { type: string }
+        status: { type: string, enum: [open, closed, cancelled] }
+        calledOff:
+          type: object
+          description: Present only when the departure is off.
+          properties:
+            reasonCode: { type: string }
+        parties:
+          type: array
+          items:
+            type: object
+            properties:
+              bookingId: { type: string, description: Empty for a party still holding. }
+              reference: { type: string }
+              name: { type: string }
+              guests: { type: integer }
+              state:
+                type: string
+                description: "`holding` for a live hold; otherwise the booking's fulfilment state."
+              arrived: { type: boolean }
+              arrivedAt: { type: string, format: date-time }
+        totals:
+          type: object
+          description: >-
+            Computed server-side so three clients cannot disagree about them on
+            a dock. `seatsSold` and `seatsSoldOffline` answer different
+            questions and are deliberately separate.
+          properties:
+            parties: { type: integer }
+            guests: { type: integer }
+            arrived: { type: integer }
+            seatsSold: { type: integer }
+            seatsSoldOffline: { type: integer }
+
+    OfflineSaleResult:
+      type: object
+      properties:
+        seatsRecorded: { type: integer }
+        seatsRemaining:
+          type: integer
+          description: Never negative. An oversell is an incident, not a number on a screen.
+        totalSoldOffline: { type: integer }
+        oversold:
+          type: object
+          description: >-
+            **Present means travellers who paid us now have no seat.** Do not
+            render a success state when this is set.
+          properties:
+            guests: { type: integer }
+            bookings: { type: array, items: { type: string } }
+            message: { type: string }
+            incidentId: { type: string }
+
+    CallOffResult:
+      type: object
+      properties:
+        slotId: { type: string }
+        reasonCode: { type: string }
+        bookingsCancelled: { type: integer }
+        guestsAffected: { type: integer }
+        refundedPaise: { type: integer, format: int64 }
+        holdsReleased: { type: integer }
+
+    ChangeRequest:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        state:
+          type: string
+          enum: [pending, objection_window, cooling, approved, rejected, withdrawn, applied]
+          description: >-
+            `objection_window` → the owner can still stop it and no human has
+            looked. `pending` → the window closed without objection and it is
+            awaiting review. `cooling` → approved but not yet live, and still
+            stoppable. `applied` → live.
+        summary: { type: string, description: Masked. Never a full account number. }
+        requestedAt: { type: string, format: date-time }
+        objectionUntil: { type: string, format: date-time, nullable: true }
+        coolingUntil: { type: string, format: date-time, nullable: true }
+
+    TeamMember:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        roles: { type: array, items: { type: string, enum: [OWNER, MANAGER, STAFF] } }
+        state: { type: string }
+        pending:
+          type: boolean
+          description: An invitation nobody has accepted yet. `id` is the invitation, not a user.
+        lastSeenAt: { type: string, format: date-time }
+
+    OperatorBooking:
+      type: object
+      properties:
+        id: { type: string }
+        reference: { type: string }
+        state: { type: string }
+        guests: { type: integer }
+        experience: { type: string }
+        slot:
+          type: object
+          properties:
+            startsAt: { type: string, format: date-time }
+            timezone: { type: string }
+        contact:
+          type: object
+          description: >-
+            The name, and only the name. `whatsapp` was here and was **removed
+            in M13** per D-018: a traveller gives us a number so we can tell
+            them about their booking, not so it can be added to an operator's
+            contacts.
+
+
+            To reach this traveller, use `POST /bookings/{id}/relay`. To
+            identify them at the jetty, use `reference` — they have it in every
+            message we send and on their status page, and it is already read
+            aloud on a dock.
+          properties:
+            name: { type: string }
+        createdAt: { type: string, format: date-time }

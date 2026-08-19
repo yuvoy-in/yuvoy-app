@@ -1,0 +1,57 @@
+import type { NextConfig } from "next";
+
+/**
+ * The app is a different security surface from the marketing site: it holds a
+ * booking status token in the URL fragment and hands off to a payment app.
+ * These headers are the marketing site's set plus the two that matter here.
+ */
+const securityHeaders = [
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains",
+  },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  /*
+    Load-bearing, not boilerplate. The status token lives in the URL fragment
+    (/booking#t=...). A fragment is never sent to a server, but a Referer
+    header on a cross-origin subresource would carry the whole URL including
+    it. strict-origin-when-cross-origin sends only the origin off-site.
+    See plan §4.4 — "three ways it leaks that are easy to miss".
+  */
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=()",
+  },
+];
+
+const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  reactStrictMode: true,
+  images: {
+    qualities: [75, 100],
+    remotePatterns: [
+      // Cloudflare Stream poster frames. hlsUrl/dashUrl are played by the
+      // video element, not the image optimiser.
+      { protocol: "https", hostname: "*.cloudflarestream.com" },
+      { protocol: "https", hostname: "videodelivery.net" },
+    ],
+  },
+  async headers() {
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      {
+        /*
+          The booking screen must never be cached by a shared cache. It is
+          keyed by a token in the fragment, and a stale confirmed booking is
+          worse than no booking at all.
+        */
+        source: "/booking",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      },
+    ];
+  },
+};
+
+export default nextConfig;

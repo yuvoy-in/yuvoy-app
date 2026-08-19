@@ -1,0 +1,288 @@
+@import "tailwindcss";
+
+/*
+  Yuvoy app design tokens — the single source of truth for color, type and
+  rhythm. No hex, font, or tracking value may exist outside this @theme block.
+
+  Ported from yuvoy-web at Brand Kit v2.5, plus v2.6 (below). Per D-101 this
+  copy is canonical from day one: the marketing site is visually frozen, the
+  app is where the system now evolves, and there is deliberately no sync back.
+
+  ── Brand Kit v2.6 (2026-08-18) ──────────────────────────────────────────
+  ONE near-black, not two. The proposal was to add `abyss #06100D` beside the
+  existing `device #0A100E` as a media ground. Measured, those two are 1.01:1
+  apart — indistinguishable — and shipping both would recreate exactly the
+  failure the system fixed when `teal` and `ink` were merged into `forest`.
+
+  So this is a RENAME, not an addition. `device` becomes `abyss`, same value,
+  already owner-approved (2026-08-06), now named for what it is: the system's
+  near-black. It gains a second sanctioned usage — the full-bleed media ground
+  — because `forest` letterboxes video in a visibly green frame and tints dark
+  underwater footage, on the one screen that IS the product.
+
+  Measured (sRGB relative luminance, WCAG 2.2), computed not estimated:
+
+    cream       on abyss   16.75:1   AAA
+    cream-deep  on abyss   15.32:1   AAA
+    terra-soft  on abyss    7.86:1   AAA   (5.36:1 on forest)
+    terra       on abyss    5.17:1   AA    (3.53:1 on forest — large only)
+    abyss       vs forest   1.47:1         reads as depth, not a second surface
+
+  Note the second consequence: `terra` is BODY-SAFE on abyss and is not on
+  forest. That relaxation applies to this ground only and is stated in §1 of
+  docs/DESIGN_SYSTEM.md rather than assumed.
+*/
+@theme {
+  /* ---------------------------------------------------------------- color */
+  --color-cream: #f4efe4; /* canvas — editorial surfaces */
+  --color-cream-deep: #ece5d6; /* raised surface on cream — cards, inputs */
+  --color-cream-line: #e5dcc9; /* hairline borders on cream */
+  --color-forest: #16362e; /* primary ink AND every chrome surface (11.44:1) */
+  --color-terra: #be7149; /* accent — decoration + LARGE display text (3.24:1 on cream) */
+  --color-terra-deep: #985028; /* text-capable accent (5.21:1); never a CTA fill */
+  --color-terra-soft: #d89772; /* accent text on forest (5.36:1) / abyss (7.86:1) */
+
+  /*
+    v2.6. The system's near-black. TWO sanctioned usages and no others:
+      1. the full-bleed media ground — feed, player, lightbox
+      2. the product-preview bezel (its original role as `device`)
+    It is a ground and an object's colour, never a surface: it carries no
+    section, no chrome, and no body text of its own. `palette.test.ts` pins
+    both usages — the moment a section takes it, the site has two darks again.
+    Not pure #000, which sits harder than anything else and rims against cream.
+  */
+  --color-abyss: #0a100e;
+
+  /* ----------------------------------------------------------------- type */
+  /* Fraunces, tuned into the site's own cut — optical size at 144 for
+     display-grade contrast, SOFT 75 for sea-glass terminals, WONK 0. The
+     variation settings ride the `font-display` utility itself, so every
+     headline gets the cut for free. Display weight is 400; the turn is a
+     TRUE italic at `font-turn` (480). Satoshi is the one text voice. */
+  --font-display: var(--font-fraunces);
+  --font-display--font-variation-settings: "opsz" 144, "SOFT" 75, "WONK" 0;
+  --font-sans: var(--font-satoshi); /* body + UI + labels */
+
+  /* The turn's weight: 80 above the display's 400. A token, not a magic
+     number, so the upright/turn relationship is stated once. */
+  --font-weight-turn: 480;
+
+  /* --------------------------------------------------------------- layout */
+  --container-page: 70rem; /* the page measure — `max-w-page` */
+
+  /*
+    The feed column's cap. An upscaled phone video stretched across a 1200px
+    desktop looks like a mistake, so the 9:16 column stops here and the space
+    beside it becomes the detail panel. Instagram's own web feed does the same.
+  */
+  --container-feed: 30rem; /* 480px */
+
+  /* Editorial near-square. The brand is rectangular: buttons, inputs, cards
+     and panels all share this single radius. Pills are not part of the system. */
+  --radius-edge: 2px;
+
+  /* The one rounded object in the system: the product-preview phone frame.
+     It depicts hardware, not UI — nothing else may use it. */
+  --radius-device: 2.25rem;
+
+  /* --------------------------------------------------------------- motion */
+  /* Entrances. The second control point ends at 1: it used to be 0.16, which
+     made the curve climb to full, sag back, then climb again — a wobble
+     halfway through every entrance on the site. */
+  --ease-cinematic: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-interaction: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* ------------------------------------------------------------- tracking */
+  --tracking-wordmark: 0.34em;
+  --tracking-label: 0.18em;
+  --tracking-display: -0.01em; /* Fraunces sets looser than a grotesque */
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-cream text-forest font-sans antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    @apply bg-terra-deep text-cream;
+  }
+
+  a:focus-visible {
+    outline: 2px solid var(--color-terra-deep);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* On the media ground the cream focus ring is the legible one. */
+  .on-abyss a:focus-visible,
+  .on-abyss button:focus-visible {
+    outline-color: var(--color-terra-soft);
+  }
+
+  dialog::backdrop {
+    background: color-mix(in srgb, var(--color-abyss) 72%, transparent);
+  }
+
+  /*
+    Respect users who prefer less motion. This neutralises every animation and
+    transition globally, which is why individual components never need their
+    own reduced-motion branch. Feed autoplay is disabled separately in JS —
+    a paused video is not an animation the browser knows about.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------- typography */
+
+/**
+ * Wide-tracked uppercase label — the brand's editorial voice, in the text
+ * face. On cream use `text-terra-deep` or `text-forest/75`; on forest use
+ * `text-terra-soft` or `text-cream/70`. Never `text-terra` on cream at this
+ * size (3.24:1, fails AA) — though on `abyss` it measures 5.17:1 and passes.
+ */
+@utility label {
+  @apply font-sans text-xs font-medium uppercase;
+  letter-spacing: var(--tracking-label);
+}
+
+/**
+ * A section eyebrow — the label preceded by a terracotta square, the same
+ * `size-1` marker the fact rows use. Square, not round: `rounded-full` is
+ * reserved for hardware. Use once per section, at the top.
+ */
+@utility eyebrow {
+  @apply inline-flex items-center gap-2.5 font-sans text-xs font-medium uppercase;
+  letter-spacing: var(--tracking-label);
+
+  &::before {
+    content: "";
+    flex: none;
+    width: 0.25rem;
+    height: 0.25rem;
+    background-color: var(--color-terra);
+  }
+}
+
+/**
+ * Guarantees a pointer target of at least 24px (WCAG 2.2 SC 2.5.8), which
+ * small text links do not reach on their own. Set to 28px for comfort.
+ * Not needed inside a sentence — SC 2.5.8 exempts inline targets.
+ */
+@utility tap-target {
+  @apply inline-flex items-center;
+  min-height: 1.75rem;
+}
+
+/* ----------------------------------------------------------------- layout */
+
+/** The standard page measure and gutters. */
+@utility container-page {
+  @apply mx-auto w-full px-6 sm:px-10;
+  max-width: var(--container-page);
+}
+
+/**
+ * The feed column. Capped at 480px and 9:16 on every viewport — see
+ * `--container-feed`. On mobile it is simply the viewport.
+ */
+@utility container-feed {
+  @apply mx-auto w-full;
+  max-width: var(--container-feed);
+}
+
+/* --------------------------------------------------------------- the app */
+
+/**
+ * The media ground. The ONLY place `--color-abyss` may be painted as a
+ * surface, alongside the preview bezel. `.on-abyss` is the marker the palette
+ * test looks for, and it is what switches the focus ring above.
+ */
+@utility media-ground {
+  background-color: var(--color-abyss);
+  color: var(--color-cream);
+}
+
+/**
+ * The gradient beneath a feed card's caption.
+ *
+ * Sized against the BRIGHTEST pixel a clip can show, not the average one, and
+ * not the band the copy is expected to fall in — the same rule the marketing
+ * site's plate captions follow. Video moves: a frame that is dark when the
+ * poster loads can be white surf two seconds later, so there is no fixed place
+ * in the frame where a highlight can be assumed not to be.
+ *
+ * The floor: at its weakest stop this is 62% abyss, which puts `cream` at
+ * 8.9:1 over the palest surf highlight measured (#E8E2D4). Every stop below
+ * that is darker, so a scrim safe at its weakest stop is safe at all of them.
+ */
+@utility feed-scrim {
+  background: linear-gradient(
+    to top,
+    var(--color-abyss) 0%,
+    color-mix(in srgb, var(--color-abyss) 92%, transparent) 28%,
+    color-mix(in srgb, var(--color-abyss) 62%, transparent) 58%,
+    transparent 100%
+  );
+}
+
+/**
+ * The chrome surfaces — tab bar, rail, sheet headers. `forest`, not `abyss`:
+ * chrome stays chrome, and the 1.47:1 between them is what separates the
+ * controls from the picture behind them.
+ */
+@utility app-chrome {
+  background-color: var(--color-forest);
+  color: var(--color-cream);
+}
+
+/**
+ * Skeletons. A slow shimmer rather than a spinner: a spinner says "wait",
+ * a skeleton says "here is the shape of what is coming", and on a 0.5 Mbps
+ * connection the second is the honest message. Killed by reduced-motion above.
+ */
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, currentColor 8%, transparent) 25%,
+    color-mix(in srgb, currentColor 14%, transparent) 37%,
+    color-mix(in srgb, currentColor 8%, transparent) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.6s var(--ease-interaction) infinite;
+}
+
+@keyframes skeleton-sweep {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+
+/**
+ * The safe-area foot for the tab bar.
+ *
+ * `viewport-fit=cover` is deliberately NOT set (standing rule from the
+ * header work on the marketing site), so `env(safe-area-inset-bottom)`
+ * resolves to 0 and this is simply the padding. It is written with env()
+ * anyway so the value is correct if that decision is ever revisited.
+ */
+@utility tabbar-foot {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
