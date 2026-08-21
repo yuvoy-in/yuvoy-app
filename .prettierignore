@@ -12,3 +12,6 @@ public/mockServiceWorker.js
 .next/
 node_modules/
 pnpm-lock.yaml
+
+# Session memory written by the memsearch plugin. Tooling artifact, not code.
+.memsearch/

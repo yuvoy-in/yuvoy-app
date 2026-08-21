@@ -9,6 +9,11 @@ import { useEffect, useState, type ReactNode } from "react";
  * queries fire against a real origin before the worker has registered, which
  * looks exactly like a flaky backend and wastes an afternoon.
  *
+ * The start itself is idempotent — React StrictMode runs this effect twice on
+ * mount in development, and MSW throws on a second start. The guard lives in
+ * mocks/start.ts rather than here, because the server side has the same
+ * problem for a different reason.
+ *
  * `NEXT_PUBLIC_API_MOCKING` gates it, so pointing the app at the real local Go
  * stack is a one-line env change rather than a code change.
  */
@@ -22,15 +27,20 @@ export function MswProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+
     void (async () => {
-      const { worker } = await import("../../../mocks/browser");
-      await worker.start({
-        onUnhandledRequest: "bypass",
-        quiet: true,
-        serviceWorker: { url: "/mockServiceWorker.js" },
-      });
+      const { startBrowserMocks } = await import("../../../mocks/start");
+      try {
+        await startBrowserMocks();
+      } catch (err) {
+        // A failed worker must not leave the app blank forever. Render
+        // anyway — requests will fall through to the real origin, which is a
+        // visible, diagnosable failure rather than an empty page.
+        console.error("[msw] worker failed to start", err);
+      }
       if (!cancelled) setReady(true);
     })();
+
     return () => {
       cancelled = true;
     };
