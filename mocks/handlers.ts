@@ -5,6 +5,7 @@ import {
   availabilityFor,
   FIXTURE_NOW,
 } from "./fixtures";
+import { bookingHandlers } from "./booking-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -226,5 +227,20 @@ export const handlers = [
 
   // Fire and forget. No cookie, no device id, no user agent — it counts
   // scans, it does not follow people.
-  http.post(url("/scans"), async () => new HttpResponse(null, { status: 202 })),
+  // Always 200 with a usable target, including for an unknown code — the
+  // person holding the card needs a destination either way.
+  http.post(url("/scans"), async ({ request }) => {
+    const { code } = (await request.json()) as { code: string };
+    const known = code.toUpperCase().startsWith("HAVELOCK");
+    return HttpResponse.json(
+      {
+        target: known ? "/e/try-dive-nemo-reef" : "/",
+        known,
+        marketKey: "andaman",
+      },
+      { headers: { "x-request-id": requestId() } },
+    );
+  }),
+
+  ...bookingHandlers,
 ];

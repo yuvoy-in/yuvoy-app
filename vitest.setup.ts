@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeAll, afterAll, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { server } from "./mocks/server";
+import { __resetBookingMocks } from "./mocks/booking-handlers";
 
 /*
   Every test runs against the MSW handlers generated from the contract.
@@ -11,6 +12,10 @@ import { server } from "./mocks/server";
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
+  // Reservations and idempotency keys are module state in the mock. Leaking
+  // them between cases makes an idempotency test pass for the wrong reason.
+  __resetBookingMocks();
+  sessionStorage.clear();
   cleanup();
 });
 afterAll(() => server.close());

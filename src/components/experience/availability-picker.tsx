@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
@@ -161,6 +162,15 @@ export function AvailabilityPicker({
           </div>
         ))}
       </div>
+
+      {selected ? (
+        <Link
+          href={`/e/${slug}/book?slot=${encodeURIComponent(selected)}`}
+          className="rounded-edge label bg-forest text-cream mt-5 flex h-13 items-center justify-center font-bold transition-transform active:scale-[0.99]"
+        >
+          {bookingMode === "request" ? "Ask the operator" : "Continue"}
+        </Link>
+      ) : null}
 
       {suppressed > 0 ? (
         <StaleNotice className="mt-5" onRefresh={() => void refetch()}>
