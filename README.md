@@ -37,16 +37,58 @@ The states that lose money are the ones nobody can reproduce. Any request can be
 http://localhost:3000/?__scenario=booking-disabled
 ```
 
-`ok` · `empty` · `slow` · `offline` · `server-error` · `booking-disabled` ·
-`operator-not-bookable` · `payments-unavailable` · `rate-limited` · `stale-availability`
+**Catalog and feed**
+`ok` · `empty` · `slow` · `offline` · `server-error` · `rate-limited` ·
+`booking-disabled` · `operator-not-bookable` · `media-unavailable` ·
+`stale-availability`
+
+**The money loop**
+`payments-ready` (payment succeeds) · `verifying` · `paid` (verifying → confirmed) ·
+`declined` (refund progress) · `cancelled` · `expired` · `capacity-unavailable` ·
+`request-window-closed` · `cutoff-passed` · `token-expired`
+
+**Cancelling and reviewing**
+`partial-refund` (routes to a human) · `not-cancellable` · `quote-moved` ·
+`already-reviewed`
+
+The dive listing (`try-dive-nemo-reef`) carries a health screener and a minimum
+age; the kayak (`mangrove-kayak-at-dawn`) has neither, and no contracted price.
+The snorkel trip is request-mode.
+
+## What is built
+
+Every traveller screen from the approved prototype, T1–T12.
+
+| Route            | Screen                                                             |
+| ---------------- | ------------------------------------------------------------------ |
+| `/`              | T2 — the reels feed                                                |
+| `/search`        | Date-first discovery. The day pills are the primary control        |
+| `/e/[slug]`      | T3 experience detail (static + ISR) and T4 availability            |
+| `/e/[slug]/book` | T6 checkout and T7 safety gates                                    |
+| `/booking#t=…`   | T8 payment, T9 confirmed, T10 status over time, T12 weather cancel |
+| `/trips`         | Bookings kept on this device — no account, works offline           |
+| `/trips/recover` | "I lost my link" — OTP to the phone that booked                    |
+| `/account`       | T5 optional sign-in, T11 every trip on this number                 |
+| `/trip/[token]`  | The shared view. No payer details, cannot cancel                   |
+| `/go/[code]`     | T1 QR arrival, recorded server-side                                |
+| `/offline`       | The service worker's fallback                                      |
 
 ## Verify
 
 ```bash
-pnpm verify    # typecheck · lint · format:check · test · contract:check · build
+pnpm verify       # typecheck · lint · format · qa · test · contract:check · build
+pnpm verify:full  # the above, then the end-to-end suite
+pnpm qa           # the static sweep on its own
+pnpm test:e2e     # 36 e2e tests, incl. axe on every route
 ```
 
-`pnpm verify` is the pre-push gate. All six must pass.
+`pnpm verify` is the pre-push gate. All seven steps must pass.
+
+**`pnpm qa` catches what the other six cannot**: a link to a route that does not
+exist, a nav entry with no page, a screen that queries but renders no loading or
+error state, a symbol-only button with no accessible name, paise divided by
+hand, `toLocale*` on a date. None of those fail a build; all are visible to a
+traveller.
 
 ## The contract
 
