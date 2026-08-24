@@ -15,6 +15,7 @@ import {
 } from "@/components/states";
 import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
+import { marketDateRange } from "@/lib/booking/availability-window";
 
 type Slot = components["schemas"]["Slot"];
 type BookingMode = components["schemas"]["BookingMode"];
@@ -38,21 +39,6 @@ type BookingMode = components["schemas"]["BookingMode"];
  * comes back to this tab after ten minutes must not be looking at a seat count
  * from before they left.
  */
-/** The window we ask for. Two weeks is what somebody on an island plans in. */
-const WINDOW_DAYS = 14;
-
-function marketDateRange(days: number): { from: string; to: string } {
-  // Anchored on the MARKET's today, not the device's — a phone west of IST is
-  // otherwise a day behind and asks for a range that has already started.
-  const now = new Date();
-  const marketToday = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-  }).format(now);
-  const end = new Date(`${marketToday}T00:00:00+05:30`);
-  end.setDate(end.getDate() + days);
-  return { from: marketToday, to: end.toISOString().slice(0, 10) };
-}
-
 export function AvailabilityPicker({
   slug,
   bookingMode,
@@ -62,7 +48,7 @@ export function AvailabilityPicker({
 }) {
   // Computed once per mount. Recomputing per render would change the query
   // key at midnight mid-session and silently refetch.
-  const [range] = useState(() => marketDateRange(WINDOW_DAYS));
+  const [range] = useState(() => marketDateRange());
 
   const {
     data,

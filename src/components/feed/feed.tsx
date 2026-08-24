@@ -51,20 +51,47 @@ export function Feed({ filters = {} }: { filters?: FeedFilters }) {
 
   const items = flattenFeed(data?.pages);
 
-  // Which card is filling the viewport.
-  const observeCard = useCallback(
-    (node: HTMLElement | null, index: number) => {
-      if (!node) return;
-      const obs = new IntersectionObserver(
-        (entries) => {
-          for (const e of entries) {
-            if (e.isIntersecting) setActiveIndex(index);
-          }
-        },
-        { threshold: 0.6, root: scrollerRef.current },
-      );
-      obs.observe(node);
-      return () => obs.disconnect();
+  /**
+   * A STABLE ref callback per card index.
+   *
+   * Two bugs live here if this is written the obvious way.
+   *
+   * The first: returning nothing (or discarding the return with `void`) means
+   * the IntersectionObserver is never disconnected. React 19 runs a ref
+   * callback's returned cleanup on detach, and that return is the only thing
+   * releasing the observer.
+   *
+   * The second is worse and less visible: an INLINE arrow in the JSX has a new
+   * identity on every render, so React detaches and re-attaches every ref —
+   * tearing down and rebuilding every card's observer — and this component
+   * re-renders on every scroll, because that is how `activeIndex` updates. The
+   * callbacks are therefore memoised per index and reused.
+   */
+  const refCallbacks = useRef(
+    new Map<number, (node: HTMLElement | null) => (() => void) | undefined>(),
+  );
+
+  const cardRef = useCallback(
+    (index: number) => {
+      const existing = refCallbacks.current.get(index);
+      if (existing) return existing;
+
+      const fn = (node: HTMLElement | null) => {
+        if (!node) return undefined;
+        const obs = new IntersectionObserver(
+          (entries) => {
+            for (const e of entries) {
+              if (e.isIntersecting) setActiveIndex(index);
+            }
+          },
+          { threshold: 0.6, root: scrollerRef.current },
+        );
+        obs.observe(node);
+        return () => obs.disconnect();
+      };
+
+      refCallbacks.current.set(index, fn);
+      return fn;
     },
     [setActiveIndex],
   );
@@ -128,20 +155,17 @@ export function Feed({ filters = {} }: { filters?: FeedFilters }) {
       aria-busy={isFetchingNextPage}
     >
       {items.map((experience, i) => (
-        <div
+        <ExperienceCard
           key={experience.id}
-          ref={(node) => void observeCard(node, i)}
-          className="h-full w-full"
-        >
-          <ExperienceCard
-            experience={experience}
-            index={i}
-            active={i === activeIndex}
-            mounted={shouldMount(i)}
-            muted={muted}
-            autoplayAllowed={autoplayAllowed}
-          />
-        </div>
+          ref={cardRef(i)}
+          experience={experience}
+          index={i}
+          total={items.length}
+          active={i === activeIndex}
+          mounted={shouldMount(i)}
+          muted={muted}
+          autoplayAllowed={autoplayAllowed}
+        />
       ))}
 
       {/* Sentinel. Only rendered while the server says there is more. */}

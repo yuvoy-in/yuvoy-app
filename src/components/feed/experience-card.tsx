@@ -23,6 +23,8 @@ export function ExperienceCard({
   muted,
   autoplayAllowed,
   index,
+  total,
+  ref,
 }: {
   experience: ExperienceSummary;
   active: boolean;
@@ -30,14 +32,19 @@ export function ExperienceCard({
   muted: boolean;
   autoplayAllowed: boolean;
   index: number;
+  total: number;
+  /** The article IS the observed element: role="feed" owns articles directly. */
+  ref?: React.Ref<HTMLElement>;
 }) {
   const price = formatFromPrice(experience.fromPrice);
   const instant = experience.bookingMode === "allotment";
 
   return (
     <article
+      ref={ref}
       className="bg-abyss relative h-full w-full snap-start snap-always overflow-hidden"
       aria-posinset={index + 1}
+      aria-setsize={total}
       aria-label={experience.title}
     >
       {experience.heroMedia ? (
