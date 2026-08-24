@@ -14,6 +14,9 @@ import {
   LoadingState,
   Skeleton,
 } from "@/components/states";
+import { CancelSheet } from "./cancel-sheet";
+import { ShareButton } from "./share-button";
+import { ReviewForm } from "./review-form";
 import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
 
@@ -103,7 +106,12 @@ export function BookingScreen() {
 
   return (
     <Shell>
-      <StatusBody status={data} live={!gaveUp} />
+      <StatusBody
+        status={data}
+        live={!gaveUp}
+        token={token}
+        onChanged={() => void refetch()}
+      />
       {gaveUp && !data.final ? <HandOver status={data} /> : null}
     </Shell>
   );
@@ -114,11 +122,28 @@ export function BookingScreen() {
 function StatusBody({
   status,
   live,
+  token,
+  onChanged,
 }: {
   status: BookingStatus;
   live: boolean;
+  /** Absent when rendering an offline snapshot — every action needs network. */
+  token?: string | null;
+  onChanged?: () => void;
 }) {
   const copy = STATE_COPY[status.state];
+  const [cancelling, setCancelling] = useState(false);
+
+  // Read the clock ONCE, outside the render path. Reading it during render is
+  // impure and the React compiler refuses it — and "is this trip still ahead"
+  // does not need to be re-evaluated between frames.
+  const [now] = useState(() => Date.now());
+
+  // Confirmed and still ahead of us: sharing and cancelling both make sense.
+  // A trip that has already left can do neither.
+  const upcoming =
+    status.state === "confirmed" &&
+    new Date(status.slot.startsAt).getTime() > now;
 
   return (
     <div>
@@ -166,6 +191,35 @@ function StatusBody({
       </dl>
 
       {status.refund ? <RefundProgress refund={status.refund} /> : null}
+
+      {/* Actions need the network, so they are absent on an offline snapshot. */}
+      {token && upcoming ? <ShareButton token={token} /> : null}
+
+      {token && upcoming && !cancelling ? (
+        <button
+          type="button"
+          onClick={() => setCancelling(true)}
+          className="label text-forest/60 tap-target hover:text-forest mt-4 underline underline-offset-2"
+        >
+          I need to cancel
+        </button>
+      ) : null}
+
+      {token && cancelling ? (
+        <CancelSheet
+          token={token}
+          onDone={() => {
+            setCancelling(false);
+            onChanged?.();
+          }}
+          onClose={() => setCancelling(false)}
+        />
+      ) : null}
+
+      {/* Reviews unlock only on a trip that actually happened. */}
+      {token && status.state === "completed" ? (
+        <ReviewForm token={token} />
+      ) : null}
 
       {live && !status.final ? (
         <p className="text-forest/50 mt-6 text-xs" role="status">

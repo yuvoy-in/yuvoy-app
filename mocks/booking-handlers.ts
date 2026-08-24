@@ -392,6 +392,102 @@ export const bookingHandlers = [
       { headers: { "x-request-id": rid() } },
     );
   }),
+  /* ------------------------------------------------ cancel / share / review */
+
+  http.get(url("/bookings/cancellation-quote"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+
+    if (scenario === "partial-refund") {
+      // selfService false: a partial refund is a person's decision, and the
+      // UI must hide the button rather than show one that gets refused.
+      return HttpResponse.json({
+        cancellable: true,
+        selfService: false,
+        capturedPaise: 900000,
+        refundPaise: 450000,
+        refundTier: "half",
+        hoursBeforeStart: 20,
+        note: "Under 24 hours, so this one is half back and a person checks it.",
+      });
+    }
+    if (scenario === "not-cancellable") {
+      return HttpResponse.json({
+        cancellable: false,
+        selfService: false,
+        reason: "This departure has already left.",
+      });
+    }
+
+    return HttpResponse.json({
+      bookingReference: "YV-4K2M9P7Q",
+      cancellable: true,
+      selfService: true,
+      capturedPaise: 900000,
+      refundPaise: 900000,
+      refundTier: "full",
+      hoursBeforeStart: 72,
+    });
+  }),
+
+  http.post(url("/bookings/cancellation"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    const body = (await request.json()) as { expectedRefundPaise: number };
+
+    // The quote moved between quoting and committing.
+    if (scenario === "quote-moved" || body.expectedRefundPaise !== 900000) {
+      return envelope(
+        "refund_quote_moved",
+        "The refund changed while you were deciding.",
+        409,
+      );
+    }
+
+    return HttpResponse.json({
+      bookingReference: "YV-4K2M9P7Q",
+      state: "cancelled",
+      refundPaise: body.expectedRefundPaise,
+      refundTier: "full",
+      seatsReleased: 2,
+    });
+  }),
+
+  http.post(url("/bookings/share"), async () =>
+    HttpResponse.json(
+      {
+        shareUrl: "http://localhost:3000/trip/shr_sample",
+        expiresIn: 604800,
+        reveals:
+          "Shows the meeting point and the time. Not what anyone paid, and it cannot cancel anything.",
+      },
+      { status: 201, headers: { "x-request-id": rid() } },
+    ),
+  ),
+
+  http.get(url("/trips/:token"), async ({ params }) => {
+    if (String(params.token) === "missing") {
+      return envelope("not_found", "That link is not valid.", 404);
+    }
+    return HttpResponse.json({
+      experience: "Try-dive at Nemo Reef",
+      operator: "Sample Dive Operator",
+      localDate: "2026-08-22",
+      localTime: "07:00",
+      meetingPoint: "Jetty 2, Havelock",
+      landmark: "The blue kiosk, 15 minutes before.",
+      durationMinutes: 180,
+      bring: ["Swimwear", "A towel", "Sunscreen"],
+      partySize: 2,
+      cancelled: false,
+    });
+  }),
+
+  http.post(url("/bookings/review"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    if (scenario === "already-reviewed") {
+      return envelope("conflict", "This trip was already reviewed.", 409);
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];
 
 /** Test-only: forget every reservation between cases. */
