@@ -8,6 +8,7 @@ src/lib/api/schema.gen.ts
 
 # Vendored by `msw init`.
 public/mockServiceWorker.js
+public/sw.js
 
 .next/
 node_modules/

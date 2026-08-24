@@ -59,6 +59,7 @@ describe("palette", () => {
       "app/layout.tsx",
       "app/error.tsx",
       "app/not-found.tsx",
+      "app/offline/page.tsx",
       "app/globals.css",
       "app/search/page.tsx",
       "app/trips/page.tsx",

@@ -3,6 +3,7 @@ import { fraunces, satoshi } from "@/lib/fonts";
 import { Providers } from "@/components/providers";
 import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
+import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { THEME_COLOR } from "@/lib/site/theme";
 import "./globals.css";
 
@@ -42,6 +43,7 @@ export default function RootLayout({
         >
           Skip to content
         </a>
+        <RegisterServiceWorker />
         <MswProvider>
           <Providers>
             <AppShell>{children}</AppShell>
