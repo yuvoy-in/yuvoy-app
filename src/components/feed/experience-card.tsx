@@ -24,7 +24,6 @@ export function ExperienceCard({
   autoplayAllowed,
   index,
   total,
-  ref,
 }: {
   experience: ExperienceSummary;
   active: boolean;
@@ -33,15 +32,16 @@ export function ExperienceCard({
   autoplayAllowed: boolean;
   index: number;
   total: number;
-  /** The article IS the observed element: role="feed" owns articles directly. */
-  ref?: React.Ref<HTMLElement>;
 }) {
   const price = formatFromPrice(experience.fromPrice);
   const instant = experience.bookingMode === "allotment";
 
   return (
     <article
-      ref={ref}
+      // Read by the feed's single IntersectionObserver. The index travels on
+      // the node rather than through a closure, so the observer does not need
+      // to be rebuilt when the list re-renders.
+      data-feed-index={index}
       className="bg-abyss relative h-full w-full snap-start snap-always overflow-hidden"
       aria-posinset={index + 1}
       aria-setsize={total}

@@ -52,49 +52,48 @@ export function Feed({ filters = {} }: { filters?: FeedFilters }) {
   const items = flattenFeed(data?.pages);
 
   /**
-   * A STABLE ref callback per card index.
+   * ONE observer for the whole feed, wired in an effect.
    *
-   * Two bugs live here if this is written the obvious way.
+   * Three attempts led here, and the first two are worth recording.
    *
-   * The first: returning nothing (or discarding the return with `void`) means
-   * the IntersectionObserver is never disconnected. React 19 runs a ref
-   * callback's returned cleanup on detach, and that return is the only thing
-   * releasing the observer.
+   * A per-card ref that returned nothing leaked an IntersectionObserver per
+   * card per mount — React 19 runs a ref callback's returned cleanup on
+   * detach, and that return is the only thing releasing the observer.
    *
-   * The second is worse and less visible: an INLINE arrow in the JSX has a new
-   * identity on every render, so React detaches and re-attaches every ref —
-   * tearing down and rebuilding every card's observer — and this component
-   * re-renders on every scroll, because that is how `activeIndex` updates. The
-   * callbacks are therefore memoised per index and reused.
+   * Returning the cleanup fixed the leak but not the churn: an inline ref
+   * arrow changes identity every render, so React re-attached every ref and
+   * rebuilt every observer — and this component re-renders on every scroll,
+   * because that is how activeIndex updates. Memoising the callbacks fixed
+   * that but required reading a ref during render, which is not allowed.
+   *
+   * One observer over the scroller's children sidesteps all of it: it is set
+   * up once per item count, torn down once, and the index travels on the DOM
+   * node as a data attribute rather than through a closure.
    */
-  const refCallbacks = useRef(
-    new Map<number, (node: HTMLElement | null) => (() => void) | undefined>(),
-  );
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
 
-  const cardRef = useCallback(
-    (index: number) => {
-      const existing = refCallbacks.current.get(index);
-      if (existing) return existing;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const index = Number(
+            (entry.target as HTMLElement).dataset.feedIndex ?? "-1",
+          );
+          if (index >= 0) setActiveIndex(index);
+        }
+      },
+      { threshold: 0.6, root: scroller },
+    );
 
-      const fn = (node: HTMLElement | null) => {
-        if (!node) return undefined;
-        const obs = new IntersectionObserver(
-          (entries) => {
-            for (const e of entries) {
-              if (e.isIntersecting) setActiveIndex(index);
-            }
-          },
-          { threshold: 0.6, root: scrollerRef.current },
-        );
-        obs.observe(node);
-        return () => obs.disconnect();
-      };
+    for (const card of scroller.querySelectorAll("[data-feed-index]")) {
+      observer.observe(card);
+    }
 
-      refCallbacks.current.set(index, fn);
-      return fn;
-    },
-    [setActiveIndex],
-  );
+    return () => observer.disconnect();
+    // Re-runs when the item count changes, which is when a page arrives.
+  }, [items.length, setActiveIndex]);
 
   // Infinite scroll. Fires early enough that the next page is usually there
   // before the traveller reaches it, which on a slow connection is the whole
@@ -157,7 +156,6 @@ export function Feed({ filters = {} }: { filters?: FeedFilters }) {
       {items.map((experience, i) => (
         <ExperienceCard
           key={experience.id}
-          ref={cardRef(i)}
           experience={experience}
           index={i}
           total={items.length}
