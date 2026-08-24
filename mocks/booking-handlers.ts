@@ -364,6 +364,34 @@ export const bookingHandlers = [
       { headers: { "x-request-id": rid() } },
     );
   }),
+  /* --------------------------------------------------------- recovery */
+
+  // 202 for EVERY number, whether or not it booked. A different answer would
+  // turn this into a way to test whether a phone number has a Yuvoy booking.
+  http.post(url("/bookings/recovery/request"), async () =>
+    HttpResponse.json(
+      { devCode: "123456" },
+      { status: 202, headers: { "x-request-id": rid() } },
+    ),
+  ),
+
+  http.post(url("/bookings/recovery/verify"), async ({ request }) => {
+    const { code } = (await request.json()) as { phone: string; code: string };
+    if (code !== "123456") {
+      return envelope("unauthorized", "That code is not right.", 401);
+    }
+    // A FRESH token. The previous link stops working.
+    const existing = [...reservations.values()][0];
+    if (!existing)
+      return envelope("not_found", "No booking for that number.", 404);
+
+    const token = `tok_recovered_${Math.random().toString(36).slice(2)}`;
+    byToken.set(token, existing.reservationId);
+    return HttpResponse.json(
+      { statusToken: token, note: "Your previous link no longer works." },
+      { headers: { "x-request-id": rid() } },
+    );
+  }),
 ];
 
 /** Test-only: forget every reservation between cases. */

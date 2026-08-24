@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useId, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
@@ -13,6 +13,7 @@ import { describeError } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
 import { cn } from "@/lib/cn";
+import { Field } from "@/components/ui/field";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -205,24 +206,24 @@ export function CheckoutForm({
         <Field
           label="Your name"
           value={name}
-          onChange={setName}
+          onChange={(e) => setName(e.target.value)}
           autoComplete="name"
           required
         />
         <Field
           label="WhatsApp number"
-          value={whatsapp}
-          onChange={setWhatsapp}
           type="tel"
+          value={whatsapp}
+          onChange={(e) => setWhatsapp(e.target.value)}
           autoComplete="tel"
           hint="This is how we send your booking and reach you if the sea changes."
           required
         />
         <Field
           label="Email (optional)"
-          value={email}
-          onChange={setEmail}
           type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
         />
       </div>
@@ -354,57 +355,5 @@ export function CheckoutForm({
         ) : null}
       </div>
     </form>
-  );
-}
-
-/**
- * A labelled field.
- *
- * The hint sits OUTSIDE the <label> and is bound with aria-describedby. Inside
- * it, the hint becomes part of the accessible name — a screen reader would
- * announce "WhatsApp number This is how we send your booking and reach you if
- * the sea changes" as the field's name every time it gained focus.
- */
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-  hint,
-  required,
-  autoComplete,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  hint?: string;
-  required?: boolean;
-  autoComplete?: string;
-}) {
-  const id = useId();
-  const hintId = hint ? `${id}-hint` : undefined;
-
-  return (
-    <div>
-      <label htmlFor={id} className="label text-forest/75">
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        required={required}
-        autoComplete={autoComplete}
-        aria-describedby={hintId}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-edge border-cream-line bg-cream-deep focus:border-terra-deep mt-2 h-12 w-full border px-3.5 text-base outline-none"
-      />
-      {hint ? (
-        <span id={hintId} className="text-forest/60 mt-1.5 block text-xs">
-          {hint}
-        </span>
-      ) : null}
-    </div>
   );
 }

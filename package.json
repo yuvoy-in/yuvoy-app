@@ -19,7 +19,8 @@
     "test:e2e": "playwright test",
     "codegen": "openapi-typescript contracts/openapi.yaml -o src/lib/api/schema.gen.ts && prettier --write src/lib/api/schema.gen.ts",
     "contract:check": "node scripts/check-contract-drift.mjs",
-    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm contract:check && pnpm build",
+    "qa": "node scripts/qa.mjs",
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm qa && pnpm test && pnpm contract:check && pnpm build",
     "prepare": "husky"
   },
   "dependencies": {
