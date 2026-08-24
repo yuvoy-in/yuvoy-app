@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { ErrorState } from "@/components/states";
+import { captureError } from "@/lib/observability/report";
 
 export default function AppError({
   error,
@@ -11,8 +12,8 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Sentry goes here once wired. Logged rather than swallowed either way.
-    console.error(error);
+    // Through the seam, so the URL is scrubbed before anything sees it.
+    captureError(error, { scope: "route-boundary", digest: error.digest });
   }, [error]);
 
   return (
