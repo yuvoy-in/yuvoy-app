@@ -488,6 +488,48 @@ export const bookingHandlers = [
     }
     return new HttpResponse(null, { status: 204 });
   }),
+  /* --------------------------------------------------------------- auth */
+
+  http.post(url("/auth/otp/request"), async () =>
+    HttpResponse.json(
+      { devCode: "123456" },
+      { status: 202, headers: { "x-request-id": rid() } },
+    ),
+  ),
+
+  http.post(url("/auth/otp/verify"), async ({ request }) => {
+    const { phone, code } = (await request.json()) as {
+      phone: string;
+      code: string;
+    };
+    if (code !== "123456") {
+      return envelope("unauthorized", "That code is not right.", 401);
+    }
+    return HttpResponse.json({
+      accessToken: "acc_mock",
+      refreshToken: "ref_mock",
+      user: { id: "usr_mock", phone, role: "seeker", name: "Asha Menon" },
+    });
+  }),
+
+  http.get(url("/me/bookings"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    return HttpResponse.json({
+      bookings: [...reservations.values()].map((r) => ({
+        reference: r.reference,
+        experience: "Try-dive at Nemo Reef",
+        operator: "Sample Dive Operator",
+        localDate: "2026-08-22",
+        localTime: "07:00",
+        state: "confirmed",
+        guests: r.guests,
+        meetingPoint: "Jetty 2, Havelock",
+        statusToken: r.token,
+      })),
+    });
+  }),
 ];
 
 /** Test-only: forget every reservation between cases. */
