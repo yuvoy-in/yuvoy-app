@@ -1,0 +1,55 @@
+{
+  "//": "Budgets set for a mid-range Android on island 4G, not a laptop on fibre. The traveller this product is for has a Moto G-class phone and 0.5-3 Mbps, so a budget met on a MacBook proves nothing.",
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm start --port 3101",
+      "url": [
+        "http://127.0.0.1:3101/",
+        "http://127.0.0.1:3101/e/try-dive-nemo-reef",
+        "http://127.0.0.1:3101/search",
+        "http://127.0.0.1:3101/guides"
+      ],
+      "numberOfRuns": 3,
+      "settings": {
+        "preset": "desktop",
+        "formFactor": "mobile",
+        "screenEmulation": {
+          "mobile": true,
+          "width": 412,
+          "height": 915,
+          "deviceScaleFactor": 2.625,
+          "disabled": false
+        },
+        "throttling": {
+          "rttMs": 150,
+          "throughputKbps": 1638,
+          "cpuSlowdownMultiplier": 4,
+          "requestLatencyMs": 562.5,
+          "downloadThroughputKbps": 1474,
+          "uploadThroughputKbps": 675
+        }
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.85 }],
+        "categories:accessibility": ["error", { "minScore": 1 }],
+        "categories:best-practices": ["error", { "minScore": 0.9 }],
+        "categories:seo": ["warn", { "minScore": 0.9 }],
+
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+        "total-blocking-time": ["error", { "maxNumericValue": 300 }],
+
+        "//": "hls.js is excluded from the first-load budget by being lazy — if it lands in the initial bundle this fires.",
+        "total-byte-weight": ["error", { "maxNumericValue": 900000 }],
+        "unused-javascript": ["warn", { "maxNumericValue": 100000 }],
+
+        "//uses-responsive-images": "Posters are data-URIs in mocked builds, which the audit cannot evaluate.",
+        "uses-responsive-images": "off",
+        "is-crawlable": "off"
+      }
+    },
+    "upload": { "target": "temporary-public-storage" }
+  }
+}

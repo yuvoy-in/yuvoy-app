@@ -108,6 +108,9 @@ describe("palette", () => {
       // The fixture posters. Their literals are asserted to BE tokens below,
       // which is stronger than banning them.
       "mocks/fixtures.ts",
+      // The OG card renders through Satori, outside the CSS pipeline, so a
+      // custom property cannot reach it. Asserted to be tokens below.
+      "src/app/opengraph-image.tsx",
     ];
     const offenders = FILES.filter((f) => /#[0-9a-fA-F]{6}\b/.test(read(f)))
       .map(rel)
@@ -139,6 +142,25 @@ describe("palette", () => {
     for (const hex of used) expect(tokens).toContain(hex);
     // The retired dark, by name, so it can never come back.
     expect(used).not.toContain("#0d3b3e");
+  });
+
+  it("builds the OG card from real tokens too", () => {
+    // A share card travels further than the page it came from; an off-palette
+    // one is the most visible possible place to be off-brand.
+    const css = readFileSync(join(SRC, "app/globals.css"), "utf8");
+    const tokens = new Set(
+      [...css.matchAll(/--color-[a-z-]+:\s*(#[0-9a-fA-F]{6})/g)].map((m) =>
+        m[1].toLowerCase(),
+      ),
+    );
+    const og = stripComments(
+      readFileSync(join(SRC, "app/opengraph-image.tsx"), "utf8"),
+    );
+    const used = [...og.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
+      m[0].toLowerCase(),
+    );
+    expect(used.length).toBeGreaterThan(0);
+    for (const hex of used) expect(tokens).toContain(hex);
   });
 
   it("keeps THEME_COLOR equal to the forest token", () => {

@@ -74,3 +74,33 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  lighthouse:
+    name: performance budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Mocked, so the budgets measure OUR bytes rather than the API's latency.
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_API_MOCKING: enabled
+
+      # Budgets are set for a mid-range Android on island 4G — see
+      # lighthouserc.json. A budget met on CI's fast CPU proves nothing, which
+      # is why the config throttles hard rather than trusting the runner.
+      - run: pnpm dlx @lhci/cli@0.14.x autorun
+        env:
+          NEXT_PUBLIC_API_MOCKING: enabled
