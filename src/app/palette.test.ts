@@ -10,6 +10,12 @@ import { join } from "node:path";
  */
 
 const SRC = join(process.cwd(), "src");
+/**
+ * mocks/ is scanned too. An off-palette fixture is exactly how #0D3B3E — the
+ * retired `teal` — reached the feed and was reported by the owner: the colour
+ * lived in a data-URI in a fixture, which no `src`-only scan would ever see.
+ */
+const MOCKS = join(process.cwd(), "mocks");
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -36,9 +42,11 @@ function stripComments(src: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1"); // line, but not a URL's //
 }
 
-const FILES = walk(SRC).filter((f) => !/\.test\.tsx?$/.test(f));
+const FILES = [...walk(SRC), ...walk(MOCKS)].filter(
+  (f) => !/\.test\.tsx?$/.test(f),
+);
 const read = (f: string) => stripComments(readFileSync(f, "utf8"));
-const rel = (f: string) => f.slice(SRC.length + 1);
+const rel = (f: string) => f.replace(process.cwd() + "/", "");
 
 describe("palette", () => {
   it("has exactly one near-black, and it is abyss", () => {
@@ -53,18 +61,18 @@ describe("palette", () => {
     // `abyss` is a ground and an object's colour, never a surface. The moment
     // a content section takes it, the one-dark rule is dead.
     const ALLOWED = [
-      "components/feed/",
-      "components/chrome/app-shell.tsx",
-      "components/states/",
-      "app/layout.tsx",
-      "app/error.tsx",
-      "app/not-found.tsx",
-      "app/offline/page.tsx",
-      "app/globals.css",
-      "app/search/page.tsx",
-      "app/trips/page.tsx",
-      "app/account/page.tsx",
-      "components/experience/experience-detail.tsx",
+      "src/components/feed/",
+      "src/components/chrome/app-shell.tsx",
+      "src/components/states/",
+      "src/app/layout.tsx",
+      "src/app/error.tsx",
+      "src/app/not-found.tsx",
+      "src/app/offline/page.tsx",
+      "src/app/globals.css",
+      "src/app/search/page.tsx",
+      "src/app/trips/page.tsx",
+      "src/app/account/page.tsx",
+      "src/components/experience/experience-detail.tsx",
     ];
 
     const offenders = FILES.filter((f) => /\bbg-abyss\b/.test(read(f)))
@@ -94,11 +102,43 @@ describe("palette", () => {
   it("uses no raw hex outside the token block", () => {
     // Two sanctioned locations, both documented: the @theme block, and the
     // single literal Next needs for viewport.themeColor before CSS exists.
-    const ALLOWED = ["app/globals.css", "lib/site/theme.ts"];
+    const ALLOWED = [
+      "src/app/globals.css",
+      "src/lib/site/theme.ts",
+      // The fixture posters. Their literals are asserted to BE tokens below,
+      // which is stronger than banning them.
+      "mocks/fixtures.ts",
+    ];
     const offenders = FILES.filter((f) => /#[0-9a-fA-F]{6}\b/.test(read(f)))
       .map(rel)
       .filter((f) => !ALLOWED.includes(f));
     expect(offenders).toEqual([]);
+  });
+
+  it("builds fixture posters from real tokens and nothing else", () => {
+    // The reported bug: the reel posters used #0D3B3E (`teal`, retired in
+    // v2.1) and a near-black that was not `abyss`.
+    const css = readFileSync(join(SRC, "app/globals.css"), "utf8");
+    const tokens = new Set(
+      [...css.matchAll(/--color-[a-z-]+:\s*(#[0-9a-fA-F]{6})/g)].map((m) =>
+        m[1].toLowerCase(),
+      ),
+    );
+
+    // stripComments matters here: the file names the retired colour in a
+    // comment explaining why it must never return. Reading comments would
+    // flag the file for documenting its own rule.
+    const fixtures = stripComments(
+      readFileSync(join(MOCKS, "fixtures.ts"), "utf8"),
+    );
+    const used = [...fixtures.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
+      m[0].toLowerCase(),
+    );
+
+    expect(used.length).toBeGreaterThan(0);
+    for (const hex of used) expect(tokens).toContain(hex);
+    // The retired dark, by name, so it can never come back.
+    expect(used).not.toContain("#0d3b3e");
   });
 
   it("keeps THEME_COLOR equal to the forest token", () => {

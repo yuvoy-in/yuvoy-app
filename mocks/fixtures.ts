@@ -30,20 +30,54 @@ const inr = (rupees: number): Money => ({
   currency: "INR",
 });
 
-const poster = (seed: string): Media => ({
-  id: `med_${seed}`,
-  kind: "video",
-  // A data-URI gradient: no network, no rights question, and it still proves
-  // the poster-first path. Real posters come from Cloudflare Stream.
-  posterUrl: `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d3b3e"/><stop offset="1" stop-color="#06100d"/></linearGradient></defs><rect width="360" height="640" fill="url(#g)"/></svg>`,
-  )}`,
-  aspectRatio: "9:16",
-  durationSeconds: 42,
-  alt: "Placeholder poster frame",
-  // hlsUrl deliberately absent — not populated before M15. The feed must be
-  // complete without it.
-});
+/**
+ * Placeholder poster frames, built from the REAL tokens.
+ *
+ * The first version used #0D3B3E — which is `teal`, the colour Brand Kit v2.1
+ * retired precisely because two darks read as a mistake — and a near-black that
+ * was not `abyss`. Nothing off-palette can appear here now: the values come
+ * from one map, and palette.test.ts scans this directory.
+ *
+ * Deliberately abstract rather than pretending to be dive footage. These are
+ * data-URIs: no network, no rights question, and they still exercise the
+ * poster-first path exactly as a real Cloudflare poster would.
+ */
+const TOKEN = {
+  abyss: "#0a100e",
+  forest: "#16362e",
+  terra: "#be7149",
+  cream: "#f4efe4",
+} as const;
+
+/** Each listing gets a different depth, so the feed does not look duplicated. */
+const DEPTHS = [0.55, 0.72, 0.4, 0.85, 0.62] as const;
+
+const poster = (seed: string, variant = 0): Media => {
+  const depth = DEPTHS[variant % DEPTHS.length];
+  // A vertical fall from forest into abyss — the media ground — with a single
+  // terracotta mark for the accent. The whole palette and nothing else.
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640" viewBox="0 0 360 640">
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="${TOKEN.forest}"/>
+<stop offset="${depth}" stop-color="${TOKEN.abyss}"/>
+<stop offset="1" stop-color="${TOKEN.abyss}"/>
+</linearGradient></defs>
+<rect width="360" height="640" fill="url(#g)"/>
+<circle cx="180" cy="${Math.round(200 + variant * 24)}" r="52" fill="none" stroke="${TOKEN.cream}" stroke-opacity="0.14" stroke-width="1.5"/>
+<rect x="176" y="${Math.round(196 + variant * 24)}" width="7" height="7" fill="${TOKEN.terra}"/>
+</svg>`;
+
+  return {
+    id: `med_${seed}`,
+    kind: "video",
+    posterUrl: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    aspectRatio: "9:16",
+    durationSeconds: 42,
+    alt: "Placeholder poster frame",
+    // hlsUrl deliberately absent — not populated before M15. The feed must be
+    // complete without it.
+  };
+};
 
 const operatorReef: components["schemas"]["OperatorSummary"] = {
   id: "op_reef",
@@ -86,7 +120,7 @@ export const EXPERIENCES: ExperienceSummary[] = [
     durationMinutes: 180,
     maxPartySize: 6,
     fromPrice: inr(4500),
-    heroMedia: poster("dive"),
+    heroMedia: poster("dive", 0),
     operator: operatorReef,
     nextAvailable: "2026-08-20",
     seatsOnNext: 4,
@@ -103,7 +137,7 @@ export const EXPERIENCES: ExperienceSummary[] = [
     durationMinutes: 240,
     maxPartySize: 10,
     fromPrice: inr(2200),
-    heroMedia: poster("snorkel"),
+    heroMedia: poster("snorkel", 1),
     operator: operatorBlue,
     nextAvailable: "2026-08-21",
     // No seatsOnNext: request mode holds nothing, so a number here would be a
@@ -121,7 +155,7 @@ export const EXPERIENCES: ExperienceSummary[] = [
     durationMinutes: 480,
     maxPartySize: 8,
     fromPrice: inr(18000),
-    heroMedia: poster("charter"),
+    heroMedia: poster("charter", 2),
     operator: operatorBlue,
     nextAvailable: "2026-08-22",
     seatsOnNext: 8,
@@ -138,7 +172,7 @@ export const EXPERIENCES: ExperienceSummary[] = [
     durationMinutes: 150,
     // NO fromPrice — no contracted price exists yet. The card must say so
     // rather than render ₹0.
-    heroMedia: poster("kayak"),
+    heroMedia: poster("kayak", 3),
     operator: operatorNew,
     nextAvailable: "2026-08-23",
     seatsOnNext: 2,
@@ -154,7 +188,7 @@ export const EXPERIENCES: ExperienceSummary[] = [
     bookingMode: "request",
     durationMinutes: 300,
     fromPrice: inr(3400),
-    heroMedia: poster("night"),
+    heroMedia: poster("night", 4),
     operator: operatorBlue,
     // NO nextAvailable — nothing bookable in the next 90 days. The card must
     // say that, not stay silent and cost the traveller a tap.

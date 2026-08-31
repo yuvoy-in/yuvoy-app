@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Desktop rail. Hidden below lg, where the tab bar takes over. */}
       <aside className="app-chrome border-cream/10 hidden w-56 shrink-0 flex-col border-r lg:flex">
         <div className="px-4 py-6">
-          <Wordmark tone="cream" className="h-7" />
+          <Wordmark tone="cream" className="h-10" priority />
         </div>
         <nav aria-label="Primary" className="px-2">
           <NavList orientation="rail" />
@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile masthead. The rail carries the mark on desktop. */}
         <header className="app-chrome flex h-14 items-center px-5 lg:hidden">
-          <Wordmark tone="cream" className="h-6" />
+          <Wordmark tone="cream" className="h-9" priority />
         </header>
 
         <main id="main" className="min-w-0 flex-1">
