@@ -29,6 +29,19 @@ info:
 servers:
   - url: https://api.yuvoy.in/operator/v1
     description: Production
+  - url: https://dev.api.yuvoy.in/operator/v1
+    description: >-
+      Development. A second App Runner service with its own database, seeded
+      fixtures and the FAKE payment provider — so checkout, capture, refunds and
+      cancellation can be exercised end to end without a merchant account and
+      without consuming real seats.
+
+
+      It is called DEV and not staging on purpose. Staging implies a rehearsal
+      of production — same shape, same data, a place you trust a green run. This
+      is not that: the catalog is fixtures, the database is resettable, and it
+      exists to be broken. A green run here means the wiring works, never that a
+      release is safe.
   - url: http://localhost:8093/operator/v1
     description: Local development (scripts/e2e-local.sh boots this)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useFeed, flattenFeed, type FeedFilters } from "@/lib/feed/use-feed";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { ExperienceCard } from "./experience-card";

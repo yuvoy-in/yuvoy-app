@@ -261,8 +261,19 @@ const STATE_COPY: Record<
   },
   verifying: {
     eyebrow: "Checking",
-    title: "We are checking with your bank",
-    body: "If money left your account it is safe. This usually settles in a minute or two, and this page will update itself when it does.",
+    title: "Confirming your payment",
+    /*
+      Copy set by yuvoy-api#53, which answered this precisely: there is no
+      bound on `verifying` and nothing measures it, because it is a RACE
+      WINDOW of milliseconds to seconds — the moment between a payment landing
+      and the booking row becoming visible — not a waiting room. A traveller
+      sitting here for two hours is an incident, not the design.
+
+      So: no number, no countdown, and no "come back later". The prototype's
+      two-hour cap was drawn for a sustained operational state that does not
+      exist yet; publishing it would publish a promise nothing keeps.
+    */
+    body: "This usually takes a few seconds. If money left your account it is safe, and this page updates itself the moment it settles.",
   },
   confirmed: {
     eyebrow: "Confirmed",

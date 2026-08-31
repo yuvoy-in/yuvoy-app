@@ -25,10 +25,19 @@ info:
 servers:
   - url: https://api.yuvoy.in/v1
     description: Production
-    # No separate staging API exists — one App Runner service backs both the
-    # production and staging web deployments (differentiated by CORS origin,
-    # not by host). Do not add a staging entry unless a second service exists
-    # to resolve it.
+  - url: https://dev.api.yuvoy.in/v1
+    description: >-
+      Development. A second App Runner service with its own database, seeded
+      fixtures and the FAKE payment provider — so checkout, capture, refunds and
+      cancellation can be exercised end to end without a merchant account and
+      without consuming real seats.
+
+
+      It is called DEV and not staging on purpose. Staging implies a rehearsal
+      of production — same shape, same data, a place you trust a green run. This
+      is not that: the catalog is fixtures, the database is resettable, and it
+      exists to be broken. A green run here means the wiring works, never that a
+      release is safe.
   - url: http://localhost:8099/v1
     description: >-
       Local development. `scripts/dev-stack.sh` brings this up with seeded data,
@@ -1022,76 +1031,6 @@ paths:
               schema: { $ref: "#/components/schemas/BookingStatus" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /auth/otp/request:
-    post:
-      tags: [auth]
-      summary: Request an OTP to a phone number
-      operationId: requestOtp
-      deprecated: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [phone]
-              properties:
-                phone: { type: string, description: E.164 }
-      responses:
-        "202": { description: OTP dispatched }
-        "429": { $ref: "#/components/responses/RateLimited" }
-
-  /auth/otp/verify:
-    post:
-      tags: [auth]
-      summary: Verify an OTP and issue tokens
-      operationId: verifyOtp
-      deprecated: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [phone, code]
-              properties:
-                phone: { type: string }
-                code: { type: string }
-      responses:
-        "200":
-          description: Authenticated
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AuthTokens" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-
-  /me:
-    get:
-      tags: [me]
-      summary: The current user
-      operationId: getMe
-      deprecated: true
-      description: >-
-        Deprecated with the auth endpoints below. Traveller accounts are optional
-        (D-014) and their shape is settled with the reservation work; this
-        operation predates that decision and is not implemented.
-      security: [{ bearerAuth: [] }]
-      responses:
-        "501":
-          description: >-
-            Not implemented, and deprecated. Declared rather than omitted: this
-            is what the route actually answers, and a contract that promises a
-            201 it never sends is worse than one that admits the stub.
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Error" }
-        "200":
-          description: Current user
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/User" }
-        "401": { $ref: "#/components/responses/Unauthorized" }
-
 components:
   securitySchemes:
     bearerAuth:
@@ -1840,6 +1779,26 @@ components:
             Present once a booking exists. Human-quotable and **not a
             credential** — it goes on the operator's manifest and is read aloud
             on a jetty.
+        operatorUpdates:
+          type: array
+          description: >-
+            What the operator has told everybody on this departure — a time
+            change, a meeting point, a weather watch. Absent when there are
+            none; the key is omitted rather than sent empty.
+
+
+            This is where a relay note lands. Free text an operator writes is
+            shown HERE and never sent to a phone, so a traveller who is told
+            "see your booking page" has somewhere to look.
+          items:
+            type: object
+            properties:
+              intent:
+                type: string
+                enum: [time_change, meeting_point_change, weather_watch, bring_item, note]
+              detail: { type: string }
+              note: { type: string }
+              sentAt: { type: string, format: date-time }
         refund:
           type: [object, "null"]
           description: >-
@@ -1891,24 +1850,6 @@ components:
         id: { type: string }
         email: { type: string }
         createdAt: { type: string, format: date-time }
-
-    AuthTokens:
-      type: object
-      required: [accessToken, refreshToken, user]
-      properties:
-        accessToken: { type: string }
-        refreshToken: { type: string }
-        user: { $ref: "#/components/schemas/User" }
-
-    User:
-      type: object
-      required: [id, role]
-      properties:
-        id: { type: string }
-        name: { type: string }
-        email: { type: string }
-        phone: { type: string }
-        role: { type: string, enum: [seeker, provider, admin] }
 
     # ---- Pre-launch lead capture -------------------------------------------
     # Geography is deliberately generic. `marketKey` names a launch market and

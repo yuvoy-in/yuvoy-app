@@ -1,13 +1,13 @@
 # The contract this app is generated against.
 #
-# yuvoy-api PR #50 (feat/m18-hardening) — the 25-path traveller contract the
-# frontend brief documents. master/dev carry 18 paths and no safety gates, so
-# T7 cannot be built against them at all.
+# Pinned to yuvoy-api master. PR #50 (feat/m18-hardening) merged 2026-08-20,
+# and master has moved on since: traveller OTP sign-in was DELETED
+# ("the verifying bound is internal, and the second sign-in is deleted"), so
+# /auth/otp/* and /me are gone. /me/bookings survives and is authenticated by
+# the status token the recovery OTP returns — recovery IS the sign-in.
 #
-# Re-pin to master the day #50 merges. `pnpm contract:check` fails the build
-# if contracts/openapi.yaml stops matching this ref.
+# `pnpm contract:check` fails the build if this copy stops matching the ref.
 repo=yuvoy-in/yuvoy-api
-ref=dde8f555c5e94b454ac251a7eba0541d7cd334d2
-branch=feat/m18-hardening
-pr=50
-pinned_on=2026-08-18
+ref=cc8ede61ed6b8823571323a32c42ded739543178
+branch=master
+pinned_on=2026-08-31

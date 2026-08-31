@@ -23,7 +23,7 @@ const observe = vi.fn();
 const constructed = vi.fn();
 
 class TrackingObserver {
-  constructor(_cb: unknown) {
+  constructor() {
     constructed();
   }
   observe = observe;

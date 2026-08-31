@@ -5,28 +5,27 @@ import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import {
-  getSession,
-  saveSession,
-  clearSession,
-  type Session,
-} from "@/lib/auth/session";
+  getTravellerSession,
+  saveTravellerSession,
+  clearTravellerSession,
+} from "@/lib/auth/traveller-session";
 import { saveToken } from "@/lib/booking/token-store";
 import { Field } from "@/components/ui/field";
 import { describeError, Skeleton, LoadingState } from "@/components/states";
 
 /**
- * T5 and T11 — signing in, and what an account is actually worth.
+ * T5 and T11 — and there is deliberately no account to create.
  *
- * The copy here is doing real work. An account is optional, nothing is gated
- * behind it, and saying so plainly is what stops the sign-in screen reading as
- * a wall. A login prompt in front of a stranger with a phone is the largest
- * drop-off available in this product, which is exactly why checkout never
- * shows one.
+ * The contract is explicit: "This is the whole of traveller accounts. There is
+ * no signup, no password and no new secret: signing in is the same OTP that
+ * already recovers a booking, and this is what it unlocks."
  *
- * What signing in buys, and all it buys: your trips follow you to a new phone.
+ * So this screen does not offer a sign-up, and says so as its heading. A login
+ * prompt in front of a stranger with a phone is the largest drop-off available
+ * in this product, and none of this appears in the checkout path.
  */
 export function AccountScreen() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [token, setToken] = useState<string | null | undefined>(undefined);
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -34,8 +33,8 @@ export function AccountScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    void getSession().then((s) => {
-      if (!cancelled) setSession(s);
+    void getTravellerSession().then((s) => {
+      if (!cancelled) setToken(s?.token ?? null);
     });
     return () => {
       cancelled = true;
@@ -46,7 +45,7 @@ export function AccountScreen() {
     retry: false,
     mutationFn: async () => {
       const client = createApiClient();
-      const { data, error } = await client.POST("/auth/otp/request", {
+      const { data, error } = await client.POST("/bookings/recovery/request", {
         body: { phone: phone.trim() },
       });
       if (error) throw error;
@@ -54,7 +53,7 @@ export function AccountScreen() {
     },
     onSuccess: (data) => {
       setSent(true);
-      setDevCode((data as { devCode?: string } | undefined)?.devCode);
+      setDevCode(data?.devCode);
     },
   });
 
@@ -62,30 +61,42 @@ export function AccountScreen() {
     retry: false,
     mutationFn: async () => {
       const client = createApiClient();
-      const { data, error } = await client.POST("/auth/otp/verify", {
+      const { data, error } = await client.POST("/bookings/recovery/verify", {
         body: { phone: phone.trim(), code: code.trim() },
       });
       if (error) throw error;
       return data;
     },
-    onSuccess: async (tokens) => {
-      await saveSession(tokens);
-      setSession(await getSession());
+    onSuccess: async (data) => {
+      if (!data?.statusToken) return;
+      await saveTravellerSession(data.statusToken);
+      setToken(data.statusToken);
     },
   });
 
-  if (session === undefined) {
+  if (token === undefined) {
     return (
       <Shell>
-        <LoadingState label="Loading your account">
+        <LoadingState label="Loading your trips">
           <Skeleton className="h-32 w-full" />
         </LoadingState>
       </Shell>
     );
   }
 
-  if (session)
-    return <SignedIn session={session} onSignOut={() => setSession(null)} />;
+  if (token) {
+    return (
+      <SignedIn
+        token={token}
+        onSignOut={async () => {
+          await clearTravellerSession();
+          setToken(null);
+          setSent(false);
+          setCode("");
+        }}
+      />
+    );
+  }
 
   const failure = verify.error
     ? describeError(verify.error)
@@ -96,12 +107,12 @@ export function AccountScreen() {
   return (
     <Shell>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        An account is optional
+        There is no account to make
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
-        Booking never needs one, and nothing here is locked behind it. Signing
-        in does one thing: your trips follow you if you change phone or lose
-        this one.
+        Booking never needs one. If you want every trip on your number in one
+        place — including ones booked on another phone — we send a code to that
+        number. That is the whole of it: no password, no sign-up.
       </p>
 
       <form
@@ -149,10 +160,18 @@ export function AccountScreen() {
           {request.isPending || verify.isPending
             ? "Working…"
             : sent
-              ? "Sign in"
+              ? "Show me my trips"
               : "Send me a code"}
         </button>
       </form>
+
+      {sent && !failure ? (
+        <p className="text-forest/70 mt-4 text-xs" role="status">
+          If that number has booked with us, a code is on its way. We answer the
+          same way for every number, so this is not a way to check whether
+          somebody has booked.
+        </p>
+      ) : null}
 
       {failure ? (
         <div
@@ -165,11 +184,11 @@ export function AccountScreen() {
       ) : null}
 
       <p className="text-forest/70 mt-8 text-xs">
-        Already booked without an account?{" "}
+        Booked on this device?{" "}
         <Link href="/trips" className="text-terra-deep tap-target underline">
-          Your trips are on this device
+          Those are already under Trips
         </Link>
-        .
+        , no code needed.
       </p>
     </Shell>
   );
@@ -177,18 +196,18 @@ export function AccountScreen() {
 
 /** T11 — every trip this phone number has booked, wherever it was booked. */
 function SignedIn({
-  session,
+  token,
   onSignOut,
 }: {
-  session: Session;
-  onSignOut: () => void;
+  token: string;
+  onSignOut: () => void | Promise<void>;
 }) {
   const bookings = useQuery({
-    queryKey: ["listMyBookings", session.user.id],
+    queryKey: ["listMyBookings", token],
     queryFn: async ({ signal }) => {
       const client = createApiClient();
       const { data, error } = await client.GET("/me/bookings", {
-        headers: { Authorization: `Bearer ${session.accessToken}` },
+        headers: { Authorization: `Bearer ${token}` },
         signal,
       });
       if (error) throw error;
@@ -197,40 +216,45 @@ function SignedIn({
     retry: false,
   });
 
-  // A guest booking made on this device is claimed into the account by keeping
-  // its token — the account gives us the list, the device gives us the access.
+  // A booking made on another device is claimed onto this one by keeping its
+  // token: the list gives us the trips, the token gives us the access.
   useEffect(() => {
     for (const b of bookings.data?.bookings ?? []) {
       if (b.statusToken) void saveToken(b.reference, b.statusToken);
     }
   }, [bookings.data]);
 
+  const failure = bookings.error ? describeError(bookings.error) : null;
+
   return (
     <Shell>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        {session.user.name ?? "Your account"}
+        Every trip on your number
       </h1>
-      <p className="text-forest/70 mt-2 text-sm">{session.user.phone}</p>
-
-      <h2 className="label text-forest/75 mt-8">Every trip on this number</h2>
 
       {bookings.isPending ? (
-        <Skeleton className="mt-3 h-24 w-full" />
+        <Skeleton className="mt-6 h-24 w-full" />
       ) : bookings.isError ? (
-        <p className="text-forest/70 mt-3 text-sm">
-          We could not load your trips just now. The ones on this device are
-          still under{" "}
-          <Link href="/trips" className="text-terra-deep underline">
-            Trips
-          </Link>
-          .
-        </p>
+        <div
+          role="alert"
+          className="rounded-edge border-terra-deep mt-6 border-l-2 p-4"
+        >
+          <p className="text-sm font-bold">{failure?.title}</p>
+          <p className="text-forest/70 mt-1.5 text-sm">{failure?.body}</p>
+          <p className="text-forest/70 mt-3 text-sm">
+            The ones on this device are still under{" "}
+            <Link href="/trips" className="text-terra-deep underline">
+              Trips
+            </Link>
+            .
+          </p>
+        </div>
       ) : bookings.data.bookings.length === 0 ? (
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 mt-6 text-sm">
           Nothing booked on this number yet.
         </p>
       ) : (
-        <ul className="mt-3 space-y-3">
+        <ul className="mt-6 space-y-3">
           {bookings.data.bookings.map((b) => (
             <li
               key={b.reference}
@@ -244,6 +268,9 @@ function SignedIn({
                 {b.localTime} on {b.localDate} · {b.guests} guest
                 {b.guests === 1 ? "" : "s"}
               </p>
+              {b.meetingPoint ? (
+                <p className="text-forest/70 mt-1 text-xs">{b.meetingPoint}</p>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -251,18 +278,15 @@ function SignedIn({
 
       <button
         type="button"
-        onClick={async () => {
-          await clearSession();
-          onSignOut();
-        }}
+        onClick={() => void onSignOut()}
         className="label text-forest/70 tap-target hover:text-forest mt-10 underline underline-offset-2"
       >
-        Sign out
+        Forget this number on this device
       </button>
 
       <p className="text-forest/70 mt-6 text-xs">
-        Signing out leaves the bookings saved on this device alone — they stay
-        under Trips.
+        This leaves the bookings saved on this device alone — they stay under
+        Trips.
       </p>
     </Shell>
   );

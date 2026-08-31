@@ -69,9 +69,16 @@ describe("BookingScreen", () => {
 
     // "If money left your account it is safe" is the only honest copy here.
     expect(
-      await screen.findByText("We are checking with your bank"),
+      await screen.findByText("Confirming your payment"),
     ).toBeInTheDocument();
     expect(screen.getByText(/it is safe/i)).toBeInTheDocument();
+    /*
+      No number and no countdown. yuvoy-api#53 confirmed `verifying` is a race
+      window of milliseconds to seconds, not a waiting room — nothing in the
+      system bounds it, so publishing a figure would publish a promise nothing
+      keeps.
+    */
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
     // Nothing that reads as an error.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByText(/failed|error|wrong/i)).not.toBeInTheDocument();

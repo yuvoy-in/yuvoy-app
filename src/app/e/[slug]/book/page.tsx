@@ -1,13 +1,12 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
-import { marketDateRange } from "@/lib/booking/availability-window";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 
 /**
