@@ -490,27 +490,17 @@ export const bookingHandlers = [
   }),
   /* --------------------------------------------------------------- auth */
 
-  http.post(url("/auth/otp/request"), async () =>
-    HttpResponse.json(
-      { devCode: "123456" },
-      { status: 202, headers: { "x-request-id": rid() } },
-    ),
-  ),
+  /*
+    There are deliberately NO /auth/otp/* handlers.
 
-  http.post(url("/auth/otp/verify"), async ({ request }) => {
-    const { phone, code } = (await request.json()) as {
-      phone: string;
-      code: string;
-    };
-    if (code !== "123456") {
-      return envelope("unauthorized", "That code is not right.", 401);
-    }
-    return HttpResponse.json({
-      accessToken: "acc_mock",
-      refreshToken: "ref_mock",
-      user: { id: "usr_mock", phone, role: "seeker", name: "Asha Menon" },
-    });
-  }),
+    That endpoint pair was deleted upstream on 2026-08-20 ("the second sign-in
+    is deleted"). Signing in is now the same OTP that recovers a booking, and
+    /me/bookings is authenticated by the status token recovery returns.
+
+    A mock for an endpoint the contract no longer has is worse than no mock: it
+    is how somebody rebuilds a deleted feature against a shape that only exists
+    on their laptop.
+  */
 
   http.get(url("/me/bookings"), async ({ request }) => {
     if (!request.headers.get("authorization")) {

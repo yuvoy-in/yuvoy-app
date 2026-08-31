@@ -236,6 +236,42 @@ for (const root of clientRoots) {
   }
 }
 
+/* ------------------------- 8. mocks may not invent endpoints ------------- */
+
+/**
+ * Every path a handler serves must exist in the contract.
+ *
+ * A mock for an endpoint the API does not have is worse than no mock: it is
+ * how a deleted feature gets rebuilt against a shape that exists only on one
+ * laptop. This caught /auth/otp/* still being served after the traveller
+ * sign-in was removed upstream.
+ */
+{
+  const contract = readFileSync(join(ROOT, "contracts/openapi.yaml"), "utf8");
+  const contractPaths = [...contract.matchAll(/^ {2}(\/[a-z][^:]*):/gim)].map(
+    (m) => m[1],
+  );
+
+  const toRegex = (p) =>
+    new RegExp(
+      "^" + p.replace(/\{[^}]+\}/g, "[^/]+").replace(/\//g, "\\/") + "$",
+    );
+  const known = contractPaths.map(toRegex);
+
+  for (const f of walk(join(ROOT, "mocks"))) {
+    if (!/\.ts$/.test(f)) continue;
+    const s = code(f);
+    for (const m of s.matchAll(/url\("([^"]+)"\)/g)) {
+      const served = m[1].replace(/:[a-zA-Z]+/g, "{x}");
+      if (!known.some((re) => re.test(served))) {
+        problems.push(
+          `${rel(f)}: mocks "${m[1]}", which the contract does not have`,
+        );
+      }
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);
