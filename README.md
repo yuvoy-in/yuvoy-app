@@ -84,11 +84,20 @@ pnpm test:e2e     # 36 e2e tests, incl. axe on every route
 
 `pnpm verify` is the pre-push gate. All seven steps must pass.
 
-**`pnpm qa` catches what the other six cannot**: a link to a route that does not
-exist, a nav entry with no page, a screen that queries but renders no loading or
-error state, a symbol-only button with no accessible name, paise divided by
-hand, `toLocale*` on a date. None of those fail a build; all are visible to a
-traveller.
+**`pnpm qa` catches what the other six cannot** — none of these fail a build, and all are visible
+to a traveller:
+
+- a link to a route that does not exist, or a nav entry with no page
+- a screen that queries but renders no loading or error state
+- a symbol-only button with no accessible name, or an input with no label
+- paise divided by hand, or `toLocale*` on a date
+- **a client component that transitively reaches a Node-only module** — this shipped once as
+  `msw/node` → `async_hooks` in the browser bundle, and only `pnpm dev` showed it
+- **a mock serving an endpoint the contract does not have** — this shipped once as `/auth/otp/*`
+  after the endpoint was deleted upstream
+
+A green `pnpm build` does not mean the app runs. Two runtime failures reached the owner before
+these checks existed; both now have a static guard and a regression test.
 
 ## The contract
 
@@ -96,9 +105,12 @@ traveller.
 `contracts/PINNED`. It is in `.prettierignore` — formatting it would hide a real upstream change
 behind a formatting diff.
 
-Currently pinned to **PR #50 (`feat/m18-hardening`)**, not `master`: `master` carries 18 public
-paths and no safety gates, and T7 cannot be built against it at all. **Re-pin to `master` the day
-#50 merges**, run `pnpm codegen`, and commit both.
+Pinned to **`master`**. PR #50 merged on 20 Aug 2026 and master moved on since — `/auth/otp/*`
+and `/me` were deleted ("the second sign-in is deleted"), so **recovery IS the sign-in** and
+`/me/bookings` is authenticated by the status token recovery returns.
+
+When the contract moves: re-pull it, run `pnpm codegen`, and commit both. The typechecker names
+every affected call site, which is the reason the client is generated rather than hand-written.
 
 `pnpm contract:check` fails the build if the local copy stops matching the pinned ref. It warns
 rather than fails when GitHub is unreachable, so a build never depends on the network.
