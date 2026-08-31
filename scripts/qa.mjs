@@ -165,6 +165,77 @@ for (const f of files) {
   }
 }
 
+/* ------------------------------- 7. client code must stay browser-safe --- */
+
+/**
+ * A client component that transitively reaches a Node-only module.
+ *
+ * This shipped once: mocks/start.ts held both the browser and the server MSW
+ * starts, so the bundler traced msw/node — and therefore `async_hooks` — into
+ * the client graph. `next build` passed. `pnpm dev` failed with a
+ * module-not-found in the browser.
+ *
+ * A dynamic `await import()` does NOT save you: the bundler still follows it.
+ * Keeping the two sides in separate files is the only thing that does.
+ */
+
+const NODE_ONLY = [
+  /^node:/,
+  /^(async_hooks|fs|path|os|crypto|child_process|worker_threads|http|https|net|tls|zlib|stream)$/,
+  /^msw\/node$/,
+];
+
+function resolveImport(fromFile, spec) {
+  let base;
+  if (spec.startsWith("@/")) base = join(SRC, spec.slice(2));
+  else if (spec.startsWith(".")) base = join(fromFile, "..", spec);
+  else return null; // bare package — checked by NODE_ONLY, not resolved
+  for (const ext of [".ts", ".tsx", "/index.ts", "/index.tsx", ""]) {
+    const candidate = base + ext;
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  }
+  return null;
+}
+
+function importsOf(file) {
+  const s = code(file);
+  const specs = [];
+  for (const m of s.matchAll(/from\s+["']([^"']+)["']/g)) specs.push(m[1]);
+  for (const m of s.matchAll(/import\s*\(\s*["']([^"']+)["']\s*\)/g))
+    specs.push(m[1]);
+  for (const m of s.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g))
+    specs.push(m[1]);
+  return specs;
+}
+
+// Every file that is, or is reached from, a "use client" module.
+const clientRoots = files.filter(
+  (f) =>
+    /^\s*["']use client["']/m.test(readFileSync(f, "utf8")) &&
+    !/\.test\.tsx?$/.test(f),
+);
+
+const visited = new Map(); // file -> path taken to reach it
+for (const root of clientRoots) {
+  const queue = [[root, [rel(root)]]];
+  while (queue.length) {
+    const [file, trail] = queue.shift();
+    if (visited.has(file)) continue;
+    visited.set(file, trail);
+
+    for (const spec of importsOf(file)) {
+      if (NODE_ONLY.some((re) => re.test(spec))) {
+        problems.push(
+          `client graph reaches Node-only "${spec}"\n      via ${trail.join(" → ")}`,
+        );
+        continue;
+      }
+      const next = resolveImport(file, spec);
+      if (next && !visited.has(next)) queue.push([next, [...trail, rel(next)]]);
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

@@ -18,6 +18,6 @@ export async function register() {
   if (process.env.NEXT_PUBLIC_API_MOCKING === "disabled") return;
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { startServerMocks } = await import("./mocks/start");
+  const { startServerMocks } = await import("./mocks/start-server");
   await startServerMocks();
 }

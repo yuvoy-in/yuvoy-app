@@ -11,8 +11,12 @@ import { useEffect, useState, type ReactNode } from "react";
  *
  * The start itself is idempotent — React StrictMode runs this effect twice on
  * mount in development, and MSW throws on a second start. The guard lives in
- * mocks/start.ts rather than here, because the server side has the same
- * problem for a different reason.
+ * mocks/once.ts, shared with the server side, which has the same problem for a
+ * different reason.
+ *
+ * It imports `mocks/start-browser` specifically, never a module that also
+ * references the Node side: the bundler traces a dynamic import's target into
+ * the client graph, and `msw/node` needs `async_hooks`.
  *
  * `NEXT_PUBLIC_API_MOCKING` gates it, so pointing the app at the real local Go
  * stack is a one-line env change rather than a code change.
@@ -29,7 +33,8 @@ export function MswProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     void (async () => {
-      const { startBrowserMocks } = await import("../../../mocks/start");
+      const { startBrowserMocks } =
+        await import("../../../mocks/start-browser");
       try {
         await startBrowserMocks();
       } catch (err) {
