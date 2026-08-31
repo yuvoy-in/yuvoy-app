@@ -286,3 +286,89 @@
 @utility tabbar-foot {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
+
+/* ------------------------------------------------------------- long form */
+
+/**
+ * The guide body.
+ *
+ * Scoped rather than global: it styles MDX, which is the only markup on the
+ * site we do not write element by element. Every value is a token or the
+ * Tailwind scale — the measure sits near 68 characters, which is where running
+ * text stops being tiring.
+ */
+@utility guide-prose {
+  max-width: 68ch;
+
+  & > * + * {
+    margin-top: 1.25rem;
+  }
+
+  & h2 {
+    font-family: var(--font-display);
+    font-variation-settings: var(--font-display--font-variation-settings);
+    letter-spacing: var(--tracking-display);
+    font-size: 1.75rem;
+    line-height: 1.15;
+    margin-top: 3rem;
+  }
+
+  & h3 {
+    font-weight: 700;
+    font-size: 1.0625rem;
+    margin-top: 2rem;
+  }
+
+  & p,
+  & li {
+    color: color-mix(in srgb, var(--color-forest) 78%, transparent);
+    line-height: 1.7;
+  }
+
+  & ul,
+  & ol {
+    padding-left: 1.25rem;
+  }
+
+  & ul {
+    list-style: disc;
+  }
+
+  & ol {
+    list-style: decimal;
+  }
+
+  & li + li {
+    margin-top: 0.5rem;
+  }
+
+  & a {
+    color: var(--color-terra-deep);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  & strong {
+    font-weight: 700;
+    color: var(--color-forest);
+  }
+
+  /* A pull-quote, and how a draft notice renders. */
+  & blockquote {
+    border-left: 2px solid var(--color-terra-deep);
+    padding: 0.75rem 0 0.75rem 1rem;
+    background: var(--color-cream-deep);
+  }
+
+  & blockquote p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+
+  & code {
+    font-size: 0.9em;
+    background: color-mix(in srgb, var(--color-forest) 6%, transparent);
+    padding: 1px 5px;
+    border-radius: var(--radius-edge);
+  }
+}

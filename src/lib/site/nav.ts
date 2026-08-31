@@ -40,3 +40,12 @@ export const NAV: readonly NavItem[] = [
     match: (p) => p.startsWith("/account"),
   },
 ] as const;
+
+/**
+ * Routes that exist and are linked, but are NOT tab destinations.
+ *
+ * The tab bar names four things and a fifth is a design change, not a routing
+ * one — so guides live here instead. They are reachable from the guides hub,
+ * from each other, and from the sitemap.
+ */
+export const SECONDARY_ROUTES = [{ href: "/guides", label: "Guides" }] as const;
