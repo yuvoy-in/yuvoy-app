@@ -5,6 +5,7 @@ import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { InstallObservability } from "@/components/observability/install";
+import { ConsentBanner } from "@/components/analytics/consent-banner";
 import { THEME_COLOR } from "@/lib/site/theme";
 import "./globals.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({
         <MswProvider>
           <Providers>
             <AppShell>{children}</AppShell>
+            <ConsentBanner />
           </Providers>
         </MswProvider>
       </body>
