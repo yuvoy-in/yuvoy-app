@@ -38,7 +38,7 @@ test("the tab bar names exactly four destinations", async ({ page }) => {
   await page.goto("/");
   // A fifth is a design change, not a routing one. Pinned so it cannot arrive
   // by accident.
-  const nav = page.getByRole("navigation", { name: "Primary" }).first();
+  const nav = page.getByRole("navigation", { name: /Primary/i }).first();
   await expect(nav.getByRole("link")).toHaveCount(4);
 });
 

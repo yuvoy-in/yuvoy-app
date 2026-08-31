@@ -173,7 +173,7 @@ export function Feed({ filters = {} }: { filters?: FeedFilters }) {
 
       {isFetchingNextPage ? (
         <div className="flex h-24 items-center justify-center">
-          <span className="label text-cream/50">Loading more</span>
+          <span className="label text-cream/60">Loading more</span>
         </div>
       ) : null}
 
@@ -183,7 +183,7 @@ export function Feed({ filters = {} }: { filters?: FeedFilters }) {
       */}
       {!hasNextPage ? (
         <div className="flex h-32 snap-start items-center justify-center px-8 text-center">
-          <p className="text-cream/50 text-xs">
+          <p className="text-cream/60 text-xs">
             That is everything on sale right now.
           </p>
         </div>

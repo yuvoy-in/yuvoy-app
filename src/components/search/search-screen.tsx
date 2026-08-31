@@ -144,7 +144,7 @@ export function SearchScreen() {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="font-bold">{e.title}</p>
-                        <p className="text-forest/60 mt-1 text-xs">
+                        <p className="text-forest/70 mt-1 text-xs">
                           {e.location ?? "Andaman"} ·{" "}
                           {e.bookingMode === "allotment"
                             ? "Instant book"

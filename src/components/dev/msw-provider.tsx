@@ -1,56 +1,40 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 /**
- * Starts MSW in the browser, in development only.
+ * Starts MSW in the browser, when mocking is enabled at build time.
  *
- * Children are held back until the worker is ready. Without that, the first
- * queries fire against a real origin before the worker has registered, which
- * looks exactly like a flaky backend and wastes an afternoon.
+ * **It renders children immediately and gates nothing.** The first version
+ * returned `null` until the worker was ready, which gated the ENTIRE tree —
+ * so every page server-rendered empty, including /e/[slug], the one page in
+ * this app worth indexing. The content was present only in the RSC payload,
+ * which a crawler does not execute. Nothing in the gate caught it: the build
+ * passed, the unit tests passed, and only an e2e run against a production
+ * build showed a body containing nothing but the skip link.
  *
- * The start itself is idempotent — React StrictMode runs this effect twice on
- * mount in development, and MSW throws on a second start. The guard lives in
- * mocks/once.ts, shared with the server side, which has the same problem for a
- * different reason.
+ * The start is a MODULE-LEVEL side effect rather than an effect, so it begins
+ * the moment this chunk loads — well before React finishes hydrating — which
+ * removes the race the gate existed to paper over. Anything that still slips
+ * through hits the API client's retry, which handles a NetworkError once.
  *
- * It imports `mocks/start-browser` specifically, never a module that also
- * references the Node side: the bundler traces a dynamic import's target into
- * the client graph, and `msw/node` needs `async_hooks`.
- *
- * `NEXT_PUBLIC_API_MOCKING` gates it, so pointing the app at the real local Go
- * stack is a one-line env change rather than a code change.
+ * Mocking is a build-time flag (NEXT_PUBLIC_* is inlined), so a deploy that
+ * does not set it contains none of this.
  */
+
+if (
+  process.env.NEXT_PUBLIC_API_MOCKING === "enabled" &&
+  typeof window !== "undefined"
+) {
+  void import("../../../mocks/start-browser")
+    .then(({ startBrowserMocks }) => startBrowserMocks())
+    .catch((err) => {
+      // A failed worker must not leave the app blank. Requests fall through to
+      // the real origin, which is a visible, diagnosable failure.
+      console.error("[msw] worker failed to start", err);
+    });
+}
+
 export function MswProvider({ children }: { children: ReactNode }) {
-  const enabled =
-    process.env.NODE_ENV === "development" &&
-    process.env.NEXT_PUBLIC_API_MOCKING !== "disabled";
-
-  const [ready, setReady] = useState(!enabled);
-
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-
-    void (async () => {
-      const { startBrowserMocks } =
-        await import("../../../mocks/start-browser");
-      try {
-        await startBrowserMocks();
-      } catch (err) {
-        // A failed worker must not leave the app blank forever. Render
-        // anyway — requests will fall through to the real origin, which is a
-        // visible, diagnosable failure rather than an empty page.
-        console.error("[msw] worker failed to start", err);
-      }
-      if (!cancelled) setReady(true);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled]);
-
-  if (!ready) return null;
   return <>{children}</>;
 }

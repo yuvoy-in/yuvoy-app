@@ -76,7 +76,7 @@ export default async function SharedTripPage({
           <Row label="Where">
             {trip.meetingPoint}
             {trip.landmark ? (
-              <span className="text-forest/60 mt-1 block text-xs">
+              <span className="text-forest/70 mt-1 block text-xs">
                 {trip.landmark}
               </span>
             ) : null}
@@ -102,7 +102,7 @@ export default async function SharedTripPage({
           </section>
         ) : null}
 
-        <p className="text-forest/50 mt-8 text-xs">
+        <p className="text-forest/70 mt-8 text-xs">
           This is a view of somebody else&apos;s booking. It does not show what
           was paid, and it cannot change or cancel anything.
         </p>

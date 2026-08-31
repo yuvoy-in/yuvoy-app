@@ -7,7 +7,7 @@
   },
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "next dev",
+    "dev": "NEXT_PUBLIC_API_MOCKING=enabled next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

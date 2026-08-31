@@ -5,14 +5,27 @@ import { useEffect } from "react";
 /**
  * Registers the service worker.
  *
- * Production only. In development the worker would sit in front of Turbopack's
- * HMR requests and MSW's own worker, and debugging that costs more than the
- * offline support is worth while iterating.
+ * Production only, and never when mocking is enabled — see below. In
+ * development it would sit in front of Turbopack's HMR requests, and
+ * debugging that costs more than the offline support is worth while
+ * iterating.
  */
 export function RegisterServiceWorker() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
+
+    /*
+      Never alongside MSW. Two service workers cannot both control a page, and
+      when the end-to-end suite runs a production build with mocking enabled
+      they raced — whichever won decided whether the API was intercepted, so
+      tests failed intermittently with "No connection" and a real network call
+      to a port nothing was listening on.
+
+      This is not a test-only concern: a build that mocks is a build that must
+      not also be pretending to work offline against a mock.
+    */
+    if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled") return;
 
     const register = () => {
       void navigator.serviceWorker.register("/sw.js").catch(() => {

@@ -59,7 +59,7 @@ export function ExperienceCard({
         // No media at all. Still a complete card — an editorial type plate,
         // the same fallback the marketing site's destination panels use.
         <div className="bg-abyss absolute inset-0 flex items-center justify-center px-8">
-          <p className="font-display text-cream/30 text-center text-3xl leading-tight">
+          <p className="font-display text-cream/60 text-center text-3xl leading-tight">
             {experience.title}
           </p>
         </div>

@@ -14,8 +14,8 @@
  * dynamic, so `mocks/` is not in the production graph.
  */
 export async function register() {
-  if (process.env.NODE_ENV !== "development") return;
-  if (process.env.NEXT_PUBLIC_API_MOCKING === "disabled") return;
+  // Same build-time flag as the browser side. See msw-provider.tsx.
+  if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") return;
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
   const { startServerMocks } = await import("./mocks/start-server");

@@ -87,7 +87,7 @@ export function TripsScreen() {
             </Link>
           }
         />
-        <p className="text-forest/60 mt-8 text-center text-xs">
+        <p className="text-forest/70 mt-8 text-center text-xs">
           Lost your link?{" "}
           <Link
             href="/trips/recover"
@@ -117,7 +117,7 @@ export function TripsScreen() {
       <h1 className="font-display tracking-display text-3xl leading-tight">
         Your trips
       </h1>
-      <p className="text-forest/60 mt-2 text-xs">
+      <p className="text-forest/70 mt-2 text-xs">
         Kept on this device. No account, and they work without signal.
       </p>
 
@@ -133,7 +133,7 @@ export function TripsScreen() {
                   <p className="font-bold">
                     {trip.status?.experience.title ?? "Your booking"}
                   </p>
-                  <p className="text-forest/60 mt-1 font-mono text-xs tracking-wider">
+                  <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
                     {trip.reference}
                   </p>
                 </div>
@@ -156,7 +156,7 @@ export function TripsScreen() {
 
               {/* Never presented as live. This is what we saved. */}
               {trip.fetchedAt ? (
-                <p className="text-forest/50 mt-2 text-xs">
+                <p className="text-forest/70 mt-2 text-xs">
                   Last checked {formatAge(trip.fetchedAt)}
                 </p>
               ) : null}
@@ -165,7 +165,7 @@ export function TripsScreen() {
         ))}
       </ul>
 
-      <p className="text-forest/60 mt-8 text-center text-xs">
+      <p className="text-forest/70 mt-8 text-center text-xs">
         Booked on another phone?{" "}
         <Link
           href="/trips/recover"
@@ -183,7 +183,7 @@ function StateChip({ state }: { state: BookingStatus["state"] }) {
     state === "confirmed" || state === "completed"
       ? "text-terra-deep"
       : state === "cancelled" || state === "declined" || state === "expired"
-        ? "text-forest/60"
+        ? "text-forest/70"
         : "text-forest/75";
 
   const label: Record<BookingStatus["state"], string> = {

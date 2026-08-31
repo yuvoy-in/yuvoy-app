@@ -45,7 +45,7 @@ export default function GuidesIndexPage() {
                     {g.title}
                   </h2>
                   <p className="text-forest/70 mt-2 text-sm">{g.description}</p>
-                  <p className="text-forest/50 mt-3 text-xs">
+                  <p className="text-forest/70 mt-3 text-xs">
                     Updated{" "}
                     {new Intl.DateTimeFormat("en-IN", {
                       day: "numeric",

@@ -146,12 +146,35 @@ const errorMiddleware: Middleware = {
  * Wraps fetch with GET-only retry. Sits beneath openapi-fetch so that a
  * retried request is indistinguishable from a first attempt to the caller.
  */
+/**
+ * In a mocked build, nothing may leave before the worker is intercepting.
+ *
+ * The alternative — gating the React tree until the worker is ready — is what
+ * broke server rendering: it returned null on the server, so every page had an
+ * empty body and the content lived only in the RSC payload. Waiting HERE keeps
+ * SSR intact and removes the race entirely.
+ *
+ * Compiled out when mocking is off: NEXT_PUBLIC_* is inlined at build time.
+ */
+async function awaitMocks(): Promise<void> {
+  if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") return;
+  if (typeof window === "undefined") return;
+  try {
+    const { startBrowserMocks } = await import("../../../mocks/start-browser");
+    await startBrowserMocks();
+  } catch {
+    // A failed worker must not block the request. It goes to the real origin,
+    // which is a visible, diagnosable failure rather than a hang.
+  }
+}
+
 function retryingFetch(input: Request): Promise<Response> {
   const isGet = input.method === "GET";
 
   const attempt = async (n: number): Promise<Response> => {
     let res: Response;
     try {
+      await awaitMocks();
       res = await fetch(isGet ? input.clone() : input);
     } catch (cause) {
       if (isGet && n < MAX_GET_ATTEMPTS - 1) {
@@ -179,12 +202,45 @@ function retryingFetch(input: Request): Promise<Response> {
   return attempt(0);
 }
 
+/**
+ * Carries a `?__scenario=` from the PAGE url into every API request.
+ *
+ * The scenario switch is read by the mock handlers off the API request, but it
+ * is documented — and only usable — as a parameter on the page: nobody types a
+ * query string onto a fetch they cannot see. Without this the switch silently
+ * did nothing, which is exactly the kind of gap that makes a failure state
+ * "untestable" and then unbuilt.
+ *
+ * Compiled out of any build that does not enable mocking, because
+ * NEXT_PUBLIC_* is inlined at build time.
+ */
+function scenarioHeaders(): Record<string, string> {
+  if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") return {};
+  if (typeof window === "undefined") return {};
+  const scenario = new URLSearchParams(window.location.search).get(
+    "__scenario",
+  );
+  return scenario ? { "x-yuvoy-scenario": scenario } : {};
+}
+
 export function createApiClient(options?: { baseUrl?: string }) {
   const client = createFetchClient<paths>({
     baseUrl: options?.baseUrl ?? apiBaseUrl(),
     fetch: retryingFetch as typeof fetch,
     headers: { "Content-Type": "application/json" },
   });
+
+  if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+    client.use({
+      onRequest({ request }) {
+        for (const [k, v] of Object.entries(scenarioHeaders())) {
+          request.headers.set(k, v);
+        }
+        return request;
+      },
+    });
+  }
+
   client.use(errorMiddleware);
   return client;
 }

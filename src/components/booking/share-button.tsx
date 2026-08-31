@@ -62,7 +62,7 @@ export function ShareButton({ token }: { token: string }) {
 
       {share.data?.shareUrl ? (
         <div className="mt-3">
-          <p className="text-forest/60 text-xs">
+          <p className="text-forest/70 text-xs">
             {copied ? "Copied. " : ""}
             {share.data.reveals ??
               "This link shows the meeting point and the time. It does not show what anyone paid, and it cannot cancel the booking."}

@@ -98,7 +98,7 @@ export function ReviewForm({ token }: { token: string }) {
       </label>
 
       {/* Said BEFORE submitting, not discovered after. */}
-      <p className="text-forest/60 mt-3 text-xs">
+      <p className="text-forest/70 mt-3 text-xs">
         Once you leave a review it cannot be edited or removed.
       </p>
 

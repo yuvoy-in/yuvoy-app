@@ -164,7 +164,7 @@ export function AccountScreen() {
         </div>
       ) : null}
 
-      <p className="text-forest/60 mt-8 text-xs">
+      <p className="text-forest/70 mt-8 text-xs">
         Already booked without an account?{" "}
         <Link href="/trips" className="text-terra-deep tap-target underline">
           Your trips are on this device
@@ -210,7 +210,7 @@ function SignedIn({
       <h1 className="font-display tracking-display text-3xl leading-tight">
         {session.user.name ?? "Your account"}
       </h1>
-      <p className="text-forest/60 mt-2 text-sm">{session.user.phone}</p>
+      <p className="text-forest/70 mt-2 text-sm">{session.user.phone}</p>
 
       <h2 className="label text-forest/75 mt-8">Every trip on this number</h2>
 
@@ -237,7 +237,7 @@ function SignedIn({
               className="rounded-edge border-cream-line bg-cream-deep border p-4"
             >
               <p className="font-bold">{b.experience}</p>
-              <p className="text-forest/60 mt-1 font-mono text-xs tracking-wider">
+              <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
                 {b.reference}
               </p>
               <p className="text-forest/70 mt-2 text-sm">
@@ -255,12 +255,12 @@ function SignedIn({
           await clearSession();
           onSignOut();
         }}
-        className="label text-forest/60 tap-target hover:text-forest mt-10 underline underline-offset-2"
+        className="label text-forest/70 tap-target hover:text-forest mt-10 underline underline-offset-2"
       >
         Sign out
       </button>
 
-      <p className="text-forest/50 mt-6 text-xs">
+      <p className="text-forest/70 mt-6 text-xs">
         Signing out leaves the bookings saved on this device alone — they stay
         under Trips.
       </p>

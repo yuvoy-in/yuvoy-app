@@ -149,6 +149,26 @@ describe("palette", () => {
     expect(declared).toBe(forest);
   });
 
+  it("never puts text below the documented opacity floor", () => {
+    /*
+      §1's opacity ladder, enforced. axe found 45 places using /40, /50 and
+      /60 for real text — 2.83:1 at worst, against a 4.5:1 requirement.
+
+        Body/secondary on cream   forest/70   4.77:1
+        Labels + small on cream   forest/75   5.55:1
+        Body on dark              cream/60    5.15:1
+
+      Anything below those is DECORATION ONLY. Borders and fills are exempt,
+      which is why this matches `text-` specifically.
+    */
+    const offenders = FILES.filter((f) =>
+      /text-forest\/(0|5|10|15|20|25|30|35|40|45|50|55|60|65)\b|text-cream\/(0|5|10|15|20|25|30|35|40|45|50|55)\b/.test(
+        read(f),
+      ),
+    ).map(rel);
+    expect(offenders).toEqual([]);
+  });
+
   it("has no pills — the brand is rectangular at 2px", () => {
     // `rounded-full` is reserved for hardware depictions, of which the app
     // currently has none.

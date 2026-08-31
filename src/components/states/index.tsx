@@ -237,7 +237,7 @@ export function ErrorState({
         <p
           className={cn(
             "mt-8 font-mono text-[10px] tracking-wider",
-            dark ? "text-cream/40" : "text-forest/40",
+            dark ? "text-cream/60" : "text-forest/70",
           )}
         >
           {d.requestId}

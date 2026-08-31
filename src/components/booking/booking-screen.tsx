@@ -173,7 +173,7 @@ function StatusBody({
             <span className="font-mono text-base font-bold tracking-wider">
               {status.bookingReference}
             </span>
-            <p className="text-forest/60 mt-1 text-xs">
+            <p className="text-forest/70 mt-1 text-xs">
               Read this out at the jetty. It is how the operator finds you.
             </p>
           </Row>
@@ -199,7 +199,7 @@ function StatusBody({
         <button
           type="button"
           onClick={() => setCancelling(true)}
-          className="label text-forest/60 tap-target hover:text-forest mt-4 underline underline-offset-2"
+          className="label text-forest/70 tap-target hover:text-forest mt-4 underline underline-offset-2"
         >
           I need to cancel
         </button>
@@ -222,12 +222,12 @@ function StatusBody({
       ) : null}
 
       {live && !status.final ? (
-        <p className="text-forest/50 mt-6 text-xs" role="status">
+        <p className="text-forest/70 mt-6 text-xs" role="status">
           This page updates itself. You can leave it open.
         </p>
       ) : null}
 
-      <p className="text-forest/60 border-cream-line mt-8 border-t pt-6 text-xs">
+      <p className="text-forest/70 border-cream-line mt-8 border-t pt-6 text-xs">
         Something not right? Reply to the WhatsApp message we sent, or contact
         us from the link in it. Someone answers between 06:00 and 21:00.
       </p>
@@ -379,7 +379,7 @@ function PayButton({ status }: { status: BookingStatus }) {
           <p className="text-sm font-bold">{failure.title}</p>
           <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
           {failure.requestId ? (
-            <p className="text-forest/40 mt-3 font-mono text-[10px]">
+            <p className="text-forest/70 mt-3 font-mono text-[10px]">
               {failure.requestId}
             </p>
           ) : null}
@@ -421,7 +421,7 @@ function RefundProgress({
                   i <= at ? "bg-terra-deep" : "bg-forest/20",
                 )}
               />
-              <span className={i <= at ? "text-forest" : "text-forest/50"}>
+              <span className={i <= at ? "text-forest" : "text-forest/70"}>
                 {step === "requested"
                   ? "Refund started"
                   : step === "pending"
@@ -440,7 +440,7 @@ function RefundProgress({
       ) : null}
 
       {refund.amountPaise != null ? (
-        <p className="text-forest/60 mt-3 text-xs">
+        <p className="text-forest/70 mt-3 text-xs">
           {formatMoney({ amountMinor: refund.amountPaise, currency: "INR" })}.
           Banks usually take 5 to 7 working days.
         </p>

@@ -133,7 +133,7 @@ export function RecoverScreen() {
         </form>
 
         {sent && !failure ? (
-          <p className="text-forest/60 mt-4 text-xs" role="status">
+          <p className="text-forest/70 mt-4 text-xs" role="status">
             If that number has a booking with us, a code is on its way. We
             answer the same way for every number, so this is not a way to check
             whether somebody has booked.
@@ -148,14 +148,14 @@ export function RecoverScreen() {
             <p className="text-sm font-bold">{failure.title}</p>
             <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
             {failure.requestId ? (
-              <p className="text-forest/40 mt-3 font-mono text-[10px]">
+              <p className="text-forest/70 mt-3 font-mono text-[10px]">
                 {failure.requestId}
               </p>
             ) : null}
           </div>
         ) : null}
 
-        <p className="text-forest/50 mt-8 text-xs">
+        <p className="text-forest/70 mt-8 text-xs">
           A new link replaces the old one. If you find the old message later, it
           will no longer open.
         </p>

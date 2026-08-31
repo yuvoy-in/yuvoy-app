@@ -81,7 +81,7 @@ export function CancelSheet({
         <button
           type="button"
           onClick={onClose}
-          className="label text-forest/60 tap-target hover:text-forest"
+          className="label text-forest/70 tap-target hover:text-forest"
         >
           Close
         </button>
@@ -127,7 +127,7 @@ export function CancelSheet({
           </p>
           {quote.data.capturedPaise != null &&
           quote.data.refundPaise !== quote.data.capturedPaise ? (
-            <p className="text-forest/60 mt-1 text-xs">
+            <p className="text-forest/70 mt-1 text-xs">
               of{" "}
               {formatMoney({
                 amountMinor: quote.data.capturedPaise,
@@ -175,7 +175,7 @@ export function CancelSheet({
           <p className="text-sm font-bold">{failure.title}</p>
           <p className="text-forest/70 mt-1 text-sm">{failure.body}</p>
           {failure.requestId ? (
-            <p className="text-forest/40 mt-2 font-mono text-[10px]">
+            <p className="text-forest/70 mt-2 font-mono text-[10px]">
               {failure.requestId}
             </p>
           ) : null}

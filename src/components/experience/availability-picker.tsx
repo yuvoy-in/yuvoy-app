@@ -125,7 +125,7 @@ export function AvailabilityPicker({
   return (
     <div className="mt-4">
       {isFetching ? (
-        <p className="label text-forest/60 mb-3" role="status">
+        <p className="label text-forest/70 mb-3" role="status">
           Checking seats…
         </p>
       ) : null}
@@ -165,7 +165,7 @@ export function AvailabilityPicker({
         </StaleNotice>
       ) : null}
 
-      <p className="text-forest/50 mt-5 text-xs">
+      <p className="text-forest/70 mt-5 text-xs">
         Seats last checked{" "}
         {formatAge(data.availabilityAsOf, new Date(dataUpdatedAt))}
         {bookingMode === "request"
@@ -213,7 +213,7 @@ function SlotRow({
           <p className="text-base font-bold">
             {trimSeconds(slot.localStartTime)}
           </p>
-          <p className="text-forest/60 mt-0.5 text-xs">
+          <p className="text-forest/70 mt-0.5 text-xs">
             {durationLabel(slot)}
             {request ? " · operator confirms" : ""}
           </p>
@@ -230,7 +230,7 @@ function SlotRow({
           <p
             className={cn(
               "label mt-1",
-              full || closed ? "text-forest/60" : "text-terra-deep",
+              full || closed ? "text-forest/70" : "text-terra-deep",
             )}
           >
             {slot.remainingDisplay ?? (closed ? "Closed" : "")}
@@ -244,7 +244,7 @@ function SlotRow({
         on the response for exactly this.
       */}
       {stale && slot.availability ? (
-        <p className="text-forest/60 border-cream-line mt-3 border-t pt-2.5 text-xs">
+        <p className="text-forest/70 border-cream-line mt-3 border-t pt-2.5 text-xs">
           Seat count last confirmed {formatAge(slot.availability.asOf)}
           {slot.availability.verifiedVia
             ? ` (${verifiedViaLabel(slot.availability.verifiedVia)})`
@@ -254,7 +254,7 @@ function SlotRow({
       ) : null}
 
       {closed ? (
-        <p className="text-forest/60 border-cream-line mt-3 border-t pt-2.5 text-xs">
+        <p className="text-forest/70 border-cream-line mt-3 border-t pt-2.5 text-xs">
           Booking for this departure has closed.
         </p>
       ) : null}

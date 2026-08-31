@@ -62,7 +62,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
             {price ? (
               <p className="mt-1 text-2xl font-bold">
                 {price}
-                <span className="text-forest/60 ml-1.5 text-xs font-normal">
+                <span className="text-forest/70 ml-1.5 text-xs font-normal">
                   per person · all-in
                 </span>
               </p>
@@ -86,7 +86,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
               {experience.operator.verified ? (
                 <span className="label text-terra-deep">Verified</span>
               ) : (
-                <span className="label text-forest/60">Checks in progress</span>
+                <span className="label text-forest/70">Checks in progress</span>
               )}
             </div>
             {experience.operator.credentialsSummary?.length ? (

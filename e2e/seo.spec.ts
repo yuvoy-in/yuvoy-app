@@ -37,3 +37,27 @@ test("the experience page states the cancellation policy before payment", async 
   await page.goto("/e/try-dive-nemo-reef");
   await expect(page.getByText("If it is called off")).toBeVisible();
 });
+
+test("the experience page is in the HTML, not only the RSC payload", async ({
+  request,
+}) => {
+  /*
+    Regression. MswProvider used to return null until its worker was ready,
+    which gated the ENTIRE tree — so every page server-rendered empty and the
+    content existed only inside the RSC flight payload, which a crawler does
+    not execute. The build passed, the unit tests passed, and the page looked
+    perfect in a browser.
+
+    Fetched with `request` rather than `page` on purpose: no JavaScript runs,
+    which is exactly what a crawler does.
+  */
+  const res = await request.get("/e/try-dive-nemo-reef");
+  const html = await res.text();
+  const body = html.slice(html.indexOf("<body"));
+  const visible = body.replace(/<script[\s\S]*?<\/script>/g, "");
+
+  expect(visible).toContain("Try-dive at Nemo Reef");
+  expect(visible).toContain("Who runs this");
+  // The price is the claim most worth having in the HTML.
+  expect(visible).toMatch(/₹4,500/);
+});

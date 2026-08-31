@@ -3,6 +3,13 @@ import { test, expect } from "@playwright/test";
 /**
  * The money loop, end to end.
  *
+ * NOTE ON SELECTORS: the `label` utility applies `text-transform: uppercase`,
+ * and Playwright resolves an accessible name from RENDERED text — so
+ * getByLabel("Your name") does not match a label that paints as "YOUR NAME".
+ * jsdom ignores text-transform, which is why the unit tests pass on exact
+ * case and these must not. Every name matcher here is a case-insensitive
+ * regex on purpose.
+ *
  * This is the journey that must not break: find a departure, hold seats, and
  * land on a booking page that tells the truth. Everything else in the product
  * can degrade; this cannot.
@@ -24,15 +31,15 @@ test("a traveller can go from the feed to a held booking", async ({ page }) => {
 
   // Pick the first open departure.
   await page
-    .getByRole("button", { name: /seats left|Available/ })
+    .getByRole("button", { name: /seats left|available/i })
     .first()
     .click();
-  await page.getByRole("link", { name: /Continue|Ask the operator/ }).click();
+  await page.getByRole("link", { name: /continue|ask the operator/i }).click();
 
   await expect(page).toHaveURL(/\/book\?slot=/);
 
-  await page.getByLabel("Your name").fill("Asha Menon");
-  await page.getByLabel("WhatsApp number").fill("+919000000000");
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();
   await page.getByRole("button", { name: /Hold these seats/i }).click();
 
@@ -47,6 +54,9 @@ test("a closed departure is shown disabled, never hidden", async ({ page }) => {
   await page.waitForLoadState("networkidle");
 
   // Hiding it makes the traveller think the day does not exist.
+  // The `label` utility uppercases, so an accessible name is uppercase too.
+  // Case-sensitive selectors here pass locally and fail the moment a class
+  // changes, which is the worst kind of test.
   const closed = page.getByText("Booking for this departure has closed.");
   await expect(closed).toBeVisible();
 });
@@ -59,7 +69,7 @@ test("a paused kill switch reads as deliberate, not as a crash", async ({
 
   await expect(page.getByText("Booking is paused")).toBeVisible();
   // No retry: retrying just asks a human's decision again.
-  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Try again/i })).toHaveCount(0);
 });
 
 test("the health check blocks a dive booking until it is answered", async ({
@@ -69,18 +79,21 @@ test("the health check blocks a dive booking until it is answered", async ({
   await page.waitForLoadState("networkidle");
 
   await page
-    .getByRole("button", { name: /seats left|Available/ })
+    .getByRole("button", { name: /seats left|available/i })
     .first()
     .click();
-  await page.getByRole("link", { name: /Continue/ }).click();
+  await page.getByRole("link", { name: /continue/i }).click();
 
-  await page.getByLabel("Your name").fill("Asha Menon");
-  await page.getByLabel("WhatsApp number").fill("+919000000000");
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();
 
   // Omitted is not false — the form must not let this through.
   await expect(
     page.getByRole("button", { name: /Hold these seats/i }),
   ).toBeDisabled();
-  await expect(page.getByText(/health check/i)).toBeVisible();
+  // The blocker list specifically, not the fieldset legend — both contain the
+  // words "health check", and asserting on the vaguer one is how a test starts
+  // passing for the wrong reason.
+  await expect(page.getByText(/Still needed:.*health check/i)).toBeVisible();
 });

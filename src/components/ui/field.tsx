@@ -58,7 +58,7 @@ export function Field({
       />
 
       {hint ? (
-        <span id={hintId} className="text-forest/60 mt-1.5 block text-xs">
+        <span id={hintId} className="text-forest/70 mt-1.5 block text-xs">
           {hint}
         </span>
       ) : null}

@@ -197,7 +197,7 @@ export function CheckoutForm({
           >
             +
           </button>
-          <span className="text-forest/60 text-xs">Up to {maxParty}</span>
+          <span className="text-forest/70 text-xs">Up to {maxParty}</span>
         </div>
       </div>
 
@@ -265,7 +265,7 @@ export function CheckoutForm({
             </span>
           )}
         </div>
-        <p className="text-forest/60 mt-1.5 text-xs">
+        <p className="text-forest/70 mt-1.5 text-xs">
           All in. Nothing is added after this screen.
         </p>
 
@@ -318,7 +318,7 @@ export function CheckoutForm({
             </button>
           ) : null}
           {failure.requestId ? (
-            <p className="text-forest/40 mt-3 font-mono text-[10px]">
+            <p className="text-forest/70 mt-3 font-mono text-[10px]">
               {failure.requestId}
             </p>
           ) : null}
@@ -342,14 +342,14 @@ export function CheckoutForm({
               : "Hold these seats"}
         </button>
 
-        <p className="text-forest/60 mt-3 text-center text-xs">
+        <p className="text-forest/70 mt-3 text-center text-xs">
           {isRequest
             ? "You pay only once the operator says yes."
             : "We hold your seats for 10 minutes while you pay."}
         </p>
 
         {blockers.length > 0 ? (
-          <p className="text-forest/60 mt-2 text-center text-xs">
+          <p className="text-forest/70 mt-2 text-center text-xs">
             Still needed: {blockers.join(", ")}.
           </p>
         ) : null}
