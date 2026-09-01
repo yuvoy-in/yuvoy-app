@@ -23,6 +23,30 @@ import {
  * All seven states are here. The offline and stale ones arrive with the
  * service worker; the other five are live.
  */
+/**
+ * The feed's heading, for everything that is not a pair of eyes.
+ *
+ * Visually hidden and always rendered, in every state.
+ *
+ * The feed is full-bleed 9:16 video — there is nowhere to put a visible
+ * headline that would not fight the thing it sits on, which is why the page
+ * had none at all. But "none at all" is a document with no top-level heading:
+ * a screen reader user lands with nothing naming the page, and a crawler reads
+ * the app's front door — the page that takes the ROOT DOMAIN at launch — as
+ * having no subject.
+ *
+ * Caught by the sitemap-driven audit rather than by looking, which is the
+ * point of that suite: nothing about a missing h1 is visible on a screen.
+ *
+ * It is a SIBLING of the scroller, never a child. `role="feed"` requires its
+ * children to be articles, so an `<h1>` inside it is a critical axe violation
+ * — the first attempt at this fix traded a missing heading for a broken one,
+ * and the accessibility suite caught what the audit suite had just asked for.
+ */
+function FeedHeading() {
+  return <h1 className="sr-only">Experiences in the Andaman Islands</h1>;
+}
+
 export function Feed({
   filters = {},
   initialPage,
@@ -125,80 +149,96 @@ export function Feed({
   /* ------------------------------------------------------------- loading */
   if (isPending) {
     return (
-      <LoadingState label="Loading experiences">
-        <div className="container-feed h-[calc(100dvh-3.5rem)] p-4 lg:h-dvh">
-          <Skeleton className="h-full w-full" />
-        </div>
-      </LoadingState>
+      <>
+        <FeedHeading />
+        <LoadingState label="Loading experiences">
+          <div className="container-feed h-[calc(100dvh-3.5rem)] p-4 lg:h-dvh">
+            <Skeleton className="h-full w-full" />
+          </div>
+        </LoadingState>
+      </>
     );
   }
 
   /* --------------------------------------------------------------- error */
   if (isError) {
     return (
-      <div className="container-feed flex h-[calc(100dvh-3.5rem)] items-center lg:h-dvh">
-        <ErrorState error={error} onRetry={() => void refetch()} tone="abyss" />
-      </div>
+      <>
+        <FeedHeading />
+        <div className="container-feed flex h-[calc(100dvh-3.5rem)] items-center lg:h-dvh">
+          <ErrorState
+            error={error}
+            onRetry={() => void refetch()}
+            tone="abyss"
+          />
+        </div>
+      </>
     );
   }
 
   /* --------------------------------------------------------------- empty */
   if (items.length === 0) {
     return (
-      <div className="container-feed flex h-[calc(100dvh-3.5rem)] items-center lg:h-dvh">
-        <EmptyState
-          tone="abyss"
-          title="Nothing bookable here yet"
-          body="No operator has put anything on sale for this filter. Try another destination, or come back closer to the season."
-        />
-      </div>
+      <>
+        <FeedHeading />
+        <div className="container-feed flex h-[calc(100dvh-3.5rem)] items-center lg:h-dvh">
+          <EmptyState
+            tone="abyss"
+            title="Nothing bookable here yet"
+            body="No operator has put anything on sale for this filter. Try another destination, or come back closer to the season."
+          />
+        </div>
+      </>
     );
   }
 
   /* ------------------------------------------------------------- success */
   return (
-    <div
-      ref={scrollerRef}
-      className="container-feed h-[calc(100dvh-3.5rem)] snap-y snap-mandatory overflow-y-auto overscroll-y-contain lg:h-dvh"
-      // The feed is a list of experiences; announce it as one.
-      role="feed"
-      aria-busy={isFetchingNextPage}
-    >
-      {items.map((experience, i) => (
-        <ExperienceCard
-          key={experience.id}
-          experience={experience}
-          index={i}
-          total={items.length}
-          active={i === activeIndex}
-          mounted={shouldMount(i)}
-          muted={muted}
-          autoplayAllowed={autoplayAllowed}
-        />
-      ))}
+    <>
+      <FeedHeading />
+      <div
+        ref={scrollerRef}
+        className="container-feed h-[calc(100dvh-3.5rem)] snap-y snap-mandatory overflow-y-auto overscroll-y-contain lg:h-dvh"
+        // The feed is a list of experiences; announce it as one.
+        role="feed"
+        aria-busy={isFetchingNextPage}
+      >
+        {items.map((experience, i) => (
+          <ExperienceCard
+            key={experience.id}
+            experience={experience}
+            index={i}
+            total={items.length}
+            active={i === activeIndex}
+            mounted={shouldMount(i)}
+            muted={muted}
+            autoplayAllowed={autoplayAllowed}
+          />
+        ))}
 
-      {/* Sentinel. Only rendered while the server says there is more. */}
-      {hasNextPage ? (
-        <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
-      ) : null}
+        {/* Sentinel. Only rendered while the server says there is more. */}
+        {hasNextPage ? (
+          <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
+        ) : null}
 
-      {isFetchingNextPage ? (
-        <div className="flex h-24 items-center justify-center">
-          <span className="label text-cream/60">Loading more</span>
-        </div>
-      ) : null}
+        {isFetchingNextPage ? (
+          <div className="flex h-24 items-center justify-center">
+            <span className="label text-cream/60">Loading more</span>
+          </div>
+        ) : null}
 
-      {/*
+        {/*
         The end of the feed, stated. `complete` is told by the server, never
         inferred from a short page.
       */}
-      {!hasNextPage ? (
-        <div className="flex h-32 snap-start items-center justify-center px-8 text-center">
-          <p className="text-cream/60 text-xs">
-            That is everything on sale right now.
-          </p>
-        </div>
-      ) : null}
-    </div>
+        {!hasNextPage ? (
+          <div className="flex h-32 snap-start items-center justify-center px-8 text-center">
+            <p className="text-cream/60 text-xs">
+              That is everything on sale right now.
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </>
   );
 }

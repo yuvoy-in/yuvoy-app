@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { publishedGuides } from "@/lib/guides/guides";
 import { createApiClient } from "@/lib/api/client";
 import { SITE_URL } from "@/lib/site/metadata";
+import { INDEXABLE_FIXED_ROUTES } from "@/lib/site/inventory";
 
 /**
  * The sitemap.
@@ -22,26 +23,18 @@ const BASE = SITE_URL;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
-  const stat: MetadataRoute.Sitemap = [
-    {
-      url: `${BASE}/`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 1,
-    },
-    {
-      url: `${BASE}/search`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE}/guides`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-  ];
+  /*
+    Derived from lib/site/inventory.ts rather than written here. The audit
+    suite used to keep a second copy of this list; two lists of the same thing
+    drift the moment a page is added, and a page missing from the sitemap
+    fails nothing and is found by nobody.
+  */
+  const stat: MetadataRoute.Sitemap = INDEXABLE_FIXED_ROUTES.map((r) => ({
+    url: new URL(r.path, BASE).toString(),
+    lastModified: now,
+    changeFrequency: r.changeFrequency,
+    priority: r.priority,
+  }));
 
   const guides: MetadataRoute.Sitemap = publishedGuides().map((g) => ({
     url: `${BASE}/guides/${g.slug}`,

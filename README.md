@@ -107,6 +107,27 @@ reason it is safe to freeze; a route joining or leaving that list fails the chec
 `/search`, which reads the wall clock during render — its day pills said "Today" over the build
 date until hydration rewrote them.
 
+**`e2e/audit.spec.ts` is the only suite that runs against production.** It reads
+`/sitemap.xml` from whatever origin it is pointed at and audits every URL in it — status,
+one `<h1>`, heading order, unique title/description, self-canonical, complete route-specific
+OG/Twitter, allowed JSON-LD only, the share image serving, no broken internal link, and no
+orphaned guide. It also asserts `robots.txt` and the `<meta name="robots">` tag agree, which
+is the one thing only a deployed origin can answer.
+
+It is **GET-only by construction**, because it is pointed at production. `money-loop.spec.ts`
+never is.
+
+```bash
+PLAYWRIGHT_BASE_URL=https://app.yuvoy.in pnpm exec playwright test e2e/audit.spec.ts --project=mobile
+```
+
+It runs automatically after every production deploy and weekly — the one exception to
+"Actions = deploys only", because a pre-push hook structurally cannot check a deployed
+configuration. That distinction cost three deploys to learn: `NEXT_PUBLIC_SITE_URL` was
+marked Sensitive in Vercel, the build received a placeholder, and every local build was green
+throughout. The target lives in the `PRODUCTION_URL` repo variable, so the domain cutover is a
+variable change rather than a code change.
+
 A green `pnpm build` does not mean the app runs. Two runtime failures reached the owner before
 these checks existed; both now have a static guard and a regression test.
 

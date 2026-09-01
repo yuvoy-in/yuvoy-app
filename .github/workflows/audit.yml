@@ -1,0 +1,99 @@
+# The rendered audit, against whatever is actually live.
+#
+# ## Why this is allowed to exist when CI is not
+#
+# The standing rule in this org is **Actions = deploys only**: the account
+# reached 90% of its 2,000 free minutes with 20 days of the cycle left, and
+# `pnpm verify` on the pre-push hook is the correctness gate.
+#
+# This is the one exception, and it earns it by checking something a pre-push
+# hook structurally cannot: the DEPLOYED configuration. Half of what
+# `e2e/audit.spec.ts` asserts — that robots.txt and the meta tag agree, that
+# the sitemap's URLs actually resolve, that the share image serves — depends on
+# environment values that exist only in the Vercel dashboard. A local run
+# proves the code is right; only this proves the deployment is.
+#
+# It cost three deploys to learn that distinction: `NEXT_PUBLIC_SITE_URL` was
+# marked Sensitive, the build received a placeholder, and every local build was
+# green throughout.
+#
+# ## The budget
+#
+# ~2 minutes a run. After a production deploy (rare), plus weekly. The content
+# changes on deploy, so a daily crawl would be paying to be told the same thing
+# seven times.
+#
+# ## Read-only, and enforced by which file it runs
+#
+# It runs `e2e/audit.spec.ts` and nothing else. That spec is GET-only by
+# construction — it may never create a reservation or touch a booking, because
+# it is pointed at production. `money-loop.spec.ts` is never run here.
+name: Production audit
+
+on:
+  workflow_call:
+    inputs:
+      url:
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Origin to audit. Blank uses the PRODUCTION_URL repo variable.
+        type: string
+        required: false
+        default: ""
+  schedule:
+    # Mondays, 04:00 UTC — 09:30 IST, before anybody in the market is working.
+    - cron: "0 4 * * 1"
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: rendered audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Chromium only. The audit reads HTML; it does not need three engines.
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Resolve the target
+        id: target
+        run: |
+          URL="${{ inputs.url }}"
+          if [ -z "$URL" ]; then URL="${{ vars.PRODUCTION_URL }}"; fi
+          if [ -z "$URL" ]; then
+            echo "::error::No target. Set the PRODUCTION_URL repo variable, or pass one."
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Auditing $URL" >> "$GITHUB_STEP_SUMMARY"
+
+      # `--project=mobile` only: the assertions are about served bytes, and
+      # running the identical HTML checks twice on two viewports pays double
+      # for one answer.
+      - name: Audit
+        run: pnpm exec playwright test e2e/audit.spec.ts --project=mobile
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.target.outputs.url }}
+          CI: "1"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: audit-report
+          path: playwright-report/
+          retention-days: 14

@@ -25,3 +25,12 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # A deploy that succeeds is not a deploy that works. Half of what the audit
+  # checks — robots.txt agreeing with the meta tag, the sitemap resolving, the
+  # share image serving — depends on values that exist only in the Vercel
+  # dashboard, and a green build says nothing about any of them. That gap cost
+  # three deploys to find once.
+  audit:
+    needs: deploy
+    uses: ./.github/workflows/audit.yml

@@ -476,6 +476,53 @@ for (const f of files) {
   }
 }
 
+/* --------------- 13. every public page is in the inventory --------------- */
+
+/**
+ * A public page route that is in neither the indexable inventory nor the
+ * private list.
+ *
+ * The failure this catches is the quiet one: a page that exists, renders
+ * perfectly and is in no sitemap. Nothing errors, no test fails, and the page
+ * is simply never found. It used to be possible because the sitemap kept its
+ * own hand-written array — now it derives from `lib/site/inventory.ts`, and
+ * this check is what makes forgetting to add a route there loud.
+ */
+
+{
+  const inventory = readFileSync(join(SRC, "lib/site/inventory.ts"), "utf8");
+  const known = [
+    ...inventory.matchAll(/path:\s*"([^"]+)"/g),
+    ...inventory.matchAll(/^\s*"(\/[^"]+)",/gm),
+  ].map((m) => m[1]);
+
+  const indexingSrc = readFileSync(join(SRC, "lib/site/indexing.ts"), "utf8");
+  const excluded = [
+    ...indexingSrc.matchAll(/PRIVATE_ROUTES = \[([^\]]*)\]/g),
+    ...indexingSrc.matchAll(/NON_PAGE_ROUTES = \[([^\]]*)\]/g),
+  ].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+
+  for (const f of walk(APP)) {
+    if (!/[/\\]page\.tsx$/.test(f)) continue;
+    const route =
+      "/" +
+      relative(APP, f)
+        .replace(/[/\\]page\.tsx$/, "")
+        .replace(/^page\.tsx$/, "")
+        .replace(/\\/g, "/");
+
+    if (known.includes(route)) continue;
+    if (excluded.some((r) => coversRoute(r, route))) continue;
+
+    problems.push(
+      `${rel(f)}: route "${route}" is in neither INDEXABLE_FIXED_ROUTES / ` +
+        `INDEXABLE_DYNAMIC_ROUTES (lib/site/inventory.ts) nor PRIVATE_ROUTES ` +
+        `(lib/site/indexing.ts). A public page in no sitemap renders fine and ` +
+        `is found by nobody.`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);
