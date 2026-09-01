@@ -236,6 +236,65 @@ for (const root of clientRoots) {
   }
 }
 
+/* ------------------------- 8. mocks may not invent endpoints ------------- */
+
+/**
+ * Every path a handler serves must exist in the contract.
+ *
+ * A mock for an endpoint the API does not have is worse than no mock: it is
+ * how a deleted feature gets rebuilt against a shape that exists only on one
+ * laptop. This caught /auth/otp/* still being served after the traveller
+ * sign-in was removed upstream.
+ */
+{
+  const contract = readFileSync(join(ROOT, "contracts/openapi.yaml"), "utf8");
+  const contractPaths = [...contract.matchAll(/^ {2}(\/[a-z][^:]*):/gim)].map(
+    (m) => m[1],
+  );
+
+  const toRegex = (p) =>
+    new RegExp(
+      "^" + p.replace(/\{[^}]+\}/g, "[^/]+").replace(/\//g, "\\/") + "$",
+    );
+  const known = contractPaths.map(toRegex);
+
+  for (const f of walk(join(ROOT, "mocks"))) {
+    if (!/\.ts$/.test(f)) continue;
+    const s = code(f);
+    for (const m of s.matchAll(/url\("([^"]+)"\)/g)) {
+      const served = m[1].replace(/:[a-zA-Z]+/g, "{x}");
+      if (!known.some((re) => re.test(served))) {
+        problems.push(
+          `${rel(f)}: mocks "${m[1]}", which the contract does not have`,
+        );
+      }
+    }
+  }
+}
+
+/* --------------- 9. seeded query data must carry its own timestamp ------- */
+
+/**
+ * `initialData` without `initialDataUpdatedAt`.
+ *
+ * React Query treats seeded data with no timestamp as infinitely stale and
+ * refetches it the moment the component mounts — so the server fetch that was
+ * added to put content in the HTML is thrown away on hydration. Everything
+ * still works, the tests still pass, and the only symptom is the LCP number
+ * going back to where it was. Exactly the kind of regression nobody notices.
+ */
+
+for (const f of files) {
+  const s = code(f);
+  if (!/\binitialData\b\s*:/.test(s)) continue;
+  if (!/\binitialDataUpdatedAt\b/.test(s)) {
+    problems.push(
+      `${rel(f)}: seeds initialData with no initialDataUpdatedAt — ` +
+        `it will be refetched on hydration`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

@@ -20,3 +20,6 @@ next-env.d.ts
 
 # Session memory written by the memsearch plugin.
 .memsearch/
+
+# Lighthouse CI run output. Regenerated every run, never reviewed.
+.lighthouseci/

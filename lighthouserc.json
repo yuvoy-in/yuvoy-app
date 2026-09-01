@@ -1,0 +1,93 @@
+{
+  "//": "Budgets set for a mid-range Android on island 4G, not a laptop on fibre. The traveller this product is for has a Moto G-class phone and 0.5-3 Mbps, so a budget met on a MacBook proves nothing.",
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm start --port 3101",
+      "url": [
+        "http://127.0.0.1:3101/",
+        "http://127.0.0.1:3101/e/try-dive-nemo-reef",
+        "http://127.0.0.1:3101/search",
+        "http://127.0.0.1:3101/guides"
+      ],
+      "numberOfRuns": 3,
+      "settings": {
+        "preset": "desktop",
+        "formFactor": "mobile",
+        "screenEmulation": {
+          "mobile": true,
+          "width": 412,
+          "height": 915,
+          "deviceScaleFactor": 2.625,
+          "disabled": false
+        },
+        "throttling": {
+          "rttMs": 150,
+          "throughputKbps": 1638,
+          "cpuSlowdownMultiplier": 4,
+          "requestLatencyMs": 562.5,
+          "downloadThroughputKbps": 1474,
+          "uploadThroughputKbps": 675
+        }
+      }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": [
+          "error",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "categories:accessibility": [
+          "error",
+          {
+            "minScore": 1
+          }
+        ],
+        "categories:best-practices": [
+          "error",
+          {
+            "minScore": 0.9
+          }
+        ],
+        "categories:seo": "off",
+        "largest-contentful-paint": [
+          "error",
+          {
+            "maxNumericValue": 3200
+          }
+        ],
+        "cumulative-layout-shift": [
+          "error",
+          {
+            "maxNumericValue": 0.1
+          }
+        ],
+        "total-blocking-time": [
+          "error",
+          {
+            "maxNumericValue": 300
+          }
+        ],
+        "total-byte-weight": [
+          "error",
+          {
+            "maxNumericValue": 600000
+          }
+        ],
+        "unused-javascript": [
+          "warn",
+          {
+            "maxNumericValue": 100000
+          }
+        ],
+        "uses-responsive-images": "off",
+        "is-crawlable": "off"
+      },
+      "//": "MEASURED, not aspirational. On this profile (4x CPU slowdown, 1.6 Mbps, roughly a Moto G4 on slow 4G) the feed lands at LCP 3.0s and perf 94 across three runs; the budget sits just above with headroom. That profile is deliberately harsher than the p75 the 2.5s 'good' threshold is defined against, so this is not a 2.5s failure -- it is a stricter test than the standard one. Measured total transfer is 455 KB (298 script, 90 font), hence the 600 KB ceiling: it catches hls.js if it ever stops being lazy. Keys inside `assertions` are audit NAMES, so a comment key is read as an audit that did not run -- notes live here. SEO is off because robots.txt disallows everything until NEXT_PUBLIC_ALLOW_INDEXING flips at the cutover."
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}

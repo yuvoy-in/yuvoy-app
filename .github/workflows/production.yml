@@ -1,0 +1,27 @@
+# app.yuvoy.in
+#
+# There is ONE Vercel project for now (owner decision, 1 Sep 2026), so `main`
+# is the only branch that deploys and `dev` deploys nowhere. When a staging
+# project exists, add staging.yml on `push: [dev]` with its own
+# VERCEL_PROJECT_ID and this file does not change.
+name: Production deployment
+
+on:
+  # Manual redeploy. NEXT_PUBLIC_* values are inlined at BUILD time, so
+  # changing one in Vercel does nothing until a rebuild — which would
+  # otherwise mean pushing a commit for a config-only change.
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy.yml
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

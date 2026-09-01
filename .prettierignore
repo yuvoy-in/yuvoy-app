@@ -16,3 +16,6 @@ pnpm-lock.yaml
 
 # Session memory written by the memsearch plugin. Tooling artifact, not code.
 .memsearch/
+
+# Lighthouse CI run output. Regenerated every run, never reviewed.
+.lighthouseci/

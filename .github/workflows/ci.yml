@@ -1,15 +1,34 @@
 name: CI
 
-# `pnpm verify` on pre-push is the primary gate — it runs on the developer's
-# machine, in seconds, before anything leaves it. This workflow exists for the
-# two things a laptop cannot do well: prove the gate passes on a clean checkout
-# with no local state, and run the end-to-end suite against a real production
-# build, which is too slow to sit in front of every push.
-
+# MANUAL ONLY. The same suite runs locally before every push (`pnpm verify`,
+# wired to .husky/pre-push), so running it here on every push and pull request
+# was paying for the same answer twice.
+#
+# ## Why (ported from yuvoy-web, 2026-08-14)
+#
+# The account reached 90% of its 2,000 free Actions minutes with 20 days of the
+# cycle left, and there is no budget to spend past it. Actions does deployments
+# only; correctness moved to the pre-push hook, which runs the identical
+# commands on the identical lockfile before anything leaves the machine.
+#
+# This repo repeated the mistake on its first PR: ci.yml ran verify, e2e AND
+# Lighthouse on every pull_request and push, roughly 6 minutes each, while the
+# local `verify` was missing the e2e run that yuvoy-web's includes — a weaker
+# gate and a heavier bill at the same time.
+#
+# **Keep this workflow.** It is the second opinion on a machine that is not the
+# author's, worth the minutes before a release or when a failure smells
+# environmental. Lighthouse lives here for the same reason: it needs a
+# consistent machine to mean anything, and it does not need to run per push.
+#
+#     gh workflow run CI --ref <branch>
 on:
-  pull_request:
-  push:
-    branches: [main, dev]
+  workflow_dispatch:
+    inputs:
+      lighthouse:
+        description: Also run the performance budgets
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,58 +38,54 @@ jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
 
-      # typecheck · lint · format · qa · test · contract:check · build
+      # typecheck · lint · format · qa · test · contract:check · build · e2e
       - run: pnpm verify
         env:
           # The contract check needs gh to reach yuvoy-api. Without a token it
-          # warns and passes rather than failing the build on network access —
-          # see scripts/check-contract-drift.mjs.
+          # warns and passes rather than failing on network access.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  e2e:
-    name: end-to-end
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Install browsers
-        run: pnpm exec playwright install --with-deps chromium
-
-      # Builds and serves internally. Mocks stay ON: there is no staging API,
-      # and pointing e2e at production would create real reservations against
-      # real inventory.
-      - run: pnpm test:e2e
-
       - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
+        if: ${{ failure() }}
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  lighthouse:
+    name: performance budgets
+    if: ${{ inputs.lighthouse }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Mocked, so the budgets measure OUR bytes rather than the API's latency.
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_API_MOCKING: enabled
+
+      - run: pnpm dlx @lhci/cli@0.14.x autorun
+        env:
+          NEXT_PUBLIC_API_MOCKING: enabled

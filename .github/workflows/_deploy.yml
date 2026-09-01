@@ -1,0 +1,57 @@
+# Reusable deploy — called by the env-named workflows so GitHub notifications
+# read "Production deployment" rather than "_deploy".
+#
+# Ported from yuvoy-web, including two gotchas that were expensive to find
+# there and would be expensive to rediscover here.
+name: _deploy
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to deploy. Empty means the commit that triggered the caller.
+        type: string
+        required: false
+        default: ""
+    secrets:
+      VERCEL_TOKEN:
+        required: true
+      VERCEL_ORG_ID:
+        required: true
+      VERCEL_PROJECT_ID:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      # Recorded BEFORE .git is removed. Without it the only evidence of what
+      # shipped is the Vercel dashboard.
+      - run: echo "Deploying $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Vercel Hobby refuses a private-repo deploy whose commit author is not
+      # the account owner. No .git, no author, no refusal.
+      - run: rm -rf .git
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: npm i -g vercel@latest
+      - run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - run: vercel build --prod --token="$VERCEL_TOKEN"
+      # --archive=tgz: the upload times out on a repo this size without it.
+      - run: vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"
