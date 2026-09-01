@@ -20,8 +20,9 @@
     "codegen": "openapi-typescript contracts/openapi.yaml -o src/lib/api/schema.gen.ts && prettier --write src/lib/api/schema.gen.ts",
     "contract:check": "node scripts/check-contract-drift.mjs",
     "qa": "node scripts/qa.mjs",
-    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm qa && pnpm test && pnpm contract:check && pnpm build && CI=1 pnpm test:e2e",
-    "prepare": "husky"
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm qa && pnpm test && pnpm contract:check && pnpm build && pnpm prerender:check && CI=1 pnpm test:e2e",
+    "prepare": "husky",
+    "prerender:check": "node scripts/check-prerender.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",

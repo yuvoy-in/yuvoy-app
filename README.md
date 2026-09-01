@@ -76,15 +76,17 @@ Every traveller screen from the approved prototype, T1–T12.
 ## Verify
 
 ```bash
-pnpm verify       # typecheck · lint · format · qa · test · contract:check · build
-pnpm verify:full  # the above, then the end-to-end suite
-pnpm qa           # the static sweep on its own
-pnpm test:e2e     # 36 e2e tests, incl. axe on every route
+pnpm verify           # the pre-push gate — all nine steps below, in order
+pnpm qa               # the static sweep on its own
+pnpm prerender:check  # what the build froze, against sign-off (needs a build first)
+pnpm test:e2e         # 38 e2e tests, incl. axe on every route
 ```
 
-`pnpm verify` is the pre-push gate. All seven steps must pass.
+```
+typecheck · lint · format · qa · test · contract:check · build · prerender:check · e2e
+```
 
-**`pnpm qa` catches what the other six cannot** — none of these fail a build, and all are visible
+**`pnpm qa` catches what the compiler cannot** — none of these fail a build, and all are visible
 to a traveller:
 
 - a link to a route that does not exist, or a nav entry with no page
@@ -95,6 +97,15 @@ to a traveller:
   `msw/node` → `async_hooks` in the browser bundle, and only `pnpm dev` showed it
 - **a mock serving an endpoint the contract does not have** — this shipped once as `/auth/otp/*`
   after the endpoint was deleted upstream
+- **`initialData` seeded without `initialDataUpdatedAt`** — React Query refetches it on hydration,
+  which silently throws away the server fetch that put the content in the HTML
+
+**`pnpm prerender:check` asserts the build output, not the source.** Static generation is opt-_out_
+in the App Router, so a page becomes frozen at build time by the absence of something rather than
+the presence of it. `scripts/check-prerender.mjs` lists every statically prerendered route with the
+reason it is safe to freeze; a route joining or leaving that list fails the check. It caught
+`/search`, which reads the wall clock during render — its day pills said "Today" over the build
+date until hydration rewrote them.
 
 A green `pnpm build` does not mean the app runs. Two runtime failures reached the owner before
 these checks existed; both now have a static guard and a regression test.

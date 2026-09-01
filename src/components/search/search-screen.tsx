@@ -14,6 +14,10 @@ import {
 } from "@/components/states";
 import { cn } from "@/lib/cn";
 import { Field } from "@/components/ui/field";
+import { marketToday } from "@/lib/booking/availability-window";
+import type { components } from "@/lib/api/schema.gen";
+
+type ExperiencePage = components["schemas"]["ExperiencePage"];
 
 /**
  * The Search tab — date-first discovery.
@@ -26,12 +30,6 @@ import { Field } from "@/components/ui/field";
 
 const DAYS_SHOWN = 10;
 
-function marketToday(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
-    new Date(),
-  );
-}
-
 function nextDays(count: number): string[] {
   const start = new Date(`${marketToday()}T00:00:00+05:30`);
   return Array.from({ length: count }, (_, i) => {
@@ -43,7 +41,15 @@ function nextDays(count: number): string[] {
   });
 }
 
-export function SearchScreen() {
+export function SearchScreen({
+  initialResults,
+  initialFetchedAt,
+}: {
+  /** The unfiltered results, fetched on the server. See app/search/page.tsx. */
+  initialResults?: ExperiencePage | null;
+  /** When the server fetched them. Epoch ms. */
+  initialFetchedAt?: number;
+} = {}) {
   const [q, setQ] = useState("");
   const [bookableOn, setBookableOn] = useState<string | undefined>(undefined);
   // Keeps typing responsive on a mid-range Android without debounce timers.
@@ -51,8 +57,28 @@ export function SearchScreen() {
 
   const days = nextDays(DAYS_SHOWN);
 
+  /**
+   * The prefetch describes ONE state: no text, no day. It may seed only that
+   * one query.
+   *
+   * React Query applies `initialData` to whichever key is current, so passing
+   * it unconditionally would answer "diving on Thursday" with the unfiltered
+   * catalogue — instantly, and wrongly, which is the worst combination.
+   */
+  const isDefaultQuery = deferredQ === "" && bookableOn === undefined;
+  const seed =
+    isDefaultQuery && initialResults
+      ? {
+          initialData: initialResults,
+          // Without this the seeded data is treated as infinitely stale and
+          // refetched on hydration, which would undo the server fetch.
+          initialDataUpdatedAt: initialFetchedAt,
+        }
+      : {};
+
   const search = useQuery({
     queryKey: qk.search(deferredQ, bookableOn),
+    ...seed,
     queryFn: async ({ signal }) => {
       const { data, error } = await api.GET("/search", {
         params: {

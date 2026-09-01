@@ -272,6 +272,29 @@ for (const root of clientRoots) {
   }
 }
 
+/* --------------- 9. seeded query data must carry its own timestamp ------- */
+
+/**
+ * `initialData` without `initialDataUpdatedAt`.
+ *
+ * React Query treats seeded data with no timestamp as infinitely stale and
+ * refetches it the moment the component mounts — so the server fetch that was
+ * added to put content in the HTML is thrown away on hydration. Everything
+ * still works, the tests still pass, and the only symptom is the LCP number
+ * going back to where it was. Exactly the kind of regression nobody notices.
+ */
+
+for (const f of files) {
+  const s = code(f);
+  if (!/\binitialData\b\s*:/.test(s)) continue;
+  if (!/\binitialDataUpdatedAt\b/.test(s)) {
+    problems.push(
+      `${rel(f)}: seeds initialData with no initialDataUpdatedAt — ` +
+        `it will be refetched on hydration`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);
