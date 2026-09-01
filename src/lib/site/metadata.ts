@@ -42,8 +42,34 @@ const DEFAULT_SITE_URL = "https://app.yuvoy.in";
  * Normalised to an origin, so a trailing slash or a stray path cannot produce
  * `https://host//guides` in a canonical.
  */
+/**
+ * Describes a value without reproducing it.
+ *
+ * Vercel scrubs environment values out of build logs by literal substitution,
+ * so quoting the bad value back — `JSON.stringify(value)` — prints
+ * `"[SENSITIVE]"` and says nothing. Shape survives the scrubber: a length and
+ * a character census is enough to recognise a stray quote, a pasted newline
+ * or a second URL after a comma, and reveals nothing a log should not carry.
+ */
+function describeShape(value: string): string {
+  const has = (re: RegExp) => (re.test(value) ? "yes" : "no");
+  return [
+    `length ${value.length}`,
+    `scheme ${has(/^[a-z][a-z0-9+.-]*:/i)}`,
+    `whitespace inside ${has(/\s/)}`,
+    `quotes ${has(/["'\`]/)}`,
+    `comma or semicolon ${has(/[,;]/)}`,
+    `path or query ${has(/[/?#]/)}`,
+  ].join(", ");
+}
+
 function resolveSiteUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const raw = process.env.NEXT_PUBLIC_SITE_URL
+    // Surrounding quotes and angle brackets are paste artifacts, not values.
+    // A dashboard field takes the text somebody copied, brackets and all.
+    ?.trim()
+    .replace(/^[<"'`]+|[>"'`]+$/g, "")
+    .trim();
   const candidate = raw ? raw : DEFAULT_SITE_URL;
   const withScheme = /^https?:\/\//i.test(candidate)
     ? candidate
@@ -53,10 +79,12 @@ function resolveSiteUrl(): string {
     return new URL(withScheme).origin;
   } catch {
     throw new Error(
-      `NEXT_PUBLIC_SITE_URL is not a URL: ${JSON.stringify(candidate)}. ` +
-        `It must be an origin such as "https://app.yuvoy.in" (a bare ` +
-        `"app.yuvoy.in" is accepted and assumed https). Every canonical, ` +
-        `Open Graph URL, sitemap entry and share card is built from it.`,
+      `NEXT_PUBLIC_SITE_URL is not a URL. It must be an origin such as ` +
+        `"https://app.yuvoy.in" — a bare "app.yuvoy.in" is accepted and ` +
+        `assumed https. Every canonical, Open Graph URL, sitemap entry and ` +
+        `share card is built from it.\n` +
+        `The value is masked in deploy logs, so here is its shape instead: ` +
+        `${describeShape(candidate)}.`,
     );
   }
 }

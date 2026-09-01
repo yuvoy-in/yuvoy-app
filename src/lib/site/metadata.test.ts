@@ -43,8 +43,27 @@ describe("SITE_URL", () => {
     }
   });
 
+  it("strips the quotes and brackets a paste brings with it", async () => {
+    for (const raw of [
+      '"https://app.yuvoy.in"',
+      "'https://app.yuvoy.in'",
+      "<https://app.yuvoy.in>",
+      "`app.yuvoy.in`",
+    ]) {
+      expect((await load(raw)).SITE_URL).toBe("https://app.yuvoy.in");
+    }
+  });
+
   it("fails by name rather than as `Invalid URL` six frames deep", async () => {
     await expect(load("http://")).rejects.toThrow(/NEXT_PUBLIC_SITE_URL/);
+  });
+
+  it("describes a bad value by shape, since deploy logs mask it", async () => {
+    // Vercel scrubs env values out of build output by literal substitution,
+    // so echoing the value back prints "[SENSITIVE]" and says nothing.
+    await expect(load("https://a b c, d")).rejects.toThrow(
+      /length \d+, scheme yes, whitespace inside yes/,
+    );
   });
 
   it("builds absolute, non-doubled URLs for a nested route", async () => {
