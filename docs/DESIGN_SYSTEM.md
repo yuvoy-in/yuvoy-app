@@ -59,6 +59,43 @@ the token block, and a display face at any weight but 400 or the turn.
 `viewport.themeColor` before any CSS is parsed, so it cannot be a custom property. The test
 asserts it equals `--color-forest`.
 
+### The display face is baked, and loads `optional` (v2.6)
+
+The app ships **`Fraunces-Yuvoy.woff2`, 13 KB** — the upstream variable font
+instanced to the exact axis values §2 already pins (`opsz` 144, `SOFT` 75,
+`WONK` 0) at weight 400, then subset. Letterforms are identical; four axes of
+interpolation machinery are not shipped to a 0.5–3 Mbps connection to produce
+one cut. Regenerate with `scripts/build-display-font.py`.
+
+**A new display weight means going back to the variable file first.** A static
+400 cannot serve 480, and the browser would synthesise it — the faux-bold this
+type system exists to prevent.
+
+It loads with **`display: optional`**, not `swap`. Measured: the feed headline
+is the LCP element, and swapping it repainted at 4.1s against a first paint of
+0.8s. With `optional` the font is preloaded and at 13 KB usually wins its block
+window, so most visitors still get Fraunces — and a visitor on a genuinely bad
+connection keeps the fallback for that page rather than watching the headline
+change under them. LCP 4.1s → 3.0s, performance 87 → 94.
+
+The trade, stated plainly: **on a first visit over a very slow connection the
+headline is not in Fraunces.** For somebody standing on a jetty trying to book
+a boat, that is the right way round.
+
+### The turn is not shipped in the app (v2.6)
+
+The italic "turn" — the second thought of a headline, set in `italic font-turn`
+with the terracotta accent — is the marketing site's most recognisable
+typographic move, and it stays there. The app ships **upright Fraunces only**.
+
+Not an aesthetic judgement: the italic is a 146 KB variable font, `preload`
+covers every file in a family, and the feed's headline is the LCP element on a
+connection measured at 0.5–3 Mbps. Carrying a face the app never sets was 43%
+of the font payload for nothing.
+
+If a turn is ever wanted here, add the file back **and measure LCP before
+merging**.
+
 ## The app chassis (new in v2.6)
 
 The existing system was built for an editorial marketing site: cream canvas, hairlines, generous

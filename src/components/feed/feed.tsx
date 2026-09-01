@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useFeed, flattenFeed, type FeedFilters } from "@/lib/feed/use-feed";
+import type { components } from "@/lib/api/schema.gen";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { ExperienceCard } from "./experience-card";
 import {
@@ -22,7 +23,17 @@ import {
  * All seven states are here. The offline and stale ones arrive with the
  * service worker; the other five are live.
  */
-export function Feed({ filters = {} }: { filters?: FeedFilters }) {
+export function Feed({
+  filters = {},
+  initialPage,
+  initialFetchedAt,
+}: {
+  filters?: FeedFilters;
+  /** The first page, server-rendered. See app/page.tsx for why. */
+  initialPage?: components["schemas"]["ExperiencePage"] | null;
+  /** When the server fetched it. Epoch ms. */
+  initialFetchedAt?: number;
+}) {
   const {
     data,
     error,
@@ -32,7 +43,7 @@ export function Feed({ filters = {} }: { filters?: FeedFilters }) {
     hasNextPage,
     isFetchingNextPage,
     refetch,
-  } = useFeed(filters);
+  } = useFeed(filters, initialPage, initialFetchedAt);
 
   const setActiveIndex = useFeedStore((s) => s.setActiveIndex);
   const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);

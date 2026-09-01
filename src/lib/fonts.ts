@@ -22,20 +22,33 @@ import localFont from "next/font/local";
 export const fraunces = localFont({
   src: [
     {
-      path: "../fonts/Fraunces-Variable.woff2",
-      weight: "100 900",
+      path: "../fonts/Fraunces-Yuvoy.woff2",
+      weight: "400",
       style: "normal",
-    },
-    {
-      path: "../fonts/FrauncesItalic-Variable.woff2",
-      weight: "100 900",
-      style: "italic",
     },
   ],
   variable: "--font-fraunces",
-  display: "swap",
-  // The app's first paint is a feed of posters with a headline over them.
-  // A swap flash on the one line of display type is cheaper than blocking it.
+  display: "optional",
+  /*
+    THE YUVOY CUT, BAKED. 118 KB -> 13 KB, an 89% saving, and this was the
+    single biggest lever on the app's LCP.
+
+    Two reductions, in order:
+
+    1. The italic is gone. It is 146 KB, `preload` covers every file in a
+       family, and the app never sets display type in italic — the terracotta
+       "turn" is the marketing site's move, not this one.
+
+    2. The variable font is INSTANCED to the axis values globals.css already
+       pins: opsz 144, SOFT 75, WONK 0, weight 400. Nothing in the app renders
+       display type at any other weight, so four axes of interpolation data
+       were being shipped to a 0.5-3 Mbps connection to produce one cut. The
+       letterforms are identical; the machinery for producing others is not.
+
+    Regenerate with scripts/build-display-font.py if the cut ever changes, and
+    note that a NEW WEIGHT means going back to the variable file first — a
+    static 400 cannot serve 480, and the browser would synthesise it.
+  */
   preload: true,
 });
 

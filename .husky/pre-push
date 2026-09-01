@@ -1,1 +1,19 @@
+# The gate. Actions runs deployments only — see .github/workflows/ci.yml for
+# why — so this is the last thing between a mistake and app.yuvoy.in.
+#
+# It runs the identical sequence CI would, on the identical lockfile, against
+# the exact tree being pushed: typecheck, lint, format, the static QA sweep,
+# unit tests, the contract check, a production build, and the full e2e suite
+# against that build.
+#
+# `SKIP_VERIFY=1 git push` skips it. That exists for a push that is not code —
+# a docs-only branch, a revert of something already known bad — and every use
+# of it is a deliberate decision to ship unverified, because nothing
+# downstream will check afterwards.
+if [ "$SKIP_VERIFY" = "1" ]; then
+  echo "pre-push: SKIP_VERIFY=1 — nothing was checked, and nothing downstream will be"
+  exit 0
+fi
+
+echo "pre-push: running pnpm verify (CI does not run this on push any more)"
 pnpm verify
