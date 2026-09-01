@@ -1,4 +1,5 @@
 import { publishedGuides } from "@/lib/guides/guides";
+import { SITE_URL } from "@/lib/site/metadata";
 
 /**
  * llms.txt — a machine-readable summary for language models.
@@ -16,7 +17,7 @@ import { publishedGuides } from "@/lib/guides/guides";
 export const dynamic = "force-static";
 export const revalidate = 3600;
 
-const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.yuvoy.in";
+const BASE = SITE_URL;
 
 export function GET(): Response {
   const guides = publishedGuides();

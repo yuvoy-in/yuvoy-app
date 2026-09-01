@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { publishedGuides } from "@/lib/guides/guides";
 import { createApiClient } from "@/lib/api/client";
+import { SITE_URL } from "@/lib/site/metadata";
 
 /**
  * The sitemap.
@@ -16,7 +17,7 @@ import { createApiClient } from "@/lib/api/client";
  */
 export const revalidate = 3600;
 
-const BASE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.yuvoy.in";
+const BASE = SITE_URL;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();

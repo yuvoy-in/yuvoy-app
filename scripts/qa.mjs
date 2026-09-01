@@ -450,6 +450,32 @@ function coversRoute(rule, route) {
   }
 }
 
+/* ------------- 12. environment values are validated, not trusted -------- */
+
+/**
+ * A raw `process.env.NEXT_PUBLIC_SITE_URL` read outside its one owner.
+ *
+ * The first production deploy failed because this value came from a dashboard
+ * and the code took it on trust: `new URL(env)` threw at module evaluation and
+ * `next build` died collecting page data, with an input Next redacts as
+ * `[SENSITIVE]`. The local build had been green throughout — the variable is
+ * unset locally, so the fallback literal was what ran.
+ *
+ * `lib/site/metadata.ts` resolves it once: empty string, missing scheme and
+ * outright garbage each get a defined answer. Four files used to read it raw,
+ * and three of them would have emitted a broken sitemap rather than failing.
+ */
+
+for (const f of files) {
+  if (/lib[/\\]site[/\\]metadata\.(ts|test\.ts)$/.test(f)) continue;
+  if (/process\.env\.NEXT_PUBLIC_SITE_URL/.test(code(f))) {
+    problems.push(
+      `${rel(f)}: reads NEXT_PUBLIC_SITE_URL raw — import SITE_URL from ` +
+        `@/lib/site/metadata, which validates and normalises it`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

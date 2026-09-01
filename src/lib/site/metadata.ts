@@ -15,8 +15,53 @@ import type { Metadata } from "next";
  * indexable page that does not come through here.
  */
 
-export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://app.yuvoy.in";
+const DEFAULT_SITE_URL = "https://app.yuvoy.in";
+
+/**
+ * The origin this deployment serves from.
+ *
+ * Read once, and **validated rather than trusted**, because it comes from a
+ * dashboard rather than from the repo. The first production deploy failed on
+ * exactly this: `new URL(process.env.NEXT_PUBLIC_SITE_URL)` threw at module
+ * evaluation, so `next build` died collecting page data for `/_not-found`
+ * with `TypeError: Invalid URL` and an input Next redacts as `[SENSITIVE]`.
+ * A green local build proved nothing — the variable is unset locally, so the
+ * literal above was what got used.
+ *
+ * Three ways the value goes wrong, and all three are handled here rather than
+ * six lines deep inside Next:
+ *
+ *   - **Empty string.** `??` does not catch it: `"" ?? x` is `""`. An env var
+ *     created in a dashboard with no value is the easiest mistake to make.
+ *   - **No scheme.** `app.yuvoy.in` is what somebody types when the field is
+ *     labelled "domain". It is unambiguous, so it is coerced, not rejected.
+ *   - **Genuinely not a URL.** Thrown, by name, saying which variable and
+ *     what it held — a build that fails with an actionable message beats one
+ *     that silently emits canonicals pointing at the wrong origin.
+ *
+ * Normalised to an origin, so a trailing slash or a stray path cannot produce
+ * `https://host//guides` in a canonical.
+ */
+function resolveSiteUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const candidate = raw ? raw : DEFAULT_SITE_URL;
+  const withScheme = /^https?:\/\//i.test(candidate)
+    ? candidate
+    : `https://${candidate}`;
+
+  try {
+    return new URL(withScheme).origin;
+  } catch {
+    throw new Error(
+      `NEXT_PUBLIC_SITE_URL is not a URL: ${JSON.stringify(candidate)}. ` +
+        `It must be an origin such as "https://app.yuvoy.in" (a bare ` +
+        `"app.yuvoy.in" is accepted and assumed https). Every canonical, ` +
+        `Open Graph URL, sitemap entry and share card is built from it.`,
+    );
+  }
+}
+
+export const SITE_URL = resolveSiteUrl();
 
 export const SITE_NAME = "Yuvoy";
 
