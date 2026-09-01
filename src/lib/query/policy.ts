@@ -36,6 +36,22 @@ export const qk = {
   experience: (slug: string) => ["getExperience", slug] as const,
   availability: (slug: string, from?: string, to?: string) =>
     ["getAvailability", slug, from ?? null, to ?? null] as const,
+  /**
+   * Checkout's own availability entry, kept separate from the picker's on
+   * purpose.
+   *
+   * Not a cache optimisation — the opposite. Sharing the picker's entry would
+   * let React Query paint its cached seat count first and refetch behind it,
+   * and "a seat count that was true when the previous screen rendered" is the
+   * one thing checkout may not show. A distinct key means checkout always
+   * starts from its own fetch.
+   *
+   * It used to be spelled `qk.availability(slug, "checkout", slotId)`, which
+   * smuggled the separation through the `from` and `to` parameters. This says
+   * what it means.
+   */
+  availabilityForCheckout: (slug: string, slotId: string) =>
+    ["getAvailability", "checkout", slug, slotId] as const,
   search: (q: string, bookableOn?: string) =>
     ["searchExperiences", q, bookableOn ?? null] as const,
   bookingStatus: (token: string) => ["getBookingStatus", token] as const,

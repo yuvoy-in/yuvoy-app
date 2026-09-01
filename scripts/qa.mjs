@@ -523,6 +523,38 @@ for (const f of files) {
   }
 }
 
+/* --------------- 14. the availability window is computed once ------------ */
+
+/**
+ * Date-range arithmetic outside lib/booking/availability-window.ts.
+ *
+ * That module exists because these drifted once already, and its own comment
+ * records what it cost: the picker asked 14 days and checkout 30, which
+ * produced two differently-keyed queries for the same data, so opening
+ * checkout refetched instead of reusing what the traveller had just been
+ * shown — and the two could disagree about a seat count across one tap.
+ *
+ * It then drifted again, quietly: checkout went back to inline
+ * `setDate(getDate() + 30)` with no reason attached. The 30 turned out to be
+ * RIGHT — a `?slot=` URL can name a departure beyond the picker's 14 days —
+ * but nothing said so, which is indistinguishable from an accident.
+ *
+ * So the arithmetic lives in one file and the constants carry their reasons.
+ */
+
+for (const f of files) {
+  if (/lib[/\\]booking[/\\]availability-window\.ts$/.test(f)) continue;
+  if (/\.test\.tsx?$/.test(f)) continue;
+  const s = code(f);
+  if (/\.setDate\(\s*\w+\.getDate\(\)\s*\+/.test(s)) {
+    problems.push(
+      `${rel(f)}: builds a date range by hand — use marketDateRange() from ` +
+        `@/lib/booking/availability-window, and give the window a named ` +
+        `constant if it differs from the picker's`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

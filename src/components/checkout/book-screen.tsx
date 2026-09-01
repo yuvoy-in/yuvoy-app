@@ -5,6 +5,10 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
+import {
+  CHECKOUT_WINDOW_DAYS,
+  marketDateRange,
+} from "@/lib/booking/availability-window";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 
@@ -39,23 +43,16 @@ export function BookScreen({ slug }: { slug: string }) {
   });
 
   const availability = useQuery({
-    queryKey: qk.availability(slug, "checkout", slotId ?? ""),
+    queryKey: qk.availabilityForCheckout(slug, slotId ?? ""),
     enabled: Boolean(slotId),
     queryFn: async ({ signal }) => {
-      const today = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Kolkata",
-      }).format(new Date());
-      const to = new Date(`${today}T00:00:00+05:30`);
-      to.setDate(to.getDate() + 30);
+      // The shared window, not arithmetic repeated here. CHECKOUT_WINDOW_DAYS
+      // is wider than the picker's on purpose — a `?slot=` URL survives a
+      // bookmark and can name a departure the picker never showed.
+      const { from, to } = marketDateRange(CHECKOUT_WINDOW_DAYS);
       const { data, error } = await api.GET(
         "/experiences/{slug}/availability",
-        {
-          params: {
-            path: { slug },
-            query: { from: today, to: to.toISOString().slice(0, 10) },
-          },
-          signal,
-        },
+        { params: { path: { slug }, query: { from, to } }, signal },
       );
       if (error) throw error;
       return data;
