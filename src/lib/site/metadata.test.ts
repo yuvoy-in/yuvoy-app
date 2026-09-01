@@ -64,6 +64,18 @@ describe("SITE_URL", () => {
     await expect(load("https://a b c, d")).rejects.toThrow(
       /length \d+, scheme yes, whitespace inside yes/,
     );
+    // The characters that are not part of a hostname are where the answer
+    // nearly always is, so they are named rather than counted.
+    await expect(load("[SENSITIVE]")).rejects.toThrow(
+      /non-hostname characters: \[ .*\[.*\].* \]/,
+    );
+    // Node's IDNA pass strips a zero-width space out of a hostname rather
+    // than rejecting it, so that one resolves instead of throwing. Pinned
+    // because it is surprising, and because it means an invisible character
+    // pasted into the dashboard is survivable rather than a failed deploy.
+    expect((await load("app\u200b.yuvoy.in")).SITE_URL).toBe(
+      "https://app.yuvoy.in",
+    );
   });
 
   it("builds absolute, non-doubled URLs for a nested route", async () => {

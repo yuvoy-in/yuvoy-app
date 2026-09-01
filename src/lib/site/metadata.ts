@@ -53,13 +53,26 @@ const DEFAULT_SITE_URL = "https://app.yuvoy.in";
  */
 function describeShape(value: string): string {
   const has = (re: RegExp) => (re.test(value) ? "yes" : "no");
+
+  // The characters that are not plain hostname characters. This is where the
+  // answer almost always is — a bracket, an @, a stray colon — and it is the
+  // one part of the value worth printing. NEXT_PUBLIC_SITE_URL is a public
+  // origin that gets inlined into client JavaScript; it is not a credential.
+  const unusual = [...new Set(value.replace(/[a-z0-9.-]/g, ""))]
+    .map((c) => {
+      const code = c.codePointAt(0) ?? 0;
+      return code < 0x20 || code > 0x7e
+        ? `U+${code.toString(16).toUpperCase().padStart(4, "0")}`
+        : c;
+    })
+    .join(" ");
+
   return [
     `length ${value.length}`,
     `scheme ${has(/^[a-z][a-z0-9+.-]*:/i)}`,
     `whitespace inside ${has(/\s/)}`,
-    `quotes ${has(/["'\`]/)}`,
-    `comma or semicolon ${has(/[,;]/)}`,
     `path or query ${has(/[/?#]/)}`,
+    `non-hostname characters: ${unusual ? `[ ${unusual} ]` : "none"}`,
   ].join(", ");
 }
 
