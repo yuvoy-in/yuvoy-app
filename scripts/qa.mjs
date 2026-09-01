@@ -295,6 +295,25 @@ for (const f of files) {
   }
 }
 
+/**
+ * A robots.txt disallow rule and an app path describe the same route in two
+ * dialects. robots.txt writes a star where the filesystem writes a bracketed
+ * segment — a checkout URL is "/e/<star>/book" to a crawler and
+ * "/e/[slug]/book" on disk. Both wildcards mean exactly one segment.
+ *
+ * (Written as <star> on purpose: the literal characters close this comment.)
+ */
+function coversRoute(rule, route) {
+  const pattern = rule
+    .replace(/\/$/, "")
+    .split("*")
+    .map((part) => part.replace(/[^a-zA-Z0-9/_-]/g, ""))
+    .join("[^/]+");
+  return new RegExp(`^${pattern}(/|$)`).test(
+    route.replace(/\[[^\]]+\]/g, "SEGMENT"),
+  );
+}
+
 /* ------------------- 10. indexing is decided in exactly one place -------- */
 
 /**
@@ -315,7 +334,8 @@ for (const f of files) {
   const appFiles = walk(APP).filter((f) => /\.tsx?$/.test(f));
 
   for (const f of appFiles) {
-    if (/\brobots\s*:\s*\{/.test(code(f))) {
+    const src = code(f);
+    if (/\brobots\s*:\s*\{/.test(src) || /\bindex\s*:\s*false\b/.test(src)) {
       problems.push(
         `${rel(f)}: writes a robots metadata literal — import robotsMeta ` +
           `(the app default, which flips at cutover) or privateRobotsMeta ` +
@@ -346,8 +366,7 @@ for (const f of files) {
   );
 
   for (const r of privateRoutes) {
-    const prefix = r.replace(/\/$/, "");
-    if (!markedRoutes.some((m) => m === prefix || m.startsWith(prefix + "/"))) {
+    if (!markedRoutes.some((m) => coversRoute(r, m))) {
       problems.push(
         `PRIVATE_ROUTES lists "${r}" but no page beneath it sets ` +
           `privateRobotsMeta — robots.txt would block it while the page ` +
@@ -357,9 +376,7 @@ for (const f of files) {
   }
 
   for (const m of markedRoutes) {
-    if (
-      !privateRoutes.some((r) => m === r.replace(/\/$/, "") || m.startsWith(r))
-    ) {
+    if (!privateRoutes.some((r) => coversRoute(r, m))) {
       problems.push(
         `${m} sets privateRobotsMeta but is not in PRIVATE_ROUTES — ` +
           `robots.txt will happily hand it to a crawler`,
@@ -390,6 +407,45 @@ for (const f of files) {
             `but does not redirect — it renders a document nothing noindexes`,
         );
       }
+    }
+  }
+}
+
+/* --------------- 11. every indexable route describes itself -------------- */
+
+/**
+ * A public page that does not build its metadata through `pageMetadata`.
+ *
+ * Routes used to set `title` and `description` and inherit the ROOT's Open
+ * Graph, so every link shared from a guide, an experience or search previewed
+ * as the homepage — right title in the tab, wrong everything in the preview.
+ * The page looked correct; the surface people actually see did not, and
+ * nothing renders an Open Graph tag where a developer would notice it missing.
+ */
+
+{
+  const indexingSrc = readFileSync(join(SRC, "lib/site/indexing.ts"), "utf8");
+  const excluded = [
+    ...indexingSrc.matchAll(/PRIVATE_ROUTES = \[([^\]]*)\]/g),
+    ...indexingSrc.matchAll(/NON_PAGE_ROUTES = \[([^\]]*)\]/g),
+  ].flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+
+  for (const f of walk(APP)) {
+    if (!/[/\\]page\.tsx$/.test(f)) continue;
+    const route =
+      "/" +
+      relative(APP, f)
+        .replace(/[/\\]page\.tsx$/, "")
+        .replace(/\\/g, "/");
+    if (excluded.some((r) => coversRoute(r, route))) continue;
+
+    const s = code(f);
+    if (!/pageMetadata\(/.test(s)) {
+      problems.push(
+        `${rel(f)}: public route with no pageMetadata() — it will inherit ` +
+          `the root's Open Graph and preview as the homepage. ` +
+          `See lib/site/metadata.ts`,
+      );
     }
   }
 }

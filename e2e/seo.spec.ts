@@ -61,3 +61,98 @@ test("the experience page is in the HTML, not only the RSC payload", async ({
   // The price is the claim most worth having in the HTML.
   expect(visible).toMatch(/₹4,500/);
 });
+
+test("every route describes itself, rather than inheriting the homepage", async ({
+  request,
+}) => {
+  /*
+    The symptom this pins: routes defined their own <title> and description and
+    inherited the ROOT's Open Graph, so a link shared from a guide or an
+    experience previewed as the homepage. Right in the tab, wrong in the only
+    surface anybody else sees — and an Open Graph tag is not somewhere a
+    developer looks.
+
+    Fetched with `request` so no JavaScript runs. This is what a crawler and a
+    link unfurler both see.
+  */
+  const routes = [
+    { path: "/", title: "Yuvoy — Experience More." },
+    { path: "/search", title: "Search" },
+    { path: "/guides", title: "Guides to the Andamans" },
+    { path: "/e/try-dive-nemo-reef", title: "Try-dive at Nemo Reef" },
+    {
+      path: "/guides/diving-in-havelock",
+      title: "Diving in Havelock, and what to expect",
+    },
+  ];
+
+  const seen = new Set<string>();
+
+  for (const route of routes) {
+    const html = await (await request.get(route.path)).text();
+    const meta = (property: string) =>
+      html.match(
+        new RegExp(`<meta property="${property}" content="([^"]*)"`, "i"),
+      )?.[1] ??
+      html.match(
+        new RegExp(`<meta name="${property}" content="([^"]*)"`, "i"),
+      )?.[1];
+
+    expect(meta("og:title"), `${route.path} og:title`).toBe(route.title);
+    // Next normalises the root to an origin with no trailing slash, so the
+    // homepage is `https://host` rather than `https://host/`.
+    expect(meta("og:url"), `${route.path} og:url`).toMatch(
+      route.path === "/"
+        ? /^https?:\/\/[^/]+\/?$/
+        : new RegExp(`^https?://[^/]+${route.path}$`),
+    );
+    expect(meta("twitter:title"), `${route.path} twitter:title`).toBe(
+      route.title,
+    );
+    expect(meta("og:site_name"), `${route.path} og:site_name`).toBe("Yuvoy");
+
+    // og:image must be absolute and on this origin, not localhost from a
+    // build machine or an ephemeral deployment host.
+    expect(meta("og:image"), `${route.path} og:image`).toMatch(/^https?:\/\//);
+
+    const description = meta("og:description");
+    expect(description, `${route.path} og:description`).toBeTruthy();
+    expect(
+      seen.has(`${route.title}|${description}`),
+      `${route.path} reuses another route's identity`,
+    ).toBe(false);
+    seen.add(`${route.title}|${description}`);
+  }
+});
+
+test("checkout is never indexable", async ({ request }) => {
+  // A URL with a `?slot=` on it, holding an idempotency key. It was inheriting
+  // the app default, which flips to `index` at the domain cutover.
+  const html = await (
+    await request.get("/e/try-dive-nemo-reef/book?slot=slot-1")
+  ).text();
+  expect(html).toMatch(/<meta name="robots" content="[^"]*noindex/);
+});
+
+test("the site says who publishes it, once, with no unbacked claim", async ({
+  request,
+}) => {
+  const html = await (await request.get("/guides/diving-in-havelock")).text();
+  const blocks = [
+    ...html.matchAll(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
+    ),
+  ].map((m) => JSON.parse(m[1].replace(/\\u003c/g, "<")));
+
+  const types = blocks.map((b) => b["@type"]);
+  expect(types).toContain("Organization");
+  expect(types).toContain("WebSite");
+  expect(types).toContain("Article");
+  expect(types).toContain("BreadcrumbList");
+  // Exactly one publisher for the whole site, not one per page.
+  expect(types.filter((t) => t === "Organization")).toHaveLength(1);
+
+  expect(JSON.stringify(blocks)).not.toMatch(
+    /"(aggregateRating|ratingValue|reviewCount|offers|price|availability)"/,
+  );
+});

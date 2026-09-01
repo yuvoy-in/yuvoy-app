@@ -8,9 +8,19 @@ import { InstallObservability } from "@/components/observability/install";
 import { ConsentBanner } from "@/components/analytics/consent-banner";
 import { THEME_COLOR } from "@/lib/site/theme";
 import { robotsMeta } from "@/lib/site/indexing";
+import { SITE_URL } from "@/lib/site/metadata";
+import { organizationJsonLd, webSiteJsonLd } from "@/lib/site/structured-data";
+import { JsonLd } from "@/components/site/json-ld";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  /*
+    Without this, Next resolves relative metadata URLs — the Open Graph image
+    among them — against localhost during a build and against the ephemeral
+    deployment host on Vercel. Both produce a share card pointing at a URL
+    nobody else can fetch, and the build says so on every run.
+  */
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Yuvoy — Experience More.",
     template: "%s · Yuvoy",
@@ -39,6 +49,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${fraunces.variable} ${satoshi.variable}`}>
       <body className="bg-abyss">
+        {/* Emitted once for the whole site. Interior pages add their own
+            breadcrumb and article nodes, linked to these by @id. */}
+        <JsonLd node={organizationJsonLd()} />
+        <JsonLd node={webSiteJsonLd()} />
         {/* First focusable element on every page. */}
         <a
           href="#main"

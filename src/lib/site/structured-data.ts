@@ -1,4 +1,10 @@
 import type { Guide } from "@/lib/guides/schema";
+import {
+  ORGANIZATION_ID,
+  SITE_NAME,
+  SITE_URL,
+  WEBSITE_ID,
+} from "@/lib/site/metadata";
 
 /**
  * Structured data, from an allowlist.
@@ -45,9 +51,83 @@ export function articleJsonLd(guide: Guide): Record<string, unknown> {
     headline: guide.title,
     description: guide.description,
     dateModified: guide.updated,
-    // Organization only — no author persona we cannot stand behind.
-    publisher: { "@type": "Organization", name: "Yuvoy" },
+    // Linked to the Organization node by @id rather than restating it, so
+    // there is one publisher on the site and not one per article.
+    publisher: { "@id": ORGANIZATION_ID },
+    isPartOf: { "@id": WEBSITE_ID },
+    mainEntityOfPage: `${SITE_URL}/guides/${guide.slug}`,
     inLanguage: "en",
+  };
+  assertNoUnbackedClaims(node);
+  return node;
+}
+
+/**
+ * Who publishes this. Emitted once, in the root layout.
+ *
+ * Deliberately thin: a name, a URL and the logo the app already ships. No
+ * address, no founder, no telephone, no social profiles — every one of those
+ * is a fact somebody would have to keep true, and a stale one in structured
+ * data is worse than an absent one.
+ */
+export function organizationJsonLd(): Record<string, unknown> {
+  const node = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": ORGANIZATION_ID,
+    name: SITE_NAME,
+    url: `${SITE_URL}/`,
+    logo: `${SITE_URL}/icon.png`,
+  };
+  assertNoUnbackedClaims(node);
+  return node;
+}
+
+/**
+ * The site itself, linked to its publisher by @id rather than by repeating it.
+ *
+ * No `potentialAction` / SearchAction: Google retired the sitelinks searchbox
+ * in 2024, so it would be markup that asks for something nothing grants.
+ */
+export function webSiteJsonLd(): Record<string, unknown> {
+  const node = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": WEBSITE_ID,
+    name: SITE_NAME,
+    url: `${SITE_URL}/`,
+    publisher: { "@id": ORGANIZATION_ID },
+    inLanguage: "en",
+  };
+  assertNoUnbackedClaims(node);
+  return node;
+}
+
+export interface Crumb {
+  name: string;
+  /** Path from the root, with a leading slash. */
+  path: string;
+}
+
+/**
+ * Where a page sits. Emitted on every interior page, not on one sample.
+ *
+ * The trail must match the URL a crawler can actually walk — a breadcrumb
+ * naming a level that is not a real route is a claim like any other.
+ */
+export function breadcrumbJsonLd(trail: Crumb[]): Record<string, unknown> {
+  if (trail.length === 0) {
+    throw new Error("A breadcrumb with no trail describes nothing.");
+  }
+  const node = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map((c, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: c.name,
+      item: new URL(c.path, SITE_URL).toString(),
+    })),
   };
   assertNoUnbackedClaims(node);
   return node;

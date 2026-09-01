@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
+import { pageMetadata } from "@/lib/site/metadata";
 import { Feed } from "@/components/feed/feed";
 import type { components } from "@/lib/api/schema.gen";
 
@@ -40,6 +42,14 @@ type ExperiencePage = components["schemas"]["ExperiencePage"];
   rarely.
 */
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Yuvoy — Experience More.",
+  description:
+    "Find something worth doing in the Andaman Islands, and book a seat on it. Real departures, filmed by the operators who run them.",
+  path: "/",
+  absoluteTitle: true,
+});
 
 interface Prefetched {
   page: ExperiencePage | null;

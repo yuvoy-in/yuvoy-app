@@ -58,6 +58,10 @@ export const robotsMeta: Metadata["robots"] = INDEXABLE
  */
 export const PRIVATE_ROUTES = [
   "/booking",
+  // Checkout. A URL with a `?slot=` on it, holding an idempotency key.
+  // Wildcards are matched by every crawler that matters, and the page carries
+  // `privateRobotsMeta` for the ones that ignore robots.txt entirely.
+  "/e/*/book",
   "/trip/",
   "/trips",
   "/account",
@@ -82,6 +86,22 @@ export const NON_PAGE_ROUTES = ["/go/"] as const;
  * cutover, and writing it as a literal on the page hides that distinction.
  */
 export const privateRobotsMeta: Metadata["robots"] = {
+  index: false,
+  follow: false,
+};
+
+/**
+ * For a public route whose CONTENT is not ready — a guide still in draft or
+ * review.
+ *
+ * The same directives, a different reason, and the distinction is load-bearing
+ * rather than cosmetic: `/guides/[slug]` is a public, crawlable, indexable
+ * route. One record on it is not ready yet. Marking that page
+ * `privateRobotsMeta` would say the route is private, and `pnpm qa` would then
+ * want it in PRIVATE_ROUTES and disallowed in robots.txt — which would hide
+ * every published guide too.
+ */
+export const unpublishedRobotsMeta: Metadata["robots"] = {
   index: false,
   follow: false,
 };

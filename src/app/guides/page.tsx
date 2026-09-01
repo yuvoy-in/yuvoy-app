@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { publishedGuides } from "@/lib/guides/guides";
+import { pageMetadata } from "@/lib/site/metadata";
+import { breadcrumbJsonLd } from "@/lib/site/structured-data";
+import { JsonLd } from "@/components/site/json-ld";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Guides to the Andamans",
   description:
     "What to know before you go: diving, islands, seasons and getting around the Andamans.",
-};
+  path: "/guides",
+});
 
 /**
  * The guides hub.
@@ -20,6 +24,12 @@ export default function GuidesIndexPage() {
 
   return (
     <div className="bg-cream text-forest min-h-full">
+      <JsonLd
+        node={breadcrumbJsonLd([
+          { name: "Yuvoy", path: "/" },
+          { name: "Guides", path: "/guides" },
+        ])}
+      />
       <div className="container-page max-w-2xl py-10">
         <p className="eyebrow text-terra-deep">Guides</p>
         <h1 className="font-display tracking-display mt-4 text-4xl leading-[1.05]">

@@ -19,3 +19,10 @@ pnpm-lock.yaml
 
 # Lighthouse CI run output. Regenerated every run, never reviewed.
 .lighthouseci/
+
+# Test and tooling output. Gitignored, regenerated, never read as source —
+# and Playwright drops a minified vendor bundle in here on any FAILING run.
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/

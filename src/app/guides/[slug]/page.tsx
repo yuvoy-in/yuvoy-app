@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { allGuides, getGuide, publishedGuides } from "@/lib/guides/guides";
-import { articleJsonLd } from "@/lib/site/structured-data";
+import { articleJsonLd, breadcrumbJsonLd } from "@/lib/site/structured-data";
+import { JsonLd } from "@/components/site/json-ld";
+import { pageMetadata } from "@/lib/site/metadata";
+import { unpublishedRobotsMeta } from "@/lib/site/indexing";
 
 /**
  * One guide. Statically generated, revalidated daily.
@@ -31,18 +34,17 @@ export async function generateMetadata({
   const indexable = guide.status === "published";
 
   return {
-    title: guide.title,
-    description: guide.description,
-    alternates: { canonical: `/guides/${guide.slug}` },
-    // The app as a whole is noindex until it takes the root domain; this keeps
-    // the per-page intent explicit so the switch is one change, not a hunt.
-    robots: indexable ? undefined : { index: false, follow: false },
-    openGraph: {
+    ...pageMetadata({
       title: guide.title,
       description: guide.description,
+      path: `/guides/${guide.slug}`,
       type: "article",
       modifiedTime: guide.updated,
-    },
+    }),
+    // A draft or a record still in review renders — a reviewer has to be able
+    // to read one — but it is never indexable, whatever the site-wide switch
+    // says. `undefined` inherits the app default rather than overriding it.
+    robots: indexable ? undefined : unpublishedRobotsMeta,
   };
 }
 
@@ -66,11 +68,13 @@ export default async function GuidePage({
         from an allowlisted builder rather than a literal — no ratings, no
         prices, no availability.
       */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(articleJsonLd(guide)),
-        }}
+      <JsonLd node={articleJsonLd(guide)} />
+      <JsonLd
+        node={breadcrumbJsonLd([
+          { name: "Yuvoy", path: "/" },
+          { name: "Guides", path: "/guides" },
+          { name: guide.title, path: `/guides/${guide.slug}` },
+        ])}
       />
 
       <article className="container-page max-w-2xl py-10">

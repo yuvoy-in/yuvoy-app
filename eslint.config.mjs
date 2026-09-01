@@ -17,6 +17,22 @@ const eslintConfig = defineConfig([
     // eslint directives that our config has no rules for.
     "public/mockServiceWorker.js",
     ".claude/**",
+    /*
+      Test and tooling output. Every one of these is gitignored, regenerated
+      and never read as source.
+
+      This is not tidiness. Playwright only copies its trace-viewer bundle
+      into playwright-report/ when a test FAILS, so the first failing e2e run
+      dropped ~500 KB of minified vendor JS into the lint path and `pnpm lint`
+      then failed with 264 errors in code nobody wrote — which reads as the
+      change having broken the lint, long after the actual test was fixed.
+    */
+    "playwright-report/**",
+    "test-results/**",
+    "blob-report/**",
+    "playwright/.cache/**",
+    ".lighthouseci/**",
+    ".memsearch/**",
   ]),
   {
     rules: {

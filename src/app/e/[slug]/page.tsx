@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { ExperienceDetail } from "@/components/experience/experience-detail";
+import { pageMetadata } from "@/lib/site/metadata";
+import { breadcrumbJsonLd } from "@/lib/site/structured-data";
+import { JsonLd } from "@/components/site/json-ld";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -66,14 +69,19 @@ export async function generateMetadata({
   const experience = await getExperience(slug);
   if (!experience) return { title: "Not found" };
 
-  return {
+  // No price, no availability and no rating in the metadata. Structured data
+  // and a share card are claims even though neither is visible on the page,
+  // and this project's rule is that nothing is published that is not backed
+  // by a record. A price in an OG description is the same claim, travelling
+  // further than the page it came from.
+  return pageMetadata({
     title: experience.title,
-    description: experience.summary ?? experience.description,
-    // No price, no availability and no rating in the metadata. Structured
-    // data counts as a claim even though it is invisible on the page, and
-    // this project's rule is that nothing is published that is not backed by
-    // a record.
-  };
+    description:
+      experience.summary ??
+      experience.description ??
+      `${experience.title} in the Andaman Islands, with a local operator.`,
+    path: `/e/${experience.slug}`,
+  });
 }
 
 export default async function ExperiencePage({
@@ -85,5 +93,15 @@ export default async function ExperiencePage({
   const experience = await getExperience(slug);
   if (!experience) notFound();
 
-  return <ExperienceDetail experience={experience} />;
+  return (
+    <>
+      <JsonLd
+        node={breadcrumbJsonLd([
+          { name: "Yuvoy", path: "/" },
+          { name: experience.title, path: `/e/${experience.slug}` },
+        ])}
+      />
+      <ExperienceDetail experience={experience} />
+    </>
+  );
 }

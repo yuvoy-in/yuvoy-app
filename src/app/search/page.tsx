@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
 import { SearchScreen } from "@/components/search/search-screen";
+import { pageMetadata } from "@/lib/site/metadata";
 import type { components } from "@/lib/api/schema.gen";
 
 type ExperiencePage = components["schemas"]["ExperiencePage"];
 
-export const metadata: Metadata = { title: "Search" };
+export const metadata: Metadata = pageMetadata({
+  title: "Search",
+  description:
+    "What is on in the Andamans, by the day. Only departures an operator can actually sell.",
+  path: "/search",
+});
 
 /**
  * T4 — date-first discovery.
