@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { privateRobotsMeta } from "@/lib/site/indexing";
 
 export const metadata: Metadata = {
   title: "Offline",
-  robots: { index: false, follow: false },
+  robots: privateRobotsMeta,
 };
 
 /**

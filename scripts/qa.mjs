@@ -295,6 +295,105 @@ for (const f of files) {
   }
 }
 
+/* ------------------- 10. indexing is decided in exactly one place -------- */
+
+/**
+ * A `robots:` metadata literal written anywhere but lib/site/indexing.ts.
+ *
+ * robots.txt and the `<meta name="robots">` tag are one decision expressed
+ * twice, and they had drifted: robots.ts read NEXT_PUBLIC_ALLOW_INDEXING while
+ * the root layout hardcoded `index: false`. Flipping the flag at the domain
+ * cutover would have opened crawling on a site whose every page still said
+ * noindex — crawled, unindexable, and indistinguishable from success until
+ * somebody checked Search Console weeks later.
+ *
+ * Nothing about that is visible in either file on its own, which is why it is
+ * a guard rather than a code-review habit.
+ */
+
+{
+  const appFiles = walk(APP).filter((f) => /\.tsx?$/.test(f));
+
+  for (const f of appFiles) {
+    if (/\brobots\s*:\s*\{/.test(code(f))) {
+      problems.push(
+        `${rel(f)}: writes a robots metadata literal — import robotsMeta ` +
+          `(the app default, which flips at cutover) or privateRobotsMeta ` +
+          `(never indexed) from @/lib/site/indexing`,
+      );
+    }
+  }
+
+  // And the other direction: the disallow list and the noindex pages are one
+  // list, so a private route present in only one of them is a route that is
+  // private in only one way.
+  const indexing = readFileSync(join(SRC, "lib/site/indexing.ts"), "utf8");
+  const block = indexing.match(/PRIVATE_ROUTES = \[([^\]]*)\]/);
+  const privateRoutes = block
+    ? [...block[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+    : [];
+  if (privateRoutes.length === 0) {
+    problems.push("lib/site/indexing.ts: PRIVATE_ROUTES could not be read");
+  }
+
+  const marked = appFiles.filter((f) => /privateRobotsMeta/.test(code(f)));
+  const markedRoutes = marked.map(
+    (f) =>
+      "/" +
+      relative(APP, f)
+        .replace(/[/\\]page\.tsx$/, "")
+        .replace(/\\/g, "/"),
+  );
+
+  for (const r of privateRoutes) {
+    const prefix = r.replace(/\/$/, "");
+    if (!markedRoutes.some((m) => m === prefix || m.startsWith(prefix + "/"))) {
+      problems.push(
+        `PRIVATE_ROUTES lists "${r}" but no page beneath it sets ` +
+          `privateRobotsMeta — robots.txt would block it while the page ` +
+          `stays indexable by anything that ignores robots.txt`,
+      );
+    }
+  }
+
+  for (const m of markedRoutes) {
+    if (
+      !privateRoutes.some((r) => m === r.replace(/\/$/, "") || m.startsWith(r))
+    ) {
+      problems.push(
+        `${m} sets privateRobotsMeta but is not in PRIVATE_ROUTES — ` +
+          `robots.txt will happily hand it to a crawler`,
+      );
+    }
+  }
+
+  // The exemption has to earn itself: a route excused from the noindex half
+  // must actually render nothing.
+  const nonPageBlock = indexing.match(/NON_PAGE_ROUTES = \[([^\]]*)\]/);
+  const nonPageRoutes = nonPageBlock
+    ? [...nonPageBlock[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+    : [];
+  for (const r of nonPageRoutes) {
+    const prefix = r.replace(/\/$/, "");
+    const pages = appFiles.filter(
+      (f) =>
+        /[/\\]page\.tsx$/.test(f) &&
+        ("/" + relative(APP, f).replace(/\\/g, "/")).startsWith(prefix + "/"),
+    );
+    if (pages.length === 0) {
+      problems.push(`NON_PAGE_ROUTES lists "${r}" but no page lives there`);
+    }
+    for (const f of pages) {
+      if (!/\bredirect\(/.test(code(f))) {
+        problems.push(
+          `${rel(f)}: is excused from privateRobotsMeta by NON_PAGE_ROUTES ` +
+            `but does not redirect — it renders a document nothing noindexes`,
+        );
+      }
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

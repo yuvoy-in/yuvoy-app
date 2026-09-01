@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { BookingScreen } from "@/components/booking/booking-screen";
+import { privateRobotsMeta } from "@/lib/site/indexing";
 
 export const metadata: Metadata = {
   title: "Your booking",
   // Never indexed. The page is keyed by a secret in the fragment, and a
   // crawler following a shared link is exactly the wrong outcome.
-  robots: { index: false, follow: false },
+  robots: privateRobotsMeta,
 };
 
 /**

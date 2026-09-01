@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { TripsScreen } from "@/components/trips/trips-screen";
+import { privateRobotsMeta } from "@/lib/site/indexing";
 
 export const metadata: Metadata = {
   title: "Your trips",
-  robots: { index: false, follow: false },
+  robots: privateRobotsMeta,
 };
 
 export default function TripsPage() {

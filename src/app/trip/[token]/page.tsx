@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
+import { privateRobotsMeta } from "@/lib/site/indexing";
 
 export const metadata: Metadata = {
   title: "The trip",
   // A shared link is still a link somebody could paste anywhere.
-  robots: { index: false, follow: false },
+  robots: privateRobotsMeta,
 };
 
 export const dynamic = "force-dynamic";

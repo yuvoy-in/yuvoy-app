@@ -7,6 +7,7 @@ import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { InstallObservability } from "@/components/observability/install";
 import { ConsentBanner } from "@/components/analytics/consent-banner";
 import { THEME_COLOR } from "@/lib/site/theme";
+import { robotsMeta } from "@/lib/site/indexing";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,10 +17,10 @@ export const metadata: Metadata = {
   },
   description:
     "Find something worth doing in the Andaman Islands, and book a seat on it.",
-  // The app is noindex until it takes the root domain at launch. The
-  // marketing site owns search until then, and two indexed copies of the same
-  // brand is the worst of both.
-  robots: { index: false, follow: false },
+  // Noindex until the app takes the root domain at launch. Derived, never
+  // written here: robots.txt and this tag are two halves of one answer and
+  // they have to flip together. See lib/site/indexing.ts.
+  robots: robotsMeta,
 };
 
 export const viewport: Viewport = {
