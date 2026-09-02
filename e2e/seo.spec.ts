@@ -82,7 +82,7 @@ test("every route describes itself, rather than inheriting the homepage", async 
     { path: "/e/try-dive-nemo-reef", title: "Try-dive at Nemo Reef" },
     {
       path: "/guides/diving-in-havelock",
-      title: "Diving in Havelock, and what to expect",
+      title: "Diving in Havelock, and what a first dive involves",
     },
   ];
 
