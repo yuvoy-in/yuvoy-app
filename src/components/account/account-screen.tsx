@@ -9,9 +9,15 @@ import {
   saveTravellerSession,
   clearTravellerSession,
 } from "@/lib/auth/traveller-session";
-import { saveToken } from "@/lib/booking/token-store";
+import { rememberBooking } from "@/lib/booking/token-store";
+import { isDeadToken } from "@/lib/api/errors";
 import { Field } from "@/components/ui/field";
-import { describeError, Skeleton, LoadingState } from "@/components/states";
+import {
+  describeError,
+  FailurePanel,
+  Skeleton,
+  LoadingState,
+} from "@/components/states";
 
 /**
  * T5 and T11 — and there is deliberately no account to create.
@@ -30,6 +36,8 @@ export function AccountScreen() {
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [devCode, setDevCode] = useState<string | undefined>();
+  /** The sign-in's token died server-side; the form is back, and says why. */
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +102,16 @@ export function AccountScreen() {
           setSent(false);
           setCode("");
         }}
+        onExpired={async () => {
+          // The token behind "signed in" is a status token, and it expires
+          // like any other. Back to the form, with the reason — not a generic
+          // failure over a list that can never load.
+          await clearTravellerSession();
+          setToken(null);
+          setSent(false);
+          setCode("");
+          setExpired(true);
+        }}
       />
     );
   }
@@ -114,6 +132,16 @@ export function AccountScreen() {
         place — including ones booked on another phone — we send a code to that
         number. That is the whole of it: no password, no sign-up.
       </p>
+
+      {expired ? (
+        <p
+          role="status"
+          className="rounded-edge border-cream-line bg-cream-deep mt-4 border px-4 py-3 text-xs"
+        >
+          Your sign-in has expired — they do, after a while. Send a new code and
+          every trip on your number is back.
+        </p>
+      ) : null}
 
       <form
         className="mt-8 space-y-5"
@@ -173,14 +201,38 @@ export function AccountScreen() {
         </p>
       ) : null}
 
-      {failure ? (
-        <div
-          role="alert"
-          className="rounded-edge border-terra-deep mt-6 border-l-2 p-4"
-        >
-          <p className="text-sm font-bold">{failure.title}</p>
-          <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
-        </div>
+      {failure ? <FailurePanel failure={failure} className="mt-6" /> : null}
+
+      {sent ? (
+        <p className="text-forest/70 mt-4 text-xs">
+          No code yet?{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setCode("");
+              verify.reset();
+              request.mutate();
+            }}
+            disabled={request.isPending}
+            className="text-terra-deep tap-target underline disabled:opacity-40"
+          >
+            Send another one
+          </button>
+          {" · "}
+          <button
+            type="button"
+            onClick={() => {
+              setSent(false);
+              setCode("");
+              setDevCode(undefined);
+              request.reset();
+              verify.reset();
+            }}
+            className="text-terra-deep tap-target underline"
+          >
+            Use a different number
+          </button>
+        </p>
       ) : null}
 
       <p className="text-forest/70 mt-8 text-xs">
@@ -198,9 +250,11 @@ export function AccountScreen() {
 function SignedIn({
   token,
   onSignOut,
+  onExpired,
 }: {
   token: string;
   onSignOut: () => void | Promise<void>;
+  onExpired: () => void | Promise<void>;
 }) {
   const bookings = useQuery({
     queryKey: ["listMyBookings", token],
@@ -217,14 +271,22 @@ function SignedIn({
   });
 
   // A booking made on another device is claimed onto this one by keeping its
-  // token: the list gives us the trips, the token gives us the access.
+  // token: the list gives us the trips, the token gives us the access. Under
+  // the booking's reference — the same key a checkout-made record is re-keyed
+  // to — so a trip already on this device is updated, not listed twice.
   useEffect(() => {
     for (const b of bookings.data?.bookings ?? []) {
-      if (b.statusToken) void saveToken(b.reference, b.statusToken);
+      if (b.statusToken) {
+        void rememberBooking({ reference: b.reference, token: b.statusToken });
+      }
     }
   }, [bookings.data]);
 
-  const failure = bookings.error ? describeError(bookings.error) : null;
+  // The list's own token died. Hand the screen back to the form.
+  useEffect(() => {
+    if (bookings.isError && isDeadToken(bookings.error)) void onExpired();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookings.isError, bookings.error]);
 
   return (
     <Shell>
@@ -235,12 +297,10 @@ function SignedIn({
       {bookings.isPending ? (
         <Skeleton className="mt-6 h-24 w-full" />
       ) : bookings.isError ? (
-        <div
-          role="alert"
-          className="rounded-edge border-terra-deep mt-6 border-l-2 p-4"
+        <FailurePanel
+          failure={describeError(bookings.error, { tokenBearing: true })}
+          className="mt-6"
         >
-          <p className="text-sm font-bold">{failure?.title}</p>
-          <p className="text-forest/70 mt-1.5 text-sm">{failure?.body}</p>
           <p className="text-forest/70 mt-3 text-sm">
             The ones on this device are still under{" "}
             <Link href="/trips" className="text-terra-deep underline">
@@ -248,7 +308,7 @@ function SignedIn({
             </Link>
             .
           </p>
-        </div>
+        </FailurePanel>
       ) : bookings.data.bookings.length === 0 ? (
         <p className="text-forest/70 mt-6 text-sm">
           Nothing booked on this number yet.

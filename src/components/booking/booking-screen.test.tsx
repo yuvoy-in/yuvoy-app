@@ -4,6 +4,7 @@ import { renderWithQuery } from "@/test/render";
 import { BookingScreen } from "./booking-screen";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
+import { registerPaymentAdapter } from "@/lib/booking/payment-handoff";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -215,5 +216,221 @@ describe("BookingScreen", () => {
     expect(
       await screen.findByText("We need your booking link"),
     ).toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------ T8 · Pay */
+
+/**
+ * Both answers the contract gives are rendered. The first version read only
+ * `order.error`: a `200 coming_soon` — what production answers today, with a
+ * message the screen is told to render — produced nothing, and the mock hid
+ * it by answering an uncontracted 503.
+ */
+describe("PayButton — both contract answers", () => {
+  const holding = () =>
+    statusBody({
+      state: "holding",
+      final: false,
+      bookingReference: undefined,
+      holdExpiresAt: new Date(Date.now() + 300_000).toISOString(),
+    });
+
+  it("renders coming_soon calmly, message and all, with the countdown still running", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/:id/payment-order`, () =>
+        HttpResponse.json(
+          {
+            state: "coming_soon",
+            message: "Payment opens shortly. Your seats are held.",
+            holdStillActive: true,
+          },
+          { status: 200 },
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    (await screen.findByRole("button", { name: /^Pay/ })).click();
+
+    expect(
+      await screen.findByText("Payment opens shortly. Your seats are held."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Payment is not open yet")).toBeInTheDocument();
+    // "Do not treat this as an error": nothing red, the hold clock stays.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("timer")).toBeInTheDocument();
+    expect(screen.getByText(/Nothing has been charged/)).toBeInTheDocument();
+  });
+
+  it("hands a ready order to the provider's adapter", async () => {
+    const opened: unknown[] = [];
+    const unregister = registerPaymentAdapter("mockpay", async (order) => {
+      opened.push(order);
+    });
+    try {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+        http.post(`${BASE}/reservations/:id/payment-order`, () =>
+          HttpResponse.json(
+            {
+              state: "ready",
+              orderId: "ord_1",
+              providerOrderId: "p_1",
+              provider: "mockpay",
+              amountPaise: 900000,
+              currency: "INR",
+              expiresAt: new Date(Date.now() + 300_000).toISOString(),
+            },
+            { status: 201 },
+          ),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      (await screen.findByRole("button", { name: /^Pay/ })).click();
+
+      await waitFor(() => expect(opened).toHaveLength(1));
+      expect(opened[0]).toMatchObject({
+        orderId: "ord_1",
+        provider: "mockpay",
+      });
+      expect(
+        await screen.findByText(/Opening payment with mockpay/),
+      ).toBeInTheDocument();
+    } finally {
+      unregister();
+    }
+  });
+
+  it("says plainly when this build cannot open a ready order, and that nothing was charged", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/:id/payment-order`, () =>
+        HttpResponse.json(
+          {
+            state: "ready",
+            orderId: "ord_2",
+            providerOrderId: "p_2",
+            provider: "razorpay",
+            amountPaise: 900000,
+            currency: "INR",
+            expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    (await screen.findByRole("button", { name: /^Pay/ })).click();
+
+    expect(
+      await screen.findByText(/Your order is ready — ₹9,000/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/cannot open the razorpay payment page yet/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Nothing has been charged/)).toBeInTheDocument();
+    // Still not an error — the hold is real and the clock is honest.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------ a dead link */
+
+describe("a dead link", () => {
+  it("offers a new link instead of a retry that can never work", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "token_expired",
+              message: "raw",
+              requestId: "01JEXP",
+            },
+          },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(
+      await screen.findByText("This link has expired"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Get a new link" }),
+    ).toHaveAttribute("href", "/trips/recover");
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    // A 401 while online is not "offline": no saved booking is dressed up as one.
+    expect(screen.queryByText(/You are offline/)).not.toBeInTheDocument();
+    expect(screen.getByText("01JEXP")).toBeInTheDocument();
+  });
+
+  it("treats a plain 401 the same way — a revoked link looks unknown on purpose", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          { error: { code: "unauthorized", message: "raw" } },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(
+      await screen.findByText("This link no longer opens anything"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Get a new link" }),
+    ).toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------ what the operator said */
+
+describe("operator updates", () => {
+  it("renders operatorUpdates — where a relay note lands, and nowhere else", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            operatorUpdates: [
+              {
+                intent: "meeting_point_change",
+                detail: "Jetty 2, not Jetty 1",
+                note: "The usual spot is under repair this week.",
+                sentAt: "2026-08-21T10:15:00Z",
+              },
+              {
+                intent: "bring_item",
+                detail: "A towel",
+                sentAt: "2026-08-21T10:16:00Z",
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(await screen.findByText("From the operator")).toBeInTheDocument();
+    expect(
+      screen.getByText("Meeting point changed: Jetty 2, not Jetty 1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The usual spot is under repair this week."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bring: A towel")).toBeInTheDocument();
+    // Sent 10:15Z = 15:45 IST, in the market's zone.
+    expect(screen.getByText(/15:45/)).toBeInTheDocument();
   });
 });

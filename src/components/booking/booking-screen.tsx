@@ -11,9 +11,11 @@ import { formatCountdown, msUntil, formatAge } from "@/lib/format/time";
 import {
   describeError,
   ErrorState,
+  FailurePanel,
   LoadingState,
   Skeleton,
 } from "@/components/states";
+import { openHostedCheckout } from "@/lib/booking/payment-handoff";
 import { CancelSheet } from "./cancel-sheet";
 import { ShareButton } from "./share-button";
 import { ReviewForm } from "./review-form";
@@ -96,10 +98,13 @@ export function BookingScreen() {
     );
   }
 
+  // A dead link — expired, or replaced by a newer one — is answered with the
+  // way to a fresh link, not a retry that can never work. `tokenBearing` is
+  // what turns the 401 into that offer.
   if (isError) {
     return (
       <Shell>
-        <ErrorState error={error} onRetry={() => void refetch()} />
+        <ErrorState error={error} onRetry={() => void refetch()} tokenBearing />
       </Shell>
     );
   }
@@ -189,6 +194,20 @@ function StatusBody({
         <Row label="Guests">{status.guests}</Row>
         <Row label="Paid">{formatTotal(status.price)}</Row>
       </dl>
+
+      {/*
+        What the operator has told everybody on this departure. The contract
+        puts it here on purpose: a relay note "is shown HERE and never sent to
+        a phone, so a traveller who is told 'see your booking page' has
+        somewhere to look". For a month nothing rendered it, and an operator's
+        "meet at jetty 2, not 1" went nowhere.
+      */}
+      {status.operatorUpdates?.length ? (
+        <OperatorUpdates
+          updates={status.operatorUpdates}
+          timezone={status.slot.timezone}
+        />
+      ) : null}
 
       {status.refund ? <RefundProgress refund={status.refund} /> : null}
 
@@ -351,11 +370,30 @@ function HoldCountdown({ expiresAt }: { expiresAt: string }) {
 /**
  * T8 — opening checkout.
  *
- * Today this answers `503 payments_unavailable`, which is not a crash: no
- * processor has been chosen yet. The whole flow is built so that when one
- * lands only the hosted-checkout handoff changes.
+ * Two answers the contract gives, and both are rendered — a client "switches
+ * on one field across both responses rather than inferring from the status
+ * code":
+ *
+ *   - `200 coming_soon` — "Payment is not open yet. A deliberate product
+ *     state, not a failure: the hold is real and still running, so keep
+ *     showing the countdown. Render `message` and do not treat this as an
+ *     error." This is what production answers until a processor exists.
+ *   - `201 ready` — an order to pay against, handed to the provider's own
+ *     checkout through `openHostedCheckout`. No provider is registered yet,
+ *     and that is said on screen rather than spun through.
+ *
+ * The first version rendered neither. It read only `order.error`, so both
+ * success shapes were discarded: the button said "Opening…", returned to
+ * "Pay", and the traveller learned nothing while the hold clock ran. The
+ * mock hid it by answering an uncontracted 503 — the one shape that WAS
+ * rendered. A 503 `payments_unavailable` is still handled below, because a
+ * transport can always say it.
  */
 function PayButton({ status }: { status: BookingStatus }) {
+  const [handoff, setHandoff] = useState<"idle" | "opening" | "no_adapter">(
+    "idle",
+  );
+
   const order = useMutation({
     retry: false,
     mutationFn: async () => {
@@ -367,37 +405,138 @@ function PayButton({ status }: { status: BookingStatus }) {
       if (error) throw error;
       return data;
     },
+    onSuccess: async (answer) => {
+      if (answer.state !== "ready") return;
+      setHandoff("opening");
+      const outcome = await openHostedCheckout(answer);
+      setHandoff(outcome === "opened" ? "opening" : "no_adapter");
+    },
   });
 
+  const answer = order.data;
   const failure = order.error ? describeError(order.error) : null;
+  const busy = order.isPending || handoff === "opening";
 
   return (
     <div className="mt-6">
       <button
         type="button"
         onClick={() => order.mutate()}
-        disabled={order.isPending}
+        disabled={busy}
         className="rounded-edge label bg-forest text-cream h-13 w-full font-bold transition-transform active:scale-[0.99] disabled:opacity-40"
       >
-        {order.isPending ? "Opening…" : `Pay ${formatTotal(status.price)}`}
+        {busy ? "Opening…" : `Pay ${formatTotal(status.price)}`}
       </button>
 
-      {failure ? (
+      {answer?.state === "coming_soon" ? (
         <div
-          role="alert"
-          className="rounded-edge border-terra-deep mt-4 border-l-2 p-4"
+          role="status"
+          className="rounded-edge border-cream-line bg-cream-deep mt-4 border p-4"
         >
-          <p className="text-sm font-bold">{failure.title}</p>
-          <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
-          {failure.requestId ? (
-            <p className="text-forest/70 mt-3 font-mono text-[10px]">
-              {failure.requestId}
-            </p>
-          ) : null}
+          <p className="text-sm font-bold">Payment is not open yet</p>
+          <p className="text-forest/70 mt-1.5 text-sm">{answer.message}</p>
+          <p className="text-forest/70 mt-2 text-xs">
+            Nothing has been charged.
+            {answer.holdStillActive === false
+              ? ""
+              : " Your seats stay held while the clock above runs."}
+          </p>
         </div>
       ) : null}
+
+      {answer?.state === "ready" && handoff === "no_adapter" ? (
+        <div
+          role="status"
+          className="rounded-edge border-cream-line bg-cream-deep mt-4 border p-4"
+        >
+          <p className="text-sm font-bold">
+            Your order is ready —{" "}
+            {formatMoney({
+              amountMinor: answer.amountPaise,
+              currency: answer.currency,
+            })}
+          </p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            This version of the app cannot open the {answer.provider} payment
+            page yet. Nothing has been charged, and your seats stay held while
+            the clock above runs. Update the app, or send us your reference on
+            WhatsApp and we will take it from there.
+          </p>
+        </div>
+      ) : null}
+
+      {answer?.state === "ready" && handoff === "opening" ? (
+        <p role="status" className="text-forest/70 mt-4 text-sm">
+          Opening payment with {answer.provider}…
+        </p>
+      ) : null}
+
+      {failure ? <FailurePanel failure={failure} className="mt-4" /> : null}
     </div>
   );
+}
+
+/** What the operator has told everybody on this departure. */
+const UPDATE_LABEL: Record<string, string> = {
+  time_change: "Time changed",
+  meeting_point_change: "Meeting point changed",
+  weather_watch: "Weather watch",
+  bring_item: "Bring",
+  note: "A note",
+};
+
+function OperatorUpdates({
+  updates,
+  timezone,
+}: {
+  updates: NonNullable<BookingStatus["operatorUpdates"]>;
+  timezone: string;
+}) {
+  return (
+    <section
+      aria-labelledby="operator-updates"
+      className="rounded-edge border-terra-deep bg-cream-deep mt-8 border-l-2 p-5"
+    >
+      <h2 id="operator-updates" className="label text-forest/75">
+        From the operator
+      </h2>
+      <ul className="mt-3 space-y-3">
+        {updates.map((u, i) => (
+          <li
+            key={`${u.sentAt ?? i}-${u.intent ?? "note"}`}
+            className="text-sm"
+          >
+            <p className="font-bold">
+              {UPDATE_LABEL[u.intent ?? "note"] ?? "From the operator"}
+              {u.detail ? `: ${u.detail}` : ""}
+            </p>
+            {u.note ? <p className="text-forest/80 mt-1">{u.note}</p> : null}
+            {u.sentAt ? (
+              <p className="text-forest/70 mt-1 text-xs">
+                {formatSentAt(u.sentAt, timezone)}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <p className="text-forest/70 mt-3 text-xs">
+        Shown here and not sent to your phone — this page is the place to check.
+      </p>
+    </section>
+  );
+}
+
+/** When an update was sent, in the MARKET's zone. */
+function formatSentAt(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
 }
 
 function RefundProgress({

@@ -45,7 +45,7 @@ http://localhost:3000/?__scenario=booking-disabled
 **The money loop**
 `payments-ready` (payment succeeds) · `verifying` · `paid` (verifying → confirmed) ·
 `declined` (refund progress) · `cancelled` · `expired` · `capacity-unavailable` ·
-`request-window-closed` · `cutoff-passed` · `token-expired`
+`request-window-closed` · `cutoff-passed` · `token-expired` · `operator-updates` · `payments-unavailable` (the 503; the default is now the contract's `200 coming_soon`)
 
 **Cancelling and reviewing**
 `partial-refund` (routes to a human) · `not-cancellable` · `quote-moved` ·

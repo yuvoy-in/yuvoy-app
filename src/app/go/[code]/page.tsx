@@ -40,10 +40,11 @@ export default async function ScanArrivalPage({
     // traveller cannot get to the feed.
   }
 
-  // The code travels on in the URL rather than in storage, so checkout can put
-  // it in `attribution.scanCode` — the code itself, never a scan id, because
-  // an id the client keeps and sends back is exactly the correlatable token
-  // POST /scans refuses to mint.
+  // The code travels on in the URL, where `AttributionCapture` (root layout)
+  // reads it into the session so checkout can put it in
+  // `attribution.scanCode` — the code itself, never a scan id, because an id
+  // the client keeps and sends back is exactly the correlatable token
+  // POST /scans refuses to mint. See lib/booking/attribution.
   const separator = target.includes("?") ? "&" : "?";
   redirect(`${target}${separator}src=qr&code=${encodeURIComponent(code)}`);
 }

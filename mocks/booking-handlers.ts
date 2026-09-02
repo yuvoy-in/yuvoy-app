@@ -1,5 +1,23 @@
 import { http, HttpResponse, delay } from "msw";
 import { EXPERIENCE_DETAIL, availabilityFor } from "./fixtures";
+import type { components, paths } from "../src/lib/api/schema.gen";
+
+/**
+ * The two shapes `POST /reservations/{id}/payment-order` can answer with,
+ * typed FROM the contract so the mock cannot drift from it.
+ *
+ * It did drift. The contract documents a `200 coming_soon` as what production
+ * answers today, and the mock answered an uncontracted `503` instead — the one
+ * shape the screen happened to render. Against the real API the Pay button
+ * did nothing at all, and every test passed. `satisfies` turns that class of
+ * divergence into a typecheck failure.
+ */
+type PaymentComingSoon =
+  paths["/reservations/{id}/payment-order"]["post"]["responses"][200]["content"]["application/json"];
+type PaymentOrder = components["schemas"]["PaymentOrder"];
+type OperatorUpdates = NonNullable<
+  components["schemas"]["BookingStatus"]["operatorUpdates"]
+>;
 
 /**
  * The money loop, mocked.
@@ -262,9 +280,9 @@ export const bookingHandlers = [
         );
       }
 
-      // The default in development, and what production answers today: no
-      // processor is chosen yet.
-      if (scenario !== "payments-ready") {
+      // A transport can always say 503; the deliberate-stop copy stays
+      // exercised. Forced, never the default.
+      if (scenario === "payments-unavailable") {
         return envelope(
           "payments_unavailable",
           "No payment processor is configured.",
@@ -272,19 +290,35 @@ export const bookingHandlers = [
         );
       }
 
-      return HttpResponse.json(
-        {
-          state: "ready",
-          orderId: `ord_${record.reservationId}`,
-          providerOrderId: `provider_${record.reservationId}`,
-          provider: "mock",
-          amountPaise: 450000 * record.guests,
-          currency: "INR",
-          // The HOLD's deadline, not a separate payment clock.
-          expiresAt: record.holdExpiresAt,
-        },
-        { status: 201, headers: { "x-request-id": rid() } },
-      );
+      // The default, and what production answers today (D-021): payment is
+      // not open yet, the hold is real, and this is NOT an error.
+      if (scenario !== "payments-ready") {
+        const comingSoon = {
+          state: "coming_soon",
+          message:
+            "Payment opens shortly. Your seats are held — we will message you the moment you can pay.",
+          holdStillActive: true,
+        } satisfies PaymentComingSoon;
+        return HttpResponse.json(comingSoon, {
+          status: 200,
+          headers: { "x-request-id": rid() },
+        });
+      }
+
+      const order = {
+        state: "ready",
+        orderId: `ord_${record.reservationId}`,
+        providerOrderId: `provider_${record.reservationId}`,
+        provider: "mock",
+        amountPaise: 450000 * record.guests,
+        currency: "INR",
+        // The HOLD's deadline, not a separate payment clock.
+        expiresAt: record.holdExpiresAt ?? new Date().toISOString(),
+      } satisfies PaymentOrder;
+      return HttpResponse.json(order, {
+        status: 201,
+        headers: { "x-request-id": rid() },
+      });
     },
   ),
 
@@ -351,6 +385,23 @@ export const bookingHandlers = [
           timezone: "Asia/Kolkata",
         },
         price: { totalPaise: 450000 * record.guests, currency: "INR" },
+        ...(scenario === "operator-updates"
+          ? {
+              operatorUpdates: [
+                {
+                  intent: "meeting_point_change",
+                  detail: "Jetty 2, not Jetty 1",
+                  note: "The usual spot is under repair this week.",
+                  sentAt: "2026-08-21T10:15:00Z",
+                },
+                {
+                  intent: "bring_item",
+                  detail: "A towel and a dry change of clothes",
+                  sentAt: "2026-08-21T10:16:00Z",
+                },
+              ] satisfies OperatorUpdates,
+            }
+          : {}),
         ...(state === "declined"
           ? {
               refund: {

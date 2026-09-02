@@ -603,6 +603,45 @@ for (const f of files) {
   }
 }
 
+/* ------------- 15. a mutation's outcome is rendered or handled ----------- */
+
+/**
+ * A `useMutation` whose success nobody reads.
+ *
+ * The Pay button shipped like this: `order.error` was rendered and
+ * `order.data` was never touched, so the contract's `200 coming_soon` — the
+ * answer production gives today, carrying a message the screen is told to
+ * render — produced nothing at all. The button returned to "Pay" with the
+ * hold clock running, and every test was green because the mock answered
+ * the one shape that WAS rendered.
+ *
+ * For each `const NAME = useMutation(...)`, the module must read `NAME.data`
+ * or `NAME.isSuccess`, drive the flow through `NAME.mutateAsync` (the caller
+ * then owns the result), or handle `onSuccess` / `onSettled` inside the call.
+ * Per mutation, not per file.
+ */
+for (const f of files) {
+  if (/\.test\.tsx?$/.test(f)) continue;
+  const s = code(f);
+  for (const m of s.matchAll(/const\s+(\w+)\s*=\s*useMutation\(/g)) {
+    const name = m[1];
+    const close = s.indexOf("\n  });", m.index);
+    const call = s.slice(m.index, close === -1 ? undefined : close + 6);
+    const handled = /\bon(Success|Settled)\s*:/.test(call);
+    const read = new RegExp(
+      `\\b${name}\\.(data|isSuccess|mutateAsync)\\b`,
+    ).test(s);
+    if (!handled && !read) {
+      problems.push(
+        `${rel(f)}: \`${name}\` is a useMutation whose success is never ` +
+          `rendered or handled. Read \`${name}.data\` / \`${name}.isSuccess\`, ` +
+          `use \`${name}.mutateAsync\`, or add onSuccess — a response the ` +
+          `screen discards is a tap that does nothing.`,
+      );
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

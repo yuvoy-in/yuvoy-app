@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
-import { describeError } from "@/components/states";
+import { describeError, FailurePanel } from "@/components/states";
 
 /**
  * A link for the people coming with you.
@@ -47,7 +47,10 @@ export function ShareButton({ token }: { token: string }) {
     },
   });
 
-  const failure = share.error ? describeError(share.error) : null;
+  // Token-bearing: a 401 here is the booking link dying, not a share problem.
+  const failure = share.error
+    ? describeError(share.error, { tokenBearing: true })
+    : null;
 
   return (
     <div className="mt-6">
@@ -73,11 +76,7 @@ export function ShareButton({ token }: { token: string }) {
         </div>
       ) : null}
 
-      {failure ? (
-        <p role="alert" className="text-forest/70 mt-3 text-sm">
-          {failure.body}
-        </p>
-      ) : null}
+      {failure ? <FailurePanel failure={failure} className="mt-3" /> : null}
     </div>
   );
 }

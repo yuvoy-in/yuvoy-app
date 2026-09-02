@@ -13,26 +13,26 @@ Implemented in `src/lib/api/errors.ts` and `src/components/states/index.tsx`.
 
 ## Transport and shape — client bugs, never product states
 
-| Code                                     | HTTP      | Treatment                                                                     |
-| ---------------------------------------- | --------- | ----------------------------------------------------------------------------- |
-| `invalid_input`                          | 400       | Log to Sentry, show the generic error shell. A bug in our request.            |
-| `unauthorized`                           | 401       | Token missing or bad → route to link recovery.                                |
-| `not_found`                              | 404       | No such thing, or not theirs.                                                 |
-| `conflict`                               | 409       | Generic. Prefer the specific codes below; if it arrives, refetch and re-show. |
-| `rate_limited`                           | 429       | Back off and retry. Never a red error.                                        |
-| `internal_error`                         | 500       | Ours. Show the `requestId`.                                                   |
-| `method_not_allowed` · `not_implemented` | 405 / 501 | Shape errors. Client bugs.                                                    |
+| Code                                     | HTTP      | Treatment                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invalid_input`                          | 400       | Log to Sentry, show the generic error shell. A bug in our request.                                                                                                                                                                                                                                                                                                                             |
+| `unauthorized`                           | 401       | Context decides. On a **token-bearing** call (status, cancel, share, review, `/me/bookings`) the link is dead: `describeError(err, { tokenBearing: true })` → **Get a new link** (`/trips/recover`), no retry, and the device record is flagged so the Trips card says "Link expired". On the recovery / sign-in verify step it is a wrong code → "That code did not work. Ask for a new one." |
+| `not_found`                              | 404       | No such thing, or not theirs.                                                                                                                                                                                                                                                                                                                                                                  |
+| `conflict`                               | 409       | Generic. Prefer the specific codes below; if it arrives, refetch and re-show.                                                                                                                                                                                                                                                                                                                  |
+| `rate_limited`                           | 429       | Back off and retry. Never a red error.                                                                                                                                                                                                                                                                                                                                                         |
+| `internal_error`                         | 500       | Ours. Show the `requestId`.                                                                                                                                                                                                                                                                                                                                                                    |
+| `method_not_allowed` · `not_implemented` | 405 / 501 | Shape errors. Client bugs.                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Availability and capacity — each names a different next step
 
-| Code                      | Treatment                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------ |
-| `capacity_unavailable`    | "Those seats went while you were deciding." **`details.remaining` has what is left — offer it.** |
-| `request_quota_exhausted` | Too many open requests already. Explain; **not the traveller's fault**.                          |
-| `request_window_closed`   | **`details.opensAt` → "Ask from 6am"** beats a red error.                                        |
-| `grant_ceiling_exceeded`  | Rare, operator-side. Refetch availability.                                                       |
-| `cutoff_passed`           | Booking closed for this departure. **Show the slot disabled, never hidden.**                     |
-| `stale_availability`      | The count is too old to sell against. Re-verify; do not guess.                                   |
+| Code                      | Treatment                                                                                                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `capacity_unavailable`    | "Those seats went while you were deciding." **`details.remaining` has what is left — offer it.**                                         |
+| `request_quota_exhausted` | Too many open requests already. Explain; **not the traveller's fault**.                                                                  |
+| `request_window_closed`   | **`details.opensAt` → "they take them from 06:00"** in market time, no retry. Implemented in `describeError`.                            |
+| `grant_ceiling_exceeded`  | Rare, operator-side. Refetch availability.                                                                                               |
+| `cutoff_passed`           | Booking closed for this departure. **Show the slot disabled, never hidden.** A race at `POST /reservations` renders calm copy, no retry. |
+| `stale_availability`      | The count is too old to sell against. Re-verify; do not guess.                                                                           |
 
 ## Deliberately stopped — 503, but not an outage
 
@@ -49,13 +49,13 @@ when in fact a human stopped sales on purpose.** Calm, truthful copy; browsing s
 
 ## Idempotency and checkout
 
-| Code                        | Treatment                                                                              |
-| --------------------------- | -------------------------------------------------------------------------------------- |
-| `idempotency_key_malformed` | Client bug. Regenerate correctly, log.                                                 |
-| `idempotency_key_reuse`     | **Client bug, and a serious one. Alert on any spike** — it means we could double-book. |
-| `idempotency_in_progress`   | An identical request is still running. **Wait and retry the same key.**                |
-| `reservation_not_payable`   | Expired, released, or an unaccepted request. Send them back to slots.                  |
-| `token_expired`             | Status token past its life → recovery flow.                                            |
+| Code                        | Treatment                                                                                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `idempotency_key_malformed` | Client bug. Regenerate correctly, log.                                                                                                                                           |
+| `idempotency_key_reuse`     | **Client bug, and a serious one. Alert on any spike** — it means we could double-book.                                                                                           |
+| `idempotency_in_progress`   | An identical request is still running. **Wait and retry the same key.**                                                                                                          |
+| `reservation_not_payable`   | Expired, released, or an unaccepted request. Calm copy, no retry: pick a departure again.                                                                                        |
+| `token_expired`             | **Get a new link** on every token surface (`FailurePanel` / `ErrorState` with `tokenBearing`); the Trips card shows "Link expired" and offers recovery. Never the generic retry. |
 
 ## Safety refusals — a different next step each
 

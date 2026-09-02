@@ -167,6 +167,21 @@ export class YuvoyError extends Error {
   }
 }
 
+/**
+ * A 401 on a token-bearing call: the link is finished, whichever code says so.
+ *
+ * The contract answers `token_expired` for a link past its life and the
+ * generic `unauthorized` for one it does not know — a revoked one, on
+ * purpose, is indistinguishable from a made-up one. Both mean the same thing
+ * to the person holding the link: it opens nothing, and only a fresh one will.
+ */
+export function isDeadToken(error: unknown): boolean {
+  return (
+    error instanceof YuvoyError &&
+    (error.code === "token_expired" || error.status === 401)
+  );
+}
+
 /** A request that never reached the server. Distinct from an API refusal. */
 export class NetworkError extends Error {
   readonly cause?: unknown;

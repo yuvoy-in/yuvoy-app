@@ -15,9 +15,13 @@ import type { components } from "@/lib/api/schema.gen";
 type BookingStatus = components["schemas"]["BookingStatus"];
 
 interface Trip {
-  reference: string;
+  /** The store key — never shown; the reference is what a person reads. */
+  key: string;
+  reference: string | null;
   token: string;
   savedAt: string;
+  /** The server has finished with this link. Offer a new one, not a dead tap. */
+  dead: boolean;
   status: BookingStatus | null;
   fetchedAt: string | null;
 }
@@ -40,13 +44,17 @@ export function TripsScreen() {
     let cancelled = false;
     void (async () => {
       const stored = await listBookings();
+      // Joined on the store's one key — the reference once known, the
+      // reservation id until then — which is also what the snapshot is under.
       const withSnapshots = await Promise.all(
         stored.map(async (b) => {
-          const snap = await getSnapshot(b.reference);
+          const snap = await getSnapshot(b.key);
           return {
-            reference: b.reference,
+            key: b.key,
+            reference: b.reference ?? snap?.status.bookingReference ?? null,
             token: b.token,
             savedAt: b.savedAt,
+            dead: Boolean(b.dead),
             status: snap?.status ?? null,
             fetchedAt: snap?.fetchedAt ?? null,
           } satisfies Trip;
@@ -123,44 +131,84 @@ export function TripsScreen() {
 
       <ul className="mt-6 space-y-3">
         {sorted.map((trip) => (
-          <li key={trip.reference}>
-            <Link
-              href={bookingUrl(trip.token)}
-              className="rounded-edge border-cream-line bg-cream-deep hover:border-forest/30 block border p-4 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-bold">
-                    {trip.status?.experience.title ?? "Your booking"}
-                  </p>
-                  <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
-                    {trip.reference}
-                  </p>
+          <li key={trip.key}>
+            {trip.dead ? (
+              /*
+                A link the server has finished with. It stays listed — the
+                trip is real — but tapping it would open a dead page, so the
+                card says what happened and offers the only thing that helps.
+              */
+              <div className="rounded-edge border-cream-line bg-cream-deep block border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold">
+                      {trip.status?.experience.title ?? "Your booking"}
+                    </p>
+                    {trip.reference ? (
+                      <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
+                        {trip.reference}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="label text-terra-deep shrink-0">
+                    Link expired
+                  </span>
                 </div>
-                {trip.status ? <StateChip state={trip.status.state} /> : null}
-              </div>
-
-              {trip.status ? (
                 <p className="text-forest/70 mt-3 text-sm">
-                  {new Intl.DateTimeFormat("en-IN", {
-                    timeZone: trip.status.slot.timezone,
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false,
-                  }).format(new Date(trip.status.slot.startsAt))}
+                  This link no longer opens the booking. A fresh one goes to the
+                  number you booked with.
                 </p>
-              ) : null}
+                <Link
+                  href="/trips/recover"
+                  className="label text-terra-deep tap-target mt-2 inline-block font-bold underline underline-offset-2"
+                >
+                  Get a new link
+                </Link>
+              </div>
+            ) : (
+              <Link
+                href={bookingUrl(trip.token)}
+                className="rounded-edge border-cream-line bg-cream-deep hover:border-forest/30 block border p-4 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold">
+                      {trip.status?.experience.title ?? "Your booking"}
+                    </p>
+                    {/*
+                    The reference is what gets read out at a jetty. A hold that
+                    never became a booking has none, and an internal id styled
+                    as one is a number somebody will read out to no effect.
+                  */}
+                    <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
+                      {trip.reference ?? "Not yet confirmed"}
+                    </p>
+                  </div>
+                  {trip.status ? <StateChip state={trip.status.state} /> : null}
+                </div>
 
-              {/* Never presented as live. This is what we saved. */}
-              {trip.fetchedAt ? (
-                <p className="text-forest/70 mt-2 text-xs">
-                  Last checked {formatAge(trip.fetchedAt)}
-                </p>
-              ) : null}
-            </Link>
+                {trip.status ? (
+                  <p className="text-forest/70 mt-3 text-sm">
+                    {new Intl.DateTimeFormat("en-IN", {
+                      timeZone: trip.status.slot.timezone,
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    }).format(new Date(trip.status.slot.startsAt))}
+                  </p>
+                ) : null}
+
+                {/* Never presented as live. This is what we saved. */}
+                {trip.fetchedAt ? (
+                  <p className="text-forest/70 mt-2 text-xs">
+                    Last checked {formatAge(trip.fetchedAt)}
+                  </p>
+                ) : null}
+              </Link>
+            )}
           </li>
         ))}
       </ul>

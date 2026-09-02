@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { bookingUrl } from "@/lib/booking/token-store";
-import { describeError } from "@/components/states";
+import { describeError, FailurePanel } from "@/components/states";
 import { Field } from "@/components/ui/field";
 
 /**
@@ -57,6 +57,12 @@ export function RecoverScreen() {
       return data;
     },
     onSuccess: (data) => {
+      /*
+        Nothing is stored here: the response carries only the token, and a
+        record needs the booking's key. The booking screen's first successful
+        fetch keeps the fresh token under that key — which OVERWRITES the
+        revoked one this recovery just retired, so the Trips card opens again.
+      */
       if (data?.statusToken) router.replace(bookingUrl(data.statusToken));
     },
   });
@@ -140,19 +146,45 @@ export function RecoverScreen() {
           </p>
         ) : null}
 
-        {failure ? (
-          <div
-            role="alert"
-            className="rounded-edge border-terra-deep mt-6 border-l-2 p-4"
-          >
-            <p className="text-sm font-bold">{failure.title}</p>
-            <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
-            {failure.requestId ? (
-              <p className="text-forest/70 mt-3 font-mono text-[10px]">
-                {failure.requestId}
-              </p>
-            ) : null}
-          </div>
+        {failure ? <FailurePanel failure={failure} className="mt-6" /> : null}
+
+        {/*
+          The way back, once a code has been asked for. A code that never
+          arrives, or a number typed wrong, used to be a reload-the-page dead
+          end: the field was disabled and the only button was "Open my
+          booking". Asking again is rate-limited server-side, and answered the
+          same way for every number.
+        */}
+        {sent ? (
+          <p className="text-forest/70 mt-4 text-xs">
+            No code yet?{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setCode("");
+                verify.reset();
+                request.mutate();
+              }}
+              disabled={request.isPending}
+              className="text-terra-deep tap-target underline disabled:opacity-40"
+            >
+              Send another one
+            </button>
+            {" · "}
+            <button
+              type="button"
+              onClick={() => {
+                setSent(false);
+                setCode("");
+                setDevCode(undefined);
+                request.reset();
+                verify.reset();
+              }}
+              className="text-terra-deep tap-target underline"
+            >
+              Use a different number
+            </button>
+          </p>
         ) : null}
 
         <p className="text-forest/70 mt-8 text-xs">

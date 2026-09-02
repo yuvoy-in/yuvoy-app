@@ -2,14 +2,16 @@
 
 import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
+import { readAttribution } from "@/lib/booking/attribution";
 import {
   ScreeningFields,
   bandMeetsMinimum,
   type AgeBand,
 } from "./screening-fields";
-import { describeError } from "@/components/states";
+import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
 import { cn } from "@/lib/cn";
@@ -65,6 +67,11 @@ export function CheckoutForm({
     undefined,
   );
   const [ageBands, setAgeBands] = useState<(AgeBand | undefined)[]>([]);
+  /**
+   * The server made the reservation and returned no token to open it with.
+   * The schema allows it; a traveller must not be left on a frozen form.
+   */
+  const [tokenMissing, setTokenMissing] = useState(false);
 
   const safety = experience.safety;
   const maxParty = slot.maxPartySize ?? experience.maxPartySize ?? 10;
@@ -127,6 +134,16 @@ export function CheckoutForm({
   }
 
   async function hold() {
+    /*
+      Where this visit came from, if it said. Read at submit rather than at
+      mount, and part of the body — so it is inside the idempotency
+      fingerprint, as the contract requires: "a retry that changes it is
+      refused rather than silently re-attributing a booking that already
+      exists". Absent when the visit made no claim; a checkout must not fail
+      over a marketing field.
+    */
+    const attribution = readAttribution();
+
     const reservation = await create.mutateAsync({
       slotId: slot.id,
       guests,
@@ -135,6 +152,7 @@ export function CheckoutForm({
         whatsapp: whatsapp.trim(),
         ...(email.trim() ? { email: email.trim() } : {}),
       },
+      ...(attribution ? { attribution } : {}),
       ...(safety?.screener || safety?.minAge
         ? {
             screening: {
@@ -151,6 +169,9 @@ export function CheckoutForm({
     // or a query — this API logs request URIs.
     if (reservation.statusToken) {
       router.replace(bookingUrl(reservation.statusToken));
+    } else {
+      // Booked, and no way in. Say so, with the way in that does exist.
+      setTokenMissing(true);
     }
   }
 
@@ -301,12 +322,7 @@ export function CheckoutForm({
       </div>
 
       {failure ? (
-        <div
-          role="alert"
-          className="rounded-edge border-terra-deep border-l-2 p-4"
-        >
-          <p className="text-sm font-bold">{failure.title}</p>
-          <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
+        <FailurePanel failure={failure}>
           {/* capacity_unavailable carries what is left — offer it. */}
           {capacityError?.remaining ? (
             <button
@@ -317,11 +333,27 @@ export function CheckoutForm({
               Book {capacityError.remaining} instead
             </button>
           ) : null}
-          {failure.requestId ? (
-            <p className="text-forest/70 mt-3 font-mono text-[10px]">
-              {failure.requestId}
-            </p>
-          ) : null}
+        </FailurePanel>
+      ) : null}
+
+      {tokenMissing ? (
+        <div
+          role="alert"
+          className="rounded-edge border-terra-deep border-l-2 p-4"
+        >
+          <p className="text-sm font-bold">
+            Your seats are held, and we could not open the page for them
+          </p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            The booking went through. To reach it, ask for your link with the
+            number you just used — it arrives the same way it always does.
+          </p>
+          <Link
+            href={RECOVER_PATH}
+            className="label text-terra-deep tap-target mt-3 inline-block font-bold underline underline-offset-2"
+          >
+            Get my link
+          </Link>
         </div>
       ) : null}
 

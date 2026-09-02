@@ -3,9 +3,17 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
+import { NetworkError, isDeadToken } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
 import { pollIntervalMs, POLL_CEILING_MS } from "./poll";
-import { saveSnapshot, getSnapshot, type BookingSnapshot } from "./token-store";
+import {
+  findByToken,
+  getSnapshot,
+  markTokenDead,
+  rememberBooking,
+  saveSnapshot,
+  type BookingSnapshot,
+} from "./token-store";
 import type { components } from "@/lib/api/schema.gen";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
@@ -74,36 +82,60 @@ export function useBookingStatus(token: string | null) {
     return () => clearTimeout(t);
   }, [query.data?.final, startedAt]);
 
-  // T9's offline guarantee: keep the whole payload, so the screen that "has to
-  // work even if WhatsApp, email and signal all fail" actually does.
+  /*
+    Every successful fetch is the moment this device learns the most about the
+    booking, so it is the moment the store is brought up to date:
+
+      - the token that just worked is kept under the booking's key — which
+        re-keys a checkout-time record from reservation id to reference the
+        first time the reference is seen, and OVERWRITES a revoked token with
+        the fresh one a recovery just minted, so the Trips card opens again;
+      - and T9's offline guarantee: the whole payload is kept, so the screen
+        that "has to work even if WhatsApp, email and signal all fail" does.
+        A hold that was never paid has nothing to keep offline, so snapshots
+        wait for a reference.
+  */
   useEffect(() => {
     const status = query.data;
-    // `bookingReference` exists only once there IS a booking — a hold that
-    // was never paid has nothing to keep offline.
-    if (!status?.bookingReference) return;
-    void saveSnapshot(status.bookingReference, status);
-  }, [query.data]);
+    if (!status || !token) return;
+    void rememberBooking({
+      reservationId: status.reservationId,
+      reference: status.bookingReference ?? undefined,
+      token,
+    });
+    if (status.bookingReference) {
+      void saveSnapshot(status.bookingReference, status);
+    }
+  }, [query.data, token]);
 
-  // On a cold, offline load there is nothing to fetch — fall back to what we
-  // kept, clearly stamped rather than presented as live.
+  /*
+    On a cold, offline load there is nothing to fetch — fall back to what we
+    kept, clearly stamped rather than presented as live. Only when the network
+    genuinely did not answer: a 401 while online is a dead link, and showing a
+    saved booking under "you are offline" would diagnose the wrong thing and
+    hide the one action that helps. And only THIS booking's snapshot — the
+    first one found on the device was, for a while, somebody's other trip.
+  */
   useEffect(() => {
     if (query.data || !query.isError) return;
+    if (!(query.error instanceof NetworkError) || !token) return;
     let cancelled = false;
     void (async () => {
-      const { listBookings } = await import("./token-store");
-      const stored = await listBookings();
-      for (const b of stored) {
-        const snap = await getSnapshot(b.reference);
-        if (snap && !cancelled) {
-          setSnapshot(snap);
-          return;
-        }
-      }
+      const record = await findByToken(token);
+      const snap = record ? await getSnapshot(record.key) : null;
+      if (snap && !cancelled) setSnapshot(snap);
     })();
     return () => {
       cancelled = true;
     };
-  }, [query.data, query.isError]);
+  }, [query.data, query.isError, query.error, token]);
+
+  // A link the server has finished with is flagged on the device, so the
+  // Trips tab can say so and offer a new one instead of a dead tap.
+  useEffect(() => {
+    if (!query.isError || !token) return;
+    if (isDeadToken(query.error)) void markTokenDead(token);
+  }, [query.isError, query.error, token]);
 
   return {
     ...query,

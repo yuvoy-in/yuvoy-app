@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
-import { describeError } from "@/components/states";
+import { describeError, FailurePanel } from "@/components/states";
 import { cn } from "@/lib/cn";
 
 /**
@@ -50,7 +50,9 @@ export function ReviewForm({ token }: { token: string }) {
     );
   }
 
-  const failure = submit.error ? describeError(submit.error) : null;
+  const failure = submit.error
+    ? describeError(submit.error, { tokenBearing: true })
+    : null;
 
   return (
     <form
@@ -110,11 +112,7 @@ export function ReviewForm({ token }: { token: string }) {
         {submit.isPending ? "Sending…" : "Leave this review"}
       </button>
 
-      {failure ? (
-        <p role="alert" className="text-forest/70 mt-3 text-sm">
-          {failure.body}
-        </p>
-      ) : null}
+      {failure ? <FailurePanel failure={failure} className="mt-3" /> : null}
     </form>
   );
 }

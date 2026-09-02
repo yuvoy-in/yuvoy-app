@@ -110,3 +110,31 @@ describe("CancelSheet", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("CancelSheet — a dead link", () => {
+  it("offers a new link when the token behind the commit has expired", async () => {
+    server.use(
+      http.post(`${BASE}/bookings/cancellation`, () =>
+        HttpResponse.json(
+          { error: { code: "token_expired", message: "raw" } },
+          { status: 401 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<CancelSheet token="t" onDone={noop} onClose={noop} />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /cancel this booking/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /yes, cancel it/i }));
+
+    expect(
+      await screen.findByText("This link has expired"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Get a new link" }),
+    ).toHaveAttribute("href", "/trips/recover");
+  });
+});

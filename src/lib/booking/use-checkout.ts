@@ -7,7 +7,7 @@ import {
   clearIdempotencyKey,
   type CheckoutBodyShape,
 } from "./idempotency";
-import { saveToken } from "./token-store";
+import { rememberBooking } from "./token-store";
 import type { components } from "@/lib/api/schema.gen";
 
 type Reservation = components["schemas"]["Reservation"];
@@ -38,11 +38,27 @@ export function useCreateReservation() {
       if (error) throw error;
       return data;
     },
-    onSuccess: async (reservation, body) => {
-      // The token comes back exactly once. Persist it before anything else can
-      // fail — losing it means the traveller loses their booking.
+    onSuccess: (reservation, body) => {
+      /*
+        The token comes back exactly once, so it is kept on the device — but
+        NOT awaited, and it cannot throw. TanStack treats a rejection from
+        `onSuccess` as the mutation failing, and this used to `await` a bare
+        IndexedDB write: on a browser that refuses the database (Safari's
+        private mode defines it and then will not open it) a reservation that
+        the server had created and was holding seats for rendered as
+        "Something went wrong", and the redirect to the booking page — whose
+        URL fragment carries the very same token — never happened. If the
+        open HUNG, the button said "Holding your seats…" forever.
+
+        The fragment URL is the booking's canonical home and the server holds
+        the booking; the store is the Trips tab's convenience. It is written
+        best-effort, alongside the navigation rather than in front of it.
+      */
       if (reservation.statusToken) {
-        await saveToken(reservation.reservationId, reservation.statusToken);
+        void rememberBooking({
+          reservationId: reservation.reservationId,
+          token: reservation.statusToken,
+        });
       }
       clearIdempotencyKey(body.slotId);
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { YuvoyError, NetworkError } from "@/lib/api/errors";
 
@@ -85,6 +86,23 @@ export function EmptyState({
 
 /* ------------------------------------------------------------ error/retry */
 
+/** Where a traveller goes when the link they hold no longer opens anything. */
+export const RECOVER_PATH = "/trips/recover";
+
+export interface DescribedError {
+  title: string;
+  body: string;
+  requestId?: string;
+  canRetry: boolean;
+  deliberate: boolean;
+  /**
+   * The token this request carried is dead — expired, or replaced by a newer
+   * link. The only way forward is a fresh link to the number that booked, so
+   * the screen offers that instead of a retry that can never succeed.
+   */
+  recover?: boolean;
+}
+
 /**
  * Turns any thrown value into copy a traveller can act on.
  *
@@ -94,14 +112,19 @@ export function EmptyState({
  *     mean somebody stopped sales on purpose — calm and true, not a crash.
  *   - Always show `requestId`. Small and grey is fine; it is the difference
  *     between finding the request in the logs and guessing.
+ *
+ * `tokenBearing` says the request was authenticated by a status token. It
+ * changes what a 401 means: on a token-bearing call it is the link dying
+ * (the contract answers `token_expired` for a link past its life, and the
+ * generic `unauthorized` for one it does not know — a revoked one, on
+ * purpose, looks identical), and the way forward is recovery. On the
+ * recovery flow itself a 401 is a wrong code, and the way forward is another
+ * code. Same status, opposite next steps; the screen has to say which.
  */
-export function describeError(error: unknown): {
-  title: string;
-  body: string;
-  requestId?: string;
-  canRetry: boolean;
-  deliberate: boolean;
-} {
+export function describeError(
+  error: unknown,
+  context: { tokenBearing?: boolean } = {},
+): DescribedError {
   if (error instanceof NetworkError) {
     return {
       title: "No connection",
@@ -117,6 +140,53 @@ export function describeError(error: unknown): {
       deliberate: error.isDeliberateStop,
     };
     switch (error.code) {
+      case "token_expired":
+        return {
+          ...base,
+          title: "This link has expired",
+          body: "Booking links stop working after a while, and a newer link replaces an older one. We can send a fresh one to the number you booked with — nothing about the booking itself has changed.",
+          canRetry: false,
+          recover: true,
+        };
+      case "unauthorized":
+        if (context.tokenBearing) {
+          return {
+            ...base,
+            title: "This link no longer opens anything",
+            body: "It may have expired, or a newer link may have replaced it. We can send a fresh one to the number you booked with.",
+            canRetry: false,
+            recover: true,
+          };
+        }
+        return {
+          ...base,
+          title: "That code did not work",
+          body: "It may be wrong, expired, or already used. Ask for a new one — we answer the same way whatever was wrong with it.",
+          canRetry: false,
+        };
+      case "request_window_closed":
+        return {
+          ...base,
+          title: "The operator is not taking requests right now",
+          body: error.opensAt
+            ? `Requests are answered by a person, and they take them from ${marketClock(error.opensAt)}. Nothing was sent, and the seats are not held — ask again then.`
+            : "Requests are answered by a person, and they are not taking them at this hour. Nothing was sent — ask again in the morning.",
+          canRetry: false,
+        };
+      case "cutoff_passed":
+        return {
+          ...base,
+          title: "Booking has closed for this departure",
+          body: "It is too close to the departure to take a new booking. Nothing was sent. Another day is still open.",
+          canRetry: false,
+        };
+      case "reservation_not_payable":
+        return {
+          ...base,
+          title: "This one cannot be paid for any more",
+          body: "The hold has ended, or the request was not accepted. Nothing was charged — pick a departure again to start over.",
+          canRetry: false,
+        };
       case "booking_disabled":
         return {
           ...base,
@@ -188,12 +258,15 @@ export function ErrorState({
   error,
   onRetry,
   tone = "cream",
+  tokenBearing = false,
 }: {
   error: unknown;
   onRetry?: () => void;
   tone?: "cream" | "abyss";
+  /** The failed request carried a status token, so a 401 is a dead link. */
+  tokenBearing?: boolean;
 }) {
-  const d = describeError(error);
+  const d = describeError(error, { tokenBearing });
   const dark = tone === "abyss";
 
   return (
@@ -216,7 +289,20 @@ export function ErrorState({
         {d.body}
       </p>
 
-      {d.canRetry && onRetry ? (
+      {d.recover ? (
+        <Link
+          href={RECOVER_PATH}
+          className={cn(
+            "rounded-edge label mt-6 inline-flex h-11 items-center px-6 font-bold transition-transform",
+            "active:scale-[0.98]",
+            dark
+              ? "bg-cream text-forest hover:-translate-y-px"
+              : "bg-forest text-cream hover:-translate-y-px",
+          )}
+        >
+          Get a new link
+        </Link>
+      ) : d.canRetry && onRetry ? (
         <button
           type="button"
           onClick={onRetry}
@@ -245,6 +331,73 @@ export function ErrorState({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The inline failure, for a screen that stays on screen.
+ *
+ * `ErrorState` replaces a whole view; this sits under the button that failed.
+ * One component rather than the six hand-rolled copies it replaced, because
+ * the recovery link for a dead token has to appear beside every token-bearing
+ * action — cancel, share, review, the account list — and a panel written by
+ * hand six times is one that forgets it in the seventh.
+ *
+ * `children` is for the one extra affordance a failure can carry, such as
+ * "Book N instead" on `capacity_unavailable`.
+ */
+export function FailurePanel({
+  failure,
+  children,
+  className,
+}: {
+  failure: DescribedError;
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn("rounded-edge border-terra-deep border-l-2 p-4", className)}
+    >
+      <p className="text-sm font-bold">{failure.title}</p>
+      <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
+      {children}
+      {failure.recover ? (
+        <Link
+          href={RECOVER_PATH}
+          className="label text-terra-deep tap-target mt-3 inline-block font-bold underline underline-offset-2"
+        >
+          Get a new link
+        </Link>
+      ) : null}
+      {/* Small and grey, always present. Not decoration. */}
+      {failure.requestId ? (
+        <p className="text-forest/70 mt-3 font-mono text-[10px]">
+          {failure.requestId}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A wall-clock time in the MARKET's zone, for copy like "from 06:00".
+ *
+ * The request window is the operator's hours, so it is their clock that is
+ * meant — a traveller reading this on a phone still set to Berlin should see
+ * the Andaman morning, not their own.
+ */
+function marketClock(iso: string, timeZone = "Asia/Kolkata"): string {
+  try {
+    return new Intl.DateTimeFormat("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone,
+    }).format(new Date(iso));
+  } catch {
+    return "the morning";
+  }
 }
 
 /* ---------------------------------------------------------------- offline */

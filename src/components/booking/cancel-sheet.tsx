@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { formatMoney } from "@/lib/format/money";
-import { describeError, Skeleton } from "@/components/states";
-import { YuvoyError } from "@/lib/api/errors";
+import { describeError, FailurePanel, Skeleton } from "@/components/states";
+import { YuvoyError, isDeadToken } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
 
 /**
@@ -72,7 +72,11 @@ export function CancelSheet({
     },
   });
 
-  const failure = commit.error ? describeError(commit.error) : null;
+  // Both calls carry the status token, so a 401 is the link dying — and the
+  // way forward is a fresh link, said as such rather than "try again".
+  const failure = commit.error
+    ? describeError(commit.error, { tokenBearing: true })
+    : null;
 
   return (
     <div className="rounded-edge border-cream-line bg-cream-deep mt-8 border p-5">
@@ -90,10 +94,17 @@ export function CancelSheet({
       {quote.isPending ? (
         <Skeleton className="mt-4 h-16 w-full" />
       ) : quote.isError ? (
-        <p className="text-forest/70 mt-3 text-sm">
-          We could not work out your refund just now. Try again in a moment, or
-          message us and we will do it by hand.
-        </p>
+        isDeadToken(quote.error) ? (
+          <FailurePanel
+            failure={describeError(quote.error, { tokenBearing: true })}
+            className="mt-3"
+          />
+        ) : (
+          <p className="text-forest/70 mt-3 text-sm">
+            We could not work out your refund just now. Try again in a moment,
+            or message us and we will do it by hand.
+          </p>
+        )
       ) : !quote.data.cancellable ? (
         <p className="text-forest/70 mt-3 text-sm">
           {quote.data.reason ??
@@ -170,17 +181,7 @@ export function CancelSheet({
         </div>
       )}
 
-      {failure ? (
-        <div role="alert" className="border-terra-deep mt-4 border-l-2 pl-3">
-          <p className="text-sm font-bold">{failure.title}</p>
-          <p className="text-forest/70 mt-1 text-sm">{failure.body}</p>
-          {failure.requestId ? (
-            <p className="text-forest/70 mt-2 font-mono text-[10px]">
-              {failure.requestId}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      {failure ? <FailurePanel failure={failure} className="mt-4" /> : null}
     </div>
   );
 }
