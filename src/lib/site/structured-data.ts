@@ -51,6 +51,13 @@ export function articleJsonLd(guide: Guide): Record<string, unknown> {
     headline: guide.title,
     description: guide.description,
     dateModified: guide.updated,
+    /*
+      Only when there is one. `image` is a claim like any other — an absolute
+      URL to a picture we say represents this article — so it is emitted from
+      the record rather than defaulted to a brand asset that has nothing to do
+      with the guide.
+    */
+    ...(guide.hero ? { image: `${SITE_URL}${guide.hero.src}` } : {}),
     // Linked to the Organization node by @id rather than restating it, so
     // there is one publisher on the site and not one per article.
     publisher: { "@id": ORGANIZATION_ID },

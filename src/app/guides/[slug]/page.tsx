@@ -94,6 +94,40 @@ export default async function GuidePage({
         </h1>
         <p className="text-forest/70 mt-4 text-base">{guide.description}</p>
 
+        {guide.hero ? (
+          <figure className="mt-8">
+            {/*
+              Not `next/image`: the source is a repo path served from public/,
+              the guide layout is a single fixed column, and the loader's
+              benefit here is smaller than the cost of a component that fails
+              silently when a file is missing. The build already refuses a
+              published guide whose hero is not on disk.
+            */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={guide.hero.src}
+              alt={guide.hero.alt}
+              className="rounded-edge w-full"
+              loading="lazy"
+              decoding="async"
+            />
+            {/*
+              The credit is rendered, not merely recorded. A rights note that
+              lives only in frontmatter is a note nobody can check from the
+              page, and the people most likely to check are the ones whose
+              photograph it is.
+            */}
+            {/*
+              `/70`, not `/60`. §1's opacity ladder: below `forest/70` (4.77:1)
+              text is decoration, and a rights credit is the one caption on the
+              page somebody may genuinely need to read.
+            */}
+            <figcaption className="text-forest/70 mt-2 text-xs">
+              {guide.hero.credit}
+            </figcaption>
+          </figure>
+        ) : null}
+
         <div className="guide-prose mt-10">
           <MDXRemote source={guide.body} />
         </div>

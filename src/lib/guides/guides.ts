@@ -12,6 +12,11 @@ import { guideFrontmatter, assertPublishable, type Guide } from "./schema";
  */
 
 const DIR = join(process.cwd(), "content", "guides");
+const PUBLIC = join(process.cwd(), "public");
+
+/** Whether a hero image is actually in `public/`. Passed to the review gate. */
+const heroExists = (publicPath: string) =>
+  existsSync(join(PUBLIC, publicPath.replace(/^\//, "")));
 
 function readAll(): Guide[] {
   if (!existsSync(DIR)) return [];
@@ -35,7 +40,7 @@ function readAll(): Guide[] {
       }
 
       const guide: Guide = { ...parsed.data, slug, body: content };
-      assertPublishable(guide);
+      assertPublishable(guide, heroExists);
       return guide;
     });
 }
