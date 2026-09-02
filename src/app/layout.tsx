@@ -8,6 +8,7 @@ import { InstallObservability } from "@/components/observability/install";
 import { ConsentBanner } from "@/components/analytics/consent-banner";
 import { THEME_COLOR } from "@/lib/site/theme";
 import { robotsMeta } from "@/lib/site/indexing";
+import { verificationMeta } from "@/lib/site/verification";
 import { SITE_URL } from "@/lib/site/metadata";
 import { organizationJsonLd, webSiteJsonLd } from "@/lib/site/structured-data";
 import { JsonLd } from "@/components/site/json-ld";
@@ -31,6 +32,15 @@ export const metadata: Metadata = {
   // written here: robots.txt and this tag are two halves of one answer and
   // they have to flip together. See lib/site/indexing.ts.
   robots: robotsMeta,
+  /*
+    Search-engine ownership, from the environment. Absent on every deployment
+    that sets no token, which is most of them.
+
+    Deliberately independent of `robotsMeta`: you verify a property BEFORE it
+    is indexable, because verifying is how the owner sees crawl and coverage
+    problems ahead of launch rather than after it. See lib/site/verification.ts.
+  */
+  verification: verificationMeta(),
 };
 
 export const viewport: Viewport = {

@@ -344,6 +344,54 @@ function coversRoute(rule, route) {
     }
   }
 
+  /**
+   * A `verification:` metadata literal, or a verification token written into
+   * the source at all.
+   *
+   * Same failure mode as the robots literal above, one step worse. A
+   * verification token is **per property** — `yuvoy.in`, `app.yuvoy.in` and a
+   * preview host each need a different one, and the value changes again at the
+   * D-102 cutover — so a literal is wrong on at least one deployment the day
+   * it is written, and its wrongness is invisible: the owner presses Verify,
+   * is told no, and nothing anywhere explains it.
+   *
+   * It also must not be `NEXT_PUBLIC_`. That prefix inlines it into the client
+   * bundle for no reason, and a `NEXT_PUBLIC_` variable marked Sensitive in
+   * Vercel arrives at the build as the literal `[SENSITIVE]` — which this
+   * project has already lost three production deploys to.
+   */
+  for (const f of appFiles) {
+    const src = code(f);
+    if (/\bverification\s*:\s*\{/.test(src)) {
+      problems.push(
+        `${rel(f)}: writes a verification metadata literal — import ` +
+          `verificationMeta from @/lib/site/verification, which reads the ` +
+          `token from the environment and validates it. A token is per ` +
+          `property and changes at the domain cutover.`,
+      );
+    }
+    if (/google-site-verification|msvalidate/.test(src)) {
+      problems.push(
+        `${rel(f)}: names a verification meta tag directly. That belongs in ` +
+          `@/lib/site/verification, driven by the environment.`,
+      );
+    }
+  }
+
+  // The whole of src, not app twice: `walk(SRC)` already contains `appFiles`,
+  // and concatenating them reported every finding under src/app twice.
+  for (const f of walk(SRC).filter((x) => /\.tsx?$/.test(x))) {
+    if (/lib[/\\]site[/\\]verification/.test(f)) continue;
+    if (/NEXT_PUBLIC_(GOOGLE|BING)_SITE_VERIFICATION/.test(code(f))) {
+      problems.push(
+        `${rel(f)}: reads a NEXT_PUBLIC_ verification variable. These are ` +
+          `server-read metadata, never client values — and a NEXT_PUBLIC_ ` +
+          `variable marked Sensitive in Vercel reaches the build as ` +
+          `"[SENSITIVE]".`,
+      );
+    }
+  }
+
   // And the other direction: the disallow list and the noindex pages are one
   // list, so a private route present in only one of them is a route that is
   // private in only one way.
