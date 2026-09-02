@@ -29,7 +29,13 @@ is currently served by a different repository.
 
 `yuvoy-app#9` offers two paths. Take the first.
 
-### 1. Domain property via DNS (recommended)
+### 1. Domain property via DNS (recommended, and confirmed available)
+
+> **Checked on 2 September 2026.** `yuvoy.in`'s nameservers are
+> `ns55/ns56.domaincontrol.com` — GoDaddy — and the DNS records for
+> `app.yuvoy.in` and `operators.yuvoy.in` were added there the same day. So
+> registrar access exists and this path is open. It is not a theoretical
+> recommendation.
 
 One TXT record at the registrar (GoDaddy, where `yuvoy.in` already lives)
 verifies **`yuvoy.in` and every subdomain, on both protocols** — so `yuvoy.in`,
@@ -57,7 +63,17 @@ Nothing in this repository changes. The env vars below stay unset.
 
 ### 2. URL-prefix property via meta tag (fallback)
 
-Only if DNS access is genuinely unavailable. It verifies exactly one origin.
+Only if DNS access is genuinely unavailable — which, per the note above, it is
+not. Kept because "the DNS account is unavailable" is a sentence that becomes
+true at inconvenient moments, and because a preview origin can only ever be
+verified this way. It verifies exactly one origin.
+
+> **`yuvoy-web` has no such hook**, deliberately. It serves `yuvoy.in`, which is
+> the property that is actually indexable today — so if this fallback were ever
+> the chosen path for the root domain, that repository would need the same
+> module before the token had anywhere to go. It does not have it because the
+> DNS path is open, and because D-102 retires that site to redirects at launch.
+> If DNS ever closes, port `src/lib/site/verification.ts` there first.
 
 1. Search Console → Add property → **URL prefix** → the exact origin, including
    scheme, e.g. `https://app.yuvoy.in`.
