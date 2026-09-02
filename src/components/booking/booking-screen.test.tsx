@@ -434,3 +434,70 @@ describe("operator updates", () => {
     expect(screen.getByText(/15:45/)).toBeInTheDocument();
   });
 });
+
+/* ----------------------------------------------------- giving it back */
+
+describe("giving the seats back", () => {
+  it("releases a hold in two taps and lands on what the server says", async () => {
+    let released = false;
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          released
+            ? statusBody({ state: "released", final: true })
+            : statusBody({
+                state: "holding",
+                final: false,
+                bookingReference: undefined,
+                holdExpiresAt: new Date(Date.now() + 300_000).toISOString(),
+              }),
+        ),
+      ),
+      http.post(`${BASE}/reservations/:id/release`, () => {
+        released = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    (
+      await screen.findByRole("button", { name: "Give these seats back" })
+    ).click();
+    // The first tap only asks.
+    expect(
+      await screen.findByText("Give these seats back?"),
+    ).toBeInTheDocument();
+    expect(released).toBe(false);
+
+    screen.getByRole("button", { name: "Yes, let them go" }).click();
+    expect(
+      await screen.findByText("This booking was let go"),
+    ).toBeInTheDocument();
+    expect(released).toBe(true);
+  });
+
+  it("withdraws a request with its own words", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "awaiting_operator",
+            final: false,
+            bookingReference: undefined,
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    (
+      await screen.findByRole("button", { name: "Withdraw the request" })
+    ).click();
+    expect(
+      await screen.findByText("Withdraw this request?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Nothing has been charged, and you can ask again/),
+    ).toBeInTheDocument();
+  });
+});

@@ -28,9 +28,9 @@ Implemented in `src/lib/api/errors.ts` and `src/components/states/index.tsx`.
 | Code                      | Treatment                                                                                                                                |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `capacity_unavailable`    | "Those seats went while you were deciding." **`details.remaining` has what is left — offer it.**                                         |
-| `request_quota_exhausted` | Too many open requests already. Explain; **not the traveller's fault**.                                                                  |
+| `request_quota_exhausted` | Too many open requests already. Explained as **not the traveller's fault**, no retry. Implemented in `describeError`.                    |
 | `request_window_closed`   | **`details.opensAt` → "they take them from 06:00"** in market time, no retry. Implemented in `describeError`.                            |
-| `grant_ceiling_exceeded`  | Rare, operator-side. Refetch availability.                                                                                               |
+| `grant_ceiling_exceeded`  | Rare, operator-side. Calm copy, no retry — re-check availability. Implemented.                                                           |
 | `cutoff_passed`           | Booking closed for this departure. **Show the slot disabled, never hidden.** A race at `POST /reservations` renders calm copy, no retry. |
 | `stale_availability`      | The count is too old to sell against. Re-verify; do not guess.                                                                           |
 
@@ -53,7 +53,7 @@ when in fact a human stopped sales on purpose.** Calm, truthful copy; browsing s
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `idempotency_key_malformed` | Client bug. Regenerate correctly, log.                                                                                                                                           |
 | `idempotency_key_reuse`     | **Client bug, and a serious one. Alert on any spike** — it means we could double-book.                                                                                           |
-| `idempotency_in_progress`   | An identical request is still running. **Wait and retry the same key.**                                                                                                          |
+| `idempotency_in_progress`   | An identical request is still running. **"Still working on your last tap"** — retry keeps the same key. Implemented.                                                             |
 | `reservation_not_payable`   | Expired, released, or an unaccepted request. Calm copy, no retry: pick a departure again.                                                                                        |
 | `token_expired`             | **Get a new link** on every token surface (`FailurePanel` / `ErrorState` with `tokenBearing`); the Trips card shows "Link expired" and offers recovery. Never the generic retry. |
 

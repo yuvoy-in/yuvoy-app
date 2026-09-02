@@ -27,11 +27,21 @@ export function RegisterServiceWorker() {
     */
     if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled") return;
 
+    /*
+      Versioned by the build. A changed URL is a new worker to the browser:
+      it installs, precaches a fresh offline page and its assets, and its
+      `activate` deletes the previous version's caches. Without this a
+      byte-identical sw.js never reinstalled and the precache outlived the
+      deploys it was made for. See public/sw.js and next.config.ts.
+    */
+    const version = process.env.NEXT_PUBLIC_SW_VERSION ?? "dev";
     const register = () => {
-      void navigator.serviceWorker.register("/sw.js").catch(() => {
-        // A failed registration costs offline support and nothing else. The
-        // app must not surface an error for it.
-      });
+      void navigator.serviceWorker
+        .register(`/sw.js?v=${encodeURIComponent(version)}`)
+        .catch(() => {
+          // A failed registration costs offline support and nothing else.
+          // The app must not surface an error for it.
+        });
     };
 
     // After load, so registration never competes with the first paint on a

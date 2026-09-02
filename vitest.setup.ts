@@ -3,6 +3,7 @@ import { afterEach, beforeAll, afterAll, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { server } from "./mocks/server";
 import { __resetBookingMocks } from "./mocks/booking-handlers";
+import { __resetClockOffset } from "./src/lib/booking/clock";
 
 /*
   Every test runs against the MSW handlers generated from the contract.
@@ -15,6 +16,9 @@ afterEach(() => {
   // Reservations and idempotency keys are module state in the mock. Leaking
   // them between cases makes an idempotency test pass for the wrong reason.
   __resetBookingMocks();
+  // The measured server-clock offset is module state; one test's fixture
+  // clock must not become the next test's idea of now.
+  __resetClockOffset();
   sessionStorage.clear();
   cleanup();
 });

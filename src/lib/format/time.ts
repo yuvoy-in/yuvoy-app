@@ -66,3 +66,19 @@ export function formatCountdown(ms: number): string {
   const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+/**
+ * "About 3 hours", "45 minutes", "A full day" — for a listing's
+ * `durationMinutes`, which the contract requires and the page never showed.
+ * Rounded to the half hour past ninety minutes: a dive listed at 180 minutes
+ * is "about 3 hours", not a number that pretends to know the tide.
+ */
+export function formatDuration(minutes: number | undefined): string | null {
+  if (!minutes || !Number.isFinite(minutes) || minutes <= 0) return null;
+  if (minutes >= 8 * 60) return "A full day";
+  if (minutes < 60) return `${Math.round(minutes)} minutes`;
+  const halfHours = Math.round(minutes / 30) / 2;
+  const whole = Math.floor(halfHours);
+  const half = halfHours - whole === 0.5;
+  return `About ${whole}${half ? "½" : ""} hour${halfHours === 1 ? "" : "s"}`;
+}

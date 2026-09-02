@@ -4,6 +4,7 @@ import {
   EXPERIENCE_DETAIL,
   availabilityFor,
   FIXTURE_NOW,
+  mockHeaders,
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 
@@ -55,7 +56,7 @@ function envelope(
 ) {
   return HttpResponse.json(
     { error: { code, message, details, requestId: requestId() } },
-    { status, headers: { "x-request-id": requestId() } },
+    { status, headers: mockHeaders(requestId()) },
   );
 }
 
@@ -129,7 +130,7 @@ export const handlers = [
         nextCursor: complete ? null : btoa(String(next)),
         complete,
       },
-      { headers: { "x-request-id": requestId() } },
+      { headers: mockHeaders(requestId()) },
     );
   }),
 
@@ -142,7 +143,7 @@ export const handlers = [
       return envelope("not_found", "No such experience.", 404);
     }
     return HttpResponse.json(detail, {
-      headers: { "x-request-id": requestId() },
+      headers: mockHeaders(requestId()),
     });
   }),
 
@@ -177,7 +178,7 @@ export const handlers = [
           // unverified one, and the UI has to say which it is.
           staleSlotsSuppressed: scenario === "empty" ? 2 : 0,
         },
-        { headers: { "x-request-id": requestId() } },
+        { headers: mockHeaders(requestId()) },
       );
     },
   ),
@@ -189,6 +190,19 @@ export const handlers = [
     const u = new URL(request.url);
     const q = (u.searchParams.get("q") ?? "").toLowerCase();
     const bookableOn = u.searchParams.get("bookableOn");
+
+    /*
+      "An empty `q` returns nothing, not everything." A day alone is still a
+      question — what is bookable on Thursday — so it is answered; nothing at
+      all is not. The mock used to answer the whole catalogue here, which is
+      how the screen shipped a default state the real API would leave empty.
+    */
+    if (!q && !bookableOn) {
+      return HttpResponse.json(
+        { items: [], nextCursor: null, complete: true },
+        { headers: mockHeaders(requestId()) },
+      );
+    }
 
     let items = EXPERIENCES;
     if (q) {
@@ -203,7 +217,7 @@ export const handlers = [
 
     return HttpResponse.json(
       { items, nextCursor: null, complete: true },
-      { headers: { "x-request-id": requestId() } },
+      { headers: mockHeaders(requestId()) },
     );
   }),
 
@@ -219,7 +233,7 @@ export const handlers = [
           hasBookableDates: Boolean(e.nextAvailable),
         })),
       },
-      { headers: { "x-request-id": requestId() } },
+      { headers: mockHeaders(requestId()) },
     ),
   ),
 
@@ -238,7 +252,7 @@ export const handlers = [
         known,
         marketKey: "andaman",
       },
-      { headers: { "x-request-id": requestId() } },
+      { headers: mockHeaders(requestId()) },
     );
   }),
 

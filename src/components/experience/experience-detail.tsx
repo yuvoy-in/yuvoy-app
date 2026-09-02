@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
+import { formatDuration } from "@/lib/format/time";
 import { AvailabilityPicker } from "./availability-picker";
 
 type Experience = components["schemas"]["Experience"];
@@ -22,6 +23,12 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
   const price = formatFromPrice(experience.fromPrice);
   const hero = experience.gallery[0] ?? experience.heroMedia;
   const instant = experience.bookingMode === "allotment";
+  const duration = formatDuration(experience.durationMinutes);
+  // Everything past the hero. A listing with six clips used to show one still
+  // and nothing else — "Multiple clips plus stills" is the prototype's brief
+  // for T3, and the array was already on the response.
+  const more = experience.gallery.slice(1);
+  const map = mapLink(experience.meetingPoint);
 
   return (
     <div className="bg-cream text-forest min-h-full">
@@ -77,6 +84,38 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
           </p>
         </div>
 
+        {duration ? (
+          <p className="text-forest/70 mt-3 text-sm">
+            <span className="label text-forest/75">How long</span>{" "}
+            <span className="ml-2">{duration}</span>
+          </p>
+        ) : null}
+
+        {more.length ? (
+          <section className="mt-8" aria-label="More from this experience">
+            <h2 className="label text-forest/75">More from the water</h2>
+            <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
+              {more.map((m) => (
+                <li key={m.id} className="relative aspect-4/5 w-40 shrink-0">
+                  <Image
+                    src={m.posterUrl}
+                    alt={m.alt ?? ""}
+                    fill
+                    sizes="160px"
+                    className="rounded-edge object-cover"
+                    unoptimized={m.posterUrl.startsWith("data:")}
+                  />
+                  {m.kind === "video" ? (
+                    <span className="label bg-abyss/70 text-cream absolute bottom-2 left-2 px-1.5 py-0.5 text-[10px]">
+                      Clip
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {/* The operator, and only what a record backs. */}
         <section className="mt-8">
           <h2 className="label text-forest/75">Who runs this</h2>
@@ -131,6 +170,16 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
               {experience.meetingPoint.landmark}
             </p>
           ) : null}
+          {map ? (
+            <a
+              href={map}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="label text-terra-deep tap-target mt-2 inline-block font-bold underline underline-offset-2"
+            >
+              Open in maps
+            </a>
+          ) : null}
         </section>
 
         {/* Shown before payment, never after. */}
@@ -145,6 +194,21 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       </div>
     </div>
   );
+}
+
+/**
+ * A maps link from the meeting point's coordinates, when it has them.
+ *
+ * A universal maps URL rather than `geo:` — it opens the phone's own maps app
+ * on iOS and Android and a web map everywhere else, and the query is the
+ * coordinates, not the text, so a jetty called "Jetty 2" resolves to the
+ * jetty and not to a search.
+ */
+function mapLink(point: Experience["meetingPoint"]): string | null {
+  if (typeof point.lat !== "number" || typeof point.lng !== "number") {
+    return null;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${point.lat},${point.lng}`;
 }
 
 function Detail({ title, items }: { title: string; items: string[] }) {

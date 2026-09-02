@@ -15,9 +15,6 @@ import {
 import { cn } from "@/lib/cn";
 import { Field } from "@/components/ui/field";
 import { marketDays, marketToday } from "@/lib/booking/availability-window";
-import type { components } from "@/lib/api/schema.gen";
-
-type ExperiencePage = components["schemas"]["ExperiencePage"];
 
 /**
  * The Search tab — date-first discovery.
@@ -26,19 +23,24 @@ type ExperiencePage = components["schemas"]["ExperiencePage"];
  * an island is asking "what can I do on Thursday", not "show me everything
  * that mentions diving". `bookableOn` answers exactly that: only what can
  * actually be booked that day, in the market's timezone.
+ *
+ * ## Nothing is asked until something is asked for
+ *
+ * The contract is explicit: "An empty `q` returns **nothing**, not everything
+ * — 'everything' is what the feed is for, and a search box that shows the
+ * whole catalog when you clear it looks broken." For a month this screen
+ * called `/search` with no `q` and no day the moment it mounted, and rendered
+ * the catalogue it got back — from a mock that answered "everything". Against
+ * the real API that default state is an empty list under nothing typed.
+ *
+ * So the default state is a prompt, and the query is enabled only once there
+ * is a word or a day to search by. A day alone is a real question — "what is
+ * bookable on Thursday" is not "everything" — and is sent without `q`.
  */
 
 const DAYS_SHOWN = 10;
 
-export function SearchScreen({
-  initialResults,
-  initialFetchedAt,
-}: {
-  /** The unfiltered results, fetched on the server. See app/search/page.tsx. */
-  initialResults?: ExperiencePage | null;
-  /** When the server fetched them. Epoch ms. */
-  initialFetchedAt?: number;
-} = {}) {
+export function SearchScreen() {
   const [q, setQ] = useState("");
   const [bookableOn, setBookableOn] = useState<string | undefined>(undefined);
   // Keeps typing responsive on a mid-range Android without debounce timers.
@@ -46,33 +48,17 @@ export function SearchScreen({
 
   const days = marketDays(DAYS_SHOWN);
 
-  /**
-   * The prefetch describes ONE state: no text, no day. It may seed only that
-   * one query.
-   *
-   * React Query applies `initialData` to whichever key is current, so passing
-   * it unconditionally would answer "diving on Thursday" with the unfiltered
-   * catalogue — instantly, and wrongly, which is the worst combination.
-   */
-  const isDefaultQuery = deferredQ === "" && bookableOn === undefined;
-  const seed =
-    isDefaultQuery && initialResults
-      ? {
-          initialData: initialResults,
-          // Without this the seeded data is treated as infinitely stale and
-          // refetched on hydration, which would undo the server fetch.
-          initialDataUpdatedAt: initialFetchedAt,
-        }
-      : {};
+  const term = deferredQ.trim();
+  const asking = term.length > 0 || bookableOn !== undefined;
 
   const search = useQuery({
-    queryKey: qk.search(deferredQ, bookableOn),
-    ...seed,
+    queryKey: qk.search(term, bookableOn),
+    enabled: asking,
     queryFn: async ({ signal }) => {
       const { data, error } = await api.GET("/search", {
         params: {
           query: {
-            ...(deferredQ ? { q: deferredQ } : {}),
+            ...(term ? { q: term } : {}),
             ...(bookableOn ? { bookableOn } : {}),
           },
         },
@@ -126,7 +112,20 @@ export function SearchScreen({
         </div>
 
         <div className="mt-8">
-          {search.isPending ? (
+          {!asking ? (
+            <EmptyState
+              title="Pick a day, or type a place or an activity"
+              body="Search finds one thing. Everything that is on is in the feed."
+              action={
+                <Link
+                  href="/"
+                  className="label text-terra-deep tap-target underline underline-offset-2"
+                >
+                  Browse the feed
+                </Link>
+              }
+            />
+          ) : search.isPending ? (
             <LoadingState label="Searching">
               <div className="space-y-3">
                 <Skeleton className="h-24 w-full" />
@@ -144,7 +143,7 @@ export function SearchScreen({
               body={
                 bookableOn
                   ? "No operator has a departure we can sell for that date. Try another day — the pills only show what is genuinely bookable."
-                  : "Try a shorter word, or clear the day filter."
+                  : "Try a shorter word, or pick a day instead."
               }
             />
           ) : (

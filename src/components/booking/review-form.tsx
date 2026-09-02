@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
+import { YuvoyError } from "@/lib/api/errors";
 import { describeError, FailurePanel } from "@/components/states";
 import { cn } from "@/lib/cn";
 
@@ -23,6 +24,15 @@ export function ReviewForm({ token }: { token: string }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
 
+  /**
+   * The same synchronous guard checkout uses. `isPending` is React state and
+   * two taps 40 ms apart both read the old value — the second POST answered
+   * 409 (one review per booking) and, because a second `mutate` resets the
+   * mutation, REPLACED the recorded review on screen with a generic failure.
+   * A ref flips in the same tick.
+   */
+  const submitting = useRef(false);
+
   const submit = useMutation({
     retry: false,
     mutationFn: async () => {
@@ -36,15 +46,26 @@ export function ReviewForm({ token }: { token: string }) {
       });
       if (error) throw error;
     },
+    onSettled: () => {
+      submitting.current = false;
+    },
   });
 
-  if (submit.isSuccess) {
+  // 409 `conflict` here means one thing: a review already exists for this
+  // booking. That is the recorded state, not a failure to render as one.
+  const alreadyRecorded =
+    submit.error instanceof YuvoyError && submit.error.code === "conflict";
+
+  if (submit.isSuccess || alreadyRecorded) {
     return (
       <div className="rounded-edge border-cream-line bg-cream-deep mt-8 border p-5">
-        <p className="text-sm font-bold">Thank you</p>
+        <p className="text-sm font-bold">
+          {alreadyRecorded ? "Already recorded" : "Thank you"}
+        </p>
         <p className="text-forest/70 mt-1.5 text-sm">
-          That is recorded. Reviews cannot be changed once left, so this one
-          stands as written.
+          {alreadyRecorded
+            ? "A review for this trip is already on record. Reviews cannot be changed once left, so it stands as written."
+            : "That is recorded. Reviews cannot be changed once left, so this one stands as written."}
         </p>
       </div>
     );
@@ -59,7 +80,9 @@ export function ReviewForm({ token }: { token: string }) {
       className="rounded-edge border-cream-line bg-cream-deep mt-8 border p-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (rating > 0) submit.mutate();
+        if (rating === 0 || submitting.current) return;
+        submitting.current = true;
+        submit.mutate();
       }}
     >
       <h2 className="text-sm font-bold">How was it?</h2>

@@ -26,9 +26,24 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * The service worker's version, stamped at build time.
+ *
+ * The commit on a Vercel or GitHub build; a timestamp anywhere else, so every
+ * local production build is its own version too. Inlined into the client as
+ * NEXT_PUBLIC_SW_VERSION and passed to `register("/sw.js?v=…")` — a changed
+ * URL is a new worker, which is the whole invalidation mechanism.
+ */
+const swVersion = (
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  process.env.GITHUB_SHA ??
+  Date.now().toString(36)
+).slice(0, 12);
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_SW_VERSION: swVersion },
   images: {
     qualities: [75, 100],
     remotePatterns: [

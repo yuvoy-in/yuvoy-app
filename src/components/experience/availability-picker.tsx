@@ -16,6 +16,8 @@ import {
 import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
 import { marketDateRange } from "@/lib/booking/availability-window";
+import { cutoffPassed } from "@/lib/booking/slot-open";
+import { clockOffsetMs } from "@/lib/booking/clock";
 
 type Slot = components["schemas"]["Slot"];
 type BookingMode = components["schemas"]["BookingMode"];
@@ -73,6 +75,15 @@ export function AvailabilityPicker({
   });
 
   const [selected, setSelected] = useState<string | null>(null);
+
+  /*
+    "Now", as the SERVER sees it, at the moment the seats were read. The
+    device clock is not consulted: a phone ten minutes fast would close every
+    departure ten minutes early, and under mocking the world's clock is the
+    fixture's. `dataUpdatedAt` is when this answer arrived; the offset is what
+    the API's own `Date` header had taught the client by then.
+  */
+  const now = dataUpdatedAt + clockOffsetMs();
 
   // Group by the MARKET's local date, never the device's. A 7am dive grouped
   // under "yesterday" because the phone is on GMT is a missed boat.
@@ -139,6 +150,7 @@ export function AvailabilityPicker({
                 <li key={slot.id}>
                   <SlotRow
                     slot={slot}
+                    now={now}
                     selected={selected === slot.id}
                     onSelect={() => setSelected(slot.id)}
                   />
@@ -166,8 +178,7 @@ export function AvailabilityPicker({
       ) : null}
 
       <p className="text-forest/70 mt-5 text-xs">
-        Seats last checked{" "}
-        {formatAge(data.availabilityAsOf, new Date(dataUpdatedAt))}
+        Seats last checked {formatAge(data.availabilityAsOf, new Date(now))}
         {bookingMode === "request"
           ? ". This operator confirms by hand, so nothing is held until they say yes."
           : "."}
@@ -178,14 +189,19 @@ export function AvailabilityPicker({
 
 function SlotRow({
   slot,
+  now,
   selected,
   onSelect,
 }: {
   slot: Slot;
+  now: number;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const closed = slot.status !== "open";
+  // `bookingCutoffAt`: "After this instant the slot cannot be booked. Shown
+  // disabled, never hidden." Read together with `status` — a slot the server
+  // still calls open is closed the moment its cutoff passes.
+  const closed = slot.status !== "open" || cutoffPassed(slot, now);
   const full = slot.remainingDisplay === "Full";
   const request = slot.bookingMode === "request";
   const stale = slot.availability?.stale === true;

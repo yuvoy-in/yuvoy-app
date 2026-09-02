@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { formatDuration } from "./time";
 import { formatAge, msUntil, formatCountdown, formatMarketTime } from "./time";
 
 describe("formatMarketTime", () => {
@@ -53,5 +54,21 @@ describe("formatAge", () => {
 
   it("does not render a future timestamp as a negative age", () => {
     expect(formatAge("2026-08-19T11:00:00Z", now)).toBe("just now");
+  });
+});
+
+describe("formatDuration", () => {
+  it("says roughly how long, in words a traveller plans by", () => {
+    expect(formatDuration(45)).toBe("45 minutes");
+    expect(formatDuration(120)).toBe("About 2 hours");
+    expect(formatDuration(150)).toBe("About 2½ hours");
+    expect(formatDuration(180)).toBe("About 3 hours");
+    expect(formatDuration(60)).toBe("About 1 hour");
+    expect(formatDuration(480)).toBe("A full day");
+  });
+
+  it("says nothing for nothing", () => {
+    expect(formatDuration(undefined)).toBeNull();
+    expect(formatDuration(0)).toBeNull();
   });
 });

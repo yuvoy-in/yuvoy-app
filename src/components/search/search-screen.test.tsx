@@ -3,77 +3,95 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { SearchScreen } from "./search-screen";
-import type { components } from "@/lib/api/schema.gen";
+import { server } from "../../../mocks/server";
+import { http, HttpResponse } from "msw";
 
-type ExperiencePage = components["schemas"]["ExperiencePage"];
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 /**
- * T4's server prefetch, and the one way it can go wrong.
+ * Search asks only when there is something to ask for.
  *
- * The screen scored 82 with an LCP of 5.0s while it fetched its own first
- * results in the browser. Handing them down from the server fixes that — and
- * introduces exactly one new failure mode, which is seeding a FILTERED query
- * with the UNFILTERED answer. That is worse than the slow version: it is
- * instant and wrong.
+ * The contract: "An empty `q` returns nothing, not everything — 'everything'
+ * is what the feed is for." The screen used to fetch on mount with nothing
+ * typed, and rendered whatever the mock's kinder answer was.
  */
-
-const SEEDED: ExperiencePage = {
-  items: [
-    {
-      id: "seed-1",
-      slug: "seeded-only",
-      title: "Seeded from the server",
-      marketKey: "andaman",
-      destinationKey: "andaman/havelock",
-      category: "adventure",
-      bookingMode: "allotment",
-      durationMinutes: 120,
-      operator: { id: "o1", name: "Sample Operator", verified: true },
-    },
-  ],
-  nextCursor: null,
-  complete: true,
-};
-
 describe("SearchScreen", () => {
-  it("renders the server's results immediately, with no loading state", () => {
-    renderWithQuery(
-      <SearchScreen initialResults={SEEDED} initialFetchedAt={Date.now()} />,
+  it("renders a prompt by default and sends no request", async () => {
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/search`, () => {
+        calls += 1;
+        return HttpResponse.json({
+          items: [],
+          nextCursor: null,
+          complete: true,
+        });
+      }),
     );
 
-    // Present on the FIRST paint — that is the whole point of the prefetch.
-    expect(screen.getByText("Seeded from the server")).toBeInTheDocument();
+    renderWithQuery(<SearchScreen />);
+
+    expect(
+      screen.getByText("Pick a day, or type a place or an activity"),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Searching" })).toBeNull();
+    // Give any stray effect a tick to fire. It must not.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls).toBe(0);
   });
 
-  it("does not seed a filtered query with the unfiltered results", async () => {
+  it("searches by the words typed", async () => {
     const user = userEvent.setup();
-    renderWithQuery(
-      <SearchScreen initialResults={SEEDED} initialFetchedAt={Date.now()} />,
-    );
+    renderWithQuery(<SearchScreen />);
 
     await user.type(
       screen.getByRole("searchbox", { name: "Search experiences" }),
       "kayak",
     );
 
-    // The seeded item matches nothing about "kayak" and must go.
-    await waitFor(() =>
-      expect(screen.queryByText("Seeded from the server")).toBeNull(),
-    );
     expect(
       await screen.findByText("Mangrove kayak at dawn"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Try-dive at Nemo Reef")).toBeNull();
   });
 
-  it("still loads and renders on its own when the server prefetch failed", async () => {
-    renderWithQuery(<SearchScreen />);
+  it("treats a day alone as a real question, sent without q", async () => {
+    const seen: string[] = [];
+    server.use(
+      http.get(`${BASE}/search`, ({ request }) => {
+        seen.push(new URL(request.url).search);
+        return HttpResponse.json({
+          items: [],
+          nextCursor: null,
+          complete: true,
+        });
+      }),
+    );
 
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    await user.click(screen.getByRole("button", { name: "Today" }));
+
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0]).toMatch(/bookableOn=\d{4}-\d{2}-\d{2}/);
+    expect(seen[0]).not.toMatch(/[?&]q=/);
+    expect(await screen.findByText("Nothing on that day")).toBeInTheDocument();
+  });
+
+  it("returns to the prompt when the words are cleared, never to everything", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    const box = screen.getByRole("searchbox", { name: "Search experiences" });
+
+    await user.type(box, "kayak");
     expect(
-      screen.getByRole("status", { name: "Searching" }),
+      await screen.findByText("Mangrove kayak at dawn"),
     ).toBeInTheDocument();
+
+    await user.clear(box);
     expect(
-      await screen.findByText("Try-dive at Nemo Reef"),
+      await screen.findByText("Pick a day, or type a place or an activity"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Mangrove kayak at dawn")).toBeNull();
   });
 });

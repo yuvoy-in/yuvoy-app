@@ -5,6 +5,8 @@ import { AvailabilityPicker } from "./availability-picker";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 
+import { availabilityFor, mockHeaders, mockNow } from "../../../mocks/fixtures";
+
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 const SLUG = "try-dive-nemo-reef";
 
@@ -31,14 +33,16 @@ describe("AvailabilityPicker", () => {
   it("shows a closed slot disabled rather than hiding it", async () => {
     renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
 
-    // Hide it and the traveller concludes the day does not exist.
-    const closed = await screen.findByText(
+    // Hide it and the traveller concludes the day does not exist. More than
+    // one row may say so — a full departure whose cutoff has also passed is
+    // closed too — and every one of them must be disabled, not hidden.
+    const closed = await screen.findAllByText(
       "Booking for this departure has closed.",
     );
-    expect(closed).toBeInTheDocument();
-
-    const row = closed.closest("button");
-    expect(row).toBeDisabled();
+    expect(closed.length).toBeGreaterThan(0);
+    for (const line of closed) {
+      expect(line.closest("button")).toBeDisabled();
+    }
   });
 
   it("says when a stale count was last checked, and by what", async () => {
@@ -142,5 +146,38 @@ describe("AvailabilityPicker", () => {
     expect(
       screen.getByRole("button", { name: "Try again" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("AvailabilityPicker — the booking cutoff", () => {
+  it("disables an open slot whose cutoff has passed, without hiding it", async () => {
+    // The server still says `open`; the clock says otherwise. "After this
+    // instant the slot cannot be booked. Shown disabled, never hidden."
+    const [first, ...rest] = availabilityFor(SLUG);
+    const passed = {
+      ...first,
+      status: "open" as const,
+      remainingDisplay: "4 seats left",
+      // A minute ago in the MOCK's clock — the one every response announces.
+      bookingCutoffAt: new Date(mockNow() - 60_000).toISOString(),
+    };
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () =>
+        HttpResponse.json(
+          {
+            availabilityAsOf: new Date(mockNow()).toISOString(),
+            staleSlotsSuppressed: 0,
+            slots: [passed, ...rest],
+          },
+          { headers: mockHeaders("01JCUTOFF") },
+        ),
+      ),
+    );
+
+    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+
+    const row = (await screen.findByText("4 seats left")).closest("button");
+    expect(row).toBeDisabled();
+    expect(row).toHaveTextContent("Booking for this departure has closed.");
   });
 });

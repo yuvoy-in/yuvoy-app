@@ -1,5 +1,10 @@
 import { http, HttpResponse, delay } from "msw";
-import { EXPERIENCE_DETAIL, availabilityFor } from "./fixtures";
+import {
+  EXPERIENCE_DETAIL,
+  availabilityFor,
+  mockHeaders,
+  mockNow,
+} from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
 
 /**
@@ -44,7 +49,7 @@ function envelope(
 ) {
   return HttpResponse.json(
     { error: { code, message, details, requestId: rid() } },
-    { status, headers: { "x-request-id": rid() } },
+    { status, headers: mockHeaders(rid()) },
   );
 }
 
@@ -71,6 +76,8 @@ interface MockReservation {
   /** How many status polls have happened, so `verifying` can resolve. */
   polls: number;
   paid: boolean;
+  /** Given back by the traveller. `released` on status, final. */
+  released?: boolean;
 }
 
 const reservations = new Map<string, MockReservation>();
@@ -133,7 +140,7 @@ export const bookingHandlers = [
       }
       return HttpResponse.json(prior.body, {
         status: 201,
-        headers: { "Idempotent-Replay": "true", "x-request-id": rid() },
+        headers: { "Idempotent-Replay": "true", ...mockHeaders(rid()) },
       });
     }
 
@@ -227,9 +234,9 @@ export const bookingHandlers = [
       // Ten minutes for a hold; hours for a request.
       holdExpiresAt: isRequest
         ? null
-        : new Date(Date.now() + 10 * 60_000).toISOString(),
+        : new Date(mockNow() + 10 * 60_000).toISOString(),
       requestExpiresAt: isRequest
-        ? new Date(Date.now() + 2 * 60 * 60_000).toISOString()
+        ? new Date(mockNow() + 2 * 60 * 60_000).toISOString()
         : null,
       token,
       reference: reference(),
@@ -252,12 +259,21 @@ export const bookingHandlers = [
 
     return HttpResponse.json(response, {
       status: 201,
-      headers: { "x-request-id": rid() },
+      headers: mockHeaders(rid()),
     });
   }),
 
   http.post(url("/reservations/:id/release"), async ({ params }) => {
-    reservations.delete(String(params.id));
+    /*
+      Idempotent, and the record stays: "releasing an already-released hold
+      is not an error", and the status link keeps working afterwards — it
+      answers `released`, which is what the screen is built to say. Deleting
+      the record made the next status poll a 401, which is a dead link, not a
+      released booking.
+    */
+    const record = reservations.get(String(params.id));
+    if (!record) return envelope("not_found", "No such reservation.", 404);
+    record.released = true;
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -301,7 +317,7 @@ export const bookingHandlers = [
         } satisfies PaymentComingSoon;
         return HttpResponse.json(comingSoon, {
           status: 200,
-          headers: { "x-request-id": rid() },
+          headers: mockHeaders(rid()),
         });
       }
 
@@ -317,7 +333,7 @@ export const bookingHandlers = [
       } satisfies PaymentOrder;
       return HttpResponse.json(order, {
         status: 201,
-        headers: { "x-request-id": rid() },
+        headers: mockHeaders(rid()),
       });
     },
   ),
@@ -353,6 +369,7 @@ export const bookingHandlers = [
     }
     if (scenario === "cancelled") state = "cancelled";
     if (scenario === "expired") state = "expired";
+    if (record.released) state = "released";
 
     const final = [
       "confirmed",
@@ -412,7 +429,7 @@ export const bookingHandlers = [
             }
           : {}),
       },
-      { headers: { "x-request-id": rid() } },
+      { headers: mockHeaders(rid()) },
     );
   }),
   /* --------------------------------------------------------- recovery */
@@ -422,7 +439,7 @@ export const bookingHandlers = [
   http.post(url("/bookings/recovery/request"), async () =>
     HttpResponse.json(
       { devCode: "123456" },
-      { status: 202, headers: { "x-request-id": rid() } },
+      { status: 202, headers: mockHeaders(rid()) },
     ),
   ),
 
@@ -440,7 +457,7 @@ export const bookingHandlers = [
     byToken.set(token, existing.reservationId);
     return HttpResponse.json(
       { statusToken: token, note: "Your previous link no longer works." },
-      { headers: { "x-request-id": rid() } },
+      { headers: mockHeaders(rid()) },
     );
   }),
   /* ------------------------------------------------ cancel / share / review */
@@ -510,7 +527,7 @@ export const bookingHandlers = [
         reveals:
           "Shows the meeting point and the time. Not what anyone paid, and it cannot cancel anything.",
       },
-      { status: 201, headers: { "x-request-id": rid() } },
+      { status: 201, headers: mockHeaders(rid()) },
     ),
   ),
 

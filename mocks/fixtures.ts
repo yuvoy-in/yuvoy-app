@@ -25,6 +25,26 @@ const TZ = "Asia/Kolkata";
 /** A stable "today" so fixtures do not drift between runs. */
 export const FIXTURE_NOW = new Date("2026-08-19T02:00:00.000Z");
 
+/**
+ * The mock's clock, running from FIXTURE_NOW.
+ *
+ * The fixture world is anchored on one morning so its dates are stable, but
+ * a clock that stands still breaks anything that counts down or compares an
+ * instant to "now". This one starts at FIXTURE_NOW when the module loads and
+ * advances in real time, and every mocked response carries it in a `Date`
+ * header — exactly as the real API does — so the app's measured clock offset
+ * puts it in fixture time. Cutoffs, hold countdowns and "last checked" all
+ * read against this clock rather than the device's.
+ */
+const LOADED_AT = Date.now();
+export function mockNow(): number {
+  return FIXTURE_NOW.getTime() + (Date.now() - LOADED_AT);
+}
+
+export function mockHeaders(requestId: string): Record<string, string> {
+  return { "x-request-id": requestId, date: new Date(mockNow()).toUTCString() };
+}
+
 const inr = (rupees: number): Money => ({
   amountMinor: rupees * 100,
   currency: "INR",

@@ -10,6 +10,8 @@ import {
   marketDateRange,
 } from "@/lib/booking/availability-window";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
+import { slotIsOpen } from "@/lib/booking/slot-open";
+import { clockOffsetMs } from "@/lib/booking/clock";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 
 /**
@@ -111,10 +113,12 @@ export function BookScreen({ slug }: { slug: string }) {
   }
 
   const slot = availability.data.slots.find((s) => s.id === slotId);
+  // The server's clock at the moment these seats were read — see the picker.
+  const now = availability.dataUpdatedAt + clockOffsetMs();
 
   // The departure went while they were deciding, or the link is stale. Say so
   // plainly rather than rendering a checkout that will refuse them.
-  if (!slot || slot.status !== "open" || slot.remainingDisplay === "Full") {
+  if (!slot || !slotIsOpen(slot, now)) {
     return (
       <Shell>
         <div className="rounded-edge border-cream-line bg-cream-deep border p-5">

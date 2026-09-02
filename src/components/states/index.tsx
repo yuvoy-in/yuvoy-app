@@ -187,6 +187,27 @@ export function describeError(
           body: "The hold has ended, or the request was not accepted. Nothing was charged — pick a departure again to start over.",
           canRetry: false,
         };
+      case "request_quota_exhausted":
+        return {
+          ...base,
+          title: "This operator has too many requests open",
+          body: "Not your doing — they can only hold so many unanswered requests at once. Nothing was sent. Try another day, or another operator, and this one may be free again later.",
+          canRetry: false,
+        };
+      case "grant_ceiling_exceeded":
+        return {
+          ...base,
+          title: "Those seats are no longer there",
+          body: "The operator could not grant that many just now. Nothing was charged — check the dates again, the count has moved.",
+          canRetry: false,
+        };
+      case "idempotency_in_progress":
+        return {
+          ...base,
+          title: "Still working on your last tap",
+          body: "Your previous attempt is still being processed. Give it a moment — it finishes on its own, and trying again continues the same booking rather than starting a second one.",
+          canRetry: true,
+        };
       case "booking_disabled":
         return {
           ...base,

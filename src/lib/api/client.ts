@@ -6,6 +6,7 @@ import {
   isErrorEnvelope,
   type ErrorCode,
 } from "./errors";
+import { recordServerDate } from "@/lib/booking/clock";
 
 /**
  * The one place `fetch` is called.
@@ -112,6 +113,9 @@ const errorMiddleware: Middleware = {
       path: safePath(request.url),
       durationMs: 0,
     });
+
+    // The one clock the hold countdown may trust. See lib/booking/clock.
+    recordServerDate(response.headers.get("date"));
 
     if (response.ok) return response;
 

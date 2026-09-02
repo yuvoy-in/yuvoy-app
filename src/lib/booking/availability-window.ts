@@ -76,12 +76,24 @@ export function marketDateRange(days: number = WINDOW_DAYS): DateRange {
  * same question, not a different question.
  */
 export function marketDays(count: number): string[] {
-  const start = new Date(`${marketToday()}T00:00:00+05:30`);
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Kolkata",
-    }).format(d);
-  });
+  return marketDaysFrom(marketToday(), count);
+}
+
+/**
+ * `count` consecutive `YYYY-MM-DD` days from `today`.
+ *
+ * Calendar arithmetic on a UTC-noon anchor, never `setDate` on a local Date.
+ * `setDate` adds days in the DEVICE's zone, and across the device's own
+ * daylight-saving change an IST-midnight instant lands an hour off — which,
+ * formatted back into IST, repeats a day and drops another. A traveller whose
+ * phone was still on London time in late March saw two pills for the same
+ * Sunday and no pill for the Monday. UTC has no daylight saving, and noon is
+ * twelve hours clear of any date boundary in any zone.
+ */
+export function marketDaysFrom(today: string, count: number): string[] {
+  const [y, m, d] = today.split("-").map(Number);
+  const anchor = Date.UTC(y, m - 1, d, 12);
+  return Array.from({ length: count }, (_, i) =>
+    new Date(anchor + i * 86_400_000).toISOString().slice(0, 10),
+  );
 }

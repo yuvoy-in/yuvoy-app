@@ -8,6 +8,7 @@ import { useBookingStatus } from "@/lib/booking/use-booking-status";
 import { useFragmentToken } from "@/lib/booking/use-fragment-token";
 import { formatMoney } from "@/lib/format/money";
 import { formatCountdown, msUntil, formatAge } from "@/lib/format/time";
+import { clockOffsetMs } from "@/lib/booking/clock";
 import {
   describeError,
   ErrorState,
@@ -169,6 +170,19 @@ function StatusBody({
       ) : null}
 
       {status.state === "holding" ? <PayButton status={status} /> : null}
+
+      {/*
+        The way out of a hold or a pending request. Until now cancel existed
+        only for a confirmed booking, so a traveller who changed their mind
+        mid-hold could only let the clock run out — and one who asked an
+        operator could not withdraw the ask at all. `POST /reservations/{id}/
+        release` is idempotent and answers 204 for both.
+      */}
+      {token &&
+      onChanged &&
+      (status.state === "holding" || status.state === "awaiting_operator") ? (
+        <ReleaseButton status={status} onReleased={onChanged} />
+      ) : null}
 
       {/* Everything needed for the day, on the page. Not in a message that
           may never arrive. */}
@@ -334,10 +348,15 @@ const STATE_COPY: Record<
 /* ------------------------------------------------------------- fragments */
 
 function HoldCountdown({ expiresAt }: { expiresAt: string }) {
-  const [left, setLeft] = useState(() => msUntil(expiresAt));
+  // Against the SERVER's clock, via the offset every response teaches us.
+  // A phone ten minutes fast used to show a fresh hold as already run out.
+  const [left, setLeft] = useState(() => msUntil(expiresAt, clockOffsetMs()));
 
   useEffect(() => {
-    const t = setInterval(() => setLeft(msUntil(expiresAt)), 1000);
+    const t = setInterval(
+      () => setLeft(msUntil(expiresAt, clockOffsetMs())),
+      1000,
+    );
     return () => clearInterval(t);
   }, [expiresAt]);
 
@@ -472,6 +491,87 @@ function PayButton({ status }: { status: BookingStatus }) {
       ) : null}
 
       {failure ? <FailurePanel failure={failure} className="mt-4" /> : null}
+    </div>
+  );
+}
+
+/**
+ * Giving the seats back, in two taps.
+ *
+ * A hold releases the seats to whoever is next; a request tells the operator
+ * not to bother answering. Neither charges anything and neither can be undone,
+ * which is why the first tap only asks. The server's answer is the truth: the
+ * status is refetched rather than assumed, so the screen lands on `released`
+ * because the API said so.
+ */
+function ReleaseButton({
+  status,
+  onReleased,
+}: {
+  status: BookingStatus;
+  onReleased: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const isRequest = status.state === "awaiting_operator";
+
+  const release = useMutation({
+    retry: false,
+    mutationFn: async () => {
+      const client = createApiClient();
+      const { error } = await client.POST("/reservations/{id}/release", {
+        params: { path: { id: status.reservationId } },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => onReleased(),
+  });
+
+  const failure = release.error ? describeError(release.error) : null;
+
+  return (
+    <div className="mt-4">
+      {confirming ? (
+        <div className="rounded-edge border-cream-line bg-cream-deep border p-4">
+          <p className="text-sm font-bold">
+            {isRequest ? "Withdraw this request?" : "Give these seats back?"}
+          </p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            {isRequest
+              ? "The operator will not answer it. Nothing has been charged, and you can ask again any time."
+              : "They go back on sale for whoever is next. Nothing has been charged."}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={release.isPending}
+              onClick={() => release.mutate()}
+              className="rounded-edge label border-forest h-11 flex-1 border px-5 font-bold disabled:opacity-40"
+            >
+              {release.isPending
+                ? "Letting go…"
+                : isRequest
+                  ? "Yes, withdraw it"
+                  : "Yes, let them go"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded-edge label bg-forest text-cream h-11 flex-1 px-5 font-bold"
+            >
+              {isRequest ? "Keep asking" : "Keep them"}
+            </button>
+          </div>
+          {failure ? <FailurePanel failure={failure} className="mt-3" /> : null}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="label text-forest/70 tap-target hover:text-forest underline underline-offset-2"
+        >
+          {isRequest ? "Withdraw the request" : "Give these seats back"}
+        </button>
+      )}
     </div>
   );
 }

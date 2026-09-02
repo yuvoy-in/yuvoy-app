@@ -4,6 +4,7 @@ import {
   WINDOW_DAYS,
   marketDateRange,
   marketDays,
+  marketDaysFrom,
   marketToday,
 } from "./availability-window";
 
@@ -77,5 +78,42 @@ describe("the availability window", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-30T06:00:00Z")); // 11:30 IST, the 30th
     expect(marketDays(3)).toEqual(["2026-08-30", "2026-08-31", "2026-09-01"]);
+  });
+});
+
+describe("the day strip", () => {
+  it("is consecutive and distinct across a daylight-saving change", () => {
+    // Europe spring-forward was 29 March 2026. The old `setDate` arithmetic
+    // ran in the DEVICE's zone and, under TZ=Europe/London, produced
+    // `… 03-29 03-29 …` — one Sunday twice and no Monday. The arithmetic is
+    // UTC now, so this holds whatever zone the test runs in.
+    const days = marketDaysFrom("2026-03-27", 10);
+    expect(days).toEqual([
+      "2026-03-27",
+      "2026-03-28",
+      "2026-03-29",
+      "2026-03-30",
+      "2026-03-31",
+      "2026-04-01",
+      "2026-04-02",
+      "2026-04-03",
+      "2026-04-04",
+      "2026-04-05",
+    ]);
+    expect(new Set(days).size).toBe(10);
+  });
+
+  it("crosses a month and a year end", () => {
+    expect(marketDaysFrom("2026-12-30", 4)).toEqual([
+      "2026-12-30",
+      "2026-12-31",
+      "2027-01-01",
+      "2027-01-02",
+    ]);
+  });
+
+  it("starts on the market's today", () => {
+    expect(marketDays(3)[0]).toBe(marketToday());
+    expect(marketDays(3)).toHaveLength(3);
   });
 });
