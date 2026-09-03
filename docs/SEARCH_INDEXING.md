@@ -1,7 +1,10 @@
 # Search ownership and indexing — the runbook
 
-**Owner:** Vishwanth (`@VishwanthBarma`). Search Console alerts go to the
-address on the verified property; escalation is to the same person.
+**Owner:** the `tech@yuvoy.in` role account owns the Search Console property
+(decided 3 Sep 2026), so ownership survives a personnel change; Vishwanth
+(`@VishwanthBarma`) is the named person and is added as a user. Search
+Console alerts go to the address on the verified property; escalation is to
+Vishwanth.
 
 This is the operational half of `yuvoy-app#9`. The engineering half is done —
 `src/lib/site/verification.ts` reads a token from the environment, validates
@@ -22,6 +25,14 @@ There are three, and they are not interchangeable.
 D-102 moves the app onto `yuvoy.in` at launch and retires `yuvoy-web` to
 redirects. So the property that matters in the long run is `yuvoy.in`, and it
 is currently served by a different repository.
+
+> **Decision, 3 Sep 2026 (owner, `yuvoy-app#12`):** the launch is on
+> `app.yuvoy.in` and `operators.yuvoy.in`; the root cutover is deferred until
+> after launch. Until it is revisited, `app.yuvoy.in` is the app's canonical
+> host — `NEXT_PUBLIC_SITE_URL`, the canonicals and the audit's
+> `PRODUCTION_URL` already say so — and the indexing switch applies to it.
+> The Domain property below covers that host too, so nothing about
+> verification changes whichever way the cutover goes.
 
 **That is the whole argument for the DNS method below.**
 
