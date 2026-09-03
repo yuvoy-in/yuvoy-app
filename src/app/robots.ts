@@ -3,11 +3,12 @@ import type { MetadataRoute } from "next";
 /**
  * Crawler directives.
  *
- * The app is **noindex everywhere** until it takes the root domain at launch
- * (D-102). Two indexed copies of the same brand is the worst of both, and a
+ * The app is **noindex everywhere** until launch. Launch is on `app.yuvoy.in`
+ * (owner, 3 Sep 2026; the D-102 root-domain move is deferred). Two indexed
+ * copies of one page is the worst of both, and a
  * staging host that gets crawled is a real, common and hard-to-undo mistake.
  *
- * `NEXT_PUBLIC_ALLOW_INDEXING` is the single switch that flips at cutover,
+ * `NEXT_PUBLIC_ALLOW_INDEXING` is the single switch that flips at launch,
  * so promoting the app is a config change rather than a hunt through metadata.
  * It is read in lib/site/indexing.ts, which the root layout's `robots` meta
  * tag also derives from — this file and that tag are two halves of one answer

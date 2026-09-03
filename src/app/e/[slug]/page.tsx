@@ -15,8 +15,8 @@ type Experience = components["schemas"]["Experience"];
  *
  * Statically rendered and revalidated. This is the one page in the app worth
  * indexing: it is what a traveller searching "diving havelock" should land on,
- * and it is the reason the app takes the root domain at launch rather than
- * sitting on a subdomain (D-102).
+ * and it is why D-102 wanted the app on the root domain rather than a
+ * subdomain — deferred on 3 Sep 2026; the app launches on app.yuvoy.in.
  *
  * The availability picker beneath it is a client component and is NEVER part
  * of this cache — the contract calls availability "the authority on seats",

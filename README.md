@@ -4,8 +4,8 @@ The **traveller web application** for Yuvoy — screens T1–T12. A traveller fi
 vertical video feed, holds a seat, pays, and turns up at a jetty.
 
 Backend: [`yuvoy-api`](https://github.com/yuvoy-in/yuvoy-api) (Go/Echo, live in production).
-Marketing site: [`yuvoy-web`](https://github.com/yuvoy-in/yuvoy-web) — retires when this app takes
-the root domain at launch.
+Marketing site: [`yuvoy-web`](https://github.com/yuvoy-in/yuvoy-web) at `yuvoy.in`. This app launches on
+`app.yuvoy.in` (owner, 3 Sep 2026); the D-102 move onto the root domain is deferred.
 
 **Plan of record:** `yuvoy/YUVOY_APP_PLAN.md` (workspace root, one level up).
 
@@ -79,7 +79,7 @@ Every traveller screen from the approved prototype, T1–T12.
 pnpm verify           # the pre-push gate — all nine steps below, in order
 pnpm qa               # the static sweep on its own
 pnpm prerender:check  # what the build froze, against sign-off (needs a build first)
-pnpm cutover:check    # every URL yuvoy.in publishes answers on the app (network; launch day)
+pnpm cutover:check    # for the deferred root-domain move: every yuvoy.in URL answers on the app (network)
 pnpm test:e2e         # 38 e2e tests, incl. axe on every route
 ```
 
@@ -129,13 +129,15 @@ marked Sensitive in Vercel, the build received a placeholder, and every local bu
 throughout. The target lives in the `PRODUCTION_URL` repo variable, so the domain cutover is a
 variable change rather than a code change.
 
-**`pnpm cutover:check` is the launch-day gate the audit cannot be.** The audit reads the sitemap
+**`pnpm cutover:check` is the gate for the deferred root-domain move.** The audit reads the sitemap
 of the origin it is pointed at; this reads the _marketing_ site's sitemap and asks whether every
-URL in it — plus `/privacy` and `/terms` — answers on the app's origin with a `200` or exactly one
-redirect. On 3 Sep 2026 it failed 13 of 14: D-102 moves the app onto `yuvoy.in`, and nothing had
-decided where those pages go. It is not in `pnpm verify` because it needs the network and is
-expected to fail until yuvoy-app#12 is decided. `docs/SEARCH_INDEXING.md` has the order of
-operations.
+URL in it — plus the legal, campaign and legacy paths that are never in a sitemap — answers on the
+app's origin with a `200`, a deliberate `410`, or exactly one redirect whose landing page's canonical
+is its own. On 3 Sep 2026 it found 13 of 14 marketing URLs would have 404'd had the app taken
+`yuvoy.in`; the owner chose to launch on `app.yuvoy.in` instead, and the forwarding rules built for
+the move sit host-gated and inert in `src/lib/site/marketing-redirects.ts`. Not in `pnpm verify`: it
+needs the network and is red by design until the app is on the root domain. `docs/SEARCH_INDEXING.md`
+has the launch checklist and the appendix for the move.
 
 A green `pnpm build` does not mean the app runs. Two runtime failures reached the owner before
 these checks existed; both now have a static guard and a regression test.

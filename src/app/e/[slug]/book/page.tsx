@@ -12,7 +12,7 @@ import { privateRobotsMeta } from "@/lib/site/indexing";
  * module may not export `metadata`, so while this file was the client
  * component it could not say `noindex` — and checkout is a URL with a `?slot=`
  * on it that must never be crawled, indexed or shared as a result. It was
- * inheriting the app default, which flips to `index` at the domain cutover.
+ * inheriting the app default, which flips to `index` at launch.
  *
  * Nothing is fetched here on purpose. Every number on this screen — the seat
  * count above all — has to be read at the moment of checkout, not baked into

@@ -9,8 +9,8 @@ import type { Metadata } from "next";
  * you control the host. One of the accepted proofs is a `<meta>` tag in the
  * document head — and the token in it is **per property**, so `yuvoy.in`,
  * `app.yuvoy.in` and a preview deployment each need a different one, and the
- * value changes again at the D-102 cutover when this app takes the root
- * domain. A literal in the layout would be wrong on at least one of those the
+ * value would change again if this app ever took the root domain (D-102,
+ * deferred). A literal in the layout would be wrong on at least one of those the
  * day it was written.
  *
  * So the value comes from the environment, and the repo carries the mechanism

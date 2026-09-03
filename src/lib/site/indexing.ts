@@ -3,14 +3,15 @@ import type { Metadata } from "next";
 /**
  * Whether this deployment may be indexed — and the single place that decides.
  *
- * The app is noindex everywhere until it takes the root domain at launch
- * (D-102): the marketing site owns search until then, and two indexed copies
+ * The app is noindex everywhere until launch — on `app.yuvoy.in` (owner,
+ * 3 Sep 2026; the D-102 root-domain move is deferred). The marketing site
+ * owns search until then, and two indexed copies
  * of one brand is the worst of both.
  *
  * `robots.ts` and the root layout are TWO halves of that answer — a
  * `robots.txt` rule and a `<meta name="robots">` tag — and they must agree.
  * They did not. `robots.ts` read this flag while the layout hardcoded
- * `index: false`, so flipping the flag at cutover would have opened crawling
+ * `index: false`, so flipping the flag at launch would have opened crawling
  * and left every page carrying `noindex`. The site would be crawled and
  * refuse to be indexed, on launch day, and it would look like it had worked.
  *
@@ -83,7 +84,7 @@ export const NON_PAGE_ROUTES = ["/go/"] as const;
  * For a page that must never be indexed, whatever the deployment is.
  *
  * Distinct from `robotsMeta` on purpose: this one does not flip at the domain
- * cutover, and writing it as a literal on the page hides that distinction.
+ * launch, and writing it as a literal on the page hides that distinction.
  */
 export const privateRobotsMeta: Metadata["robots"] = {
   index: false,

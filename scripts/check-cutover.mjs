@@ -3,6 +3,10 @@
  * The cutover check: every URL the marketing site publishes must have an
  * answer on the origin this app takes.
  *
+ * **Deferred, 3 Sep 2026.** The owner launches on `app.yuvoy.in`; the root
+ * domain may follow later. This is the gate for that day, kept ready, and it
+ * is red by design until then. `docs/SEARCH_INDEXING.md`, appendix.
+ *
  * ## Why this exists
  *
  * D-102 puts the app on `yuvoy.in` at launch. The launch checklist
@@ -278,7 +282,7 @@ if (failed.length) {
     `\n✗ ${failed.length} of ${results.length} marketing URLs have no answer on ${to}.\n` +
       `  Each one is a page a search engine or a printed card already points at.\n` +
       `  If ${to} is not yet the root domain, this is expected: the rules are gated on Host: yuvoy.in.\n` +
-      `  Otherwise: docs/SEARCH_INDEXING.md, "The cutover checklist".\n`,
+      `  Otherwise: docs/SEARCH_INDEXING.md, the appendix on the root domain.\n`,
   );
   process.exit(1);
 }

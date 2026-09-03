@@ -8,6 +8,11 @@ type Redirect = Awaited<
  * Every URL the marketing site publishes, forwarded to the marketing host once
  * this app takes the root domain (D-102; yuvoy-app#12, option A, 3 Sep 2026).
  *
+ * **Deferred the same day.** The owner launches on `app.yuvoy.in` and may
+ * revisit the root domain later. Until then these rules are inert — the host
+ * gate below is what keeps them so — and they stay in the repo, tested, so
+ * that day does not start from zero. `docs/SEARCH_INDEXING.md`, appendix.
+ *
  * ## The decision these encode
  *
  * At launch `yuvoy.in` is this app and `yuvoy-web` moves to `www.yuvoy.in`.

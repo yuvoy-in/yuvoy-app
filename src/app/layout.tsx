@@ -29,7 +29,8 @@ export const metadata: Metadata = {
   },
   description:
     "Find something worth doing in the Andaman Islands, and book a seat on it.",
-  // Noindex until the app takes the root domain at launch. Derived, never
+  // Noindex until launch (on app.yuvoy.in; the root-domain move is deferred).
+  // Derived, never
   // written here: robots.txt and this tag are two halves of one answer and
   // they have to flip together. See lib/site/indexing.ts.
   robots: robotsMeta,

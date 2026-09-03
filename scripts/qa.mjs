@@ -321,8 +321,8 @@ function coversRoute(rule, route) {
  *
  * robots.txt and the `<meta name="robots">` tag are one decision expressed
  * twice, and they had drifted: robots.ts read NEXT_PUBLIC_ALLOW_INDEXING while
- * the root layout hardcoded `index: false`. Flipping the flag at the domain
- * cutover would have opened crawling on a site whose every page still said
+ * the root layout hardcoded `index: false`. Flipping the flag at launch
+ * would have opened crawling on a site whose every page still said
  * noindex — crawled, unindexable, and indistinguishable from success until
  * somebody checked Search Console weeks later.
  *
@@ -338,7 +338,7 @@ function coversRoute(rule, route) {
     if (/\brobots\s*:\s*\{/.test(src) || /\bindex\s*:\s*false\b/.test(src)) {
       problems.push(
         `${rel(f)}: writes a robots metadata literal — import robotsMeta ` +
-          `(the app default, which flips at cutover) or privateRobotsMeta ` +
+          `(the app default, which flips at launch) or privateRobotsMeta ` +
           `(never indexed) from @/lib/site/indexing`,
       );
     }
@@ -350,8 +350,8 @@ function coversRoute(rule, route) {
    *
    * Same failure mode as the robots literal above, one step worse. A
    * verification token is **per property** — `yuvoy.in`, `app.yuvoy.in` and a
-   * preview host each need a different one, and the value changes again at the
-   * D-102 cutover — so a literal is wrong on at least one deployment the day
+   * preview host each need a different one, and it would change again if the
+   * app ever took the root domain — so a literal is wrong on at least one deployment the day
    * it is written, and its wrongness is invisible: the owner presses Verify,
    * is told no, and nothing anywhere explains it.
    *
@@ -367,7 +367,7 @@ function coversRoute(rule, route) {
         `${rel(f)}: writes a verification metadata literal — import ` +
           `verificationMeta from @/lib/site/verification, which reads the ` +
           `token from the environment and validates it. A token is per ` +
-          `property and changes at the domain cutover.`,
+          `property and would change with the host.`,
       );
     }
     if (/google-site-verification|msvalidate/.test(src)) {
