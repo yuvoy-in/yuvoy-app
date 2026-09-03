@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
 
 type Safety = components["schemas"]["SafetyRequirements"];
@@ -72,7 +73,7 @@ export function ScreeningFields({
                   onChange={(e) =>
                     onAgeBandChange(i, e.target.value as AgeBand)
                   }
-                  className="rounded-edge border-cream-line bg-cream-deep h-12 flex-1 border px-3 text-sm"
+                  className="rounded-control border-cream-line bg-cream-deep focus:border-forest/60 ease-interaction h-12 flex-1 border px-4 text-sm transition-colors duration-200 outline-none"
                 >
                   <option value="" disabled>
                     Choose a range
@@ -138,17 +139,14 @@ export function ScreeningFields({
               whole transaction rolls back server-side. Somebody who has
               already paid is somebody who will argue to be let in the water.
             */
-            <div
-              role="status"
-              className="rounded-edge border-terra-deep bg-cream-deep mt-4 border-l-2 p-4"
-            >
+            <Panel tone="alert" role="status" className="mt-4">
               <p className="text-sm font-bold">Let us talk first</p>
               <p className="text-forest/70 mt-1.5 text-sm">
                 That does not mean no. It means a quick word with the dive team
                 before you book, so nobody is turned away at the jetty. Nothing
                 has been booked and nothing has been charged.
               </p>
-            </div>
+            </Panel>
           ) : null}
         </fieldset>
       ) : null}
@@ -170,8 +168,10 @@ function ScreenerChoice({
   return (
     <label
       className={cn(
-        "rounded-edge flex cursor-pointer gap-3 border p-4 text-sm",
-        checked ? "border-terra-deep bg-cream-deep" : "border-cream-line",
+        "rounded-card ease-interaction flex cursor-pointer gap-3 border p-4 text-sm transition-[border-color,background-color,box-shadow] duration-200",
+        checked
+          ? "border-forest bg-cream-deep ring-forest ring-1"
+          : "border-cream-line hover:border-forest/40",
       )}
     >
       <input
@@ -179,7 +179,7 @@ function ScreenerChoice({
         name={name}
         checked={checked}
         onChange={onSelect}
-        className="accent-terra-deep mt-0.5 shrink-0"
+        className="accent-terra-deep mt-0.5 size-4 shrink-0"
       />
       <span className="text-forest/80">{label}</span>
     </label>

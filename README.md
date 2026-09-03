@@ -156,9 +156,10 @@ mocks/           MSW handlers + contract-faithful fixtures
 src/
   app/           routes. /e/[slug] is static+ISR; the feed is client
   components/
-    chrome/      the app shell — tab bar, rail
+    chrome/      the chassis — Screen (stage + sheet), the floating tab bar, the rail
+    ui/          the primitives — Button, IconButton, Chip, Panel, Field, StickyBar, icons
     feed/        T2 — the reels feed and its player
-    experience/  T3 detail, T4 availability
+    experience/  T3 detail, T4 availability, the booking layer
     states/      the seven states, as composable shells
   lib/
     api/         generated schema + the hand-written client

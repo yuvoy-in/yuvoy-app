@@ -21,6 +21,10 @@ type Media = components["schemas"]["Media"];
  *     natively. Safari and iOS can, and that is most of our traffic.
  *   - A failed clip degrades to its poster silently. A broken-video icon on
  *     the feed reads as a broken app.
+ *
+ * `onPlayableChange` tells the card whether there is a clip to control, so
+ * the mute disc exists only when there is sound to mute. A control for a
+ * poster that will never play is a control that does nothing.
  */
 export function FeedPlayer({
   media,
@@ -28,6 +32,7 @@ export function FeedPlayer({
   mounted,
   muted,
   autoplayAllowed,
+  onPlayableChange,
   className,
 }: {
   media: Media;
@@ -37,6 +42,7 @@ export function FeedPlayer({
   mounted: boolean;
   muted: boolean;
   autoplayAllowed: boolean;
+  onPlayableChange?: (playable: boolean) => void;
   className?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -110,6 +116,13 @@ export function FeedPlayer({
       video.pause();
     }
   }, [active, playable, autoplayAllowed]);
+
+  // The card learns whether there is a clip to control, and forgets it when
+  // the player leaves the preload budget.
+  useEffect(() => {
+    onPlayableChange?.(playable && canPlay);
+    return () => onPlayableChange?.(false);
+  }, [playable, canPlay, onPlayableChange]);
 
   return (
     <div

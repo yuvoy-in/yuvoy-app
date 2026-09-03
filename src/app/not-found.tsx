@@ -1,20 +1,19 @@
-import Link from "next/link";
+import { Screen } from "@/components/chrome/screen";
+import { EmptyState } from "@/components/states";
+import { ButtonLink } from "@/components/ui/button";
 
+/**
+ * A sheet like every other screen, so the floating bar has cream under it —
+ * a forest pill on the bare forest stage is a bar nobody can see.
+ */
 export default function NotFound() {
   return (
-    <div className="bg-abyss flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-      <p className="font-display tracking-display text-cream text-3xl leading-tight">
-        We do not have this one
-      </p>
-      <p className="text-cream/70 mt-3 max-w-sm text-sm">
-        It may have been taken off sale, or the link may be wrong.
-      </p>
-      <Link
-        href="/"
-        className="rounded-edge label bg-cream text-forest mt-6 flex h-11 items-center px-6 font-bold"
-      >
-        Back to the feed
-      </Link>
-    </div>
+    <Screen>
+      <EmptyState
+        title="We do not have this one"
+        body="It may have been taken off sale, or the link may be wrong."
+        action={<ButtonLink href="/">Back to the feed</ButtonLink>}
+      />
+    </Screen>
   );
 }

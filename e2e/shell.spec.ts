@@ -54,3 +54,32 @@ test("the page never scrolls sideways", async ({ page }) => {
     expect(overflow, `${route} scrolls horizontally`).toBe(false);
   }
 });
+
+test("a focused screen hides the tab bar and offers a way back", async ({
+  page,
+  isMobile,
+}) => {
+  await page.goto("/e/try-dive-nemo-reef");
+  await page.waitForLoadState("networkidle");
+
+  // The way back is a link with a stated destination, never history.
+  await expect(page.getByRole("link", { name: /^Back to/ })).toBeVisible();
+
+  const primary = page.getByRole("navigation", { name: /Primary/i });
+  if (isMobile) {
+    // The floating bar is gone; the screen carries its own foot.
+    await expect(primary).toHaveCount(0);
+  } else {
+    // The rail stays on every route.
+    await expect(primary.getByRole("link")).toHaveCount(4);
+  }
+});
+
+test("a tab root keeps the floating bar and names where you are", async ({
+  page,
+}) => {
+  await page.goto("/search");
+  await page.waitForLoadState("networkidle");
+  const nav = page.getByRole("navigation", { name: /Primary/i }).first();
+  await expect(nav.locator('a[aria-current="page"]')).toHaveText(/Search/i);
+});

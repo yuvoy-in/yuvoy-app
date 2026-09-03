@@ -8,6 +8,112 @@
 > preview, destination plates) are **retained for reference** — the app does not implement them,
 > but the reasoning in them is why the rules below are what they are.
 
+## v2.7 (2026-09-02, owner-directed) — the app is rounded
+
+**The change: the app gets a radius scale, pills and circles, a stage-and-sheet
+chassis, and a floating tab bar. The palette and the type do not move.**
+
+The owner's brief came with a reference set in `expectations/app` — ten
+screens: a coffee ordering app, an interiors app, three dating apps, a surf
+school, a nail studio, a social feed, two travel apps — and one sentence:
+_"everything should follow the design system we have, i.e. colours and fonts,
+but the designs should be coming from the expectations — and since this is an
+application we can actually have the rounded corners."_ Two decisions were
+taken with the owner the same day: **a dark stage with cream sheets** (over
+all-dark, or cream-only), and **focused screens hide the tab bar** behind a
+back control and a sticky action bar. The same language ships in
+`yuvoy-operator`.
+
+### What the references share, and what was taken
+
+| In every reference                                                            | In the app                                                                                               |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| A dark, cinematic ground; photography as the hero                             | The forest **stage** on every viewport; the feed's abyss media ground, unchanged                         |
+| Transactional content on a light card rising over the picture                 | The cream **sheet**, 32px at the top, rising over the stage or the hero (`Screen`)                       |
+| Cards at 20–28px, chips as pills, controls as circles                         | `--radius-card` 24px, `rounded-full` chips and discs                                                     |
+| A floating pill navigation with one destination highlighted                   | `TabBar`: a forest pill detached from the foot; the active tab opens into a cream pill carrying its name |
+| Detail screens with no tab bar, a floating back disc and one sticky price bar | `FOCUSED_ROUTE_PREFIXES`, `BackButton`, `StickyBar`                                                      |
+| A serif display face, a sans for everything else                              | Fraunces + Satoshi, unchanged                                                                            |
+
+What was **not** taken, and why: glass and blur (a GPU cost on a mid-range
+Android, and hairlines already do the work shadows do elsewhere); a warm
+accent as a button fill (CTAs stay monochrome, owner direction 2026-08-05 —
+a `terra-soft` fill under `forest` text would measure 5.36:1 and _could_
+pass, and stays out because the rule is about restraint, not contrast);
+scroll-triggered entrances (the interaction budget is the app's only motion
+budget); and an icon library (sixteen hand-drawn strokes in
+`src/components/ui/icons.tsx`, one weight, about four kilobytes).
+
+### The radius scale
+
+| Token              | Value | Used for                                                                  |
+| ------------------ | ----- | ------------------------------------------------------------------------- |
+| `--radius-tile`    | 12px  | thumbnails, inner media, small tiles                                      |
+| `--radius-control` | 16px  | inputs, selects, textareas                                                |
+| `--radius-card`    | 24px  | cards, panels, notices, slot rows                                         |
+| `--radius-sheet`   | 32px  | content sheets, desktop panels, the feed well                             |
+| `rounded-full`     | pill  | chips, buttons, discs                                                     |
+| `--radius-edge`    | 2px   | the marketing site's near-square; in the app only the guide's inline code |
+
+Nesting is **concentric**: an inner radius is the outer one minus the padding
+between them, or the two curves stop sharing a centre and the corner reads as
+uneven. `palette.test.ts` fails an arbitrary radius and a `rounded-edge` on any
+control.
+
+### The chassis, restated
+
+```
+MOBILE  (< 1024px)                           DESKTOP  (>= 1024px)
++------------------------+                   +--------+----------------------------+
+| forest stage           |                   |        |  forest stage              |
+|  (<)      CHECKOUT     |                   |  rail  |    +------------------+    |
+| +----------------------+  <- 32px corners  | forest |    | cream panel 32px |    |
+| | cream sheet          |                   |        |    |                  |    |
+| |                      |                   |        |    +------------------+    |
+| |   sticky action bar  |                   |        |                            |
+| +----------------------+                   +--------+----------------------------+
+|   ( o  SEARCH  o  o )  <- floating pill
++------------------------+
+```
+
+- **Tab roots** (`/`, `/search`, `/trips`, `/account`, and the `/guides` hub)
+  show the floating bar and leave `tabbar-clearance` for it. **Focused routes**
+  hide it and carry a back control; the registry's `isFocusedRoute` and the
+  screen's `back` prop are the two halves of that decision, pinned to each other
+  by `nav.test.ts` and `e2e/shell.spec.ts`.
+- **The feed is the one screen without a sheet.** The well fills the phone edge
+  to edge with the masthead and the bar floating over it; on a desktop it is a
+  32px well set into the stage, still capped at 480px.
+- **Chrome is still `forest`**, now as objects — the pill bar, the rail, the
+  discs — separated from a cream sheet by contrast and from the picture by a
+  `cream/12` hairline ring. There is still no shadow token.
+- **The back control is a link to a stated fallback, never `history.back()`.**
+  A shared link opened in a fresh tab has no in-app history, and search keeps
+  its results in component state, so a true back would restore nothing anyway.
+
+### Measured, and one thing ruled out
+
+Every pairing inside a sheet is the cream table from §1, unchanged. The stage
+adds nothing new: cream and cream/70 on forest were already measured. One
+combination the chips wanted is recorded as failing: `terra-soft` over a
+`cream/10` tint on forest composites to **4.05:1**, so the accent chip on a
+dark surface is outline-only. `palette.test.ts` computes it.
+
+The feed caption's order is contrast, not taste: the accent chip sits beside
+the price in the bottom band of the scrim (85%+ abyss, where `terra-soft`
+measures 5.5:1) and the operator line above the title is cream.
+
+### The primitives (`src/components/ui`, `src/components/chrome`)
+
+`Button` / `ButtonLink` / `ButtonArrow` (CVA: `primary · paper · outline ·
+outlineOnDark · ghost · ghostOnDark`, sizes 36/44/52) · `IconButton` /
+`IconLink` (a disc with a required name) · `Chip` / `ChipButton` (two
+surfaces, three tones; the filter chip carries `aria-pressed`) · `Panel`
+(`raised · outline · alert · dark`) · `Field` (a leading icon and a pill shape
+for search) · `StickyBar` · `Screen` / `BackButton` · `TabBar` / `NavList` ·
+the icon set. Compose from these; a hand-rolled button string is what this
+version replaced twenty of.
+
 ## v2.6 (2026-08-18) — one near-black, and an app chassis
 
 **The change: `device` is renamed `abyss` and gains a second sanctioned usage.**
@@ -52,8 +158,9 @@ Computed, not estimated. `src/app/palette.test.ts` asserts every row.
 
 `palette.test.ts` pins `bg-abyss` to the feed, the player, the state shells and the app shell.
 The moment a content section takes it, the site has two darks again and the rule that made
-`forest` singular is dead. The test also bans `font-semibold`, `rounded-full`, raw hex outside
-the token block, and a display face at any weight but 400 or the turn.
+`forest` singular is dead. The test also bans `font-semibold`, raw hex outside the token block, a
+display face at any weight but 400 or the turn, and — since v2.7 — an
+arbitrary radius or a `rounded-edge` control.
 
 **One sanctioned hex literal exists outside `@theme`:** `src/lib/site/theme.ts`. Next reads
 `viewport.themeColor` before any CSS is parsed, so it cannot be a custom property. The test
@@ -286,7 +393,7 @@ Two budgets, and they are not the same thing — this is the ruling that resolve
 
 ## 4. Radius, spacing, sizing, grid
 
-- **Radius: `rounded-edge` (2px) — the editorial near-square.** Buttons, inputs, cards and panels all share it. **Pills are not part of the system** (v1 used them; v2 does not).
+- **Radius, on the marketing site: `rounded-edge` (2px) — the editorial near-square.** Buttons, inputs, cards and panels all share it there, and pills are not part of that surface. **In the app (v2.7, above) the scale is `tile · control · card · sheet` plus the pill**, and `rounded-edge` is banned on controls.
 - **`--radius-device` (2.25rem) — the one rounded object in the system**: the Season One phone-preview frame. It depicts hardware, not UI; nothing else may use it. (Tiny `rounded-full` dots inside the preview depict hardware/avatars and share this exemption.)
 - **`bg-device` — the bezel's near-black**, on that same frame and nothing else (owner direction, 2026-08-06). `forest` was tried and reads green at 4px of bezel. This is **not a second dark surface**: it is what a phone's frame is made of, and `Section` still offers one dark tone and no choice to make. `palette.test.ts` pins that exactly one element in `src` carries `bg-device`, and that it is darker than `forest` — the moment a section takes it, the site has two darks again. Not pure `#000`, which sits harder than anything else on the page and rims the frame against cream.
 - **The bezel's padding and the screen's radius are one measurement.** The screen is `calc(var(--radius-device) - <bezel padding>)`; change the padding without the radius and the two curves stop being concentric, which shows as an uneven bezel at the corners.

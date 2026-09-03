@@ -17,7 +17,14 @@ const SLUG = "try-dive-nemo-reef";
  */
 describe("AvailabilityPicker", () => {
   it("renders remainingDisplay verbatim and never re-derives it", async () => {
-    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
 
     // The fixture's exact strings, straight from the server.
     expect(await screen.findByText("4 seats left")).toBeInTheDocument();
@@ -31,7 +38,14 @@ describe("AvailabilityPicker", () => {
   });
 
   it("shows a closed slot disabled rather than hiding it", async () => {
-    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
 
     // Hide it and the traveller concludes the day does not exist. More than
     // one row may say so — a full departure whose cutoff has also passed is
@@ -46,7 +60,14 @@ describe("AvailabilityPicker", () => {
   });
 
   it("says when a stale count was last checked, and by what", async () => {
-    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
     // Showing less than yesterday, silently, is the wrong move — asOf and
     // verifiedVia are on the response for exactly this.
     expect(
@@ -59,6 +80,8 @@ describe("AvailabilityPicker", () => {
       <AvailabilityPicker
         slug="snorkel-elephant-beach"
         bookingMode="request"
+        selectedId={null}
+        onSelect={() => {}}
       />,
     );
 
@@ -82,7 +105,14 @@ describe("AvailabilityPicker", () => {
       ),
     );
 
-    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
 
     expect(
       await screen.findByText(/holding back 3 departures/),
@@ -105,7 +135,14 @@ describe("AvailabilityPicker", () => {
       ),
     );
 
-    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
 
     expect(
       await screen.findByText("This operator is paused"),
@@ -138,7 +175,14 @@ describe("AvailabilityPicker", () => {
       ),
     );
 
-    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
 
     await waitFor(() =>
       expect(screen.getByText("Something went wrong")).toBeInTheDocument(),
@@ -174,7 +218,14 @@ describe("AvailabilityPicker — the booking cutoff", () => {
       ),
     );
 
-    renderWithQuery(<AvailabilityPicker slug={SLUG} bookingMode="allotment" />);
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
 
     const row = (await screen.findByText("4 seats left")).closest("button");
     expect(row).toBeDisabled();

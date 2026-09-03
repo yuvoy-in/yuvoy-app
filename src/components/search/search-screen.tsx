@@ -2,6 +2,7 @@
 
 import { useState, useDeferredValue } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
@@ -12,14 +13,17 @@ import {
   LoadingState,
   Skeleton,
 } from "@/components/states";
-import { cn } from "@/lib/cn";
 import { Field } from "@/components/ui/field";
+import { Screen } from "@/components/chrome/screen";
+import { ButtonLink } from "@/components/ui/button";
+import { ChipButton } from "@/components/ui/chip";
+import { ChevronRightIcon, SearchIcon } from "@/components/ui/icons";
 import { marketDays, marketToday } from "@/lib/booking/availability-window";
 
 /**
  * The Search tab — date-first discovery.
  *
- * The date pills are the point, not the text box. Somebody with three days on
+ * The day chips are the point, not the text box. Somebody with three days on
  * an island is asking "what can I do on Thursday", not "show me everything
  * that mentions diving". `bookableOn` answers exactly that: only what can
  * actually be booked that day, in the market's timezone.
@@ -71,140 +75,136 @@ export function SearchScreen() {
   });
 
   return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-2xl py-6">
-        <h1 className="font-display tracking-display text-3xl leading-tight">
-          What is on
-        </h1>
+    <Screen>
+      <h1 className="font-display tracking-display text-3xl leading-tight">
+        What is on
+      </h1>
 
-        <Field
-          className="mt-5"
-          label="Search experiences"
-          labelHidden
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Diving, boats, Havelock…"
-        />
+      <Field
+        className="mt-5"
+        label="Search experiences"
+        labelHidden
+        type="search"
+        shape="pill"
+        leading={<SearchIcon className="size-5" />}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Diving, boats, Havelock…"
+      />
 
-        {/* Date first. The pills are the primary control. */}
-        <div className="mt-4">
-          <span className="label text-forest/75">Which day</span>
-          <div
-            className="mt-2.5 flex gap-2 overflow-x-auto pb-1"
-            role="group"
-            aria-label="Filter by day"
+      {/* Date first. The chips are the primary control. */}
+      <div className="mt-5">
+        <span className="label text-forest/75">Which day</span>
+        <div
+          className="-mx-6 mt-2.5 flex gap-2 overflow-x-auto px-6 pb-1 sm:-mx-10 sm:px-10"
+          role="group"
+          aria-label="Filter by day"
+        >
+          <ChipButton
+            size="lg"
+            pressed={bookableOn === undefined}
+            onClick={() => setBookableOn(undefined)}
           >
-            <DayPill
-              label="Any day"
-              selected={bookableOn === undefined}
-              onSelect={() => setBookableOn(undefined)}
-            />
-            {days.map((d) => (
-              <DayPill
-                key={d}
-                label={dayLabel(d)}
-                selected={bookableOn === d}
-                onSelect={() => setBookableOn(d)}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-8">
-          {!asking ? (
-            <EmptyState
-              title="Pick a day, or type a place or an activity"
-              body="Search finds one thing. Everything that is on is in the feed."
-              action={
-                <Link
-                  href="/"
-                  className="label text-terra-deep tap-target underline underline-offset-2"
-                >
-                  Browse the feed
-                </Link>
-              }
-            />
-          ) : search.isPending ? (
-            <LoadingState label="Searching">
-              <div className="space-y-3">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            </LoadingState>
-          ) : search.isError ? (
-            <ErrorState
-              error={search.error}
-              onRetry={() => void search.refetch()}
-            />
-          ) : search.data.items.length === 0 ? (
-            <EmptyState
-              title={bookableOn ? "Nothing on that day" : "Nothing matches"}
-              body={
-                bookableOn
-                  ? "No operator has a departure we can sell for that date. Try another day — the pills only show what is genuinely bookable."
-                  : "Try a shorter word, or pick a day instead."
-              }
-            />
-          ) : (
-            <ul className="space-y-3">
-              {search.data.items.map((e) => {
-                const price = formatFromPrice(e.fromPrice);
-                return (
-                  <li key={e.id}>
-                    <Link
-                      href={`/e/${e.slug}`}
-                      className="rounded-edge border-cream-line bg-cream-deep hover:border-forest/30 flex gap-4 border p-4 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold">{e.title}</p>
-                        <p className="text-forest/70 mt-1 text-xs">
-                          {e.location ?? "Andaman"} ·{" "}
-                          {e.bookingMode === "allotment"
-                            ? "Instant book"
-                            : "Operator confirms"}
-                        </p>
-                        <p className="text-forest/70 mt-2 text-sm">
-                          {price ?? "Price on request"}
-                        </p>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+            Any day
+          </ChipButton>
+          {days.map((d) => (
+            <ChipButton
+              key={d}
+              size="lg"
+              pressed={bookableOn === d}
+              onClick={() => setBookableOn(d)}
+            >
+              {dayLabel(d)}
+            </ChipButton>
+          ))}
         </div>
       </div>
-    </div>
-  );
-}
 
-function DayPill({
-  label,
-  selected,
-  onSelect,
-}: {
-  label: string;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        // Rectangular at 2px like everything else — "pill" is the metaphor,
-        // not the geometry. Pills are not part of this system.
-        "rounded-edge min-h-11 shrink-0 border px-3.5 text-sm whitespace-nowrap",
-        selected
-          ? "border-forest bg-forest text-cream"
-          : "border-cream-line bg-cream-deep",
-      )}
-    >
-      {label}
-    </button>
+      <div className="mt-8">
+        {!asking ? (
+          <EmptyState
+            title="Pick a day, or type a place or an activity"
+            body="Search finds one thing. Everything that is on is in the feed."
+            action={
+              <>
+                <ButtonLink href="/">Browse the feed</ButtonLink>
+                <ButtonLink href="/guides" variant="outline">
+                  Read the guides
+                </ButtonLink>
+              </>
+            }
+          />
+        ) : search.isPending ? (
+          <LoadingState label="Searching">
+            <div className="space-y-3">
+              <Skeleton className="h-28 w-full" />
+              <Skeleton className="h-28 w-full" />
+            </div>
+          </LoadingState>
+        ) : search.isError ? (
+          <ErrorState
+            error={search.error}
+            onRetry={() => void search.refetch()}
+          />
+        ) : search.data.items.length === 0 ? (
+          <EmptyState
+            title={bookableOn ? "Nothing on that day" : "Nothing matches"}
+            body={
+              bookableOn
+                ? "No operator has a departure we can sell for that date. Try another day — the chips only show what is genuinely bookable."
+                : "Try a shorter word, or pick a day instead."
+            }
+          />
+        ) : (
+          <ul className="space-y-3">
+            {search.data.items.map((e) => {
+              const price = formatFromPrice(e.fromPrice);
+              return (
+                <li key={e.id}>
+                  <Link
+                    href={`/e/${e.slug}`}
+                    className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-3 pr-4 transition-colors duration-200"
+                  >
+                    {/* The poster, at the card's inner radius. */}
+                    <div className="rounded-tile bg-abyss relative h-24 w-18 shrink-0 overflow-hidden">
+                      {e.heroMedia ? (
+                        <Image
+                          src={e.heroMedia.posterUrl}
+                          alt=""
+                          fill
+                          sizes="72px"
+                          className="object-cover"
+                          unoptimized={e.heroMedia.posterUrl.startsWith(
+                            "data:",
+                          )}
+                        />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold">{e.title}</p>
+                      <p className="text-forest/70 mt-1 text-xs">
+                        {e.location ?? "Andaman"} ·{" "}
+                        {e.bookingMode === "allotment"
+                          ? "Instant book"
+                          : "Operator confirms"}
+                      </p>
+                      <p className="mt-2 text-sm font-bold">
+                        {price ?? (
+                          <span className="text-forest/70 font-normal">
+                            Price on request
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <ChevronRightIcon className="text-forest/70 size-5 shrink-0" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </Screen>
   );
 }
 

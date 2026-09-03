@@ -9,7 +9,11 @@ import {
 } from "@/lib/booking/token-store";
 import { formatAge } from "@/lib/format/time";
 import { EmptyState, LoadingState, Skeleton } from "@/components/states";
-import { cn } from "@/lib/cn";
+import { Screen } from "@/components/chrome/screen";
+import { ButtonLink } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { Panel } from "@/components/ui/panel";
+import { CalendarIcon, ChevronRightIcon } from "@/components/ui/icons";
 import type { components } from "@/lib/api/schema.gen";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
@@ -69,31 +73,24 @@ export function TripsScreen() {
 
   if (trips === null) {
     return (
-      <Shell>
+      <Screen>
         <LoadingState label="Loading your trips">
           <div className="space-y-3">
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-24 w-full" />
           </div>
         </LoadingState>
-      </Shell>
+      </Screen>
     );
   }
 
   if (trips.length === 0) {
     return (
-      <Shell>
+      <Screen>
         <EmptyState
           title="Nothing booked yet"
           body="Bookings you make on this device show up here — no account needed. If you booked on another phone, open the link we sent you."
-          action={
-            <Link
-              href="/"
-              className="rounded-edge label bg-forest text-cream inline-flex h-11 items-center px-5 font-bold"
-            >
-              Find something
-            </Link>
-          }
+          action={<ButtonLink href="/">Find something</ButtonLink>}
         />
         <p className="text-forest/70 mt-8 text-center text-xs">
           Lost your link?{" "}
@@ -104,7 +101,7 @@ export function TripsScreen() {
             Get it back
           </Link>
         </p>
-      </Shell>
+      </Screen>
     );
   }
 
@@ -121,7 +118,7 @@ export function TripsScreen() {
   });
 
   return (
-    <Shell>
+    <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
         Your trips
       </h1>
@@ -138,7 +135,7 @@ export function TripsScreen() {
                 trip is real — but tapping it would open a dead page, so the
                 card says what happened and offers the only thing that helps.
               */
-              <div className="rounded-edge border-cream-line bg-cream-deep block border p-4">
+              <Panel>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold">
@@ -150,63 +147,69 @@ export function TripsScreen() {
                       </p>
                     ) : null}
                   </div>
-                  <span className="label text-terra-deep shrink-0">
+                  <Chip size="sm" tone="accent">
                     Link expired
-                  </span>
+                  </Chip>
                 </div>
                 <p className="text-forest/70 mt-3 text-sm">
                   This link no longer opens the booking. A fresh one goes to the
                   number you booked with.
                 </p>
-                <Link
+                <ButtonLink
                   href="/trips/recover"
-                  className="label text-terra-deep tap-target mt-2 inline-block font-bold underline underline-offset-2"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
                 >
                   Get a new link
-                </Link>
-              </div>
+                </ButtonLink>
+              </Panel>
             ) : (
               <Link
                 href={bookingUrl(trip.token)}
-                className="rounded-edge border-cream-line bg-cream-deep hover:border-forest/30 block border p-4 transition-colors"
+                className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-5 transition-colors duration-200"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
                     <p className="font-bold">
                       {trip.status?.experience.title ?? "Your booking"}
                     </p>
-                    {/*
+                    {trip.status ? (
+                      <StateChip state={trip.status.state} />
+                    ) : null}
+                  </div>
+                  {/*
                     The reference is what gets read out at a jetty. A hold that
                     never became a booking has none, and an internal id styled
                     as one is a number somebody will read out to no effect.
                   */}
-                    <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
-                      {trip.reference ?? "Not yet confirmed"}
+                  <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
+                    {trip.reference ?? "Not yet confirmed"}
+                  </p>
+
+                  {trip.status ? (
+                    <p className="text-forest/80 mt-3 flex items-center gap-2 text-sm">
+                      <CalendarIcon className="text-forest/70 size-4" />
+                      {new Intl.DateTimeFormat("en-IN", {
+                        timeZone: trip.status.slot.timezone,
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      }).format(new Date(trip.status.slot.startsAt))}
                     </p>
-                  </div>
-                  {trip.status ? <StateChip state={trip.status.state} /> : null}
+                  ) : null}
+
+                  {/* Never presented as live. This is what we saved. */}
+                  {trip.fetchedAt ? (
+                    <p className="text-forest/70 mt-2 text-xs">
+                      Last checked {formatAge(trip.fetchedAt)}
+                    </p>
+                  ) : null}
                 </div>
-
-                {trip.status ? (
-                  <p className="text-forest/70 mt-3 text-sm">
-                    {new Intl.DateTimeFormat("en-IN", {
-                      timeZone: trip.status.slot.timezone,
-                      weekday: "short",
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    }).format(new Date(trip.status.slot.startsAt))}
-                  </p>
-                ) : null}
-
-                {/* Never presented as live. This is what we saved. */}
-                {trip.fetchedAt ? (
-                  <p className="text-forest/70 mt-2 text-xs">
-                    Last checked {formatAge(trip.fetchedAt)}
-                  </p>
-                ) : null}
+                <ChevronRightIcon className="text-forest/70 size-5 shrink-0" />
               </Link>
             )}
           </li>
@@ -222,17 +225,14 @@ export function TripsScreen() {
           Get your link back
         </Link>
       </p>
-    </Shell>
+    </Screen>
   );
 }
 
 function StateChip({ state }: { state: BookingStatus["state"] }) {
-  const tone =
-    state === "confirmed" || state === "completed"
-      ? "text-terra-deep"
-      : state === "cancelled" || state === "declined" || state === "expired"
-        ? "text-forest/70"
-        : "text-forest/75";
+  const live = state === "confirmed" || state === "completed";
+  const over =
+    state === "cancelled" || state === "declined" || state === "expired";
 
   const label: Record<BookingStatus["state"], string> = {
     holding: "Holding",
@@ -247,13 +247,13 @@ function StateChip({ state }: { state: BookingStatus["state"] }) {
     no_show: "Not boarded",
   };
 
-  return <span className={cn("label shrink-0", tone)}>{label[state]}</span>;
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-xl py-6">{children}</div>
-    </div>
+    <Chip
+      size="sm"
+      tone={live ? "accent" : "neutral"}
+      className={over ? "text-forest/70" : undefined}
+    >
+      {label[state]}
+    </Chip>
   );
 }

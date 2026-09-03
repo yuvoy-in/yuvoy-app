@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { privateRobotsMeta } from "@/lib/site/indexing";
+import { ButtonLink } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "Offline",
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  */
 export default function OfflinePage() {
   return (
-    <div className="bg-abyss flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
+    <div className="stage flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
       <p className="eyebrow text-terra-soft">No signal</p>
       <p className="font-display tracking-display text-cream mt-4 text-3xl leading-tight">
         You are offline
@@ -26,12 +26,9 @@ export default function OfflinePage() {
         open without signal — everything else needs a connection to tell you
         anything true.
       </p>
-      <Link
-        href="/trips"
-        className="rounded-edge label bg-cream text-forest mt-6 inline-flex h-11 items-center px-5 font-bold"
-      >
+      <ButtonLink href="/trips" variant="paper" className="mt-6">
         Your trips
-      </Link>
+      </ButtonLink>
     </div>
   );
 }

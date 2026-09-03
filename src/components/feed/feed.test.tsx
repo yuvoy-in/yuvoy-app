@@ -96,7 +96,7 @@ describe("Feed", () => {
     await screen.findByText("Try-dive at Nemo Reef");
     // The seeded first page has one verified operator; the badge must appear
     // exactly where `verified` is true and nowhere else.
-    const badges = screen.queryAllByText("· Verified");
+    const badges = screen.queryAllByText("Verified");
     expect(badges.length).toBeGreaterThan(0);
   });
 

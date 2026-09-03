@@ -59,7 +59,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${fraunces.variable} ${satoshi.variable}`}>
-      <body className="bg-abyss">
+      <body className="bg-forest text-cream">
         {/* Emitted once for the whole site. Interior pages add their own
             breadcrumb and article nodes, linked to these by @id. */}
         <JsonLd node={organizationJsonLd()} />

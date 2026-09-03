@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { ErrorState } from "@/components/states";
+import { Screen } from "@/components/chrome/screen";
 import { captureError } from "@/lib/observability/report";
 
 export default function AppError({
@@ -17,8 +18,8 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="bg-abyss flex min-h-[60vh] items-center">
-      <ErrorState error={error} onRetry={reset} tone="abyss" />
-    </div>
+    <Screen>
+      <ErrorState error={error} onRetry={reset} />
+    </Screen>
   );
 }

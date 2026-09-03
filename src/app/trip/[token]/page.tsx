@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { privateRobotsMeta } from "@/lib/site/indexing";
+import { Screen } from "@/components/chrome/screen";
+import { Panel } from "@/components/ui/panel";
 
 export const metadata: Metadata = {
   title: "The trip",
@@ -45,26 +47,26 @@ export default async function SharedTripPage({
   }
 
   return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-md py-8">
-        <p className="eyebrow text-terra-deep">You are invited</p>
-        <h1 className="font-display tracking-display mt-3 text-3xl leading-tight">
-          {trip.experience}
-        </h1>
+    <Screen
+      back={{ href: "/", label: "the feed" }}
+      stageLabel="Shared with you"
+    >
+      <p className="eyebrow text-terra-deep">You are invited</p>
+      <h1 className="font-display tracking-display mt-3 text-3xl leading-tight">
+        {trip.experience}
+      </h1>
 
-        {trip.cancelled ? (
-          <div
-            role="status"
-            className="rounded-edge border-terra-deep mt-5 border-l-2 p-4"
-          >
-            <p className="text-sm font-bold">This trip was called off</p>
-            <p className="text-forest/70 mt-1.5 text-sm">
-              Whoever booked it will have been refunded. Nothing for you to do.
-            </p>
-          </div>
-        ) : null}
+      {trip.cancelled ? (
+        <Panel tone="alert" role="status" className="mt-5">
+          <p className="text-sm font-bold">This trip was called off</p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            Whoever booked it will have been refunded. Nothing for you to do.
+          </p>
+        </Panel>
+      ) : null}
 
-        <dl className="border-cream-line mt-8 space-y-4 border-t pt-6 text-sm">
+      <Panel className="mt-8 p-0">
+        <dl className="divide-cream-line divide-y text-sm">
           <Row label="When">
             {trip.localTime} on{" "}
             {new Intl.DateTimeFormat("en-IN", {
@@ -85,30 +87,30 @@ export default async function SharedTripPage({
           <Row label="Who is coming">{trip.partySize}</Row>
           {trip.operator ? <Row label="Run by">{trip.operator}</Row> : null}
         </dl>
+      </Panel>
 
-        {trip.bring?.length ? (
-          <section className="mt-8">
-            <h2 className="label text-forest/75">Bring</h2>
-            <ul className="text-forest/70 mt-3 space-y-1.5 text-sm">
-              {trip.bring.map((b) => (
-                <li key={b} className="flex gap-2.5">
-                  <span
-                    aria-hidden="true"
-                    className="bg-terra mt-2 size-1 shrink-0"
-                  />
-                  {b}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+      {trip.bring?.length ? (
+        <section className="mt-8">
+          <h2 className="label text-forest/75">Bring</h2>
+          <ul className="text-forest/70 mt-3 space-y-1.5 text-sm">
+            {trip.bring.map((b) => (
+              <li key={b} className="flex gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className="bg-terra mt-2 size-1 shrink-0"
+                />
+                {b}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
-        <p className="text-forest/70 mt-8 text-xs">
-          This is a view of somebody else&apos;s booking. It does not show what
-          was paid, and it cannot change or cancel anything.
-        </p>
-      </div>
-    </div>
+      <p className="text-forest/70 mt-8 text-xs">
+        This is a view of somebody else&apos;s booking. It does not show what
+        was paid, and it cannot change or cancel anything.
+      </p>
+    </Screen>
   );
 }
 
@@ -120,7 +122,7 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap justify-between gap-x-6 gap-y-1">
+    <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 px-5 py-4">
       <dt className="label text-forest/75">{label}</dt>
       <dd className="text-right">{children}</dd>
     </div>

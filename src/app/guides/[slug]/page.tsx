@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { allGuides, getGuide, publishedGuides } from "@/lib/guides/guides";
 import { articleJsonLd, breadcrumbJsonLd } from "@/lib/site/structured-data";
 import { JsonLd } from "@/components/site/json-ld";
 import { pageMetadata } from "@/lib/site/metadata";
 import { unpublishedRobotsMeta } from "@/lib/site/indexing";
+import { Screen } from "@/components/chrome/screen";
+import { ButtonLink } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
 
 /**
  * One guide. Statically generated, revalidated daily.
@@ -62,7 +64,11 @@ export default async function GuidePage({
   );
 
   return (
-    <div className="bg-cream text-forest min-h-full">
+    <Screen
+      back={{ href: "/guides", label: "guides" }}
+      stageLabel="Guide"
+      width="lg"
+    >
       {/*
         Structured data is a CLAIM even though it is invisible, so it comes
         from an allowlisted builder rather than a literal — no ratings, no
@@ -77,15 +83,12 @@ export default async function GuidePage({
         ])}
       />
 
-      <article className="container-page max-w-2xl py-10">
+      <article>
         {guide.status !== "published" ? (
-          <p
-            role="status"
-            className="rounded-edge border-terra-deep mb-8 border-l-2 px-4 py-3 text-xs"
-          >
+          <Panel tone="alert" role="status" className="mb-8 px-4 py-3 text-xs">
             This guide is <strong>{guide.status}</strong>. It is not indexed and
             does not appear in the guides list.
-          </p>
+          </Panel>
         ) : null}
 
         <p className="eyebrow text-terra-deep">Guide</p>
@@ -107,7 +110,7 @@ export default async function GuidePage({
             <img
               src={guide.hero.src}
               alt={guide.hero.alt}
-              className="rounded-edge w-full"
+              className="rounded-card w-full"
               loading="lazy"
               decoding="async"
             />
@@ -156,21 +159,23 @@ export default async function GuidePage({
             className="border-cream-line mt-10 border-t pt-6"
           >
             <h2 className="label text-forest/75">Read next</h2>
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-3 flex flex-wrap gap-2">
               {related.map((g) => (
                 <li key={g.slug}>
-                  <Link
+                  <ButtonLink
                     href={`/guides/${g.slug}`}
-                    className="text-terra-deep tap-target text-sm underline underline-offset-2"
+                    variant="outline"
+                    size="sm"
+                    className="tracking-normal normal-case"
                   >
                     {g.title}
-                  </Link>
+                  </ButtonLink>
                 </li>
               ))}
             </ul>
           </nav>
         ) : null}
       </article>
-    </div>
+    </Screen>
   );
 }

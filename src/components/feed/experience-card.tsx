@@ -1,10 +1,20 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
 import { formatFromPrice } from "@/lib/format/money";
-import { cn } from "@/lib/cn";
+import { useFeedStore } from "@/lib/feed/store";
+import { ButtonArrow, ButtonLink } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { IconButton } from "@/components/ui/icon-button";
+import {
+  CheckIcon,
+  VolumeIcon,
+  VolumeOffIcon,
+  ZapIcon,
+} from "@/components/ui/icons";
+import { ShareExperience } from "@/components/experience/share-experience";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 
@@ -15,6 +25,10 @@ type ExperienceSummary = components["schemas"]["ExperienceSummary"];
  * operator, whether it is instant or a request, and whether there is a date at
  * all. Nothing is behind a tap-to-reveal — the feed's job is to let a traveller
  * skip what is not for them without paying a round trip to find out.
+ *
+ * The caption's ORDER is load-bearing for contrast (see `feed-scrim`): the
+ * accent chip sits in the bottom band, beside the price, where the scrim is
+ * nearly closed; the operator line above the title is cream, never accent.
  */
 export function ExperienceCard({
   experience,
@@ -35,6 +49,10 @@ export function ExperienceCard({
 }) {
   const price = formatFromPrice(experience.fromPrice);
   const instant = experience.bookingMode === "allotment";
+  // Whether there is a clip to control. Set by the player; false for a
+  // poster that will never play, so no dead mute disc is drawn.
+  const [playable, setPlayable] = useState(false);
+  const toggleMuted = useFeedStore((s) => s.toggleMuted);
 
   return (
     <article
@@ -54,6 +72,7 @@ export function ExperienceCard({
           mounted={mounted}
           muted={muted}
           autoplayAllowed={autoplayAllowed}
+          onPlayableChange={setPlayable}
         />
       ) : (
         // No media at all. Still a complete card — an editorial type plate,
@@ -75,71 +94,97 @@ export function ExperienceCard({
         className="feed-scrim pointer-events-none absolute inset-x-0 bottom-0 h-2/3"
       />
 
-      <div className="absolute inset-x-0 bottom-0 p-5 pb-7">
-        {/* Operator, and what we can honestly say about them. */}
-        <div className="flex items-center gap-2">
-          <span className="label text-cream/70">
-            {experience.operator.name}
-          </span>
-          {experience.operator.verified ? (
-            <span className="label text-terra-soft">· Verified</span>
-          ) : null}
-        </div>
-
-        <h2 className="font-display text-cream tracking-display mt-2 text-[1.75rem] leading-[1.05]">
-          {experience.title}
-        </h2>
-
-        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {/*
-            `fromPrice` is absent until a real contracted price exists. Never
-            render ₹0 — that would be a fabricated claim, and this project
-            removed a whole site for doing exactly that.
-          */}
-          {price ? (
-            <p className="text-cream text-lg font-bold">
-              {price}
-              <span className="text-cream/60 ml-1 text-xs font-normal">
-                per person
+      <div className="tabbar-clearance absolute inset-x-0 bottom-0 px-5">
+        <div className="flex items-end gap-4">
+          <div className="min-w-0 flex-1">
+            {/* Operator, and what we can honestly say about them. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="label text-cream/70">
+                {experience.operator.name}
               </span>
-            </p>
-          ) : (
-            <p className="text-cream/70 text-sm">Price on request</p>
-          )}
+              {experience.operator.verified ? (
+                <Chip surface="dark" size="sm">
+                  <CheckIcon className="size-3.5" />
+                  Verified
+                </Chip>
+              ) : null}
+            </div>
 
-          <span
-            className={cn(
-              "label",
-              instant ? "text-terra-soft" : "text-cream/70",
-            )}
-          >
-            {instant ? "Instant book" : "Ask the operator"}
-          </span>
+            <h2 className="font-display text-cream tracking-display mt-2 text-[2rem] leading-[1.05]">
+              {experience.title}
+            </h2>
+
+            {/*
+              `nextAvailable` absent means nothing is bookable in 90 days — NOT
+              "we did not check". Saying so here is what stops the tap that ends
+              in "no dates", which is the tap that loses the traveller.
+            */}
+            <p className="text-cream/70 mt-2 text-xs">
+              {experience.nextAvailable
+                ? nextAvailableLabel(
+                    experience.nextAvailable,
+                    experience.seatsOnNext,
+                  )
+                : "No dates in the next 90 days"}
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              {/*
+                `fromPrice` is absent until a real contracted price exists. Never
+                render ₹0 — that would be a fabricated claim, and this project
+                removed a whole site for doing exactly that.
+              */}
+              {price ? (
+                <p className="text-cream text-lg font-bold">
+                  {price}
+                  <span className="text-cream/70 ml-1.5 text-xs font-normal">
+                    per person
+                  </span>
+                </p>
+              ) : (
+                <p className="text-cream/70 text-sm">Price on request</p>
+              )}
+
+              <Chip
+                surface="dark"
+                tone={instant ? "accent" : "neutral"}
+                size="sm"
+              >
+                {instant ? <ZapIcon className="size-3.5" /> : null}
+                {instant ? "Instant book" : "Ask the operator"}
+              </Chip>
+            </div>
+          </div>
+
+          {/* The action rail. Only controls that do something are drawn. */}
+          <div className="flex shrink-0 flex-col gap-3">
+            {playable ? (
+              <IconButton
+                label={muted ? "Unmute" : "Mute"}
+                variant="onDark"
+                onClick={toggleMuted}
+              >
+                {muted ? <VolumeOffIcon /> : <VolumeIcon />}
+              </IconButton>
+            ) : null}
+            <ShareExperience
+              slug={experience.slug}
+              title={experience.title}
+              variant="onDark"
+            />
+          </div>
         </div>
 
-        {/*
-          `nextAvailable` absent means nothing is bookable in 90 days — NOT
-          "we did not check". Saying so here is what stops the tap that ends
-          in "no dates", which is the tap that loses the traveller.
-        */}
-        <p className="text-cream/60 mt-2 text-xs">
-          {experience.nextAvailable
-            ? nextAvailableLabel(
-                experience.nextAvailable,
-                experience.seatsOnNext,
-              )
-            : "No dates in the next 90 days"}
-        </p>
-
-        <Link
+        <ButtonLink
           href={`/e/${experience.slug}`}
-          className={cn(
-            "rounded-edge label mt-4 flex h-12 items-center justify-center font-bold",
-            "bg-cream text-forest transition-transform active:scale-[0.99]",
-          )}
+          variant="paper"
+          size="lg"
+          block
+          className="mt-5"
         >
           {experience.nextAvailable ? "See dates" : "Have a look"}
-        </Link>
+          <ButtonArrow />
+        </ButtonLink>
       </div>
     </article>
   );

@@ -7,6 +7,8 @@ import { createApiClient } from "@/lib/api/client";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { describeError, FailurePanel } from "@/components/states";
 import { Field } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
+import { Screen } from "@/components/chrome/screen";
 
 /**
  * "I lost my link."
@@ -74,124 +76,126 @@ export function RecoverScreen() {
       : null;
 
   return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-md py-8">
-        <h1 className="font-display tracking-display text-3xl leading-tight">
-          Get your booking back
-        </h1>
-        <p className="text-forest/70 mt-3 text-sm">
-          We will send a code to the number you booked with. Your booking link
-          cannot be looked up any other way — it is not stored anywhere we can
-          read it.
-        </p>
+    <Screen
+      back={{ href: "/trips", label: "your trips" }}
+      stageLabel="Your booking link"
+    >
+      <h1 className="font-display tracking-display text-3xl leading-tight">
+        Get your booking back
+      </h1>
+      <p className="text-forest/70 mt-3 text-sm">
+        We will send a code to the number you booked with. Your booking link
+        cannot be looked up any other way — it is not stored anywhere we can
+        read it.
+      </p>
 
-        <form
-          className="mt-8 space-y-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (sent) {
-              verify.mutate();
-            } else {
-              request.mutate();
-            }
-          }}
-        >
-          <Field
-            label="WhatsApp number"
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            disabled={sent}
-            placeholder="+91…"
-            autoComplete="tel"
-            required
-          />
+      <form
+        className="mt-8 space-y-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (sent) {
+            verify.mutate();
+          } else {
+            request.mutate();
+          }
+        }}
+      >
+        <Field
+          label="WhatsApp number"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          disabled={sent}
+          placeholder="+91…"
+          autoComplete="tel"
+          required
+        />
 
-          {sent ? (
-            <Field
-              label="The code we sent"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              className="font-mono"
-              hint={
-                devCode
-                  ? `Development build — the code is ${devCode}.`
-                  : undefined
-              }
-            />
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={request.isPending || verify.isPending}
-            className="rounded-edge label bg-forest text-cream h-13 w-full font-bold transition-transform active:scale-[0.99] disabled:opacity-40"
-          >
-            {request.isPending || verify.isPending
-              ? "Working…"
-              : sent
-                ? "Open my booking"
-                : "Send me a code"}
-          </button>
-        </form>
-
-        {sent && !failure ? (
-          <p className="text-forest/70 mt-4 text-xs" role="status">
-            If that number has a booking with us, a code is on its way. We
-            answer the same way for every number, so this is not a way to check
-            whether somebody has booked.
-          </p>
-        ) : null}
-
-        {failure ? <FailurePanel failure={failure} className="mt-6" /> : null}
-
-        {/*
-          The way back, once a code has been asked for. A code that never
-          arrives, or a number typed wrong, used to be a reload-the-page dead
-          end: the field was disabled and the only button was "Open my
-          booking". Asking again is rate-limited server-side, and answered the
-          same way for every number.
-        */}
         {sent ? (
-          <p className="text-forest/70 mt-4 text-xs">
-            No code yet?{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setCode("");
-                verify.reset();
-                request.mutate();
-              }}
-              disabled={request.isPending}
-              className="text-terra-deep tap-target underline disabled:opacity-40"
-            >
-              Send another one
-            </button>
-            {" · "}
-            <button
-              type="button"
-              onClick={() => {
-                setSent(false);
-                setCode("");
-                setDevCode(undefined);
-                request.reset();
-                verify.reset();
-              }}
-              className="text-terra-deep tap-target underline"
-            >
-              Use a different number
-            </button>
-          </p>
+          <Field
+            label="The code we sent"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+            className="font-mono"
+            hint={
+              devCode
+                ? `Development build — the code is ${devCode}.`
+                : undefined
+            }
+          />
         ) : null}
 
-        <p className="text-forest/70 mt-8 text-xs">
-          A new link replaces the old one. If you find the old message later, it
-          will no longer open.
+        <Button
+          type="submit"
+          size="lg"
+          block
+          disabled={request.isPending || verify.isPending}
+        >
+          {request.isPending || verify.isPending
+            ? "Working…"
+            : sent
+              ? "Open my booking"
+              : "Send me a code"}
+        </Button>
+      </form>
+
+      {sent && !failure ? (
+        <p className="text-forest/70 mt-4 text-xs" role="status">
+          If that number has a booking with us, a code is on its way. We answer
+          the same way for every number, so this is not a way to check whether
+          somebody has booked.
         </p>
-      </div>
-    </div>
+      ) : null}
+
+      {failure ? <FailurePanel failure={failure} className="mt-6" /> : null}
+
+      {/*
+        The way back, once a code has been asked for. A code that never
+        arrives, or a number typed wrong, used to be a reload-the-page dead
+        end: the field was disabled and the only button was "Open my
+        booking". Asking again is rate-limited server-side, and answered the
+        same way for every number.
+      */}
+      {sent ? (
+        <p className="text-forest/70 mt-4 text-xs">
+          No code yet?{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setCode("");
+              verify.reset();
+              request.mutate();
+            }}
+            disabled={request.isPending}
+            className="text-terra-deep tap-target underline disabled:opacity-40"
+          >
+            Send another one
+          </button>
+          {" · "}
+          <button
+            type="button"
+            onClick={() => {
+              setSent(false);
+              setCode("");
+              setDevCode(undefined);
+              request.reset();
+              verify.reset();
+            }}
+            className="text-terra-deep tap-target underline"
+          >
+            Use a different number
+          </button>
+        </p>
+      ) : null}
+
+      <p className="text-forest/70 mt-8 text-xs">
+        A new link replaces the old one. If you find the old message later, it
+        will no longer open.
+      </p>
+    </Screen>
   );
 }

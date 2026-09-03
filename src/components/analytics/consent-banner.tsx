@@ -8,6 +8,7 @@ import {
   setConsent,
 } from "@/lib/analytics/consent";
 import { installReporter, consoleReporter } from "@/lib/observability/report";
+import { Button } from "@/components/ui/button";
 
 /**
  * The consent prompt, and the only thing that loads analytics.
@@ -18,7 +19,8 @@ import { installReporter, consoleReporter } from "@/lib/observability/report";
  *
  * Deliberately not a modal and not blocking. A full-screen wall between a
  * traveller and the feed, on the one funnel there is, would cost more than the
- * analytics are worth.
+ * analytics are worth. It floats above the tab bar as a chrome card, and on a
+ * desktop tucks into the corner.
  */
 export function ConsentBanner() {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
@@ -49,27 +51,27 @@ export function ConsentBanner() {
     <div
       role="region"
       aria-label="Analytics choice"
-      className="bg-forest text-cream border-cream/12 lg:rounded-edge sticky bottom-0 z-40 border-t px-5 py-4 lg:bottom-4 lg:mx-auto lg:max-w-md lg:border"
+      className="app-chrome ring-cream/12 rounded-card fixed inset-x-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] z-40 p-5 ring-1 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:max-w-md"
     >
       <p className="text-cream/80 text-sm">
         May we count how this app gets used? It helps us fix what is broken. We
         never send your name, your number or your booking.
       </p>
-      <div className="mt-3 flex gap-2">
-        <button
-          type="button"
+      <div className="mt-4 flex gap-2">
+        <Button
+          variant="paper"
           onClick={() => setConsent("granted")}
-          className="rounded-edge label bg-cream text-forest h-11 flex-1 font-bold"
+          className="flex-1"
         >
           Yes, that is fine
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="outlineOnDark"
           onClick={() => setConsent("denied")}
-          className="rounded-edge label border-cream/30 text-cream h-11 flex-1 border font-bold"
+          className="flex-1"
         >
           No thanks
-        </button>
+        </Button>
       </div>
     </div>
   );

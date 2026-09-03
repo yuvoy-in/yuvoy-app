@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { BookScreen } from "@/components/checkout/book-screen";
 import { LoadingState, Skeleton } from "@/components/states";
+import { Screen } from "@/components/chrome/screen";
 import { privateRobotsMeta } from "@/lib/site/indexing";
 
 /**
@@ -38,23 +39,24 @@ export default async function BookPage({
       navigation and a slow fetch look like one continuous state rather than
       two different loading screens.
     */
-    <Suspense fallback={<CheckoutSkeleton />}>
+    <Suspense fallback={<CheckoutSkeleton slug={slug} />}>
       <BookScreen slug={slug} />
     </Suspense>
   );
 }
 
-function CheckoutSkeleton() {
+function CheckoutSkeleton({ slug }: { slug: string }) {
   return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-xl py-8">
-        <LoadingState label="Loading checkout">
-          <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </LoadingState>
-      </div>
-    </div>
+    <Screen
+      back={{ href: `/e/${slug}`, label: "the dates" }}
+      stageLabel="Checkout"
+    >
+      <LoadingState label="Loading checkout">
+        <div className="space-y-4">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      </LoadingState>
+    </Screen>
   );
 }

@@ -4,9 +4,11 @@
   Yuvoy app design tokens — the single source of truth for color, type and
   rhythm. No hex, font, or tracking value may exist outside this @theme block.
 
-  Ported from yuvoy-web at Brand Kit v2.5, plus v2.6 (below). Per D-101 this
-  copy is canonical from day one: the marketing site is visually frozen, the
-  app is where the system now evolves, and there is deliberately no sync back.
+  Ported from yuvoy-web at Brand Kit v2.5, plus v2.6 and v2.7 (below). Per
+  D-101 this copy is canonical: the marketing site is visually frozen, the app
+  is where the system now evolves, and there is deliberately no sync back.
+  `yuvoy-operator` copies this @theme block byte for byte and diffs it in its
+  own gate, so a token added here is added there in the same change.
 
   ── Brand Kit v2.6 (2026-08-18) ──────────────────────────────────────────
   ONE near-black, not two. The proposal was to add `abyss #06100D` beside the
@@ -77,12 +79,29 @@
   */
   --container-feed: 30rem; /* 480px */
 
-  /* Editorial near-square. The brand is rectangular: buttons, inputs, cards
-     and panels all share this single radius. Pills are not part of the system. */
-  --radius-edge: 2px;
+  /* --------------------------------------------------------------- radius */
+  /*
+    v2.7 (2026-09-02, owner-directed): THE APP IS ROUNDED.
 
-  /* The one rounded object in the system: the product-preview phone frame.
-     It depicts hardware, not UI — nothing else may use it. */
+    The 2px near-square was drawn for an editorial marketing page and stays
+    there. The traveller app and the operator portal share this scale instead,
+    taken from the reference set in `expectations/app`: sheets that rise over
+    a photograph, cards, pill chips, circular controls. Every radius in the
+    app maps to one of these four tokens or to a full pill (`rounded-full`);
+    `palette.test.ts` fails an arbitrary radius and a `rounded-edge` control.
+
+    Nesting is CONCENTRIC: an inner radius is the outer one minus the padding
+    between them (`calc(var(--radius-card) - 1rem)`), or the two curves stop
+    sharing a centre and the corner reads as uneven.
+  */
+  --radius-edge: 2px; /* the marketing near-square; here only the guide's inline code keeps it */
+  --radius-tile: 0.75rem; /* 12px — thumbnails, inner media, small tiles */
+  --radius-control: 1rem; /* 16px — inputs, selects, textareas */
+  --radius-card: 1.5rem; /* 24px — cards, panels, notices, slot rows */
+  --radius-sheet: 2rem; /* 32px — content sheets, desktop panels, the feed well */
+
+  /* The product-preview phone frame on the marketing site. Kept for token
+     parity across the three repos; nothing in the app draws one. */
   --radius-device: 2.25rem;
 
   /* --------------------------------------------------------------- motion */
@@ -119,10 +138,19 @@
     border-radius: 4px;
   }
 
-  /* On the media ground the cream focus ring is the legible one. */
-  .on-abyss a:focus-visible,
-  .on-abyss button:focus-visible {
-    outline-color: var(--color-terra-soft);
+  /*
+    Focus rings follow the surface. The shell is the dark stage (`on-dark`),
+    where terra-soft is the legible ring; a cream sheet nested inside it
+    (`sheet`) switches back to terra-deep. Declared here, once, so no
+    component carries its own focus colour.
+  */
+  .on-dark :is(a, button, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--color-terra-soft);
+    outline-offset: 3px;
+  }
+
+  .sheet :is(a, button, input, select, textarea, summary):focus-visible {
+    outline-color: var(--color-terra-deep);
   }
 
   dialog::backdrop {
@@ -209,8 +237,8 @@
 
 /**
  * The media ground. The ONLY place `--color-abyss` may be painted as a
- * surface, alongside the preview bezel. `.on-abyss` is the marker the palette
- * test looks for, and it is what switches the focus ring above.
+ * surface: the feed well and the player behind it. `on-dark` on the shell is
+ * what switches the focus ring above.
  */
 @utility media-ground {
   background-color: var(--color-abyss);
@@ -229,6 +257,11 @@
  * The floor: at its weakest stop this is 62% abyss, which puts `cream` at
  * 8.9:1 over the palest surf highlight measured (#E8E2D4). Every stop below
  * that is darker, so a scrim safe at its weakest stop is safe at all of them.
+ *
+ * Accent text is the exception and the caption's ORDER is load-bearing for
+ * it: `terra-soft` measures 5.5:1 only from the 85% stop downward, so the
+ * accent chip and the accent label sit in the bottom band of the caption and
+ * never above the title. `palette.test.ts` records the failing composite.
  */
 @utility feed-scrim {
   background: linear-gradient(
@@ -241,13 +274,48 @@
 }
 
 /**
- * The chrome surfaces — tab bar, rail, sheet headers. `forest`, not `abyss`:
- * chrome stays chrome, and the 1.47:1 between them is what separates the
- * controls from the picture behind them.
+ * The same scrim, mirrored, under the feed's floating masthead. The wordmark
+ * is cream on whatever the clip is showing, so it gets the same floor.
+ */
+@utility feed-scrim-top {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-abyss) 78%, transparent) 0%,
+    color-mix(in srgb, var(--color-abyss) 62%, transparent) 45%,
+    transparent 100%
+  );
+}
+
+/**
+ * The chrome surfaces — the floating tab bar, the rail, the circular controls
+ * that float over media. `forest`, not `abyss`: chrome stays chrome, and the
+ * 1.47:1 between them is what separates the controls from the picture behind
+ * them. The hairline ring is what separates them from the cream sheet.
  */
 @utility app-chrome {
   background-color: var(--color-forest);
   color: var(--color-cream);
+}
+
+/**
+ * The stage: the forest ground every screen stands on. On a phone it is the
+ * strip the sheet rises out of; on a desktop it is the whole canvas the
+ * panel floats on.
+ */
+@utility stage {
+  background-color: var(--color-forest);
+  color: var(--color-cream);
+}
+
+/**
+ * The content sheet: cream, rounded at the top, rising over the stage or the
+ * hero photograph. It is the reading surface, so it resets the ink and the
+ * focus ring (see the base layer) — everything the marketing site measured
+ * on cream still holds here, unchanged.
+ */
+@utility sheet {
+  background-color: var(--color-cream);
+  color: var(--color-forest);
 }
 
 /**
@@ -276,7 +344,7 @@
 }
 
 /**
- * The safe-area foot for the tab bar.
+ * The safe-area foot for the floating tab bar.
  *
  * `viewport-fit=cover` is deliberately NOT set (standing rule from the
  * header work on the marketing site), so `env(safe-area-inset-bottom)`
@@ -284,7 +352,21 @@
  * anyway so the value is correct if that decision is ever revisited.
  */
 @utility tabbar-foot {
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/**
+ * The room a screen leaves for the floating tab bar: the bar's 56px, its
+ * foot, and a breath above it. Applied by `Screen` to every tab root and by
+ * the feed to its captions, and only below `lg`, where the bar exists. A
+ * focused screen (one with a back button) hides the bar and needs none.
+ */
+@utility tabbar-clearance {
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+
+  @media (min-width: 64rem) {
+    padding-bottom: 2rem;
+  }
 }
 
 /* ------------------------------------------------------------- long form */
@@ -356,7 +438,8 @@
   /* A pull-quote, and how a draft notice renders. */
   & blockquote {
     border-left: 2px solid var(--color-terra-deep);
-    padding: 0.75rem 0 0.75rem 1rem;
+    border-radius: var(--radius-tile);
+    padding: 0.75rem 1rem;
     background: var(--color-cream-deep);
   }
 

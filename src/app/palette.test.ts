@@ -57,22 +57,16 @@ describe("palette", () => {
     expect(css).not.toContain("--color-device");
   });
 
-  it("paints bg-abyss only on the media ground and the shell", () => {
+  it("paints bg-abyss only on the media ground", () => {
     // `abyss` is a ground and an object's colour, never a surface. The moment
-    // a content section takes it, the one-dark rule is dead.
+    // a content section takes it, the one-dark rule is dead. Since v2.7 the
+    // stage is `forest`, so the list is the feed, the two poster grounds
+    // that stand in for media on a sheet, and the token block itself.
     const ALLOWED = [
       "src/components/feed/",
-      "src/components/chrome/app-shell.tsx",
-      "src/components/states/",
-      "src/app/layout.tsx",
-      "src/app/error.tsx",
-      "src/app/not-found.tsx",
-      "src/app/offline/page.tsx",
-      "src/app/globals.css",
-      "src/app/search/page.tsx",
-      "src/app/trips/page.tsx",
-      "src/app/account/page.tsx",
       "src/components/experience/experience-detail.tsx",
+      "src/components/search/search-screen.tsx",
+      "src/app/globals.css",
     ];
 
     const offenders = FILES.filter((f) => /\bbg-abyss\b/.test(read(f)))
@@ -191,13 +185,40 @@ describe("palette", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("has no pills — the brand is rectangular at 2px", () => {
-    // `rounded-full` is reserved for hardware depictions, of which the app
-    // currently has none.
-    const offenders = FILES.filter((f) => /rounded-full/.test(read(f))).map(
+  it("keeps the marketing near-square out of the app's controls (v2.7)", () => {
+    // The app is rounded. A 2px control here is the marketing site's tell,
+    // and the four radius tokens plus the pill cover every shape a screen
+    // needs. The token survives only for the guide's inline code and for
+    // parity with the operator portal's copy of the block.
+    const offenders = FILES.filter((f) => /rounded-edge/.test(read(f))).map(
       rel,
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("maps every radius to a token", () => {
+    // An arbitrary radius is a value between tokens. The one exception is
+    // the concentric calc — an inner corner derived from a token and the
+    // padding between them — which is a token by another route.
+    const offenders = FILES.filter((f) => {
+      const s = read(f);
+      const arbitrary =
+        s.match(/\brounded(?:-[trblse]{1,2})?-\[[^\]]*\]/g) ?? [];
+      return arbitrary.some((v) => !v.includes("calc(var(--radius-"));
+    }).map(rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it("declares the v2.7 radius scale, and nothing between its steps", () => {
+    const css = read(join(SRC, "app/globals.css"));
+    for (const token of [
+      "--radius-tile: 0.75rem",
+      "--radius-control: 1rem",
+      "--radius-card: 1.5rem",
+      "--radius-sheet: 2rem",
+    ]) {
+      expect(css).toContain(token);
+    }
   });
 });
 
@@ -238,5 +259,29 @@ describe("measured contrast", () => {
   it("records that terra becomes body-safe on abyss and is not on forest", () => {
     expect(ratio(terra, abyss)).toBeGreaterThanOrEqual(4.5); // AA at body size
     expect(ratio(terra, forest)).toBeLessThan(4.5); // large text only
+  });
+
+  /**
+   * A translucent cream fill under accent text, on the stage.
+   *
+   * The v2.7 chips wanted a `cream/10` tint behind `terra-soft` on forest.
+   * Composited (sRGB, the way a browser blends it) the tint lifts the ground
+   * enough to drop the pairing under AA, while cream text on the same tint
+   * keeps AAA. So on a dark surface the accent chip is outline-only and the
+   * neutral chip may be filled — and this is why, so the fill cannot creep
+   * back on a hunch.
+   */
+  it("shows why accent chips on the stage are outline-only", () => {
+    const over = (fg: string, bg: string, alpha: number) => {
+      const ch = (hex: string) =>
+        [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      const mixed = ch(fg).map((c, i) =>
+        Math.round(alpha * c + (1 - alpha) * ch(bg)[i]),
+      );
+      return "#" + mixed.map((c) => c.toString(16).padStart(2, "0")).join("");
+    };
+    const tint = over(cream, forest, 0.1);
+    expect(ratio(terraSoft, tint)).toBeLessThan(4.5);
+    expect(ratio(cream, tint)).toBeGreaterThanOrEqual(7.0);
   });
 });

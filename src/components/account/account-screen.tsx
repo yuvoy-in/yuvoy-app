@@ -12,6 +12,10 @@ import {
 import { rememberBooking } from "@/lib/booking/token-store";
 import { isDeadToken } from "@/lib/api/errors";
 import { Field } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { Panel } from "@/components/ui/panel";
+import { Screen } from "@/components/chrome/screen";
 import {
   describeError,
   FailurePanel,
@@ -84,11 +88,11 @@ export function AccountScreen() {
 
   if (token === undefined) {
     return (
-      <Shell>
+      <Screen>
         <LoadingState label="Loading your trips">
           <Skeleton className="h-32 w-full" />
         </LoadingState>
-      </Shell>
+      </Screen>
     );
   }
 
@@ -123,7 +127,7 @@ export function AccountScreen() {
       : null;
 
   return (
-    <Shell>
+    <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
         There is no account to make
       </h1>
@@ -134,13 +138,10 @@ export function AccountScreen() {
       </p>
 
       {expired ? (
-        <p
-          role="status"
-          className="rounded-edge border-cream-line bg-cream-deep mt-4 border px-4 py-3 text-xs"
-        >
+        <Panel role="status" className="mt-4 px-4 py-3 text-xs">
           Your sign-in has expired — they do, after a while. Send a new code and
           every trip on your number is back.
-        </p>
+        </Panel>
       ) : null}
 
       <form
@@ -180,17 +181,18 @@ export function AccountScreen() {
           />
         ) : null}
 
-        <button
+        <Button
           type="submit"
+          size="lg"
+          block
           disabled={request.isPending || verify.isPending}
-          className="rounded-edge label bg-forest text-cream h-13 w-full font-bold disabled:opacity-40"
         >
           {request.isPending || verify.isPending
             ? "Working…"
             : sent
               ? "Show me my trips"
               : "Send me a code"}
-        </button>
+        </Button>
       </form>
 
       {sent && !failure ? (
@@ -242,7 +244,7 @@ export function AccountScreen() {
         </Link>
         , no code needed.
       </p>
-    </Shell>
+    </Screen>
   );
 }
 
@@ -289,7 +291,7 @@ function SignedIn({
   }, [bookings.isError, bookings.error]);
 
   return (
-    <Shell>
+    <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
         Every trip on your number
       </h1>
@@ -316,46 +318,43 @@ function SignedIn({
       ) : (
         <ul className="mt-6 space-y-3">
           {bookings.data.bookings.map((b) => (
-            <li
-              key={b.reference}
-              className="rounded-edge border-cream-line bg-cream-deep border p-4"
-            >
-              <p className="font-bold">{b.experience}</p>
-              <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
-                {b.reference}
-              </p>
-              <p className="text-forest/70 mt-2 text-sm">
-                {b.localTime} on {b.localDate} · {b.guests} guest
-                {b.guests === 1 ? "" : "s"}
-              </p>
-              {b.meetingPoint ? (
-                <p className="text-forest/70 mt-1 text-xs">{b.meetingPoint}</p>
-              ) : null}
+            <li key={b.reference}>
+              <Panel>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-bold">{b.experience}</p>
+                  <Chip size="sm">{b.state}</Chip>
+                </div>
+                <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
+                  {b.reference}
+                </p>
+                <p className="text-forest/70 mt-2 text-sm">
+                  {b.localTime} on {b.localDate} · {b.guests} guest
+                  {b.guests === 1 ? "" : "s"}
+                </p>
+                {b.meetingPoint ? (
+                  <p className="text-forest/70 mt-1 text-xs">
+                    {b.meetingPoint}
+                  </p>
+                ) : null}
+              </Panel>
             </li>
           ))}
         </ul>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant="outline"
+        size="sm"
         onClick={() => void onSignOut()}
-        className="label text-forest/70 tap-target hover:text-forest mt-10 underline underline-offset-2"
+        className="mt-10"
       >
         Forget this number on this device
-      </button>
+      </Button>
 
-      <p className="text-forest/70 mt-6 text-xs">
+      <p className="text-forest/70 mt-4 text-xs">
         This leaves the bookings saved on this device alone — they stay under
         Trips.
       </p>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-xl py-8">{children}</div>
-    </div>
+    </Screen>
   );
 }

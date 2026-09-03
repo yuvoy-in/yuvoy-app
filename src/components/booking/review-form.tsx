@@ -5,6 +5,9 @@ import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { describeError, FailurePanel } from "@/components/states";
+import { Button } from "@/components/ui/button";
+import { StarIcon } from "@/components/ui/icons";
+import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 
 /**
@@ -58,7 +61,7 @@ export function ReviewForm({ token }: { token: string }) {
 
   if (submit.isSuccess || alreadyRecorded) {
     return (
-      <div className="rounded-edge border-cream-line bg-cream-deep mt-8 border p-5">
+      <Panel className="mt-8">
         <p className="text-sm font-bold">
           {alreadyRecorded ? "Already recorded" : "Thank you"}
         </p>
@@ -67,7 +70,7 @@ export function ReviewForm({ token }: { token: string }) {
             ? "A review for this trip is already on record. Reviews cannot be changed once left, so it stands as written."
             : "That is recorded. Reviews cannot be changed once left, so this one stands as written."}
         </p>
-      </div>
+      </Panel>
     );
   }
 
@@ -76,66 +79,68 @@ export function ReviewForm({ token }: { token: string }) {
     : null;
 
   return (
-    <form
-      className="rounded-edge border-cream-line bg-cream-deep mt-8 border p-5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (rating === 0 || submitting.current) return;
-        submitting.current = true;
-        submit.mutate();
-      }}
-    >
-      <h2 className="text-sm font-bold">How was it?</h2>
-
-      <fieldset className="mt-4">
-        <legend className="sr-only">Rating out of five</legend>
-        <div className="flex gap-2">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n}
-              type="button"
-              aria-label={`${n} out of 5`}
-              aria-pressed={rating === n}
-              onClick={() => setRating(n)}
-              className={cn(
-                "rounded-edge size-12 border text-lg",
-                rating >= n
-                  ? "border-terra-deep bg-terra-deep text-cream"
-                  : "border-cream-line",
-              )}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
-      <label className="mt-4 block">
-        <span className="label text-forest/75">
-          Anything you would tell a friend (optional)
-        </span>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          rows={3}
-          className="rounded-edge border-cream-line bg-cream focus:border-terra-deep mt-2 w-full border px-3.5 py-2.5 text-base outline-none"
-        />
-      </label>
-
-      {/* Said BEFORE submitting, not discovered after. */}
-      <p className="text-forest/70 mt-3 text-xs">
-        Once you leave a review it cannot be edited or removed.
-      </p>
-
-      <button
-        type="submit"
-        disabled={rating === 0 || submit.isPending}
-        className="rounded-edge label bg-forest text-cream mt-4 h-11 w-full font-bold disabled:opacity-40"
+    <Panel className="mt-8">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (rating === 0 || submitting.current) return;
+          submitting.current = true;
+          submit.mutate();
+        }}
       >
-        {submit.isPending ? "Sending…" : "Leave this review"}
-      </button>
+        <h2 className="text-sm font-bold">How was it?</h2>
 
-      {failure ? <FailurePanel failure={failure} className="mt-3" /> : null}
-    </form>
+        <fieldset className="mt-4">
+          <legend className="sr-only">Rating out of five</legend>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-label={`${n} out of 5`}
+                aria-pressed={rating === n}
+                onClick={() => setRating(n)}
+                className={cn(
+                  "ease-interaction inline-flex size-11 items-center justify-center rounded-full border transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.96]",
+                  rating >= n
+                    ? "border-forest bg-forest text-cream"
+                    : "border-cream-line bg-cream text-forest/70 hover:border-forest/40",
+                )}
+              >
+                <StarIcon filled={rating >= n} className="size-5" />
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <label className="mt-4 block">
+          <span className="label text-forest/75">
+            Anything you would tell a friend (optional)
+          </span>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={3}
+            className="rounded-control border-cream-line bg-cream focus:border-forest/60 ease-interaction mt-2 w-full border px-4 py-3 text-base transition-colors duration-200 outline-none"
+          />
+        </label>
+
+        {/* Said BEFORE submitting, not discovered after. */}
+        <p className="text-forest/70 mt-3 text-xs">
+          Once you leave a review it cannot be edited or removed.
+        </p>
+
+        <Button
+          type="submit"
+          block
+          disabled={rating === 0 || submit.isPending}
+          className="mt-4"
+        >
+          {submit.isPending ? "Sending…" : "Leave this review"}
+        </Button>
+
+        {failure ? <FailurePanel failure={failure} className="mt-3" /> : null}
+      </form>
+    </Panel>
   );
 }

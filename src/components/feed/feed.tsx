@@ -11,6 +11,10 @@ import {
   LoadingState,
   Skeleton,
 } from "@/components/states";
+import { Wordmark } from "@/components/ui/wordmark";
+import { IconLink } from "@/components/ui/icon-button";
+import { SearchIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/cn";
 
 /**
  * The reels feed — T2, the core of the product.
@@ -22,7 +26,12 @@ import {
  *
  * All seven states are here. The offline and stale ones arrive with the
  * service worker; the other five are live.
+ *
+ * The column is the phone's whole screen — the masthead and the tab bar float
+ * over it — and on a desktop it is a rounded well set into the forest stage,
+ * capped at 480px so the 9:16 clip is never upscaled across a monitor.
  */
+
 /**
  * The feed's heading, for everything that is not a pair of eyes.
  *
@@ -45,6 +54,44 @@ import {
  */
 function FeedHeading() {
   return <h1 className="sr-only">Experiences in the Andaman Islands</h1>;
+}
+
+/** The well's geometry, shared by every state so they never disagree. */
+const WELL =
+  "bg-abyss relative h-dvh w-full lg:h-[calc(100dvh-3rem)] lg:rounded-sheet lg:ring-1 lg:ring-cream/10";
+
+/** The well, for the states that do not scroll. */
+function FeedFrame({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className="container-feed relative lg:my-6">
+      <div className={cn(WELL, "lg:overflow-hidden", className)}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The masthead that floats over the feed on a phone: the mark, and the way
+ * to Search. The rail carries both on a desktop. Inert except for the disc,
+ * so the strip beside it still scrolls the feed; the top scrim keeps the
+ * cream mark legible over whatever the clip is showing.
+ */
+function FeedMasthead() {
+  return (
+    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3 pb-10 lg:hidden">
+      <Wordmark tone="cream" className="mt-1 h-8" priority />
+      <IconLink href="/search" label="Search" className="pointer-events-auto">
+        <SearchIcon />
+      </IconLink>
+    </div>
+  );
 }
 
 export function Feed({
@@ -152,9 +199,15 @@ export function Feed({
       <>
         <FeedHeading />
         <LoadingState label="Loading experiences">
-          <div className="container-feed h-[calc(100dvh-3.5rem)] p-4 lg:h-dvh">
-            <Skeleton className="h-full w-full" />
-          </div>
+          <FeedFrame>
+            <Skeleton className="absolute inset-0 rounded-none" />
+            <div className="tabbar-clearance absolute inset-x-0 bottom-0 space-y-3 px-5">
+              <Skeleton className="h-3 w-28 rounded-full" />
+              <Skeleton className="h-9 w-4/5 rounded-full" />
+              <Skeleton className="h-3 w-40 rounded-full" />
+              <Skeleton className="mt-5 h-13 w-full rounded-full" />
+            </div>
+          </FeedFrame>
         </LoadingState>
       </>
     );
@@ -165,13 +218,13 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <div className="container-feed flex h-[calc(100dvh-3.5rem)] items-center lg:h-dvh">
+        <FeedFrame className="flex items-center">
           <ErrorState
             error={error}
             onRetry={() => void refetch()}
-            tone="abyss"
+            tone="dark"
           />
-        </div>
+        </FeedFrame>
       </>
     );
   }
@@ -181,13 +234,13 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <div className="container-feed flex h-[calc(100dvh-3.5rem)] items-center lg:h-dvh">
+        <FeedFrame className="flex items-center">
           <EmptyState
-            tone="abyss"
+            tone="dark"
             title="Nothing bookable here yet"
             body="No operator has put anything on sale for this filter. Try another destination, or come back closer to the season."
           />
-        </div>
+        </FeedFrame>
       </>
     );
   }
@@ -196,48 +249,54 @@ export function Feed({
   return (
     <>
       <FeedHeading />
-      <div
-        ref={scrollerRef}
-        className="container-feed h-[calc(100dvh-3.5rem)] snap-y snap-mandatory overflow-y-auto overscroll-y-contain lg:h-dvh"
-        // The feed is a list of experiences; announce it as one.
-        role="feed"
-        aria-busy={isFetchingNextPage}
-      >
-        {items.map((experience, i) => (
-          <ExperienceCard
-            key={experience.id}
-            experience={experience}
-            index={i}
-            total={items.length}
-            active={i === activeIndex}
-            mounted={shouldMount(i)}
-            muted={muted}
-            autoplayAllowed={autoplayAllowed}
-          />
-        ))}
+      <div className="container-feed relative lg:my-6">
+        <FeedMasthead />
+        <div
+          ref={scrollerRef}
+          className={cn(
+            WELL,
+            "snap-y snap-mandatory overflow-y-auto overscroll-y-contain",
+          )}
+          // The feed is a list of experiences; announce it as one.
+          role="feed"
+          aria-busy={isFetchingNextPage}
+        >
+          {items.map((experience, i) => (
+            <ExperienceCard
+              key={experience.id}
+              experience={experience}
+              index={i}
+              total={items.length}
+              active={i === activeIndex}
+              mounted={shouldMount(i)}
+              muted={muted}
+              autoplayAllowed={autoplayAllowed}
+            />
+          ))}
 
-        {/* Sentinel. Only rendered while the server says there is more. */}
-        {hasNextPage ? (
-          <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
-        ) : null}
+          {/* Sentinel. Only rendered while the server says there is more. */}
+          {hasNextPage ? (
+            <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
+          ) : null}
 
-        {isFetchingNextPage ? (
-          <div className="flex h-24 items-center justify-center">
-            <span className="label text-cream/60">Loading more</span>
-          </div>
-        ) : null}
+          {isFetchingNextPage ? (
+            <div className="tabbar-clearance flex items-center justify-center pt-10">
+              <span className="label text-cream/60">Loading more</span>
+            </div>
+          ) : null}
 
-        {/*
-        The end of the feed, stated. `complete` is told by the server, never
-        inferred from a short page.
-      */}
-        {!hasNextPage ? (
-          <div className="flex h-32 snap-start items-center justify-center px-8 text-center">
-            <p className="text-cream/60 text-xs">
-              That is everything on sale right now.
-            </p>
-          </div>
-        ) : null}
+          {/*
+            The end of the feed, stated. `complete` is told by the server, never
+            inferred from a short page.
+          */}
+          {!hasNextPage ? (
+            <div className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center">
+              <p className="text-cream/60 text-xs">
+                That is everything on sale right now.
+              </p>
+            </div>
+          ) : null}
+        </div>
       </div>
     </>
   );

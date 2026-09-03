@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { useBookingStatus } from "@/lib/booking/use-booking-status";
@@ -20,10 +19,15 @@ import { openHostedCheckout } from "@/lib/booking/payment-handoff";
 import { CancelSheet } from "./cancel-sheet";
 import { ShareButton } from "./share-button";
 import { ReviewForm } from "./review-form";
+import { Screen } from "@/components/chrome/screen";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
+
+const BACK = { href: "/trips", label: "your trips" };
 
 /**
  * T9 and T10 — the confirmation, and the page a traveller returns to.
@@ -65,12 +69,9 @@ export function BookingScreen() {
           and from the message we sent. It is the only way in — we cannot look
           it up from a name.
         </p>
-        <Link
-          href="/trips"
-          className="rounded-edge label bg-forest text-cream mt-6 inline-flex h-11 items-center px-5 font-bold"
-        >
+        <ButtonLink href="/trips" className="mt-6">
           Bookings on this device
-        </Link>
+        </ButtonLink>
       </Shell>
     );
   }
@@ -89,7 +90,7 @@ export function BookingScreen() {
       <Shell>
         <div
           role="status"
-          className="rounded-edge border-cream-line bg-cream-deep mb-6 border px-4 py-3 text-xs"
+          className="rounded-card border-cream-line bg-cream-deep mb-6 border px-4 py-3 text-xs"
         >
           You are offline. This is what we saved on your device, last checked{" "}
           {formatAge(snapshot.fetchedAt)}.
@@ -186,28 +187,30 @@ function StatusBody({
 
       {/* Everything needed for the day, on the page. Not in a message that
           may never arrive. */}
-      <dl className="border-cream-line mt-8 space-y-4 border-t pt-6 text-sm">
-        {status.bookingReference ? (
-          <Row label="Reference">
-            <span className="font-mono text-base font-bold tracking-wider">
-              {status.bookingReference}
-            </span>
-            <p className="text-forest/70 mt-1 text-xs">
-              Read this out at the jetty. It is how the operator finds you.
-            </p>
-          </Row>
-        ) : null}
-        <Row label="Experience">{status.experience.title}</Row>
-        {/*
-          The booking carries an instant plus the MARKET's zone, not the
-          pre-formatted local fields the catalog slots have. Rendering it in
-          `status.slot.timezone` rather than the device's is the whole point:
-          a 7am dive shown as 1:30am is a missed boat.
-        */}
-        <Row label="When">{formatDeparture(status.slot)}</Row>
-        <Row label="Guests">{status.guests}</Row>
-        <Row label="Paid">{formatTotal(status.price)}</Row>
-      </dl>
+      <Panel className="mt-8 p-0">
+        <dl className="divide-cream-line divide-y text-sm">
+          {status.bookingReference ? (
+            <Row label="Reference">
+              <span className="font-mono text-lg font-bold tracking-wider">
+                {status.bookingReference}
+              </span>
+              <p className="text-forest/70 mt-1 text-xs">
+                Read this out at the jetty. It is how the operator finds you.
+              </p>
+            </Row>
+          ) : null}
+          <Row label="Experience">{status.experience.title}</Row>
+          {/*
+            The booking carries an instant plus the MARKET's zone, not the
+            pre-formatted local fields the catalog slots have. Rendering it in
+            `status.slot.timezone` rather than the device's is the whole point:
+            a 7am dive shown as 1:30am is a missed boat.
+          */}
+          <Row label="When">{formatDeparture(status.slot)}</Row>
+          <Row label="Guests">{status.guests}</Row>
+          <Row label="Paid">{formatTotal(status.price)}</Row>
+        </dl>
+      </Panel>
 
       {/*
         What the operator has told everybody on this departure. The contract
@@ -229,13 +232,14 @@ function StatusBody({
       {token && upcoming ? <ShareButton token={token} /> : null}
 
       {token && upcoming && !cancelling ? (
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setCancelling(true)}
-          className="label text-forest/70 tap-target hover:text-forest mt-4 underline underline-offset-2"
+          className="mt-4"
         >
           I need to cancel
-        </button>
+        </Button>
       ) : null}
 
       {token && cancelling ? (
@@ -363,16 +367,19 @@ function HoldCountdown({ expiresAt }: { expiresAt: string }) {
   const urgent = left < 120_000;
 
   return (
-    <div
-      className={cn(
-        "rounded-edge mt-6 border-l-2 p-4",
-        urgent ? "border-terra-deep bg-cream-deep" : "border-cream-line",
-      )}
+    <Panel
+      tone={urgent ? "alert" : "raised"}
+      className="mt-6"
       role="timer"
       aria-live="off"
     >
       <p className="label text-forest/75">Time left to pay</p>
-      <p className="mt-1 font-mono text-2xl font-bold tabular-nums">
+      <p
+        className={cn(
+          "mt-1 font-mono text-3xl font-bold tabular-nums",
+          urgent && "text-terra-deep",
+        )}
+      >
         {formatCountdown(left)}
       </p>
       {left === 0 ? (
@@ -382,7 +389,7 @@ function HoldCountdown({ expiresAt }: { expiresAt: string }) {
           automatically.
         </p>
       ) : null}
-    </div>
+    </Panel>
   );
 }
 
@@ -438,20 +445,12 @@ function PayButton({ status }: { status: BookingStatus }) {
 
   return (
     <div className="mt-6">
-      <button
-        type="button"
-        onClick={() => order.mutate()}
-        disabled={busy}
-        className="rounded-edge label bg-forest text-cream h-13 w-full font-bold transition-transform active:scale-[0.99] disabled:opacity-40"
-      >
+      <Button size="lg" block onClick={() => order.mutate()} disabled={busy}>
         {busy ? "Opening…" : `Pay ${formatTotal(status.price)}`}
-      </button>
+      </Button>
 
       {answer?.state === "coming_soon" ? (
-        <div
-          role="status"
-          className="rounded-edge border-cream-line bg-cream-deep mt-4 border p-4"
-        >
+        <Panel role="status" className="mt-4">
           <p className="text-sm font-bold">Payment is not open yet</p>
           <p className="text-forest/70 mt-1.5 text-sm">{answer.message}</p>
           <p className="text-forest/70 mt-2 text-xs">
@@ -460,14 +459,11 @@ function PayButton({ status }: { status: BookingStatus }) {
               ? ""
               : " Your seats stay held while the clock above runs."}
           </p>
-        </div>
+        </Panel>
       ) : null}
 
       {answer?.state === "ready" && handoff === "no_adapter" ? (
-        <div
-          role="status"
-          className="rounded-edge border-cream-line bg-cream-deep mt-4 border p-4"
-        >
+        <Panel role="status" className="mt-4">
           <p className="text-sm font-bold">
             Your order is ready —{" "}
             {formatMoney({
@@ -481,7 +477,7 @@ function PayButton({ status }: { status: BookingStatus }) {
             the clock above runs. Update the app, or send us your reference on
             WhatsApp and we will take it from there.
           </p>
-        </div>
+        </Panel>
       ) : null}
 
       {answer?.state === "ready" && handoff === "opening" ? (
@@ -531,7 +527,7 @@ function ReleaseButton({
   return (
     <div className="mt-4">
       {confirming ? (
-        <div className="rounded-edge border-cream-line bg-cream-deep border p-4">
+        <Panel>
           <p className="text-sm font-bold">
             {isRequest ? "Withdraw this request?" : "Give these seats back?"}
           </p>
@@ -541,36 +537,28 @@ function ReleaseButton({
               : "They go back on sale for whoever is next. Nothing has been charged."}
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
+            <Button
+              variant="outline"
               disabled={release.isPending}
               onClick={() => release.mutate()}
-              className="rounded-edge label border-forest h-11 flex-1 border px-5 font-bold disabled:opacity-40"
+              className="flex-1"
             >
               {release.isPending
                 ? "Letting go…"
                 : isRequest
                   ? "Yes, withdraw it"
                   : "Yes, let them go"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="rounded-edge label bg-forest text-cream h-11 flex-1 px-5 font-bold"
-            >
+            </Button>
+            <Button onClick={() => setConfirming(false)} className="flex-1">
               {isRequest ? "Keep asking" : "Keep them"}
-            </button>
+            </Button>
           </div>
           {failure ? <FailurePanel failure={failure} className="mt-3" /> : null}
-        </div>
+        </Panel>
       ) : (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="label text-forest/70 tap-target hover:text-forest underline underline-offset-2"
-        >
+        <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
           {isRequest ? "Withdraw the request" : "Give these seats back"}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -593,36 +581,36 @@ function OperatorUpdates({
   timezone: string;
 }) {
   return (
-    <section
-      aria-labelledby="operator-updates"
-      className="rounded-edge border-terra-deep bg-cream-deep mt-8 border-l-2 p-5"
-    >
-      <h2 id="operator-updates" className="label text-forest/75">
-        From the operator
-      </h2>
-      <ul className="mt-3 space-y-3">
-        {updates.map((u, i) => (
-          <li
-            key={`${u.sentAt ?? i}-${u.intent ?? "note"}`}
-            className="text-sm"
-          >
-            <p className="font-bold">
-              {UPDATE_LABEL[u.intent ?? "note"] ?? "From the operator"}
-              {u.detail ? `: ${u.detail}` : ""}
-            </p>
-            {u.note ? <p className="text-forest/80 mt-1">{u.note}</p> : null}
-            {u.sentAt ? (
-              <p className="text-forest/70 mt-1 text-xs">
-                {formatSentAt(u.sentAt, timezone)}
+    <Panel tone="alert" className="mt-8">
+      <section aria-labelledby="operator-updates">
+        <h2 id="operator-updates" className="label text-forest/75">
+          From the operator
+        </h2>
+        <ul className="mt-3 space-y-3">
+          {updates.map((u, i) => (
+            <li
+              key={`${u.sentAt ?? i}-${u.intent ?? "note"}`}
+              className="text-sm"
+            >
+              <p className="font-bold">
+                {UPDATE_LABEL[u.intent ?? "note"] ?? "From the operator"}
+                {u.detail ? `: ${u.detail}` : ""}
               </p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      <p className="text-forest/70 mt-3 text-xs">
-        Shown here and not sent to your phone — this page is the place to check.
-      </p>
-    </section>
+              {u.note ? <p className="text-forest/80 mt-1">{u.note}</p> : null}
+              {u.sentAt ? (
+                <p className="text-forest/70 mt-1 text-xs">
+                  {formatSentAt(u.sentAt, timezone)}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <p className="text-forest/70 mt-3 text-xs">
+          Shown here and not sent to your phone — this page is the place to
+          check.
+        </p>
+      </section>
+    </Panel>
   );
 }
 
@@ -650,7 +638,7 @@ function RefundProgress({
   const at = STEPS.indexOf(refund.state as (typeof STEPS)[number]);
 
   return (
-    <div className="rounded-edge border-cream-line bg-cream-deep mt-8 border p-5">
+    <Panel className="mt-8">
       <p className="label text-forest/75">Your refund</p>
 
       {failed ? (
@@ -661,13 +649,13 @@ function RefundProgress({
           — someone is on it and will message you.
         </p>
       ) : (
-        <ol className="mt-3 space-y-2">
+        <ol className="mt-3 space-y-2.5">
           {STEPS.map((step, i) => (
             <li key={step} className="flex items-center gap-3 text-sm">
               <span
                 aria-hidden="true"
                 className={cn(
-                  "size-1.5 shrink-0",
+                  "size-2 shrink-0 rounded-full",
                   i <= at ? "bg-terra-deep" : "bg-forest/20",
                 )}
               />
@@ -695,17 +683,14 @@ function RefundProgress({
           Banks usually take 5 to 7 working days.
         </p>
       ) : null}
-    </div>
+    </Panel>
   );
 }
 
 /** The ceiling. Stop, and put a person in front of them. */
 function HandOver({ status }: { status: BookingStatus }) {
   return (
-    <div
-      role="alert"
-      className="rounded-edge border-terra-deep mt-8 border-l-2 p-4"
-    >
+    <Panel tone="alert" role="alert" className="mt-8">
       <p className="text-sm font-bold">This is taking longer than it should</p>
       <p className="text-forest/70 mt-1.5 text-sm">
         We have stopped checking automatically. Nothing is lost — your booking
@@ -715,7 +700,7 @@ function HandOver({ status }: { status: BookingStatus }) {
         </span>
         . Send us that on WhatsApp and someone will sort it out.
       </p>
-    </div>
+    </Panel>
   );
 }
 
@@ -753,7 +738,7 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap justify-between gap-x-6 gap-y-1">
+    <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 px-5 py-4">
       <dt className="label text-forest/75">{label}</dt>
       <dd className="text-right">{children}</dd>
     </div>
@@ -764,7 +749,7 @@ function Loading() {
   return (
     <LoadingState label="Loading your booking">
       <div className="space-y-4">
-        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-8 w-2/3 rounded-full" />
         <Skeleton className="h-32 w-full" />
       </div>
     </LoadingState>
@@ -782,8 +767,8 @@ function useHasMounted(): boolean {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-xl py-8">{children}</div>
-    </div>
+    <Screen back={BACK} stageLabel="Your booking">
+      {children}
+    </Screen>
   );
 }

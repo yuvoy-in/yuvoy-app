@@ -7,6 +7,10 @@ import { formatMoney } from "@/lib/format/money";
 import { describeError, FailurePanel, Skeleton } from "@/components/states";
 import { YuvoyError, isDeadToken } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { CloseIcon } from "@/components/ui/icons";
+import { Panel } from "@/components/ui/panel";
 
 /**
  * Cancelling, in two steps that cannot be collapsed into one.
@@ -79,16 +83,12 @@ export function CancelSheet({
     : null;
 
   return (
-    <div className="rounded-edge border-cream-line bg-cream-deep mt-8 border p-5">
+    <Panel className="mt-8">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-sm font-bold">Cancel this booking</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="label text-forest/70 tap-target hover:text-forest"
-        >
-          Close
-        </button>
+        <h2 className="pt-2 text-sm font-bold">Cancel this booking</h2>
+        <IconButton label="Close" variant="onCream" size="sm" onClick={onClose}>
+          <CloseIcon className="size-4" />
+        </IconButton>
       </div>
 
       {quote.isPending ? (
@@ -153,35 +153,35 @@ export function CancelSheet({
 
           {confirming ? (
             <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                type="button"
+              <Button
                 disabled={commit.isPending}
                 onClick={() => commit.mutate(quote.data.refundPaise ?? 0)}
-                className="rounded-edge label bg-forest text-cream h-11 flex-1 px-5 font-bold disabled:opacity-40"
+                className="flex-1"
               >
                 {commit.isPending ? "Cancelling…" : "Yes, cancel it"}
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => setConfirming(false)}
-                className="rounded-edge label border-cream-line h-11 border px-5 font-bold"
+                className="flex-1"
               >
                 Keep it
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              block
               onClick={() => setConfirming(true)}
-              className="rounded-edge label border-forest mt-5 h-11 w-full border font-bold"
+              className="mt-5"
             >
               Cancel this booking
-            </button>
+            </Button>
           )}
         </div>
       )}
 
       {failure ? <FailurePanel failure={failure} className="mt-4" /> : null}
-    </div>
+    </Panel>
   );
 }

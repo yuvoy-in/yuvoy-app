@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { describeError, FailurePanel } from "@/components/states";
+import { Button } from "@/components/ui/button";
+import { ShareIcon } from "@/components/ui/icons";
 
 /**
  * A link for the people coming with you.
@@ -54,14 +56,15 @@ export function ShareButton({ token }: { token: string }) {
 
   return (
     <div className="mt-6">
-      <button
-        type="button"
+      <Button
+        variant="outline"
+        block
         onClick={() => share.mutate()}
         disabled={share.isPending}
-        className="rounded-edge label border-forest h-11 w-full border font-bold disabled:opacity-40"
       >
+        <ShareIcon className="size-4" />
         {share.isPending ? "Making a link…" : "Share with the people coming"}
-      </button>
+      </Button>
 
       {share.data?.shareUrl ? (
         <div className="mt-3">

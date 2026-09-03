@@ -1,9 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { YuvoyError, NetworkError } from "@/lib/api/errors";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
 
 /**
  * The seven states, as composable shells.
@@ -13,6 +14,9 @@ import { YuvoyError, NetworkError } from "@/lib/api/errors";
  * Every screen ships all seven. They live here so a screen DECLARES its states
  * rather than reimplementing them, and so a screen that renders `null` for one
  * of them is visible in review as a missing prop rather than as nothing.
+ *
+ * `tone` names the surface a state sits on: `cream` for a sheet, `dark` for
+ * the stage or the media ground. The floors are the measured ones from §1.
  */
 
 /* ---------------------------------------------------------------- loading */
@@ -22,12 +26,13 @@ import { YuvoyError, NetworkError } from "@/lib/api/errors";
  *
  * A spinner says "wait" and gives no information. A skeleton says "here is the
  * shape of what is coming", which on a 0.5–3 Mbps connection is the more
- * honest message and measurably reduces abandonment.
+ * honest message and measurably reduces abandonment. It takes the card
+ * radius by default, since a card is what it usually stands in for.
  */
 export function Skeleton({ className }: { className?: string }) {
   return (
     <div
-      className={cn("skeleton rounded-edge", className)}
+      className={cn("skeleton rounded-card", className)}
       aria-hidden="true"
     />
   );
@@ -59,13 +64,13 @@ export function EmptyState({
   title: string;
   body: string;
   action?: ReactNode;
-  tone?: "cream" | "abyss";
+  tone?: "cream" | "dark";
 }) {
   return (
     <div
       className={cn(
         "flex flex-col items-center justify-center px-6 py-16 text-center",
-        tone === "abyss" ? "text-cream" : "text-forest",
+        tone === "dark" ? "text-cream" : "text-forest",
       )}
     >
       <p className="font-display tracking-display text-2xl leading-tight">
@@ -74,12 +79,14 @@ export function EmptyState({
       <p
         className={cn(
           "mt-3 max-w-sm text-sm",
-          tone === "abyss" ? "text-cream/70" : "text-forest/70",
+          tone === "dark" ? "text-cream/70" : "text-forest/70",
         )}
       >
         {body}
       </p>
-      {action ? <div className="mt-6">{action}</div> : null}
+      {action ? (
+        <div className="mt-6 flex flex-wrap justify-center gap-3">{action}</div>
+      ) : null}
     </div>
   );
 }
@@ -283,18 +290,18 @@ export function ErrorState({
 }: {
   error: unknown;
   onRetry?: () => void;
-  tone?: "cream" | "abyss";
+  tone?: "cream" | "dark";
   /** The failed request carried a status token, so a 401 is a dead link. */
   tokenBearing?: boolean;
 }) {
   const d = describeError(error, { tokenBearing });
-  const dark = tone === "abyss";
+  const dark = tone === "dark";
 
   return (
     <div
       role="alert"
       className={cn(
-        "flex flex-col items-center justify-center px-6 py-16 text-center",
+        "flex w-full flex-col items-center justify-center px-6 py-16 text-center",
         dark ? "text-cream" : "text-forest",
       )}
     >
@@ -311,32 +318,21 @@ export function ErrorState({
       </p>
 
       {d.recover ? (
-        <Link
+        <ButtonLink
           href={RECOVER_PATH}
-          className={cn(
-            "rounded-edge label mt-6 inline-flex h-11 items-center px-6 font-bold transition-transform",
-            "active:scale-[0.98]",
-            dark
-              ? "bg-cream text-forest hover:-translate-y-px"
-              : "bg-forest text-cream hover:-translate-y-px",
-          )}
+          variant={dark ? "paper" : "primary"}
+          className="mt-6"
         >
           Get a new link
-        </Link>
+        </ButtonLink>
       ) : d.canRetry && onRetry ? (
-        <button
-          type="button"
+        <Button
           onClick={onRetry}
-          className={cn(
-            "rounded-edge label mt-6 h-11 px-6 font-bold transition-transform",
-            "active:scale-[0.98]",
-            dark
-              ? "bg-cream text-forest hover:-translate-y-px"
-              : "bg-forest text-cream hover:-translate-y-px",
-          )}
+          variant={dark ? "paper" : "primary"}
+          className="mt-6"
         >
           Try again
-        </button>
+        </Button>
       ) : null}
 
       {/* Small and grey, always present. Not decoration. */}
@@ -376,20 +372,25 @@ export function FailurePanel({
   className?: string;
 }) {
   return (
-    <div
-      role="alert"
-      className={cn("rounded-edge border-terra-deep border-l-2 p-4", className)}
-    >
-      <p className="text-sm font-bold">{failure.title}</p>
+    <Panel tone="alert" role="alert" className={className}>
+      <p className="flex items-center gap-2.5 text-sm font-bold">
+        <span
+          aria-hidden="true"
+          className="bg-terra-deep size-1.5 shrink-0 rounded-full"
+        />
+        {failure.title}
+      </p>
       <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
       {children}
       {failure.recover ? (
-        <Link
+        <ButtonLink
           href={RECOVER_PATH}
-          className="label text-terra-deep tap-target mt-3 inline-block font-bold underline underline-offset-2"
+          variant="outline"
+          size="sm"
+          className="mt-4"
         >
           Get a new link
-        </Link>
+        </ButtonLink>
       ) : null}
       {/* Small and grey, always present. Not decoration. */}
       {failure.requestId ? (
@@ -397,7 +398,7 @@ export function FailurePanel({
           {failure.requestId}
         </p>
       ) : null}
-    </div>
+    </Panel>
   );
 }
 
@@ -428,7 +429,7 @@ export function OfflineNotice({ className }: { className?: string }) {
     <div
       role="status"
       className={cn(
-        "rounded-edge border-cream-line bg-cream-deep text-forest/75 border px-4 py-3 text-xs",
+        "rounded-card border-cream-line bg-cream-deep text-forest/75 border px-4 py-3 text-xs",
         className,
       )}
     >
@@ -456,19 +457,20 @@ export function StaleNotice({
     <div
       role="status"
       className={cn(
-        "rounded-edge border-cream-line bg-cream-deep flex items-center gap-3 border px-4 py-3",
+        "rounded-card border-cream-line bg-cream-deep flex items-center gap-3 border px-4 py-3",
         className,
       )}
     >
       <span className="text-forest/75 text-xs">{children}</span>
       {onRefresh ? (
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          size="sm"
           onClick={onRefresh}
-          className="label tap-target text-terra-deep ml-auto font-bold underline underline-offset-2"
+          className="ml-auto"
         >
           Refresh
-        </button>
+        </Button>
       ) : null}
     </div>
   );

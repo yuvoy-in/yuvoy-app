@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
 import {
@@ -13,6 +12,9 @@ import { CheckoutForm } from "@/components/checkout/checkout-form";
 import { slotIsOpen } from "@/lib/booking/slot-open";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
+import { Screen } from "@/components/chrome/screen";
+import { Panel } from "@/components/ui/panel";
+import { ButtonLink } from "@/components/ui/button";
 
 /**
  * T6/T7 — checkout for one departure.
@@ -30,6 +32,7 @@ import { ErrorState, LoadingState, Skeleton } from "@/components/states";
  */
 export function BookScreen({ slug }: { slug: string }) {
   const slotId = useSearchParams().get("slot");
+  const back = { href: `/e/${slug}`, label: "the dates" };
 
   const experience = useQuery({
     queryKey: qk.experience(slug),
@@ -64,51 +67,51 @@ export function BookScreen({ slug }: { slug: string }) {
 
   if (!slotId) {
     return (
-      <Shell>
+      <Screen back={back} stageLabel="Checkout">
         <ErrorState
           error={new Error("No departure chosen")}
           onRetry={undefined}
         />
-        <p className="mt-4 text-center">
-          <Link href={`/e/${slug}`} className="label text-terra-deep underline">
+        <p className="text-center">
+          <ButtonLink href={`/e/${slug}`} variant="outline">
             Pick a day
-          </Link>
+          </ButtonLink>
         </p>
-      </Shell>
+      </Screen>
     );
   }
 
   if (experience.isPending || availability.isPending) {
     return (
-      <Shell>
+      <Screen back={back} stageLabel="Checkout">
         <LoadingState label="Loading checkout">
           <div className="space-y-4">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-48 w-full" />
           </div>
         </LoadingState>
-      </Shell>
+      </Screen>
     );
   }
 
   if (experience.isError) {
     return (
-      <Shell>
+      <Screen back={back} stageLabel="Checkout">
         <ErrorState
           error={experience.error}
           onRetry={() => void experience.refetch()}
         />
-      </Shell>
+      </Screen>
     );
   }
   if (availability.isError) {
     return (
-      <Shell>
+      <Screen back={back} stageLabel="Checkout">
         <ErrorState
           error={availability.error}
           onRetry={() => void availability.refetch()}
         />
-      </Shell>
+      </Screen>
     );
   }
 
@@ -120,26 +123,23 @@ export function BookScreen({ slug }: { slug: string }) {
   // plainly rather than rendering a checkout that will refuse them.
   if (!slot || !slotIsOpen(slot, now)) {
     return (
-      <Shell>
-        <div className="rounded-edge border-cream-line bg-cream-deep border p-5">
+      <Screen back={back} stageLabel="Checkout">
+        <Panel>
           <p className="text-sm font-bold">That departure is no longer open</p>
           <p className="text-forest/70 mt-1.5 text-sm">
             It may have filled up or passed its cutoff while you were deciding.
             Nothing has been charged.
           </p>
-          <Link
-            href={`/e/${slug}`}
-            className="rounded-edge label bg-forest text-cream mt-4 inline-flex h-11 items-center px-5 font-bold"
-          >
+          <ButtonLink href={`/e/${slug}`} className="mt-4">
             Pick another day
-          </Link>
-        </div>
-      </Shell>
+          </ButtonLink>
+        </Panel>
+      </Screen>
     );
   }
 
   return (
-    <Shell>
+    <Screen back={back} stageLabel="Checkout">
       <p className="eyebrow text-terra-deep">{experience.data.title}</p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight">
         {slot.localStartTime.slice(0, 5)} on{" "}
@@ -150,17 +150,9 @@ export function BookScreen({ slug }: { slug: string }) {
           timeZone: "Asia/Kolkata",
         }).format(new Date(`${slot.localDate}T12:00:00+05:30`))}
       </h1>
-      <div className="mt-8">
+      <div className="mt-8 flex flex-1 flex-col">
         <CheckoutForm experience={experience.data} slot={slot} />
       </div>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-cream text-forest min-h-full">
-      <div className="container-page max-w-xl py-8">{children}</div>
-    </div>
+    </Screen>
   );
 }

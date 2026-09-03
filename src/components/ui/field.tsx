@@ -13,6 +13,10 @@ import { cn } from "@/lib/cn";
  *
  * Here the label is bound by `htmlFor`, the hint by `aria-describedby`, and the
  * error by `aria-errormessage` — so there is no way to compose it wrongly.
+ *
+ * `leading` places an icon inside the field's left edge (the search box);
+ * `shape="pill"` rounds it fully, which is the shape a search box takes in
+ * every reference and no other field does.
  */
 export function Field({
   label,
@@ -21,6 +25,8 @@ export function Field({
   labelHidden,
   className,
   suffix,
+  leading,
+  shape = "control",
   ...input
 }: {
   label: string;
@@ -29,6 +35,8 @@ export function Field({
   /** Visually hidden label, for a search box whose purpose is obvious. */
   labelHidden?: boolean;
   suffix?: ReactNode;
+  leading?: ReactNode;
+  shape?: "control" | "pill";
 } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
@@ -43,19 +51,33 @@ export function Field({
         {label}
       </label>
 
-      <input
-        id={id}
-        aria-describedby={cn(hintId, errorId) || undefined}
-        aria-invalid={error ? true : undefined}
-        className={cn(
-          "rounded-edge border-cream-line bg-cream-deep focus:border-terra-deep w-full border px-3.5 text-base outline-none",
-          // 48px — the system's input height.
-          "h-12",
-          labelHidden ? "" : "mt-2",
-          error && "border-terra-deep",
-        )}
-        {...input}
-      />
+      <div className={cn("relative", !labelHidden && "mt-2")}>
+        {leading ? (
+          <span
+            aria-hidden="true"
+            className="text-forest/70 pointer-events-none absolute top-1/2 left-4 -translate-y-1/2"
+          >
+            {leading}
+          </span>
+        ) : null}
+        <input
+          id={id}
+          aria-describedby={cn(hintId, errorId) || undefined}
+          aria-invalid={error ? true : undefined}
+          className={cn(
+            "border-cream-line bg-cream-deep text-forest w-full border text-base outline-none",
+            "ease-interaction transition-[border-color,background-color] duration-200",
+            "focus:border-forest/60 focus:bg-cream",
+            "placeholder:text-forest/70",
+            // 48px — the system's input height.
+            "h-12",
+            shape === "pill" ? "rounded-full px-5" : "rounded-control px-4",
+            leading && "pl-12",
+            error && "border-terra-deep",
+          )}
+          {...input}
+        />
+      </div>
 
       {hint ? (
         <span id={hintId} className="text-forest/70 mt-1.5 block text-xs">

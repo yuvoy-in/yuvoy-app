@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { readAttribution } from "@/lib/booking/attribution";
@@ -14,8 +13,12 @@ import {
 import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
-import { cn } from "@/lib/cn";
 import { Field } from "@/components/ui/field";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { MinusIcon, PlusIcon } from "@/components/ui/icons";
+import { Panel } from "@/components/ui/panel";
+import { StickyBar } from "@/components/ui/sticky-bar";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -32,6 +35,10 @@ type Slot = components["schemas"]["Slot"];
  * The safety gates (T7) render inline rather than as a second step, because
  * the experience response already carries `safety` — a round trip here costs
  * bookings, which is why the contract puts it on the page response.
+ *
+ * The one action lives in a sticky bar at the foot, with the total on it, as
+ * every reference checkout carries it. The bar is the form's last child, so
+ * it sticks for the whole page and never covers the last field.
  */
 export function CheckoutForm({
   experience,
@@ -182,210 +189,204 @@ export function CheckoutForm({
       ? create.error
       : null;
 
+  const action = create.isPending
+    ? "Holding your seats…"
+    : isRequest
+      ? "Ask the operator"
+      : total
+        ? `Hold these seats · ${formatMoney(total)}`
+        : "Hold these seats";
+
   return (
     <form
-      className="space-y-8"
+      className="flex flex-1 flex-col"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSubmit) void submit();
       }}
     >
-      {/* Party size, checked against the WHOLE party rather than one seat. */}
-      <div>
-        <span className="label text-forest/75">How many of you</span>
-        <div className="mt-3 flex items-center gap-4">
-          <button
-            type="button"
-            aria-label="One fewer guest"
-            disabled={guests <= 1}
-            onClick={() => setGuests((g) => Math.max(1, g - 1))}
-            className="rounded-edge border-cream-line size-12 border text-lg disabled:opacity-40"
-          >
-            −
-          </button>
-          <span
-            className="w-8 text-center text-lg font-bold"
-            aria-live="polite"
-          >
-            {guests}
-          </span>
-          <button
-            type="button"
-            aria-label="One more guest"
-            disabled={guests >= maxParty}
-            onClick={() => setGuests((g) => Math.min(maxParty, g + 1))}
-            className="rounded-edge border-cream-line size-12 border text-lg disabled:opacity-40"
-          >
-            +
-          </button>
-          <span className="text-forest/70 text-xs">Up to {maxParty}</span>
-        </div>
-      </div>
-
-      {/* Name and WhatsApp. Nothing else is required, on purpose. */}
-      <div className="space-y-4">
-        <Field
-          label="Your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoComplete="name"
-          required
-        />
-        <Field
-          label="WhatsApp number"
-          type="tel"
-          value={whatsapp}
-          onChange={(e) => setWhatsapp(e.target.value)}
-          autoComplete="tel"
-          hint="This is how we send your booking and reach you if the sea changes."
-          required
-        />
-        <Field
-          label="Email (optional)"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-        />
-      </div>
-
-      {safety ? (
-        <ScreeningFields
-          safety={safety}
-          guests={guests}
-          declaredClear={declaredClear}
-          ageBands={ageBands}
-          onDeclaredClearChange={setDeclaredClear}
-          onAgeBandChange={(i, band) =>
-            setAgeBands((prev) => {
-              const next = [...prev];
-              next[i] = band;
-              return next;
-            })
-          }
-        />
-      ) : null}
-
-      {tooYoung && safety?.minAge ? (
-        <p role="alert" className="text-terra-deep text-sm">
-          This operator takes people aged {safety.minAge} and over. We check
-          against the bottom of each range, so a range that starts below{" "}
-          {safety.minAge} cannot be accepted.
-        </p>
-      ) : null}
-
-      {/* Price and policy, frozen at this moment. */}
-      <div className="rounded-edge border-cream-line bg-cream-deep border p-5">
-        <div className="flex items-baseline justify-between">
-          <span className="label text-forest/75">Total</span>
-          {total ? (
-            <span className="text-xl font-bold">{formatMoney(total)}</span>
-          ) : (
-            <span className="text-forest/70 text-sm">
-              Confirmed before you pay
+      <div className="space-y-8">
+        {/* Party size, checked against the WHOLE party rather than one seat. */}
+        <div>
+          <span className="label text-forest/75">How many of you</span>
+          <div className="mt-3 flex items-center gap-4">
+            <IconButton
+              label="One fewer guest"
+              variant="onCream"
+              disabled={guests <= 1}
+              onClick={() => setGuests((g) => Math.max(1, g - 1))}
+            >
+              <MinusIcon />
+            </IconButton>
+            <span
+              className="w-8 text-center text-xl font-bold tabular-nums"
+              aria-live="polite"
+            >
+              {guests}
             </span>
-          )}
+            <IconButton
+              label="One more guest"
+              variant="onCream"
+              disabled={guests >= maxParty}
+              onClick={() => setGuests((g) => Math.min(maxParty, g + 1))}
+            >
+              <PlusIcon />
+            </IconButton>
+            <span className="text-forest/70 text-xs">Up to {maxParty}</span>
+          </div>
         </div>
-        <p className="text-forest/70 mt-1.5 text-xs">
-          All in. Nothing is added after this screen.
-        </p>
 
-        {experience.cancellationPolicy ? (
-          <label className="mt-4 flex cursor-pointer gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={policyAccepted}
-              onChange={(e) => setPolicyAccepted(e.target.checked)}
-              className="accent-terra-deep mt-0.5 shrink-0"
-              aria-describedby="policy-text"
-            />
-            <span id="policy-text" className="text-forest/80">
-              I have read what happens if it is called off:{" "}
-              {experience.cancellationPolicy}
-            </span>
-          </label>
+        {/* Name and WhatsApp. Nothing else is required, on purpose. */}
+        <div className="space-y-4">
+          <Field
+            label="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+            required
+          />
+          <Field
+            label="WhatsApp number"
+            type="tel"
+            value={whatsapp}
+            onChange={(e) => setWhatsapp(e.target.value)}
+            autoComplete="tel"
+            hint="This is how we send your booking and reach you if the sea changes."
+            required
+          />
+          <Field
+            label="Email (optional)"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+          />
+        </div>
+
+        {safety ? (
+          <ScreeningFields
+            safety={safety}
+            guests={guests}
+            declaredClear={declaredClear}
+            ageBands={ageBands}
+            onDeclaredClearChange={setDeclaredClear}
+            onAgeBandChange={(i, band) =>
+              setAgeBands((prev) => {
+                const next = [...prev];
+                next[i] = band;
+                return next;
+              })
+            }
+          />
         ) : null}
 
-        {/* Separate, and unticked. Consent to be marketed to is not consent
-            to be transported. */}
-        <label className="mt-3 flex cursor-pointer gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={marketing}
-            onChange={(e) => setMarketing(e.target.checked)}
-            className="accent-terra-deep mt-0.5 shrink-0"
-          />
-          <span className="text-forest/70">
-            Send me the occasional thing worth doing. Optional.
-          </span>
-        </label>
+        {tooYoung && safety?.minAge ? (
+          <p role="alert" className="text-terra-deep text-sm">
+            This operator takes people aged {safety.minAge} and over. We check
+            against the bottom of each range, so a range that starts below{" "}
+            {safety.minAge} cannot be accepted.
+          </p>
+        ) : null}
+
+        {/* Price and policy, frozen at this moment. */}
+        <Panel>
+          <div className="flex items-baseline justify-between">
+            <span className="label text-forest/75">Total</span>
+            {total ? (
+              <span className="text-xl font-bold">{formatMoney(total)}</span>
+            ) : (
+              <span className="text-forest/70 text-sm">
+                Confirmed before you pay
+              </span>
+            )}
+          </div>
+          <p className="text-forest/70 mt-1.5 text-xs">
+            All in. Nothing is added after this screen.
+          </p>
+
+          {experience.cancellationPolicy ? (
+            <label className="mt-4 flex cursor-pointer gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={policyAccepted}
+                onChange={(e) => setPolicyAccepted(e.target.checked)}
+                className="accent-terra-deep mt-0.5 size-4 shrink-0"
+                aria-describedby="policy-text"
+              />
+              <span id="policy-text" className="text-forest/80">
+                I have read what happens if it is called off:{" "}
+                {experience.cancellationPolicy}
+              </span>
+            </label>
+          ) : null}
+
+          {/* Separate, and unticked. Consent to be marketed to is not consent
+              to be transported. */}
+          <label className="mt-3 flex cursor-pointer gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={marketing}
+              onChange={(e) => setMarketing(e.target.checked)}
+              className="accent-terra-deep mt-0.5 size-4 shrink-0"
+            />
+            <span className="text-forest/70">
+              Send me the occasional thing worth doing. Optional.
+            </span>
+          </label>
+        </Panel>
+
+        {failure ? (
+          <FailurePanel failure={failure}>
+            {/* capacity_unavailable carries what is left — offer it. */}
+            {capacityError?.remaining ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setGuests(capacityError.remaining!)}
+                className="mt-3"
+              >
+                Book {capacityError.remaining} instead
+              </Button>
+            ) : null}
+          </FailurePanel>
+        ) : null}
+
+        {tokenMissing ? (
+          <Panel tone="alert" role="alert">
+            <p className="text-sm font-bold">
+              Your seats are held, and we could not open the page for them
+            </p>
+            <p className="text-forest/70 mt-1.5 text-sm">
+              The booking went through. To reach it, ask for your link with the
+              number you just used — it arrives the same way it always does.
+            </p>
+            <ButtonLink
+              href={RECOVER_PATH}
+              variant="outline"
+              size="sm"
+              className="mt-4"
+            >
+              Get my link
+            </ButtonLink>
+          </Panel>
+        ) : null}
       </div>
 
-      {failure ? (
-        <FailurePanel failure={failure}>
-          {/* capacity_unavailable carries what is left — offer it. */}
-          {capacityError?.remaining ? (
-            <button
-              type="button"
-              onClick={() => setGuests(capacityError.remaining!)}
-              className="label text-terra-deep tap-target mt-2 font-bold underline underline-offset-2"
-            >
-              Book {capacityError.remaining} instead
-            </button>
-          ) : null}
-        </FailurePanel>
-      ) : null}
-
-      {tokenMissing ? (
-        <div
-          role="alert"
-          className="rounded-edge border-terra-deep border-l-2 p-4"
-        >
-          <p className="text-sm font-bold">
-            Your seats are held, and we could not open the page for them
-          </p>
-          <p className="text-forest/70 mt-1.5 text-sm">
-            The booking went through. To reach it, ask for your link with the
-            number you just used — it arrives the same way it always does.
-          </p>
-          <Link
-            href={RECOVER_PATH}
-            className="label text-terra-deep tap-target mt-3 inline-block font-bold underline underline-offset-2"
-          >
-            Get my link
-          </Link>
-        </div>
-      ) : null}
-
-      <div>
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className={cn(
-            "rounded-edge label h-13 w-full font-bold transition-transform",
-            "bg-forest text-cream active:scale-[0.99]",
-            "disabled:cursor-not-allowed disabled:opacity-40",
-          )}
-        >
-          {create.isPending
-            ? "Holding your seats…"
-            : isRequest
-              ? "Ask the operator"
-              : "Hold these seats"}
-        </button>
-
+      <StickyBar className="mt-auto">
+        <Button type="submit" size="lg" block disabled={!canSubmit}>
+          {action}
+        </Button>
         <p className="text-forest/70 mt-3 text-center text-xs">
           {isRequest
             ? "You pay only once the operator says yes."
             : "We hold your seats for 10 minutes while you pay."}
         </p>
-
         {blockers.length > 0 ? (
-          <p className="text-forest/70 mt-2 text-center text-xs">
+          <p className="text-forest/70 mt-1 text-center text-xs">
             Still needed: {blockers.join(", ")}.
           </p>
         ) : null}
-      </div>
+      </StickyBar>
     </form>
   );
 }
