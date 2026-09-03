@@ -140,16 +140,52 @@ verified this way. It verifies exactly one origin.
 
 ## The cutover checklist (launch day, D-102)
 
-When the app takes `yuvoy.in`:
+When the app takes `yuvoy.in`. **In this order** — each step assumes the one
+before it, and the failure mode of a wrong order is silent rather than loud.
 
+### Days before, not the morning of
+
+- [ ] **Decide where the marketing URLs live.** `yuvoy-app#12` holds the
+      options and the recommendation. Twelve indexed URLs and two legal pages
+      answer on `yuvoy.in` today and, checked on 3 September 2026, `/` is the
+      only one of them this app answers — the rest are `404`. Nothing below is
+      safe to do until every one of them has a destination.
+- [ ] **Make each one answer**: a page in this repo, or **one** `308` to
+      wherever `yuvoy-web` now lives. Never a chain, never a `404` — a URL a
+      search engine already has does not fail loudly when it vanishes, it
+      fails in a traffic graph weeks later.
+- [ ] **Prove it**: `pnpm cutover:check --to <the app's origin>`. Point it at
+      a preview first. It fails on any URL with no answer or a redirect that
+      chains.
+- [ ] **The `/go/` collision.** `yuvoy-web` serves campaign landings at
+      `/go/<source>` (`instagram`, …); this repo serves QR arrivals at
+      `/go/<code>` and sends any unknown code to the feed. After the move a
+      printed campaign QR still lands somewhere — but with no source recorded.
+      If those cards exist, each source needs a redirect ahead of the
+      catch-all.
+- [ ] **The operator portal's apply link** is `https://yuvoy.in/operators`
+      (`yuvoy-operator`, `src/app/sign-in/page.tsx`). It must still resolve, as
+      a page or as one redirect, or no operator can apply after launch.
+
+### The move
+
+- [ ] Vercel → move `yuvoy.in` from the `yuvoy-web` project to this one.
+      `yuvoy-web` keeps a host of its own (staging, or the new marketing host).
 - [ ] Set `NEXT_PUBLIC_ALLOW_INDEXING=true` and redeploy. Both `robots.txt` and
       the meta tag flip together — they are derived from one flag on purpose.
 - [ ] Set `NEXT_PUBLIC_SITE_URL=https://yuvoy.in` so canonicals, OG URLs and the
-      sitemap follow.
+      sitemap follow. **Do not mark it Sensitive** — see above.
 - [ ] Point the `PRODUCTION_URL` repo variable at `https://yuvoy.in` so the
       audit tests the real origin.
-- [ ] If using the DNS method, nothing changes. If using URL-prefix, add a new
-      property for `https://yuvoy.in` and a new token.
-- [ ] Re-submit the sitemap on the new property.
-- [ ] Confirm `yuvoy-web`'s redirects resolve to the canonical host, so no
-      sitemap URL 30x-chains.
+
+### After
+
+- [ ] `pnpm cutover:check --from <a host yuvoy-web still serves> --to https://yuvoy.in`.
+      `yuvoy.in/sitemap.xml` is now _this_ app's sitemap, so the marketing
+      list has to come from staging or the `yuvoy-web` project's
+      `*.vercel.app` host.
+- [ ] Run the production audit (Actions → Production audit, target
+      `https://yuvoy.in`) and confirm green.
+- [ ] If verification used the DNS method, nothing changes. If URL-prefix, add
+      a new property for `https://yuvoy.in` and a new token.
+- [ ] Re-submit the sitemap on the property.

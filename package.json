@@ -22,7 +22,8 @@
     "qa": "node scripts/qa.mjs",
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm qa && pnpm test && pnpm contract:check && pnpm build && pnpm prerender:check && CI=1 pnpm test:e2e",
     "prepare": "husky",
-    "prerender:check": "node scripts/check-prerender.mjs"
+    "prerender:check": "node scripts/check-prerender.mjs",
+    "cutover:check": "node scripts/check-cutover.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",

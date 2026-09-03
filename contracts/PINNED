@@ -8,6 +8,9 @@
 #
 # `pnpm contract:check` fails the build if this copy stops matching the ref.
 repo=yuvoy-in/yuvoy-api
-ref=cc8ede61ed6b8823571323a32c42ded739543178
+# 3 Sep 2026: master moved (yuvoy-api PRs #57, #58, #61, #65, #77). Only the
+# OPERATOR contract changed; contracts/openapi.yaml is byte-identical at both
+# refs, so this bump is bookkeeping — all three frontends pin one commit.
+ref=2dc9472adb63b5277112fe25a491979dbc814cd4
 branch=master
-pinned_on=2026-08-31
+pinned_on=2026-09-03

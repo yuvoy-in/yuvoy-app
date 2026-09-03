@@ -79,6 +79,7 @@ Every traveller screen from the approved prototype, T1–T12.
 pnpm verify           # the pre-push gate — all nine steps below, in order
 pnpm qa               # the static sweep on its own
 pnpm prerender:check  # what the build froze, against sign-off (needs a build first)
+pnpm cutover:check    # every URL yuvoy.in publishes answers on the app (network; launch day)
 pnpm test:e2e         # 38 e2e tests, incl. axe on every route
 ```
 
@@ -127,6 +128,14 @@ configuration. That distinction cost three deploys to learn: `NEXT_PUBLIC_SITE_U
 marked Sensitive in Vercel, the build received a placeholder, and every local build was green
 throughout. The target lives in the `PRODUCTION_URL` repo variable, so the domain cutover is a
 variable change rather than a code change.
+
+**`pnpm cutover:check` is the launch-day gate the audit cannot be.** The audit reads the sitemap
+of the origin it is pointed at; this reads the _marketing_ site's sitemap and asks whether every
+URL in it — plus `/privacy` and `/terms` — answers on the app's origin with a `200` or exactly one
+redirect. On 3 Sep 2026 it failed 13 of 14: D-102 moves the app onto `yuvoy.in`, and nothing had
+decided where those pages go. It is not in `pnpm verify` because it needs the network and is
+expected to fail until yuvoy-app#12 is decided. `docs/SEARCH_INDEXING.md` has the order of
+operations.
 
 A green `pnpm build` does not mean the app runs. Two runtime failures reached the owner before
 these checks existed; both now have a static guard and a regression test.
