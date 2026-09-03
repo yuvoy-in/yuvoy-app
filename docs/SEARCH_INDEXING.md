@@ -138,54 +138,96 @@ verified this way. It verifies exactly one origin.
   minutes. Search Console is what catches what Google decided to do about it,
   weeks later. They answer different questions.
 
-## The cutover checklist (launch day, D-102)
+## The cutover checklist (launch day, D-102 — option A)
 
-When the app takes `yuvoy.in`. **In this order** — each step assumes the one
-before it, and the failure mode of a wrong order is silent rather than loud.
+**Decided 3 September 2026 (yuvoy-app#12):** at launch this app takes
+`yuvoy.in`; the marketing site moves to `www.yuvoy.in`; every URL the
+marketing site publishes is answered on the root domain by **one temporary
+redirect** to `www`. The rules are `src/lib/site/marketing-redirects.ts`,
+gated on the host, so they fire only once `yuvoy.in` is this app — nothing
+changes on `app.yuvoy.in` or on a preview, and nothing has to be flipped in
+code on the day.
 
-### Days before, not the morning of
+**In this order.** Each step assumes the one before it, and a wrong order
+fails silently rather than loudly.
 
-- [ ] **Decide where the marketing URLs live.** `yuvoy-app#12` holds the
-      options and the recommendation. Twelve indexed URLs and two legal pages
-      answer on `yuvoy.in` today and, checked on 3 September 2026, `/` is the
-      only one of them this app answers — the rest are `404`. Nothing below is
-      safe to do until every one of them has a destination.
-- [ ] **Make each one answer**: a page in this repo, or **one** `308` to
-      wherever `yuvoy-web` now lives. Never a chain, never a `404` — a URL a
-      search engine already has does not fail loudly when it vanishes, it
-      fails in a traffic graph weeks later.
-- [ ] **Prove it**: `pnpm cutover:check --to <the app's origin>`. Point it at
-      a preview first. It fails on any URL with no answer or a redirect that
-      chains.
-- [ ] **The `/go/` collision.** `yuvoy-web` serves campaign landings at
-      `/go/<source>` (`instagram`, …); this repo serves QR arrivals at
-      `/go/<code>` and sends any unknown code to the feed. After the move a
-      printed campaign QR still lands somewhere — but with no source recorded.
-      If those cards exist, each source needs a redirect ahead of the
-      catch-all.
-- [ ] **The operator portal's apply link** is `https://yuvoy.in/operators`
-      (`yuvoy-operator`, `src/app/sign-in/page.tsx`). It must still resolve, as
-      a page or as one redirect, or no operator can apply after launch.
+### 0. Days before: prove the rules against a production build
 
-### The move
+```
+pnpm build && pnpm exec next start -p 3111 &
+curl -sI -H "Host: yuvoy.in" http://localhost:3111/about | grep -i "^HTTP\|^location"
+#   HTTP/1.1 307 · location: https://www.yuvoy.in/about
+curl -sI -H "Host: yuvoy.in" http://localhost:3111/how-it-works | grep -i "^location"
+#   location: https://www.yuvoy.in/#how          (one hop, not two)
+curl -sI -H "Host: yuvoy.in" http://localhost:3111/go/ferry | grep -i "^location"
+#   location: https://www.yuvoy.in/go/ferry      (a campaign word)
+curl -sI -H "Host: yuvoy.in" http://localhost:3111/go/HAVELOCK-DIVE-01 | grep -i "^location"
+#   location: /e/…?src=qr&code=HAVELOCK-DIVE-01  (a real code still scans)
+curl -sI http://localhost:3111/about | grep -i "^HTTP"
+#   HTTP/1.1 404                                 (no Host: yuvoy.in → no rule)
+```
 
-- [ ] Vercel → move `yuvoy.in` from the `yuvoy-web` project to this one.
-      `yuvoy-web` keeps a host of its own (staging, or the new marketing host).
-- [ ] Set `NEXT_PUBLIC_ALLOW_INDEXING=true` and redeploy. Both `robots.txt` and
-      the meta tag flip together — they are derived from one flag on purpose.
-- [ ] Set `NEXT_PUBLIC_SITE_URL=https://yuvoy.in` so canonicals, OG URLs and the
-      sitemap follow. **Do not mark it Sensitive** — see above.
-- [ ] Point the `PRODUCTION_URL` repo variable at `https://yuvoy.in` so the
-      audit tests the real origin.
+The unit test beside the table pins the rest: host gating, 307, the marketing
+host never being this app's, exact paths before wildcards, and no redirect in
+front of one of this app's own routes.
 
-### After
+### 1. The marketing site moves first — Vercel, `yuvoy-web` project
 
-- [ ] `pnpm cutover:check --from <a host yuvoy-web still serves> --to https://yuvoy.in`.
-      `yuvoy.in/sitemap.xml` is now _this_ app's sitemap, so the marketing
-      list has to come from staging or the `yuvoy-web` project's
-      `*.vercel.app` host.
-- [ ] Run the production audit (Actions → Production audit, target
-      `https://yuvoy.in`) and confirm green.
-- [ ] If verification used the DNS method, nothing changes. If URL-prefix, add
-      a new property for `https://yuvoy.in` and a new token.
-- [ ] Re-submit the sitemap on the property.
+- [ ] **Domains:** make `www.yuvoy.in` the primary domain. Today it forwards to
+      `yuvoy.in`; that forward goes.
+- [ ] **Environment:** `NEXT_PUBLIC_SITE_URL=https://www.yuvoy.in` on
+      production, **not Sensitive**. The code fallback there is
+      `https://yuvoy.in`, which after step 2 is _this app_ — a forgotten
+      variable makes every marketing page declare the app's home as its
+      canonical. `pnpm cutover:check` fails on exactly that.
+- [ ] **Redeploy** (Actions → Production deployment) and confirm:
+      `curl -sI https://www.yuvoy.in/about` → `200`, and the page's
+      `<link rel="canonical">` is `https://www.yuvoy.in/about`.
+
+### 2. The root domain moves — Vercel
+
+- [ ] Remove `yuvoy.in` from the `yuvoy-web` project; add it to the
+      `yuvoy-app` project. GoDaddy does not change — both projects are on
+      Vercel, and the DNS records already point there.
+- [ ] `yuvoy-app` environment: `NEXT_PUBLIC_ALLOW_INDEXING=true` and
+      `NEXT_PUBLIC_SITE_URL=https://yuvoy.in`, neither Sensitive. Redeploy.
+      Both `robots.txt` and the meta tag flip together — they are derived
+      from one flag on purpose.
+- [ ] `PRODUCTION_URL` repo variable → `https://yuvoy.in`, so the audit tests
+      the real origin.
+
+### 3. Prove it, before anybody is told
+
+- [ ] `pnpm cutover:check --from https://www.yuvoy.in --to https://yuvoy.in`
+      — every URL answers `200` or **one** redirect landing on `200`/`410`, and
+      every landing page's canonical is on the host that served it. Anything
+      else: stop here and fix it. **Rollback is cheap:** move `yuvoy.in` back
+      to the `yuvoy-web` project. The redirects are 307, so no browser has
+      cached anything.
+- [ ] Production audit (Actions → Production audit → `https://yuvoy.in`)
+      green.
+- [ ] Open the operator portal's **Apply to run experiences** link once. It
+      already points at `www.yuvoy.in/operators`.
+
+### 4. Search
+
+- [ ] The DNS domain property covers both hosts. Re-submit both sitemaps:
+      `https://yuvoy.in/sitemap.xml` and `https://www.yuvoy.in/sitemap.xml`.
+- [ ] No Change of Address in Search Console. That tool is for moving a
+      whole site to a new domain; this is a set of pages moving to a
+      subdomain, and the redirects are the right signal.
+- [ ] If verification used the URL-prefix method rather than DNS, add a
+      property for `https://yuvoy.in` and one for `https://www.yuvoy.in`.
+
+### Later
+
+- [ ] After a season with the shape unchanged, promote the redirects to
+      `permanent: true` (308). The reasoning is in the table's header comment.
+- [ ] Migrating a marketing page into this app — the original plan of record,
+      still available, now without a deadline — is: build the page, delete its
+      redirect, point `www`'s copy at it. The unit test refuses a redirect
+      whose source is one of this app's own routes, so the order enforces
+      itself.
+- [ ] `yuvoy-api#78`: scan codes must never be minted as one of the five
+      campaign words (`ferry`, `kiosk`, `hotel`, `instagram`, `direct`),
+      which the root domain now forwards to marketing.

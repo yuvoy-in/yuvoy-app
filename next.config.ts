@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { marketingRedirects } from "./src/lib/site/marketing-redirects";
 
 /**
  * The app is a different security surface from the marketing site: it holds a
@@ -52,6 +53,15 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "*.cloudflarestream.com" },
       { protocol: "https", hostname: "videodelivery.net" },
     ],
+  },
+  /**
+   * The marketing site's URLs, once this app is `yuvoy.in` (D-102, option A).
+   * Host-gated, temporary, and mirrored against the live marketing sitemap by
+   * `pnpm cutover:check`. The table and its reasoning live beside the route
+   * inventory in src/lib/site/marketing-redirects.ts.
+   */
+  async redirects() {
+    return marketingRedirects();
   },
   async headers() {
     return [
