@@ -83,3 +83,66 @@ test("a tab root keeps the floating bar and names where you are", async ({
   const nav = page.getByRole("navigation", { name: /Primary/i }).first();
   await expect(nav.locator('a[aria-current="page"]')).toHaveText(/Search/i);
 });
+
+/**
+ * The rail is pinned, and it is the height of the WINDOW.
+ *
+ * Both halves are load-bearing, and both were broken. As an ordinary flex item
+ * the rail scrolled away, so a guide article left the reader with no
+ * navigation after the first screenful; and a flex item stretches to its row,
+ * so the rail was as tall as the document (2835px on that article) and the
+ * `mt-auto` that puts Guides at its foot put them two thousand pixels below
+ * the fold. Neither is visible in a screenshot of the top of the page, which
+ * is why this measures instead.
+ *
+ * Desktop only: below `lg` there is no rail, and the floating bar is fixed.
+ */
+test("the rail stays put while the page scrolls, and Guides stays in view", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(Boolean(isMobile), "no rail below lg");
+
+  // A route tall enough to scroll several screenfuls.
+  await page.goto("/guides/permits-for-the-andamans");
+  await page.waitForLoadState("networkidle");
+
+  const rail = page.locator("aside");
+  const guides = page.getByRole("navigation", { name: /More/i });
+
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport");
+
+  const railBefore = await rail.boundingBox();
+  if (!railBefore) throw new Error("no rail");
+
+  // The rail is the window's height, not the document's.
+  expect(
+    railBefore.height,
+    "the rail is as tall as the window, not the document",
+  ).toBeLessThanOrEqual(viewport.height + 1);
+
+  // So Guides, pinned to its foot, is on screen before anybody scrolls.
+  await expect(guides).toBeInViewport();
+
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(250);
+
+  expect(
+    await page.evaluate(() => window.scrollY),
+    "the page scrolled",
+  ).toBeGreaterThan(500);
+
+  const railAfter = await rail.boundingBox();
+  if (!railAfter) throw new Error("no rail after scrolling");
+  expect(
+    Math.abs(railAfter.y - railBefore.y),
+    "the rail did not move with the page",
+  ).toBeLessThan(2);
+
+  // And it is still a usable navigation once you are down the page.
+  await expect(guides).toBeInViewport();
+  await expect(
+    page.getByRole("navigation", { name: /Primary/i }).getByRole("link"),
+  ).toHaveCount(4);
+});

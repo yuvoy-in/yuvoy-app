@@ -60,6 +60,22 @@ function FeedHeading() {
 const WELL =
   "bg-abyss relative h-dvh w-full lg:h-[calc(100dvh-3rem)] lg:rounded-sheet lg:ring-1 lg:ring-cream/10";
 
+/**
+ * How a message sits in the well, for the states that are one block of text.
+ *
+ * Both axes needed saying. `items-center` alone centres only the cross axis,
+ * and the block sizes to its content (a `max-w-sm` body inside `px-6`, so
+ * 432px), which left it flush against the left edge of a 480px well with 48px
+ * of dead space beside it.
+ *
+ * `pb-17` is 68px: the bar's own 56px (44px targets in a `p-1.5` pill) plus
+ * its 12px foot. The bar FLOATS over the well rather than sitting under it, so
+ * centring against the well's full height put the message 34px below the
+ * middle of the part a traveller can actually see. Cancelled from `lg` up,
+ * where the rail takes over and nothing covers the well.
+ */
+const WELL_CENTRED = "flex items-center justify-center pb-17 lg:pb-0";
+
 /** The well, for the states that do not scroll. */
 function FeedFrame({
   children,
@@ -86,7 +102,7 @@ function FeedFrame({
 function FeedMasthead() {
   return (
     <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3 pb-10 lg:hidden">
-      <Wordmark tone="cream" className="mt-1 h-8" priority />
+      <Wordmark tone="cream" className="mt-1 h-9" priority />
       <IconLink href="/search" label="Search" className="pointer-events-auto">
         <SearchIcon />
       </IconLink>
@@ -218,7 +234,7 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <FeedFrame className="flex items-center">
+        <FeedFrame className={WELL_CENTRED}>
           <ErrorState
             error={error}
             onRetry={() => void refetch()}
@@ -234,7 +250,7 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <FeedFrame className="flex items-center">
+        <FeedFrame className={WELL_CENTRED}>
           <EmptyState
             tone="dark"
             title="Nothing bookable here yet"

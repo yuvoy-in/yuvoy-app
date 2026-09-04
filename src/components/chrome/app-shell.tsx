@@ -17,6 +17,20 @@ import { SECONDARY_ROUTES } from "@/lib/site/nav";
  * stretching — an upscaled phone video across 1200px looks like a mistake,
  * which is why Instagram's web feed does the same thing.
  *
+ * The rail is PINNED to the viewport; only the column beside it scrolls. It
+ * used to be an ordinary flex item, which cost two things on any page taller
+ * than the window. It scrolled away, so a guide article left the reader with
+ * no navigation at all after the first screenful. And because a flex item
+ * stretches to its row, the rail was as tall as the DOCUMENT — 2835px on that
+ * article — so `mt-auto` pinned Guides to the bottom of the document rather
+ * than the bottom of the window, two thousand pixels below the fold.
+ *
+ * `sticky` rather than `fixed`: it keeps the rail in flow, so the row goes on
+ * reserving its 256px and there is no padding on the sibling to keep in sync
+ * with the width. `h-dvh` is what stops the stretch and gives `mt-auto` the
+ * window to work against; `overflow-y-auto` is for the short window where the
+ * rail's own contents do not fit.
+ *
  * Chrome is `forest`, never `abyss`. The 1.47:1 between them is what
  * separates the controls from the picture behind them.
  */
@@ -24,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="stage on-dark flex min-h-dvh flex-col lg:flex-row">
       {/* Desktop rail. Hidden below lg, where the floating bar takes over. */}
-      <aside className="app-chrome border-cream/10 hidden w-64 shrink-0 flex-col border-r lg:flex">
+      <aside className="app-chrome border-cream/10 hidden w-64 shrink-0 flex-col border-r lg:sticky lg:top-0 lg:flex lg:h-dvh lg:overflow-y-auto">
         <div className="px-6 py-7">
           <Wordmark tone="cream" className="h-10" priority />
         </div>

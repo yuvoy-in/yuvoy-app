@@ -87,7 +87,7 @@ export function Screen({
             {back ? (
               <BackButton {...back} />
             ) : (
-              <Wordmark tone="cream" className="h-8" priority />
+              <Wordmark tone="cream" className="h-9" priority />
             )}
             {stageLabel ? (
               <p className="label text-cream/70 absolute left-1/2 -translate-x-1/2">
