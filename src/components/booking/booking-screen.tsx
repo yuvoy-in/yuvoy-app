@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useDocumentTitle } from "@/lib/site/use-document-title";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { useBookingStatus } from "@/lib/booking/use-booking-status";
@@ -139,6 +140,23 @@ function StatusBody({
   onChanged?: () => void;
 }) {
   const copy = STATE_COPY[status.state];
+
+  /*
+    The reference in the tab, because the server cannot put it there.
+
+    This page is keyed by a token in the URL fragment, which never reaches the
+    server — so `generateMetadata` cannot tell one booking from another and
+    every tab reads "Your booking · Yuvoy" (yuvoy-app#16). The reference leads,
+    since it is the thing somebody with two tabs open is looking for, and it is
+    "human-quotable and not a credential" — it goes on the operator's manifest
+    and is read aloud on a jetty. The token is never in it.
+
+    Before the reference exists — a hold that has not become a booking — the
+    experience name is still better than "Your booking", and `useDocumentTitle`
+    leaves Next's own title alone when there is neither.
+  */
+  const identity = status.bookingReference ?? status.experience?.title ?? null;
+  useDocumentTitle(identity ? `${identity} · Yuvoy` : null);
   const [cancelling, setCancelling] = useState(false);
 
   // Read the clock ONCE, outside the render path. Reading it during render is

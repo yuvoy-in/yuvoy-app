@@ -84,6 +84,13 @@ test("every route describes itself, rather than inheriting the homepage", async 
       path: "/guides/diving-in-havelock",
       title: "Diving in Havelock, and what a first dive involves",
     },
+    /*
+      A shared trip names the trip, not the word "trip" — yuvoy-app#16. It is
+      `noindex`, so this is here for the tab rather than for a crawler: "The
+      trip · Yuvoy" is the same tab however many are open, and the experience
+      name is what the page's own heading already says.
+    */
+    { path: "/trip/shr_sample", title: "Try-dive at Nemo Reef" },
   ];
 
   const seen = new Set<string>();

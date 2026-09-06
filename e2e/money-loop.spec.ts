@@ -47,6 +47,27 @@ test("a traveller can go from the feed to a held booking", async ({ page }) => {
   await expect(page).toHaveURL(/\/booking#t=/);
   await expect(page.getByText("Your seats are held")).toBeVisible();
   await expect(page.getByRole("timer")).toBeVisible();
+
+  /*
+    And the tab names this booking — yuvoy-app#16.
+
+    The token is in the fragment, which never reaches the server, so
+    `generateMetadata` cannot tell one booking from another and every tab read
+    "Your booking · Yuvoy". Set client-side once the booking loads, which is
+    the only place that knows. A hold has no reference yet, so the experience
+    name stands in.
+
+    The reference leads, because it is what somebody with two tabs open is
+    looking for, and it is "human-quotable and not a credential" — it goes on
+    the operator's manifest and is read aloud on a jetty. Matched on its SHAPE
+    rather than a fixture value, so a mock that mints a different one still
+    proves the right field is in front.
+
+    The token must never be in the title: it is already in browser history and
+    a title is one more place it would not belong.
+  */
+  await expect(page).toHaveTitle(/^YV-[A-Z0-9]+ · Yuvoy$/);
+  await expect(page).not.toHaveTitle(/t=/);
 });
 
 test("a closed departure is shown disabled, never hidden", async ({ page }) => {

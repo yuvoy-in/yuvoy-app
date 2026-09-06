@@ -3,14 +3,65 @@ import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { privateRobotsMeta } from "@/lib/site/indexing";
+import { pageMetadata } from "@/lib/site/metadata";
 import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
 
-export const metadata: Metadata = {
-  title: "The trip",
-  // A shared link is still a link somebody could paste anywhere.
-  robots: privateRobotsMeta,
-};
+/**
+ * The trip's own name in the tab, not the word "trip" — yuvoy-app#16.
+ *
+ * A browser tab shows roughly the first twenty characters, and `The trip ·
+ * Yuvoy` is the same tab however many are open. The experience name is what
+ * the page's own heading already says, so it identifies without revealing:
+ * this view carries no payer details by design, and the token stays in the
+ * path where it was, never in the title.
+ *
+ * A failure falls back to the plain word rather than throwing. A title is not
+ * worth a 500, and calling `notFound()` from here would pre-empt the page's
+ * own handling of the same absence.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const base: Metadata = {
+    title: "The trip",
+    // A shared link is still a link somebody could paste anywhere.
+    robots: privateRobotsMeta,
+  };
+  try {
+    const { token } = await params;
+    const api = createApiClient();
+    const { data, error } = await api.GET("/trips/{token}", {
+      params: { path: { token } },
+    });
+    if (error || !data?.experience) return base;
+
+    /*
+      Real Open Graph, not the homepage's — this is the one page in the app
+      whose whole purpose is being sent to somebody. Inheriting the root's card
+      is the exact defect `e2e/seo.spec.ts` guards: right in the tab, wrong in
+      the only surface anybody else sees.
+
+      The description names the experience and nothing else. Not the meeting
+      point, not the time, not the party size — an unfurl travels further than
+      the link it came from, into a group chat and a preview cache, and this
+      view was built to carry no payer details for the same reason. The token
+      is in the path and is never put in a tag.
+    */
+    return {
+      ...pageMetadata({
+        title: data.experience,
+        description: "A trip on Yuvoy. Open the link to see the details.",
+        path: `/trip/${token}`,
+      }),
+      robots: privateRobotsMeta,
+    };
+  } catch {
+    return base;
+  }
+}
 
 export const dynamic = "force-dynamic";
 
