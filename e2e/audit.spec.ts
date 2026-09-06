@@ -142,6 +142,27 @@ test.describe("the rendered audit", () => {
       expect(description, `${path} has no description`).toBeTruthy();
       expect(canonical, `${path} has no canonical`).toBeTruthy();
 
+      /*
+        The brand once, never twice.
+
+        `layout.tsx` appends " · Yuvoy" through the title template, so a page
+        whose own title already carries the brand renders "Search Yuvoy ·
+        Yuvoy". Nothing fails when that happens, because a title is not
+        load-bearing — which is why it needs a check rather than a reader. The
+        same check found `/contact` doing exactly this over in yuvoy-web.
+
+        Here rather than in `seo.spec.ts`: that file pins five routes to exact
+        titles, so a stricter assertion always fires first and this one could
+        never run. This test walks the whole sitemap, which is where a title
+        nobody looked at actually lives.
+
+        Counted rather than pattern-matched, so a compound brand stays one.
+      */
+      const brand = (title!.match(/Yuvoy/g) ?? []).length;
+      expect(brand, `${path} names the brand ${brand} times: "${title}"`).toBe(
+        1,
+      );
+
       // Self-canonical. A canonical pointing at another page is a page asking
       // not to be indexed, which is not what any of these want.
       expect(

@@ -76,7 +76,7 @@ test("every route describes itself, rather than inheriting the homepage", async 
     link unfurler both see.
   */
   const routes = [
-    { path: "/", title: "Yuvoy — Experience More." },
+    { path: "/", title: "Yuvoy" },
     { path: "/search", title: "Search" },
     { path: "/guides", title: "Guides to the Andamans" },
     { path: "/e/try-dive-nemo-reef", title: "Try-dive at Nemo Reef" },

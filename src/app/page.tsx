@@ -44,7 +44,20 @@ type ExperiencePage = components["schemas"]["ExperiencePage"];
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Yuvoy — Experience More.",
+  /*
+    Just the name (owner's call, 6 Sep 2026). A tab shows roughly the first
+    twenty characters, and "Yuvoy — Experience More." spent all of them on a
+    tagline the description below already carries — into the share card, where
+    there is room for it, and out of the tab, where there is not.
+
+    `absoluteTitle` is kept but is a no-op here, and that is worth writing down
+    rather than leaving as a trap: Next applies a layout's `title.template` to
+    CHILD segments only, and `app/page.tsx` shares a segment with
+    `app/layout.tsx`, so the root page takes `title.default` and never the
+    template. Verified by rendering it both ways — both give "Yuvoy". It stays
+    because it costs nothing and states the intent for anyone moving this.
+  */
+  title: "Yuvoy",
   description:
     "Find something worth doing in the Andaman Islands, and book a seat on it. Real departures, filmed by the operators who run them.",
   path: "/",

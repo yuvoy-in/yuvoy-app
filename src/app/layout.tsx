@@ -24,7 +24,9 @@ export const metadata: Metadata = {
   */
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Yuvoy — Experience More.",
+    // Agrees with the homepage's own title. A fallback that said something
+    // different would be a second answer to "what is this site called".
+    default: "Yuvoy",
     template: "%s · Yuvoy",
   },
   description:
