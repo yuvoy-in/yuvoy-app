@@ -227,6 +227,30 @@ function scenarioHeaders(): Record<string, string> {
   return scenario ? { "x-yuvoy-scenario": scenario } : {};
 }
 
+/**
+ * The scenario header for a SERVER-side call, given the page's own query.
+ *
+ * `scenarioHeaders()` above reads `window.location`, so it is empty on the
+ * server by construction — which meant a Server Component's fetch never
+ * carried the switch and always got the ordinary answer.
+ *
+ * That was invisible while the homepage's prefetch was failing for an
+ * unrelated reason: the client did every fetch, carried the header, and the
+ * failure states rendered. The moment the prefetch started working, the server
+ * seeded `initialData` with a healthy feed and the client never refetched — so
+ * `/?__scenario=booking-disabled` showed a working feed and the kill switch
+ * became untestable. Exactly the gap the switch exists to close, one layer up.
+ *
+ * Compiled out of any build that does not enable mocking, because
+ * NEXT_PUBLIC_* is inlined at build time.
+ */
+export function serverScenarioHeaders(
+  scenario: string | undefined,
+): Record<string, string> {
+  if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") return {};
+  return scenario ? { "x-yuvoy-scenario": scenario } : {};
+}
+
 export function createApiClient(options?: { baseUrl?: string }) {
   const client = createFetchClient<paths>({
     baseUrl: options?.baseUrl ?? apiBaseUrl(),

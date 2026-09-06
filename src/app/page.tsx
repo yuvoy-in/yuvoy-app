@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { createApiClient } from "@/lib/api/client";
+import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
 import { pageMetadata } from "@/lib/site/metadata";
 import { Feed } from "@/components/feed/feed";
-import { REELS_LIMIT, type ReelsPage } from "@/lib/feed/use-reels";
+import { REELS_LIMIT, type ReelsPage } from "@/lib/feed/reels";
 
 /**
  * T2 — the reels feed. The app's front door.
@@ -77,23 +77,59 @@ interface Prefetched {
   fetchedAt: number;
 }
 
-async function getFirstPage(): Promise<Prefetched> {
+async function getFirstPage(scenario?: string): Promise<Prefetched> {
   try {
     const api = createApiClient();
     const { data, error } = await api.GET("/reels", {
       params: { query: { limit: REELS_LIMIT } },
+      /*
+        The `?__scenario=` switch, carried from the PAGE's query into this
+        server-side call. Empty in any build without mocking.
+
+        Without it the server seeds `initialData` with a healthy feed, the
+        client never refetches, and every failure state this app has is
+        unreachable from a URL — which is how a failure state becomes
+        untestable and then unbuilt.
+      */
+      headers: serverScenarioHeaders(scenario),
     });
     if (error) throw error;
     return { page: data, fetchedAt: Date.now() };
-  } catch {
-    // A feed that cannot be prefetched still renders — the client refetches
-    // and shows its own loading and error states. Failing the page here would
-    // turn a slow API into a broken one.
+  } catch (cause) {
+    /*
+      A feed that cannot be prefetched still renders — the client refetches and
+      shows its own loading and error states. Failing the page here would turn
+      a slow API into a broken one, and that is still the right call.
+
+      But swallowing it silently was not. The page stays a 200, every heading,
+      canonical and structured-data check passes, and the only symptom is LCP
+      — 5.1s against an FCP of 0.8s when this was last measured — which nobody
+      sees without running a lab report against production.
+
+      So it is logged. On Vercel this reaches the function log, which is the
+      only place the CAUSE is visible: a reachability problem at request time
+      looks identical from outside to a page that simply has no reels.
+      `e2e/audit.spec.ts` fails the deploy on the symptom; this names the
+      reason.
+    */
+    console.error(
+      "[feed] server-side prefetch of GET /reels failed; the browser will " +
+        "fetch it instead and LCP will suffer.",
+      cause,
+    );
     return { page: null, fetchedAt: 0 };
   }
 }
 
-export default async function FeedPage() {
-  const { page, fetchedAt } = await getFirstPage();
+export default async function FeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = await searchParams;
+  const raw = query.__scenario;
+  const scenario = typeof raw === "string" ? raw : undefined;
+
+  const { page, fetchedAt } = await getFirstPage(scenario);
   return <Feed initialPage={page} initialFetchedAt={fetchedAt} />;
 }

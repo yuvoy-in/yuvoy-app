@@ -3,35 +3,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
-import type { components } from "@/lib/api/schema.gen";
+import { REELS_LIMIT, type ReelsPage } from "./reels";
 
-type Media = components["schemas"]["Media"];
-type ExperienceSummary = components["schemas"]["ExperienceSummary"];
+/*
+  The hook, and NOTHING else.
 
-/** One reel, and the whole listing it sells. */
-export interface Reel {
-  media?: Media;
-  experience?: ExperienceSummary;
-}
-
-export interface ReelsPage {
-  items?: Reel[];
-}
-
-/**
- * The most reels the API will return in one answer.
- *
- * `GET /reels` takes `limit` (1–60, default 30) and returns **no cursor**, so
- * this is not a page size — it is the whole feed. Asking for the maximum is
- * therefore not greed: at the default of 30 a traveller would silently see 30
- * of 45 reels, and the end of the feed would claim to be the end of the
- * catalogue.
- *
- * Which is exactly why {@link isPossiblyTruncated} exists. When precisely this
- * many come back, we cannot tell a complete feed from a clipped one, and the
- * screen must not claim either.
- */
-export const REELS_LIMIT = 60;
+  Everything a Server Component might want — `REELS_LIMIT`, the types, the pure
+  helpers — lives in `./reels.ts`, which declares no client boundary. That
+  split is not organisation, it is correctness: a `"use client"` module turns
+  every export into a client reference, so a server importing a constant from
+  here gets a stub that throws rather than the value, silently, at runtime.
+  `pnpm qa` fails a server file that tries.
+*/
 
 /**
  * The feed's data — **every published reel**, not one per listing.
@@ -105,36 +88,4 @@ export function useReels(
     },
     ...CACHE.listReels,
   });
-}
-
-/**
- * The reels worth rendering, in the order the server gave them.
- *
- * An item with no `media` is dropped rather than drawn. Both halves are
- * optional in the contract, and this is the reels feed — a row with nothing to
- * play is a black rectangle that scrolls past, and there is a catalogue
- * endpoint for listings without footage. An item with no `experience` is
- * dropped for the harder reason: the card's whole job is to offer the booking,
- * and a clip nobody can act on is a dead stop in a scroll.
- *
- * **Never sorted.** See {@link useReels}.
- */
-export function playableReels(page: ReelsPage | undefined): Reel[] {
-  return (page?.items ?? []).filter((item) => item.media && item.experience);
-}
-
-/**
- * Might the server be holding reels this answer did not carry?
- *
- * True when the answer is exactly {@link REELS_LIMIT} long, because an unpaged
- * endpoint gives no other signal — a full answer and a coincidentally-full one
- * are identical on the wire.
- *
- * The feed uses it to withhold "that is everything", which is the only claim on
- * that screen that can be false without anybody noticing. Counted against the
- * RAW items rather than the playable ones: dropping an item with no media
- * makes the list shorter without making the feed any more complete.
- */
-export function isPossiblyTruncated(page: ReelsPage | undefined): boolean {
-  return (page?.items?.length ?? 0) >= REELS_LIMIT;
 }

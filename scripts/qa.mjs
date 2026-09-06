@@ -236,6 +236,96 @@ for (const root of clientRoots) {
   }
 }
 
+/* --------- 7b. a server file may import a client COMPONENT, not a value -- */
+
+/**
+ * A Server Component importing a plain value out of a `"use client"` module.
+ *
+ * This shipped, and it is the quietest failure this repo has had.
+ *
+ * A `"use client"` boundary turns every export of that module into a client
+ * REFERENCE — including a constant. `page.tsx` imported `REELS_LIMIT` from
+ * `use-reels.ts` and did not get `60`; it got a stub that throws "Attempted to
+ * call REELS_LIMIT() from the server". Interpolated into a query string, the
+ * stub stringified to its own error text, so the homepage asked the API for
+ * `?limit=function(){throw Error(…)}`, took a `400`, swallowed it by design,
+ * and served a loading skeleton to every traveller while the browser refetched.
+ *
+ * It typechecked. It built. All 265 unit tests passed. The production audit
+ * passed. The only symptom was LCP — the exact number the server-side prefetch
+ * exists to protect.
+ *
+ * Importing a client COMPONENT is normal and necessary, which is what makes
+ * this hard to see: `import { Feed } from "…/feed"` is correct, and
+ * `import { REELS_LIMIT } from "…/use-reels"` is not, and they look identical.
+ * PascalCase is the line — the same convention React itself uses to tell an
+ * element from a call.
+ *
+ * Type-only imports are erased before any of this matters and are allowed.
+ */
+
+const declaresUseClient = (f) =>
+  /^\s*["']use client["']/m.test(readFileSync(f, "utf8"));
+
+/** `import { a, type B, C }` → the bindings that survive to runtime. */
+function valueImportsFrom(source, spec) {
+  const named = [
+    ...source.matchAll(
+      new RegExp(
+        `import\\s+([^;]*?)\\s+from\\s+["']${spec.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`,
+        "g",
+      ),
+    ),
+  ];
+  const bindings = [];
+  for (const [, clause] of named) {
+    // `import type { … }` is erased wholesale.
+    if (/^\s*type\s/.test(clause)) continue;
+    const braces = clause.match(/\{([^}]*)\}/)?.[1] ?? "";
+    for (const part of braces.split(",")) {
+      const name = part
+        .trim()
+        .split(/\s+as\s+/)[0]
+        .trim();
+      if (!name || /^type\s/.test(name)) continue;
+      bindings.push(name.replace(/^type\s+/, ""));
+    }
+    // A default or namespace import outside the braces.
+    const outside = clause
+      .replace(/\{[^}]*\}/, "")
+      .replace(/,/g, "")
+      .trim();
+    if (outside && !/^\*\s+as/.test(outside)) bindings.push(outside);
+  }
+  return bindings;
+}
+
+for (const file of files) {
+  if (/\.test\.tsx?$/.test(file)) continue;
+  if (declaresUseClient(file)) continue;
+  // Server Components live under src/app. A shared lib with no directive is
+  // not necessarily server-executed, so it is not the subject here.
+  if (!rel(file).startsWith(join("src", "app"))) continue;
+
+  const source = code(file);
+  for (const spec of importsOf(file)) {
+    const target = resolveImport(file, spec);
+    if (!target || !declaresUseClient(target)) continue;
+
+    for (const binding of valueImportsFrom(source, spec)) {
+      // PascalCase is a component, which a Server Component may render.
+      if (/^[A-Z][A-Za-z0-9]*$/.test(binding)) continue;
+      problems.push(
+        `${rel(file)}: imports the value \`${binding}\` from "${spec}", which ` +
+          `is a "use client" module. A client boundary turns every export into ` +
+          `a client reference, so the server gets a stub that throws rather ` +
+          `than the value — silently, at runtime. Move \`${binding}\` into a ` +
+          `module with no "use client", or import it as a type.`,
+      );
+    }
+  }
+}
+
 /* ------------------------- 8. mocks may not invent endpoints ------------- */
 
 /**

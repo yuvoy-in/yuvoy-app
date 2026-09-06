@@ -160,7 +160,7 @@ export const handlers = [
         {
           error: {
             code: "bad_request",
-            message: "limit must be an integer between 1 and 60.",
+            message: `limit must be an integer between 1 and 60 — got ${JSON.stringify(raw)}.`,
           },
         },
         { status: 400, headers: mockHeaders(requestId()) },

@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useReels } from "@/lib/feed/use-reels";
 import {
-  useReels,
   playableReels,
   isPossiblyTruncated,
   type ReelsPage,
-} from "@/lib/feed/use-reels";
+} from "@/lib/feed/reels";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { ExperienceCard } from "./experience-card";
 import {

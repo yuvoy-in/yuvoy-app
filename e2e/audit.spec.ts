@@ -332,6 +332,53 @@ test.describe("the rendered audit", () => {
     }
   });
 
+  test("the front door resolves its feed on the SERVER, not in the browser", async ({
+    request,
+  }) => {
+    /*
+      The homepage prefetches the first page of reels in a Server Component and
+      hands it to the client as `initialData`, so the first cards are in the
+      HTML. That is a measured decision, not a preference: when the feed was
+      client-rendered, FCP was 0.8s and **LCP was 5.1s** on a throttled
+      mid-range profile, because the LCP element is a card's headline and
+      nothing existed until the bundle downloaded and hydrated.
+
+      `getFirstPage()` swallows every failure and returns null on purpose — a
+      feed that cannot be prefetched still renders, because failing the page
+      would turn a slow API into a broken one. The cost of that kindness is
+      that the failure is **completely silent**: the page is a 200, every
+      heading and canonical and structured-data check above passes, and the
+      only symptom is a number in a lab report nobody is running.
+
+      So this asserts the one thing those checks cannot see: that the server
+      resolved the feed to SOMETHING. Cards, or the honest empty state, or an
+      error — any of those is a server that did its job. The skeleton is not:
+      it means the prefetch came back null and the work was handed to the
+      browser on a 0.5 Mbps island connection.
+
+      Found on 6 September against production, after the feed moved to
+      `GET /v1/reels`. Nothing in this suite could tell a working front door
+      from one that had been showing a loading state to every traveller.
+    */
+    const res = await request.get("/");
+    expect(res.status(), "the front door must serve").toBe(200);
+    const html = await res.text();
+
+    const resolved = {
+      cards: /aria-posinset=/.test(html),
+      empty: html.includes("Nothing bookable here yet"),
+      error: html.includes("Booking is paused") || html.includes("Try again"),
+    };
+
+    expect(
+      resolved.cards || resolved.empty || resolved.error,
+      "the homepage served a loading skeleton, which means the server-side " +
+        "prefetch returned null and the feed is being fetched by the browser " +
+        "instead. Check the API is reachable from the deployment at request " +
+        "time — this is invisible to every other check in this file.",
+    ).toBe(true);
+  });
+
   test("robots.txt and the meta tag agree about indexing", async ({
     request,
   }) => {

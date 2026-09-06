@@ -110,9 +110,13 @@ export function ExperienceCard({
         */
         <div className="bg-abyss absolute inset-0 flex flex-col items-center justify-center gap-6 px-8">
           {experience.operator.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a remote
-            // operator logo on an arbitrary host; `next/image` would need every
-            // such host in `remotePatterns`, which is a deploy to add a partner.
+            /*
+              A plain `<img>`, deliberately. `next/image` needs every remote
+              host in `remotePatterns`, which would make adding a partner a
+              deploy — and this is a small mark on a card that has no clip,
+              not the LCP element.
+            */
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={experience.operator.logoUrl}
               alt={experience.operator.name}
