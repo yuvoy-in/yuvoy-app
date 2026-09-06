@@ -173,6 +173,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The feed
+         * @description **Every published reel**, not one per listing. A listing may hold twenty clips; before this only its hero was visible without opening it, which made the product read as a catalogue with a picture on each row rather than as a feed.
+         *
+         *     Each item carries the whole listing, so a card can offer the booking without a second request — a spinner over the price is a spinner over the one thing somebody stopped scrolling for.
+         *
+         *     **Ordering interleaves operators.** Reels are numbered within each business and the feed is ordered by that number, so every operator's first reel precedes anybody's second. A business with twenty clips appears across twenty rounds rather than twenty times in a row. The ordering is blind to which operator: it rotates them, and cannot express a preference for one. Stable between requests.
+         */
+        get: operations["listReels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/experiences": {
         parameters: {
             query?: never;
@@ -583,6 +607,12 @@ export interface components {
             name: string;
             /** @description True only when every mandatory credential is on file, verified and unexpired. It is a statement about evidence we hold, not a badge. */
             verified: boolean;
+            /**
+             * @description The operator's own mark. **Absent when they have not set one**, so fall back to your own placeholder rather than rendering a broken image.
+             *
+             *     Show it on a card whose `heroMedia` is absent. A logo is not a substitute for footage — the feed is video — but a card carrying the operator's mark is something a person can recognise and tap, and an empty rectangle is neither.
+             */
+            logoUrl?: string;
             /** @description Human-readable statements of what was checked, each backed by a record. */
             credentialsSummary?: string[];
         };
@@ -610,6 +640,15 @@ export interface components {
             nextAvailable?: string;
             /** @description Seats left on that departure. Present only alongside `nextAvailable`, and **only for `allotment` mode** — a request-mode departure holds nothing until an operator says yes, so a number here would be a promise we cannot keep, and "3 seats left" that becomes "the operator declined" is worse than saying nothing. */
             seatsOnNext?: number;
+            /**
+             * @description That number as a sentence, decided here. **Render it verbatim; do not re-derive one from `seatsOnNext`.**
+             *
+             *     The card was printing "N seats left" below a threshold it kept itself, which is a second copy of a rule the server owns. The moment the threshold moves — or counts start being suppressed — the card and the slot row disagree about the same departure.
+             *
+             *     Absent means say nothing about availability. Same semantics as `Slot.remainingDisplay`, and the same function computes both.
+             * @example 3 seats left
+             */
+            seatsOnNextDisplay?: string;
         };
         /**
          * @description How this experience sells. `allotment` means Yuvoy holds contracted seats and a traveller books instantly. `request` means the operator answers first and the traveller pays only after they accept — Yuvoy holds no inventory and makes no availability claim.
@@ -779,6 +818,16 @@ export interface components {
             whatsapp: string;
             /** @description Optional. */
             email?: string;
+            /**
+             * @description A separate, unticked question at checkout. **Omit it if you did not ask** — absent and `false` mean different things and both are recorded as such.
+             *
+             *     absent = never asked · `false` = asked and declined · `true` = asked and agreed.
+             *
+             *     Collapsing absent into `false` would make every client that omits the field look like a refusal, and would erase the difference between "we never asked" and "they said no" — which is precisely the question a DPDP request asks of us.
+             *
+             *     The moment it was given is recorded server-side from the database clock, never from anything you send: a consent record whose date the caller chooses is not evidence.
+             */
+            marketingConsent?: boolean;
         };
         Reservation: {
             reservationId: string;
@@ -860,6 +909,20 @@ export interface components {
             };
             /** @description Present once a booking exists. Human-quotable and **not a credential** — it goes on the operator's manifest and is read aloud on a jetty. */
             bookingReference?: string;
+            /** @description Where the day starts. This is the screen a traveller opens on the morning of the trip and it was the one screen without it — both `/trips/{token}` and `/me/bookings` already carried it. */
+            meetingPoint?: {
+                text?: string;
+                landmark?: string;
+            };
+            /** @description Why the trip is off. Present only when it is. The app was hedging with "if the sea called it off", which is a guess dressed as information and the wrong guess for anything cancelled otherwise. */
+            cancellation?: {
+                reasonCode?: string;
+            };
+            /**
+             * Format: date-time
+             * @description When an unanswered request lapses — "answer by". The creation response carried this and the status page could not show it, so a traveller waiting had no idea how long for. Absent once the booking is final.
+             */
+            requestExpiresAt?: string;
             /**
              * @description What the operator has told everybody on this departure — a time change, a meeting point, a weather watch. Absent when there are none; the key is omitted rather than sent empty.
              *
@@ -1355,6 +1418,34 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    listReels: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Reels, each with the listing it sells. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: {
+                            media?: components["schemas"]["Media"];
+                            experience?: components["schemas"]["ExperienceSummary"];
+                        }[];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
     listExperiences: {

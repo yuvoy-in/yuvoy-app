@@ -1,6 +1,7 @@
 import { http, HttpResponse, delay } from "msw";
 import {
   EXPERIENCES,
+  REELS,
   EXPERIENCE_DETAIL,
   availabilityFor,
   FIXTURE_NOW,
@@ -132,6 +133,44 @@ export const handlers = [
       },
       { headers: mockHeaders(requestId()) },
     );
+  }),
+
+  /**
+   * The feed. Every published reel, each with the listing it sells.
+   *
+   * No cursor and no `complete` flag — the endpoint takes `limit` (1–60,
+   * default 30) and answers once. The mock enforces the same bounds the
+   * contract states, including the 400, so a client that asks for 100 finds
+   * out here rather than in production.
+   *
+   * The order is the fixture's order, passed through untouched. Nothing here
+   * sorts, because nothing in production sorts: reels are numbered within each
+   * business so that everyone's first precedes anybody's second, and the
+   * ordering "rotates operators, it never ranks them".
+   */
+  http.get(url("/reels"), async ({ request }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+
+    const u = new URL(request.url);
+    const raw = u.searchParams.get("limit");
+    const limit = raw === null ? 30 : Number(raw);
+    if (raw !== null && (!Number.isInteger(limit) || limit < 1 || limit > 60)) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "bad_request",
+            message: "limit must be an integer between 1 and 60.",
+          },
+        },
+        { status: 400, headers: mockHeaders(requestId()) },
+      );
+    }
+
+    const scenario = scenarioOf(request);
+    const items = scenario === "empty" ? [] : REELS.slice(0, limit);
+
+    return HttpResponse.json({ items }, { headers: mockHeaders(requestId()) });
   }),
 
   http.get(url("/experiences/:slug"), async ({ request, params }) => {

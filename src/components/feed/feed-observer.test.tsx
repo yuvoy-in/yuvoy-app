@@ -99,13 +99,18 @@ describe("the feed's observer", () => {
     const before = constructed.mock.calls.length;
     const { unmount } = renderWithQuery(<Feed />);
     await waitFor(() =>
-      expect(screen.getByText("Try-dive at Nemo Reef")).toBeInTheDocument(),
+      // `getAllBy`, because one listing now appears several times: the feed is
+      // reels, and `exp_try_dive` has three (yuvoy-app#18).
+      expect(
+        screen.getAllByText("Try-dive at Nemo Reef").length,
+      ).toBeGreaterThan(0),
     );
 
-    // The feed itself builds two: one watching which card is active, one on
-    // the infinite-scroll sentinel. next/image builds one per image for lazy
-    // loading, which is not ours to control — so the assertion is that the
-    // feed's own count does NOT scale with the number of cards.
+    // The feed itself now builds ONE: the observer watching which card is
+    // active. The infinite-scroll sentinel's observer went with the paging,
+    // because `/reels` has no cursor to page on. next/image builds one per
+    // image for lazy loading, which is not ours to control — so the assertion
+    // is that the feed's own count does NOT scale with the number of cards.
     const cards = screen.getAllByRole("article").length;
     const created = constructed.mock.calls.length - before;
     expect(cards).toBeGreaterThan(1);

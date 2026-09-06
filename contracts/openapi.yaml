@@ -391,6 +391,50 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /reels:
+    get:
+      tags: [catalog]
+      summary: The feed
+      description: >
+        **Every published reel**, not one per listing. A listing may hold twenty
+        clips; before this only its hero was visible without opening it, which
+        made the product read as a catalogue with a picture on each row rather
+        than as a feed.
+
+
+        Each item carries the whole listing, so a card can offer the booking
+        without a second request — a spinner over the price is a spinner over
+        the one thing somebody stopped scrolling for.
+
+
+        **Ordering interleaves operators.** Reels are numbered within each
+        business and the feed is ordered by that number, so every operator's
+        first reel precedes anybody's second. A business with twenty clips
+        appears across twenty rounds rather than twenty times in a row. The
+        ordering is blind to which operator: it rotates them, and cannot express
+        a preference for one. Stable between requests.
+      operationId: listReels
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60, default: 30 }
+      responses:
+        "200":
+          description: Reels, each with the listing it sells.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        media: { $ref: "#/components/schemas/Media" }
+                        experience: { $ref: "#/components/schemas/ExperienceSummary" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
   /experiences:
     get:
       tags: [experiences]
@@ -1258,6 +1302,18 @@ components:
           description: >-
             True only when every mandatory credential is on file, verified and
             unexpired. It is a statement about evidence we hold, not a badge.
+        logoUrl:
+          type: string
+          description: >-
+            The operator's own mark. **Absent when they have not set one**, so
+            fall back to your own placeholder rather than rendering a broken
+            image.
+
+
+            Show it on a card whose `heroMedia` is absent. A logo is not a
+            substitute for footage — the feed is video — but a card carrying the
+            operator's mark is something a person can recognise and tap, and an
+            empty rectangle is neither.
         credentialsSummary:
           type: array
           description: Human-readable statements of what was checked, each backed by a record.
@@ -1317,6 +1373,22 @@ components:
             departure holds nothing until an operator says yes, so a number here
             would be a promise we cannot keep, and "3 seats left" that becomes
             "the operator declined" is worse than saying nothing.
+        seatsOnNextDisplay:
+          type: string
+          description: >-
+            That number as a sentence, decided here. **Render it verbatim; do
+            not re-derive one from `seatsOnNext`.**
+
+
+            The card was printing "N seats left" below a threshold it kept
+            itself, which is a second copy of a rule the server owns. The moment
+            the threshold moves — or counts start being suppressed — the card
+            and the slot row disagree about the same departure.
+
+
+            Absent means say nothing about availability. Same semantics as
+            `Slot.remainingDisplay`, and the same function computes both.
+          examples: ["3 seats left"]
 
     BookingMode:
       type: string
@@ -1638,6 +1710,28 @@ components:
         name: { type: string, maxLength: 120 }
         whatsapp: { type: string, description: E.164, e.g. +919000000000 }
         email: { type: string, description: Optional. }
+        marketingConsent:
+          type: boolean
+          description: >-
+            A separate, unticked question at checkout. **Omit it if you did not
+            ask** — absent and `false` mean different things and both are
+            recorded as such.
+
+
+            absent = never asked · `false` = asked and declined · `true` =
+            asked and agreed.
+
+
+            Collapsing absent into `false` would make every client that omits
+            the field look like a refusal, and would erase the difference
+            between "we never asked" and "they said no" — which is precisely
+            the question a DPDP request asks of us.
+
+
+            The moment it was given is recorded server-side from the database
+            clock, never from anything you send: a consent record whose date
+            the caller chooses is not evidence.
+
 
     Reservation:
       type: object
@@ -1779,6 +1873,31 @@ components:
             Present once a booking exists. Human-quotable and **not a
             credential** — it goes on the operator's manifest and is read aloud
             on a jetty.
+        meetingPoint:
+          type: object
+          description: >-
+            Where the day starts. This is the screen a traveller opens on the
+            morning of the trip and it was the one screen without it — both
+            `/trips/{token}` and `/me/bookings` already carried it.
+          properties:
+            text: { type: string }
+            landmark: { type: string }
+        cancellation:
+          type: object
+          description: >-
+            Why the trip is off. Present only when it is. The app was hedging
+            with "if the sea called it off", which is a guess dressed as
+            information and the wrong guess for anything cancelled otherwise.
+          properties:
+            reasonCode: { type: string }
+        requestExpiresAt:
+          type: string
+          format: date-time
+          description: >-
+            When an unanswered request lapses — "answer by". The creation
+            response carried this and the status page could not show it, so a
+            traveller waiting had no idea how long for. Absent once the booking
+            is final.
         operatorUpdates:
           type: array
           description: >-

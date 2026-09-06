@@ -2,12 +2,17 @@ import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
 import { pageMetadata } from "@/lib/site/metadata";
 import { Feed } from "@/components/feed/feed";
-import type { components } from "@/lib/api/schema.gen";
-
-type ExperiencePage = components["schemas"]["ExperiencePage"];
+import { REELS_LIMIT, type ReelsPage } from "@/lib/feed/use-reels";
 
 /**
  * T2 — the reels feed. The app's front door.
+ *
+ * Built on `GET /reels` — **every published reel**, not one per listing.
+ * `/experiences` returns a single `heroMedia` per row, which capped the feed at
+ * the number of listings rather than the amount of footage: two reels visible
+ * against three published, with the third invisible since the day it went up
+ * (yuvoy-app#18). `/experiences` is untouched and still right for a search or
+ * a category listing; it simply is not the feed.
  *
  * The first page is fetched on the SERVER and handed to the client as initial
  * data, so the first cards are in the HTML.
@@ -65,7 +70,7 @@ export const metadata: Metadata = pageMetadata({
 });
 
 interface Prefetched {
-  page: ExperiencePage | null;
+  page: ReelsPage | null;
   /** When this actually came back. Stamped here, inside the async work,
    *  rather than during render — a clock read in a render path is impure
    *  and the React compiler refuses it, server component or not. */
@@ -75,7 +80,9 @@ interface Prefetched {
 async function getFirstPage(): Promise<Prefetched> {
   try {
     const api = createApiClient();
-    const { data, error } = await api.GET("/experiences", {});
+    const { data, error } = await api.GET("/reels", {
+      params: { query: { limit: REELS_LIMIT } },
+    });
     if (error) throw error;
     return { page: data, fetchedAt: Date.now() };
   } catch {

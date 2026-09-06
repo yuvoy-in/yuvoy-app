@@ -7,8 +7,14 @@
  */
 
 export const CACHE = {
-  /** Feed pages. Cheap to refetch, and the feed is not a promise. */
-  listExperiences: { staleTime: 60_000, gcTime: 30 * 60_000 },
+  /**
+   * The reels feed. Cheap to refetch, and the feed is not a promise.
+   *
+   * Same numbers the experience feed used, for the same reason: it changes as
+   * operators put footage up and as seats go, and a minute-old feed costs
+   * nothing. It is one answer rather than a page — `/reels` has no cursor.
+   */
+  listReels: { staleTime: 60_000, gcTime: 30 * 60_000 },
 
   /** The experience page. Also precached by the service worker. */
   getExperience: { staleTime: 5 * 60_000, gcTime: 24 * 60 * 60_000 },
@@ -31,8 +37,12 @@ export const CACHE = {
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
 export const qk = {
-  experiences: (filters?: Record<string, string | undefined>) =>
-    ["listExperiences", filters ?? {}] as const,
+  /**
+   * The feed. Keyed by `limit` because that is the only parameter the endpoint
+   * takes, and an answer capped at 30 is not the same answer as one capped at
+   * 60 — sharing a key between them would serve the shorter one as the feed.
+   */
+  reels: (limit: number) => ["listReels", limit] as const,
   experience: (slug: string) => ["getExperience", slug] as const,
   availability: (slug: string, from?: string, to?: string) =>
     ["getAvailability", slug, from ?? null, to ?? null] as const,

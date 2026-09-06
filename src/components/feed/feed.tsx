@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useFeed, flattenFeed, type FeedFilters } from "@/lib/feed/use-feed";
-import type { components } from "@/lib/api/schema.gen";
+import {
+  useReels,
+  playableReels,
+  isPossiblyTruncated,
+  type ReelsPage,
+} from "@/lib/feed/use-reels";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { ExperienceCard } from "./experience-card";
 import {
@@ -111,26 +115,18 @@ function FeedMasthead() {
 }
 
 export function Feed({
-  filters = {},
   initialPage,
   initialFetchedAt,
 }: {
-  filters?: FeedFilters;
-  /** The first page, server-rendered. See app/page.tsx for why. */
-  initialPage?: components["schemas"]["ExperiencePage"] | null;
+  /** The first answer, server-rendered. See app/page.tsx for why. */
+  initialPage?: ReelsPage | null;
   /** When the server fetched it. Epoch ms. */
   initialFetchedAt?: number;
 }) {
-  const {
-    data,
-    error,
-    isPending,
-    isError,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch,
-  } = useFeed(filters, initialPage, initialFetchedAt);
+  const { data, error, isPending, isError, refetch } = useReels(
+    initialPage,
+    initialFetchedAt,
+  );
 
   const setActiveIndex = useFeedStore((s) => s.setActiveIndex);
   const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
@@ -140,14 +136,27 @@ export function Feed({
   const shouldMount = useFeedStore((s) => s.shouldMount);
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Decide once, on mount, whether video may autoplay at all.
   useEffect(() => {
     setAutoplayAllowed(detectAutoplayAllowed());
   }, [setAutoplayAllowed]);
 
-  const items = flattenFeed(data?.pages);
+  /*
+    The server's order, untouched. Reels are numbered within each business, so
+    everyone's first reel precedes anybody's second — an ordering built so it
+    cannot express a preference for any operator. Sorting here by recency, or
+    by anything, would hand the feed to whoever uploaded most recently.
+  */
+  const items = playableReels(data);
+
+  /*
+    Whether the API might be holding more. `/reels` has no cursor, so a full
+    answer and a coincidentally-full one look identical — and "that is
+    everything" is the one claim on this screen that can be false with nobody
+    noticing.
+  */
+  const maybeMore = isPossiblyTruncated(data);
 
   /**
    * ONE observer for the whole feed, wired in an effect.
@@ -193,21 +202,16 @@ export function Feed({
     // Re-runs when the item count changes, which is when a page arrives.
   }, [items.length, setActiveIndex]);
 
-  // Infinite scroll. Fires early enough that the next page is usually there
-  // before the traveller reaches it, which on a slow connection is the whole
-  // difference between a feed and a series of waits.
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasNextPage || isFetchingNextPage) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) void fetchNextPage();
-      },
-      { root: scrollerRef.current, rootMargin: "200% 0px" },
-    );
-    obs.observe(node);
-    return () => obs.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  /*
+    There is no infinite scroll here, and its absence is deliberate.
+
+    `GET /reels` takes a `limit` and returns no cursor, so there is no next
+    page to fetch. The previous feed paged properly against `/experiences`;
+    the honest replacement for paging that does not exist is none, not a
+    client-side imitation that re-requests rows it already holds. The gap is
+    recorded in `contracts/PINNED` and raised upstream — when a cursor lands,
+    the sentinel and its observer come back.
+  */
 
   /* ------------------------------------------------------------- loading */
   if (isPending) {
@@ -275,12 +279,19 @@ export function Feed({
           )}
           // The feed is a list of experiences; announce it as one.
           role="feed"
-          aria-busy={isFetchingNextPage}
         >
-          {items.map((experience, i) => (
+          {/*
+            Keyed by the CLIP, not the listing. One listing may appear several
+            times in this feed with a different reel each — that is the whole
+            point of `/reels` — and keying by `experience.id` would give React
+            duplicate keys, unmount the wrong card on a refetch, and hand one
+            clip's player state to another.
+          */}
+          {items.map((reel, i) => (
             <ExperienceCard
-              key={experience.id}
-              experience={experience}
+              key={reel.media!.id}
+              experience={reel.experience!}
+              media={reel.media}
               index={i}
               total={items.length}
               active={i === activeIndex}
@@ -290,28 +301,22 @@ export function Feed({
             />
           ))}
 
-          {/* Sentinel. Only rendered while the server says there is more. */}
-          {hasNextPage ? (
-            <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
-          ) : null}
-
-          {isFetchingNextPage ? (
-            <div className="tabbar-clearance flex items-center justify-center pt-10">
-              <span className="label text-cream/60">Loading more</span>
-            </div>
-          ) : null}
-
           {/*
-            The end of the feed, stated. `complete` is told by the server, never
-            inferred from a short page.
+            The end of the feed — and the claim is withheld when it might not
+            be true.
+
+            `/reels` has no cursor and no `complete` flag, so a full answer is
+            indistinguishable from a clipped one. At the cap we say the feed is
+            capped; below it, the server had nothing more to give and "that is
+            everything" is a fact rather than an inference from a short page.
           */}
-          {!hasNextPage ? (
-            <div className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center">
-              <p className="text-cream/60 text-xs">
-                That is everything on sale right now.
-              </p>
-            </div>
-          ) : null}
+          <div className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center">
+            <p className="text-cream/60 text-xs">
+              {maybeMore
+                ? "That is the first " + items.length + " reels."
+                : "That is everything on sale right now."}
+            </p>
+          </div>
         </div>
       </div>
     </>

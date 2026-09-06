@@ -8,9 +8,34 @@
 #
 # `pnpm contract:check` fails the build if this copy stops matching the ref.
 repo=yuvoy-in/yuvoy-api
-# 3 Sep 2026: master moved (yuvoy-api PRs #57, #58, #61, #65, #77). Only the
-# OPERATOR contract changed; contracts/openapi.yaml is byte-identical at both
-# refs, so this bump is bookkeeping — all three frontends pin one commit.
-ref=2dc9472adb63b5277112fe25a491979dbc814cd4
+# 6 Sep 2026. Forward from 2dc9472a, which was pinned on 3 September and has
+# been overtaken by ten merges. Diffed as a parsed schema tree rather than as
+# text, because the last two defects on this document were both YAML that
+# parsed cleanly into the wrong place (yuvoy-api#92, #103): the change is
+# PURELY ADDITIVE — twenty new schema paths, nothing removed, nothing retyped.
+#
+# Consumed in this change (yuvoy-app#18):
+#   - `GET /reels` — the feed. `/v1/experiences` returns one listing per row
+#     with a single `heroMedia` each, so the number of reels a traveller could
+#     see was capped at the number of listings however much operators filmed.
+#     Two visible against three published, and the third had been invisible
+#     since the day it went up.
+#   - `ExperienceSummary.seatsOnNextDisplay` — the seat sentence, decided
+#     server-side. Fixes yuvoy-api#92, where it had been swallowed into
+#     `BookingMode`'s description and was not a field at all. The card had been
+#     printing "N seats left" below a threshold IT kept, which is a second copy
+#     of a rule the server owns; that copy is now deleted.
+#   - `OperatorSummary.logoUrl` — shown where a listing has no reel of its own.
+#
+# Landed and NOT consumed, each needing its own issue before anything is built:
+#   - `BookingStatus.meetingPoint` / `.cancellation` / `.requestExpiresAt`
+#   - `ReservationContact.marketingConsent`
+#
+# Known gap, raised rather than papered over: `GET /reels` takes `limit`
+# (1–60, default 30) and returns no cursor, so the feed is one page and stops
+# at 60. Fine at three reels; not fine later. Raised on yuvoy-api rather than
+# faking pagination client-side, because a client that invents paging over an
+# unpaged endpoint re-requests the same rows.
+ref=d40ae3b1a97e62fa344905a53921d7c7f74e8c54
 branch=master
-pinned_on=2026-09-03
+pinned_on=2026-09-06

@@ -236,6 +236,57 @@ export const EXPERIENCES: ExperienceSummary[] = [
   },
 ];
 
+/**
+ * The feed — **every published reel**, not one per listing.
+ *
+ * This is the fixture for `GET /reels` (yuvoy-app#18), and it exists to model
+ * the two things `EXPERIENCES` structurally cannot:
+ *
+ * ## 1. A listing appears more than once
+ *
+ * `exp_try_dive` carries THREE clips and `exp_charter` two. That is the whole
+ * defect the endpoint fixes: `/experiences` returns one `heroMedia` per row, so
+ * a traveller saw as many reels as there were listings however much footage
+ * existed. In production on 6 September that was two visible against three
+ * published.
+ *
+ * A card keyed by `experience.id` would give React duplicate keys against this
+ * fixture, which is exactly why it is shaped this way.
+ *
+ * ## 2. The ordering interleaves operators, and is not ours to change
+ *
+ * Reels are numbered within each BUSINESS and ordered by that number, so
+ * everyone's first reel precedes anybody's second. Below, reading down: reef#1,
+ * blue#1, new#1, reef#2, blue#2, reef#3 — three operators taking turns, never
+ * one operator's whole catalogue in a row.
+ *
+ * That is not a nicety. Our anchor operator is a co-founder's business, and the
+ * ordering is built so it *cannot* express a preference for any operator: it
+ * rotates them, it never ranks them. A client that re-sorts this — by recency,
+ * by anything — hands the feed to whoever uploaded most recently. The order
+ * here is deliberately NOT sorted by any field a client could reconstruct, so
+ * a test can tell "passed through" from "coincidentally agrees".
+ */
+export const REELS: { media: Media; experience: ExperienceSummary }[] = (() => {
+  const by = (id: string) => EXPERIENCES.find((e) => e.id === id)!;
+  const dive = by("exp_try_dive");
+  const snorkel = by("exp_snorkel");
+  const kayak = by("exp_kayak");
+  const charter = by("exp_charter");
+
+  return [
+    // Round one: each business's first clip.
+    { media: withClip(poster("dive", 0)), experience: dive },
+    { media: poster("snorkel", 1), experience: snorkel },
+    { media: poster("kayak", 3), experience: kayak },
+    // Round two: each business's second, in the same rotation.
+    { media: poster("dive-b", 2), experience: dive },
+    { media: poster("charter", 4), experience: charter },
+    // Round three: only the business that has a third.
+    { media: poster("dive-c", 1), experience: dive },
+  ];
+})();
+
 const MEETING: components["schemas"]["MeetingPoint"] = {
   text: "Jetty 2, Havelock",
   landmark: "The blue kiosk. Be there 15 minutes before departure.",

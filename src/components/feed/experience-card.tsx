@@ -17,6 +17,7 @@ import {
 import { ShareExperience } from "@/components/experience/share-experience";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
+type Media = components["schemas"]["Media"];
 
 /**
  * One experience, one card, full-bleed 9:16.
@@ -32,6 +33,7 @@ type ExperienceSummary = components["schemas"]["ExperienceSummary"];
  */
 export function ExperienceCard({
   experience,
+  media,
   active,
   mounted,
   muted,
@@ -40,6 +42,19 @@ export function ExperienceCard({
   total,
 }: {
   experience: ExperienceSummary;
+  /**
+   * The clip this card is showing.
+   *
+   * Passed in rather than read off `experience.heroMedia`, and that is the
+   * whole shape of yuvoy-app#18: the feed is built on `GET /reels`, where one
+   * listing may appear several times with a different clip each — a listing's
+   * hero is one of its reels, not the only one a traveller may see.
+   *
+   * Optional, because a card with no clip is still a complete card. That is a
+   * real state on `/e/[slug]` and a defensive one in the feed, where the
+   * contract makes `media` optional even though the endpoint is reels.
+   */
+  media?: Media;
   active: boolean;
   mounted: boolean;
   muted: boolean;
@@ -66,9 +81,9 @@ export function ExperienceCard({
       aria-setsize={total}
       aria-label={experience.title}
     >
-      {experience.heroMedia ? (
+      {media ? (
         <FeedPlayer
-          media={experience.heroMedia}
+          media={media}
           active={active}
           mounted={mounted}
           muted={muted}
@@ -83,9 +98,29 @@ export function ExperienceCard({
           onRequestPlay={() => setAutoplayAllowed(true)}
         />
       ) : (
-        // No media at all. Still a complete card — an editorial type plate,
-        // the same fallback the marketing site's destination panels use.
-        <div className="bg-abyss absolute inset-0 flex items-center justify-center px-8">
+        /*
+          No clip. Still a complete card — an editorial type plate, the same
+          fallback the marketing site's destination panels use.
+
+          The operator's logo goes above it when they have set one, because a
+          business's own mark says more than a rectangle of nothing. It is
+          `logoUrl` on `OperatorSummary`, "present when the business has set a
+          logo, absent when not" — so there is no placeholder branch and no
+          broken-image state to design around.
+        */
+        <div className="bg-abyss absolute inset-0 flex flex-col items-center justify-center gap-6 px-8">
+          {experience.operator.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a remote
+            // operator logo on an arbitrary host; `next/image` would need every
+            // such host in `remotePatterns`, which is a deploy to add a partner.
+            <img
+              src={experience.operator.logoUrl}
+              alt={experience.operator.name}
+              className="max-h-20 w-auto max-w-[40%] object-contain opacity-80"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
           <p className="font-display text-cream/60 text-center text-3xl leading-tight">
             {experience.title}
           </p>
@@ -131,7 +166,7 @@ export function ExperienceCard({
               {experience.nextAvailable
                 ? nextAvailableLabel(
                     experience.nextAvailable,
-                    experience.seatsOnNext,
+                    experience.seatsOnNextDisplay,
                   )
                 : "No dates in the next 90 days"}
             </p>
@@ -199,10 +234,26 @@ export function ExperienceCard({
 }
 
 /**
- * `seatsOnNext` is present only for allotment mode — a request-mode departure
- * holds nothing, so a number would be a promise we cannot keep.
+ * The next departure, and what the server says about its seats.
+ *
+ * ## `seatsOnNextDisplay` is rendered verbatim, and the threshold is gone
+ *
+ * This function used to take `seatsOnNext` (an integer) and print "N seats
+ * left" below a threshold of five that it kept ITSELF — a second copy of a
+ * rule the server owns. "The moment the threshold moves — or counts start
+ * being suppressed — the card and the slot row disagree about the same
+ * departure."
+ *
+ * So the server now decides the sentence and the card prints it. Absent means
+ * **say nothing about availability**, not "derive one from `seatsOnNext`":
+ * both live listings are `request` mode today and the field correctly does not
+ * appear on either, because a request-mode departure holds nothing until an
+ * operator says yes and a seat count there is a promise Yuvoy cannot keep.
+ *
+ * yuvoy-api#92 — the field existed only inside `BookingMode`'s description
+ * until 6 September, which is why the threshold survived this long.
  */
-function nextAvailableLabel(date: string, seats?: number): string {
+function nextAvailableLabel(date: string, seatsSentence?: string): string {
   const when = new Intl.DateTimeFormat("en-IN", {
     weekday: "short",
     day: "numeric",
@@ -210,8 +261,5 @@ function nextAvailableLabel(date: string, seats?: number): string {
     timeZone: "Asia/Kolkata",
   }).format(new Date(`${date}T00:00:00+05:30`));
 
-  if (typeof seats === "number" && seats > 0 && seats <= 5) {
-    return `Next ${when} · ${seats} seat${seats === 1 ? "" : "s"} left`;
-  }
-  return `Next ${when}`;
+  return seatsSentence ? `Next ${when} · ${seatsSentence}` : `Next ${when}`;
 }
