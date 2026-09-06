@@ -53,6 +53,7 @@ export function ExperienceCard({
   // poster that will never play, so no dead mute disc is drawn.
   const [playable, setPlayable] = useState(false);
   const toggleMuted = useFeedStore((s) => s.toggleMuted);
+  const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
 
   return (
     <article
@@ -73,6 +74,13 @@ export function ExperienceCard({
           muted={muted}
           autoplayAllowed={autoplayAllowed}
           onPlayableChange={setPlayable}
+          /*
+            Asked once, trusted from then on. A traveller who taps play has
+            answered the question the connection heuristic was guessing at, so
+            the rest of the feed stops guessing — scrolling to the next card
+            and having to tap again would read as the app not listening.
+          */
+          onRequestPlay={() => setAutoplayAllowed(true)}
         />
       ) : (
         // No media at all. Still a complete card — an editorial type plate,

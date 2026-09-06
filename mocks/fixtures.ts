@@ -94,10 +94,31 @@ const poster = (seed: string, variant = 0): Media => {
     aspectRatio: "9:16",
     durationSeconds: 42,
     alt: "Placeholder poster frame",
-    // hlsUrl deliberately absent — not populated before M15. The feed must be
-    // complete without it.
+    // hlsUrl deliberately absent by default — the feed must be complete
+    // without it, and most fixtures keep proving that. `withClip()` adds one
+    // for the cases that are about the player rather than the card.
   };
 };
+
+/**
+ * The same poster, with a clip attached.
+ *
+ * Exactly one fixture uses this. The rest stay poster-only, because "a card is
+ * COMPLETE with only a poster" is a property worth continuing to test — but
+ * with NO fixture carrying `hlsUrl`, the entire player was unreachable from
+ * the suite, which is how yuvoy-app#17 shipped: every reel a dead poster on
+ * Safari, and nothing in the tests able to notice.
+ *
+ * The URL does not resolve, and does not need to. What it makes testable is
+ * everything up to attaching the source: whether the `<video>` is allowed to
+ * exist, and whether a play control is drawn when autoplay is refused. Real
+ * playback against real HLS is not something this suite can prove, and the
+ * tests that use this say so.
+ */
+export const withClip = (media: Media): Media => ({
+  ...media,
+  hlsUrl: "https://stream.example.invalid/mock/manifest.m3u8",
+});
 
 const operatorReef: components["schemas"]["OperatorSummary"] = {
   id: "op_reef",
@@ -140,7 +161,7 @@ export const EXPERIENCES: ExperienceSummary[] = [
     durationMinutes: 180,
     maxPartySize: 6,
     fromPrice: inr(4500),
-    heroMedia: poster("dive", 0),
+    heroMedia: withClip(poster("dive", 0)),
     operator: operatorReef,
     nextAvailable: "2026-08-20",
     seatsOnNext: 4,

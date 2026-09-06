@@ -70,6 +70,66 @@ test("a traveller can go from the feed to a held booking", async ({ page }) => {
   await expect(page).not.toHaveTitle(/t=/);
 });
 
+test("a poster is never a dead end — reduced motion still gets a play control", async ({
+  page,
+}) => {
+  /*
+    yuvoy-app#17, reported by the owner as "videos are not getting played
+    correctly" with correct media behind it the whole time.
+
+    `detectAutoplayAllowed()` returned false whenever `navigator.connection`
+    was absent — Safari, Firefox and all of iOS, which `feed-player.tsx` calls
+    "most of our traffic" in its own header. The `<video>` element was gated on
+    that same flag, so it was never mounted and there was no control anywhere
+    to press. Every reel, a still image, permanently.
+
+    Reduced motion is emulated here because it is the one path to "autoplay
+    refused" that a test can force in Chromium, which HAS the Network
+    Information API and would otherwise just autoplay. It exercises the same
+    branch, and it is a real user besides: preferring less movement should not
+    mean never seeing the video.
+
+    ❌ NOT proven here: that a clip actually plays. The fixture's `hlsUrl` does
+    not resolve, and real HLS playback is not something this suite can stand
+    up. What this pins is the regression — that there is a way in at all.
+  */
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+
+  const play = page.getByRole("button", { name: /^Play / });
+  await expect(play).toBeVisible();
+
+  // And it is a real target, not a decoration: 56px is the floor everywhere
+  // else in this app and a play control on a moving feed is no exception.
+  const box = await play.boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(56);
+  expect(box!.height).toBeGreaterThanOrEqual(56);
+});
+
+test("a card with no clip draws no play control", async ({ page }) => {
+  /*
+    The other half, and the reason the fixtures are not all given a clip: "a
+    card is COMPLETE with only a poster." A play button on a card that has no
+    video is a control that does nothing, which is the same class of defect as
+    no control at all.
+
+    The second card is poster-only. Scrolled to, so it is the active one —
+    the control is drawn for the active card only.
+  */
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+
+  await page.locator("[data-feed-index='1']").scrollIntoViewIfNeeded();
+  await expect(page.locator("[data-feed-index='1']")).toBeInViewport();
+  await expect(
+    page
+      .locator("[data-feed-index='1']")
+      .getByRole("button", { name: /^Play / }),
+  ).toHaveCount(0);
+});
+
 test("a closed departure is shown disabled, never hidden", async ({ page }) => {
   await page.goto("/e/try-dive-nemo-reef");
   await page.waitForLoadState("networkidle");
