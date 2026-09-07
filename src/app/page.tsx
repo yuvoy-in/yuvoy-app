@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
 import { pageMetadata } from "@/lib/site/metadata";
 import { Feed } from "@/components/feed/feed";
-import { REELS_LIMIT, type ReelsPage } from "@/lib/feed/reels";
+import { REELS_PAGE_SIZE, type ReelsPage } from "@/lib/feed/reels";
 
 /**
  * T2 — the reels feed. The app's front door.
@@ -14,8 +14,10 @@ import { REELS_LIMIT, type ReelsPage } from "@/lib/feed/reels";
  * (yuvoy-app#18). `/experiences` is untouched and still right for a search or
  * a category listing; it simply is not the feed.
  *
- * The first page is fetched on the SERVER and handed to the client as initial
- * data, so the first cards are in the HTML.
+ * The FIRST page is fetched on the SERVER and handed to the client as initial
+ * data, so the first cards are in the HTML. It carries no cursor, which is
+ * what makes it page one rather than an arbitrary page — everything after it
+ * is fetched in the browser as the traveller scrolls (yuvoy-api#114).
  *
  * That is a performance decision with a measured reason. When the whole feed
  * was client-rendered, FCP was 0.8s and LCP was 5.1s on a throttled mid-range
@@ -25,7 +27,10 @@ import { REELS_LIMIT, type ReelsPage } from "@/lib/feed/reels";
  * empty.
  *
  * Everything past the first page stays client-side: it is scroll-driven and
- * there is nothing for a crawler in it.
+ * there is nothing for a crawler in it. That is also why the page is twelve
+ * reels rather than sixty — this response is on the LCP path, and the 48 cards
+ * a traveller has not scrolled to are ~48 KB of JSON in the HTML that buys
+ * nothing. See `REELS_PAGE_SIZE`.
  */
 /*
   Rendered per request, not statically generated.
@@ -81,7 +86,7 @@ async function getFirstPage(scenario?: string): Promise<Prefetched> {
   try {
     const api = createApiClient();
     const { data, error } = await api.GET("/reels", {
-      params: { query: { limit: REELS_LIMIT } },
+      params: { query: { limit: REELS_PAGE_SIZE } },
       /*
         The `?__scenario=` switch, carried from the PAGE's query into this
         server-side call. Empty in any build without mocking.

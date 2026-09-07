@@ -12,7 +12,13 @@ export const CACHE = {
    *
    * Same numbers the experience feed used, for the same reason: it changes as
    * operators put footage up and as seats go, and a minute-old feed costs
-   * nothing. It is one answer rather than a page — `/reels` has no cursor.
+   * nothing.
+   *
+   * It is an infinite query (yuvoy-api#114), so `staleTime` governs the whole
+   * accumulated feed rather than one answer: going stale refetches every page
+   * loaded so far, in sequence, which is why the number is a minute and not
+   * five seconds. A traveller twelve pages deep does not want the scroll
+   * position they earned spent on a background re-walk of the cursor.
    */
   listReels: { staleTime: 60_000, gcTime: 30 * 60_000 },
 
@@ -38,11 +44,17 @@ export const CACHE = {
 /** Query keys derive from the operationId so invalidation is mechanical. */
 export const qk = {
   /**
-   * The feed. Keyed by `limit` because that is the only parameter the endpoint
-   * takes, and an answer capped at 30 is not the same answer as one capped at
-   * 60 — sharing a key between them would serve the shorter one as the feed.
+   * The feed. Keyed by page size, and NOT by cursor — the cursor is a page
+   * param, which React Query stores inside this entry rather than beside it.
+   * A key that included the cursor would give every page its own entry and
+   * lose the accumulated feed on the first refetch.
+   *
+   * The page size stays in the key because a feed paged twelve at a time is
+   * not the same accumulated answer as one paged sixty at a time, and sharing
+   * an entry between them would hand one page size's pages to the other's
+   * cursor.
    */
-  reels: (limit: number) => ["listReels", limit] as const,
+  reels: (pageSize: number) => ["listReels", pageSize] as const,
   experience: (slug: string) => ["getExperience", slug] as const,
   availability: (slug: string, from?: string, to?: string) =>
     ["getAvailability", slug, from ?? null, to ?? null] as const,

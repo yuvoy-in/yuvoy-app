@@ -413,11 +413,29 @@ paths:
         appears across twenty rounds rather than twenty times in a row. The
         ordering is blind to which operator: it rotates them, and cannot express
         a preference for one. Stable between requests.
+
+
+        **Paged, and it says whether it ended.** Pass `nextCursor` back to
+        continue; its absence, with `complete: true`, is the end. Do not infer
+        the end from a short page — a page that happens to come back exactly
+        full would stop the scroll early, and an infinite scroll that has
+        silently stopped looks identical to one with nothing more to show, so
+        nobody reports it.
+
+
+        The cursor resumes inside the rotation rather than at a timestamp, which
+        is why a client must not attempt to page this ordering itself: restart
+        the rotation and one business's second reel arrives before another's
+        first, and the ordering stops being blind to which operator.
       operationId: listReels
       parameters:
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 60, default: 30 }
+        - name: cursor
+          in: query
+          description: From a previous response's `nextCursor`. Opaque; do not construct one.
+          schema: { type: string }
       responses:
         "200":
           description: Reels, each with the listing it sells.
@@ -425,6 +443,7 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [items, complete]
                 properties:
                   items:
                     type: array
@@ -433,6 +452,15 @@ paths:
                       properties:
                         media: { $ref: "#/components/schemas/Media" }
                         experience: { $ref: "#/components/schemas/ExperienceSummary" }
+                  complete:
+                    type: boolean
+                    description: >-
+                      Told rather than inferred. `false` with no `nextCursor`
+                      means the server stopped, which is a different thing from
+                      the feed having ended.
+                  nextCursor:
+                    type: string
+                    description: Absent when there is nothing after this page.
         "400": { $ref: "#/components/responses/BadRequest" }
 
   /experiences:

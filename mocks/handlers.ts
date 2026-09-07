@@ -2,6 +2,7 @@ import { http, HttpResponse, delay } from "msw";
 import {
   EXPERIENCES,
   REELS,
+  LONG_REEL_FEED,
   EXPERIENCE_DETAIL,
   availabilityFor,
   FIXTURE_NOW,
@@ -36,7 +37,28 @@ export type Scenario =
   | "stale-availability"
   | "capacity-unavailable"
   | "cutoff-passed"
-  | "request-window-closed";
+  | "request-window-closed"
+  /*
+    A feed long enough to page.
+
+    The `REELS` fixture is six reels — deliberately, because its job is to
+    prove the operator rotation is passed through untouched, and six across
+    three rounds is what makes that legible. Six is smaller than one page, so
+    against the real fixture the scroll never reaches a second request and
+    every paging path would be exercised only in unit tests.
+
+    So the length lives in a scenario rather than in the fixture: the rotation
+    stays readable, and `/?__scenario=long-feed` walks real cursors through
+    real page boundaries in the browser and in Playwright.
+  */
+  | "long-feed"
+  /*
+    `complete: false` with NO `nextCursor` — the contract's third case, "a
+    different thing from the feed having ended". Unreachable from the fixture
+    otherwise, and it is the one tail state that has no test unless something
+    can produce it on demand.
+  */
+  | "feed-stopped";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -136,12 +158,30 @@ export const handlers = [
   }),
 
   /**
-   * The feed. Every published reel, each with the listing it sells.
+   * The feed. Every published reel, each with the listing it sells — paged.
    *
-   * No cursor and no `complete` flag — the endpoint takes `limit` (1–60,
-   * default 30) and answers once. The mock enforces the same bounds the
-   * contract states, including the 400, so a client that asks for 100 finds
-   * out here rather than in production.
+   * The endpoint takes `limit` (1–60, default 30) and a `cursor`, and answers
+   * with `complete` and `nextCursor` (yuvoy-api#114). The mock enforces the
+   * same bounds the contract states, including the 400, so a client that asks
+   * for 100 finds out here rather than in production.
+   *
+   * ## Three details copied from the real API rather than assumed
+   *
+   * **`nextCursor` is OMITTED on the last page, not sent as `null`.** Verified
+   * against `api.yuvoy.in`: the final page's keys are `complete` and `items`
+   * and nothing else. A mock that sent `null` would let a client that only
+   * handles `undefined` pass here and stall in production.
+   *
+   * **The cursor is opaque.** It is base64 here and something else upstream —
+   * the point is that a client cannot read it, so nothing in the app is
+   * allowed to construct or decode one. In production it carries the round a
+   * reel is in for its own operator, which is why client-side paging over this
+   * ordering is impossible.
+   *
+   * **A cursor is honoured even when the page is complete.** A stale cursor
+   * pointing past the end answers an empty, complete page rather than 400 —
+   * the same thing the API does, and the reason a client refetching an old
+   * page does not blow up.
    *
    * The order is the fixture's order, passed through untouched. Nothing here
    * sorts, because nothing in production sorts: reels are numbered within each
@@ -168,9 +208,51 @@ export const handlers = [
     }
 
     const scenario = scenarioOf(request);
-    const items = scenario === "empty" ? [] : REELS.slice(0, limit);
+    const all =
+      scenario === "empty"
+        ? []
+        : scenario === "long-feed"
+          ? LONG_REEL_FEED
+          : REELS;
 
-    return HttpResponse.json({ items }, { headers: mockHeaders(requestId()) });
+    const rawCursor = u.searchParams.get("cursor");
+    const start = rawCursor ? Number(atob(rawCursor)) : 0;
+    if (rawCursor && !Number.isInteger(start)) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "invalid_input",
+            message: "cursor is not one this API issued.",
+          },
+        },
+        { status: 400, headers: mockHeaders(requestId()) },
+      );
+    }
+
+    const items = all.slice(start, start + limit);
+    const next = start + limit;
+    const complete = next >= all.length;
+
+    /*
+      The server stopped, without a cursor and without claiming the end. Sent
+      on the FIRST page only, so the state is reachable in one request.
+    */
+    if (scenario === "feed-stopped") {
+      return HttpResponse.json(
+        { items, complete: false },
+        { headers: mockHeaders(requestId()) },
+      );
+    }
+
+    return HttpResponse.json(
+      // Spread rather than a `null`, so the key is genuinely absent.
+      {
+        items,
+        complete,
+        ...(complete ? {} : { nextCursor: btoa(String(next)) }),
+      },
+      { headers: mockHeaders(requestId()) },
+    );
   }),
 
   http.get(url("/experiences/:slug"), async ({ request, params }) => {

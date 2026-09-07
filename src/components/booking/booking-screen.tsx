@@ -17,6 +17,7 @@ import {
   Skeleton,
 } from "@/components/states";
 import { openHostedCheckout } from "@/lib/booking/payment-handoff";
+import { YuvoyError, isCheckoutDeadEnd } from "@/lib/api/errors";
 import { CancelSheet } from "./cancel-sheet";
 import { ShareButton } from "./share-button";
 import { ReviewForm } from "./review-form";
@@ -461,6 +462,26 @@ function PayButton({ status }: { status: BookingStatus }) {
   const failure = order.error ? describeError(order.error) : null;
   const busy = order.isPending || handoff === "opening";
 
+  /*
+    A checkout that cannot be finished, and the way out of it.
+
+    `operator_not_bookable` is new here (yuvoy-app#19 §3): the operator's
+    standing is re-checked when a traveller RE-ENTERS checkout, not only when
+    they first took the seat, which closes the window where a traveller could
+    hold seats, the operator be switched off, and the traveller pay anyway.
+    `reservation_not_payable` is the same shape and much commoner — a hold that
+    lapsed while somebody found their card.
+
+    Both used to render as a panel of text on a screen whose only control is a
+    Pay button that will fail again. The copy already said "pick a departure
+    again"; there was nothing to tap that got them there, so the traveller's
+    options were the browser's back button or leaving. The dates are one link
+    away and `BookingStatus.experience.slug` is required by the contract, so
+    the screen can simply offer it.
+  */
+  const deadEnd =
+    order.error instanceof YuvoyError && isCheckoutDeadEnd(order.error.code);
+
   return (
     <div className="mt-6">
       <Button size="lg" block onClick={() => order.mutate()} disabled={busy}>
@@ -504,7 +525,20 @@ function PayButton({ status }: { status: BookingStatus }) {
         </p>
       ) : null}
 
-      {failure ? <FailurePanel failure={failure} className="mt-4" /> : null}
+      {failure ? (
+        <FailurePanel failure={failure} className="mt-4">
+          {deadEnd ? (
+            <ButtonLink
+              href={`/e/${status.experience.slug}`}
+              variant="outline"
+              size="sm"
+              className="mt-4"
+            >
+              See other dates
+            </ButtonLink>
+          ) : null}
+        </FailurePanel>
+      ) : null}
     </div>
   );
 }

@@ -98,6 +98,36 @@ export function isClientBug(code: ErrorCode): boolean {
   return (CLIENT_BUGS as readonly string[]).includes(code);
 }
 
+/**
+ * Codes that END a checkout, where the only move left is picking a departure
+ * again.
+ *
+ * These are not retryable and they are not errors the traveller can wait out.
+ * The seat is gone: either the hold lapsed, or the operator stopped selling
+ * between holding it and paying for it. Copy alone is not enough on a screen
+ * whose only control is a Pay button — a traveller reading "pick a departure
+ * again" with no way to get there is being told what to do and not how.
+ *
+ * `operator_not_bookable` on `POST /reservations/{id}/payment-order` is the
+ * newer half (yuvoy-app#19 §3). The operator's standing is now re-checked when
+ * a traveller RE-ENTERS checkout rather than only when they first take a seat,
+ * which closes a real window: hold seats, operator switched off, traveller
+ * pays anyway.
+ *
+ * `reservation_not_payable` is the older and far commoner half — a lapsed
+ * hold, a released reservation, a request that was never accepted. The
+ * contract folds them into one code deliberately, because "they differ to us
+ * and not to the traveller, whose next step is the same in every case".
+ */
+export const CHECKOUT_DEAD_ENDS = [
+  "operator_not_bookable",
+  "reservation_not_payable",
+] as const satisfies readonly ErrorCode[];
+
+export function isCheckoutDeadEnd(code: string): boolean {
+  return (CHECKOUT_DEAD_ENDS as readonly string[]).includes(code);
+}
+
 /** The `{ error: { ... } }` envelope every endpoint returns on failure. */
 export interface ErrorEnvelope {
   error: {

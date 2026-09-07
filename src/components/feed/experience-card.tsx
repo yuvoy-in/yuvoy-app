@@ -60,6 +60,12 @@ export function ExperienceCard({
   muted: boolean;
   autoplayAllowed: boolean;
   index: number;
+  /**
+   * How many reels the feed HAS, or `-1` when that is not yet known.
+   *
+   * `-1` is ARIA's own value for an unknown set size, and it is what an
+   * unfinished infinite scroll actually knows. See `Feed`'s `setSize`.
+   */
   total: number;
 }) {
   const price = formatFromPrice(experience.fromPrice);

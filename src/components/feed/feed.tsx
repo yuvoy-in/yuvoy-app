@@ -2,11 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useReels } from "@/lib/feed/use-reels";
-import {
-  playableReels,
-  isPossiblyTruncated,
-  type ReelsPage,
-} from "@/lib/feed/reels";
+import { playableReels, feedTail, type ReelsPage } from "@/lib/feed/reels";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { ExperienceCard } from "./experience-card";
 import {
@@ -123,10 +119,27 @@ export function Feed({
   /** When the server fetched it. Epoch ms. */
   initialFetchedAt?: number;
 }) {
-  const { data, error, isPending, isError, refetch } = useReels(
-    initialPage,
-    initialFetchedAt,
-  );
+  const {
+    data,
+    error,
+    isPending,
+    /*
+      NOT `isError`, and the difference is the whole feed.
+
+      On an infinite query `isError` is true whenever the LAST fetch failed —
+      including a `fetchNextPage` that failed with eleven good cards already on
+      screen, and including a background refetch. Branching the full-screen
+      error state on it would throw a working feed away because page four did
+      not arrive. `isLoadingError` is the narrow one: the query has no data at
+      all, so there is nothing to show but the failure.
+    */
+    isLoadingError,
+    isFetchNextPageError,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useReels(initialPage, initialFetchedAt);
 
   const setActiveIndex = useFeedStore((s) => s.setActiveIndex);
   const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
@@ -136,6 +149,7 @@ export function Feed({
   const shouldMount = useFeedStore((s) => s.shouldMount);
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Decide once, on mount, whether video may autoplay at all.
   useEffect(() => {
@@ -148,15 +162,30 @@ export function Feed({
     cannot express a preference for any operator. Sorting here by recency, or
     by anything, would hand the feed to whoever uploaded most recently.
   */
-  const items = playableReels(data);
+  const items = playableReels(data?.pages);
 
   /*
-    Whether the API might be holding more. `/reels` has no cursor, so a full
-    answer and a coincidentally-full one look identical — and "that is
-    everything" is the one claim on this screen that can be false with nobody
-    noticing.
+    What the bottom of the feed is allowed to say — told by the server, never
+    inferred from a short page. Three outcomes rather than two: the feed ended,
+    there is more, or the server stopped without a cursor, which the contract
+    is explicit is "a different thing from the feed having ended".
   */
-  const maybeMore = isPossiblyTruncated(data);
+  const tail = feedTail(data?.pages);
+
+  /**
+   * How many reels this feed HAS, or `-1` for "nobody knows yet".
+   *
+   * `aria-setsize` is a claim, and paging made the obvious value a false one:
+   * `items.length` on a first page of twelve tells a screen reader user "1 of
+   * 12" about a feed with forty in it, and then silently renumbers everything
+   * when page two lands. `-1` is ARIA's own word for an unknown total and is
+   * the honest answer until the server says `complete`.
+   *
+   * `server_stopped` counts as unknown too: the server stopped without a
+   * cursor, which the contract is explicit is not the same as the feed having
+   * ended, so the count in hand is not the total either.
+   */
+  const setSize = tail === "complete" ? items.length : -1;
 
   /**
    * ONE observer for the whole feed, wired in an effect.
@@ -202,16 +231,65 @@ export function Feed({
     // Re-runs when the item count changes, which is when a page arrives.
   }, [items.length, setActiveIndex]);
 
-  /*
-    There is no infinite scroll here, and its absence is deliberate.
+  /**
+   * The decision to fetch, kept in a ref so the observer below never has to be
+   * rebuilt to see a fresh one.
+   *
+   * Assigned in an effect rather than during render — writing a ref during
+   * render is what React forbids, and the reason the active-card observer
+   * above ended up on its third design. The guard lives here rather than in
+   * the observer's dependency list, so a fetch starting and finishing does not
+   * tear an IntersectionObserver down and build another.
+   *
+   * **A failed page is deliberately NOT guarded out**, and that is what makes
+   * the retry work without a control. An IntersectionObserver reports CHANGES
+   * in intersection, so a sentinel that is already on screen and stays there
+   * cannot ask twice — the only thing that fires it again is the traveller
+   * scrolling away and back, which is a deliberate act and exactly the gesture
+   * somebody makes when a feed stops. The tail says so in words.
+   *
+   * That is also why there is no Try again button: `role="feed"` may not
+   * contain one. See the tail.
+   */
+  const loadMore = useRef<() => void>(() => {});
+  useEffect(() => {
+    loadMore.current = () => {
+      if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+    };
+  });
 
-    `GET /reels` takes a `limit` and returns no cursor, so there is no next
-    page to fetch. The previous feed paged properly against `/experiences`;
-    the honest replacement for paging that does not exist is none, not a
-    client-side imitation that re-requests rows it already holds. The gap is
-    recorded in `contracts/PINNED` and raised upstream — when a cursor lands,
-    the sentinel and its observer come back.
-  */
+  /**
+   * The infinite scroll — one observer on the tail, not on every card.
+   *
+   * `rootMargin: "200% 0px"` fires it two screens early, so on a snap scroller
+   * the next page is in flight while the traveller is still two cards away.
+   * The alternative — firing when the tail is actually visible — means the
+   * traveller reaches the end of the feed and waits there, which is precisely
+   * the moment a feed feels broken.
+   *
+   * **Rebuilt when a page arrives**, which is what `pageCount` is doing in the
+   * dependency list and is not a leftover. An IntersectionObserver reports
+   * CHANGES in intersection: if the tail is still on screen after page two
+   * lands — a short page, a tall phone — no further entry ever fires and the
+   * feed stalls one page in, with a sentinel sitting in view doing nothing. A
+   * fresh observer re-reports the current state immediately. It costs one
+   * observer per page, not one per scroll.
+   */
+  const pageCount = data?.pages.length ?? 0;
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasNextPage) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadMore.current();
+      },
+      { root: scrollerRef.current, rootMargin: "200% 0px" },
+    );
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [hasNextPage, pageCount]);
 
   /* ------------------------------------------------------------- loading */
   if (isPending) {
@@ -234,7 +312,7 @@ export function Feed({
   }
 
   /* --------------------------------------------------------------- error */
-  if (isError) {
+  if (isLoadingError) {
     return (
       <>
         <FeedHeading />
@@ -293,7 +371,7 @@ export function Feed({
               experience={reel.experience!}
               media={reel.media}
               index={i}
-              total={items.length}
+              total={setSize}
               active={i === activeIndex}
               mounted={shouldMount(i)}
               muted={muted}
@@ -302,20 +380,55 @@ export function Feed({
           ))}
 
           {/*
-            The end of the feed — and the claim is withheld when it might not
-            be true.
+            The bottom of the feed, and the sentinel that fetches before a
+            traveller gets here.
 
-            `/reels` has no cursor and no `complete` flag, so a full answer is
-            indistinguishable from a clipped one. At the cap we say the feed is
-            capped; below it, the server had nothing more to give and "that is
-            everything" is a fact rather than an inference from a short page.
+            The completeness claim is the server's, not ours. `complete` is
+            told; a short page is never read as an ending, because a page that
+            happens to come back exactly full would stop the scroll early and
+            a silently stopped scroll looks identical to one with nothing more
+            to show — so nobody reports it.
+
+            Four things can be true here and they read differently, which is
+            the point: more is coming, more failed to come, the feed ended, or
+            the server stopped without a cursor to follow.
           */}
-          <div className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center">
-            <p className="text-cream/60 text-xs">
-              {maybeMore
-                ? "That is the first " + items.length + " reels."
-                : "That is everything on sale right now."}
-            </p>
+          <div
+            ref={sentinelRef}
+            className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center"
+          >
+            {isFetchNextPageError ? (
+              <p className="text-cream/60 text-xs">
+                More reels did not load — usually the island signal rather than
+                you. Scroll up and back down to try again.
+              </p>
+            ) : hasNextPage || isFetchingNextPage ? (
+              /*
+                Deliberately not a spinner and deliberately not "the end". The
+                sentinel fires two screens early, so a traveller reaching this
+                is already past where more should have arrived — and a spinner
+                that is usually gone before anybody sees it is a flicker at the
+                bottom of every scroll.
+              */
+              <p className="text-cream/60 text-xs">Loading more reels…</p>
+            ) : tail === "complete" ? (
+              <p className="text-cream/60 text-xs">
+                That is everything on sale right now.
+              </p>
+            ) : (
+              /*
+                `complete: false` with no `nextCursor` — the contract's own
+                third case, "a different thing from the feed having ended".
+                There is nothing to page to, so this cannot be a retry of the
+                next page; refetching the feed from the top is the only move
+                that exists, and the copy does not claim an ending it was not
+                told about.
+              */
+              <p className="text-cream/60 text-xs">
+                That is as far as we can load right now — not the end of what is
+                on sale. Reload to try again.
+              </p>
+            )}
           </div>
         </div>
       </div>

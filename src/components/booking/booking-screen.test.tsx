@@ -264,6 +264,80 @@ describe("PayButton — both contract answers", () => {
     expect(screen.getByText(/Nothing has been charged/)).toBeInTheDocument();
   });
 
+  /*
+    A checkout that cannot be finished, and whether the traveller can get out
+    of it (yuvoy-app#19 §3).
+
+    Both codes end the same way — the seat is gone and the only move is picking
+    a departure again — and the Pay button is the only control on this screen.
+    Copy that says "pick a departure again" with nothing to tap is a dead end
+    with instructions written on it.
+  */
+  for (const [code, why] of [
+    ["operator_not_bookable", "the operator stopped selling mid-checkout"],
+    ["reservation_not_payable", "the hold lapsed"],
+  ] as const) {
+    it(`offers the way back to dates when ${why}`, async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+        http.post(`${BASE}/reservations/:id/payment-order`, () =>
+          HttpResponse.json(
+            {
+              error: { code, message: "raw server copy", requestId: "01JPAY" },
+            },
+            { status: code === "operator_not_bookable" ? 503 : 409 },
+          ),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      (await screen.findByRole("button", { name: /^Pay/ })).click();
+
+      const back = await screen.findByRole("link", { name: "See other dates" });
+      // Straight to the listing's own dates, not to a generic browse.
+      expect(back).toHaveAttribute("href", "/e/try-dive-nemo-reef");
+      // Branch on code, never on message.
+      expect(screen.queryByText("raw server copy")).not.toBeInTheDocument();
+      // requestId always visible.
+      expect(screen.getByText("01JPAY")).toBeInTheDocument();
+    });
+  }
+
+  it("does not offer other dates for a failure that is not a dead end", async () => {
+    /*
+      `payments_unavailable` is a deliberate stop that says nothing about the
+      hold — the seats are still held and the clock is still running. Sending
+      that traveller back to the dates would throw away a live reservation.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/:id/payment-order`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "payments_unavailable",
+              message: "no processor",
+              requestId: "01JPAY2",
+            },
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    (await screen.findByRole("button", { name: /^Pay/ })).click();
+
+    expect(
+      await screen.findByText("Payment is not available yet"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "See other dates" }),
+    ).not.toBeInTheDocument();
+    // The hold is untouched, so the clock stays on screen.
+    expect(screen.getByRole("timer")).toBeInTheDocument();
+  });
+
   it("hands a ready order to the provider's adapter", async () => {
     const opened: unknown[] = [];
     const unregister = registerPaymentAdapter("mockpay", async (order) => {

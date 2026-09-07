@@ -187,6 +187,10 @@ export interface paths {
          *     Each item carries the whole listing, so a card can offer the booking without a second request — a spinner over the price is a spinner over the one thing somebody stopped scrolling for.
          *
          *     **Ordering interleaves operators.** Reels are numbered within each business and the feed is ordered by that number, so every operator's first reel precedes anybody's second. A business with twenty clips appears across twenty rounds rather than twenty times in a row. The ordering is blind to which operator: it rotates them, and cannot express a preference for one. Stable between requests.
+         *
+         *     **Paged, and it says whether it ended.** Pass `nextCursor` back to continue; its absence, with `complete: true`, is the end. Do not infer the end from a short page — a page that happens to come back exactly full would stop the scroll early, and an infinite scroll that has silently stopped looks identical to one with nothing more to show, so nobody reports it.
+         *
+         *     The cursor resumes inside the rotation rather than at a timestamp, which is why a client must not attempt to page this ordering itself: restart the rotation and one business's second reel arrives before another's first, and the ordering stops being blind to which operator.
          */
         get: operations["listReels"];
         put?: never;
@@ -1424,6 +1428,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description From a previous response's `nextCursor`. Opaque; do not construct one. */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -1438,10 +1444,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items?: {
+                        items: {
                             media?: components["schemas"]["Media"];
                             experience?: components["schemas"]["ExperienceSummary"];
                         }[];
+                        /** @description Told rather than inferred. `false` with no `nextCursor` means the server stopped, which is a different thing from the feed having ended. */
+                        complete: boolean;
+                        /** @description Absent when there is nothing after this page. */
+                        nextCursor?: string;
                     };
                 };
             };

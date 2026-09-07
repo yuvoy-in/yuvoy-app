@@ -30,8 +30,127 @@ const clip = (id: string) => ({
   durationSeconds: 20,
 });
 
-const reels = (items: unknown[]) =>
-  http.get(`${BASE}/reels`, () => HttpResponse.json({ items }));
+/**
+ * One page of reels, complete unless told otherwise.
+ *
+ * `complete` is not optional in the contract, so a handler that omitted it
+ * would be describing a response the API cannot send — and the feed reads it
+ * as the server having stopped, which is a real state with its own copy.
+ */
+const reels = (items: unknown[], over: Record<string, unknown> = {}) =>
+  http.get(`${BASE}/reels`, () =>
+    HttpResponse.json({ items, complete: true, ...over }),
+  );
+
+/**
+ * A `/reels` handler that pages for real, keyed on the cursor it issued.
+ *
+ * Deliberately NOT a counter of calls. A handler that answered "page two" to
+ * the second request regardless of what was asked would pass a client that
+ * ignored the cursor entirely and re-fetched page one forever — which is the
+ * single most likely way to get infinite scroll wrong.
+ */
+const pagedReels = (pages: { items: unknown[]; cursor?: string }[]) =>
+  http.get(`${BASE}/reels`, ({ request }) => {
+    const cursor = new URL(request.url).searchParams.get("cursor");
+    const index = cursor ? pages.findIndex((p) => p.cursor === cursor) : 0;
+    if (index < 0) return HttpResponse.json({ items: [], complete: true });
+
+    const page = pages[index];
+    const next = pages[index + 1];
+    return HttpResponse.json({
+      items: page.items,
+      complete: !next,
+      // Absent, never null — the real API omits the key on the last page.
+      ...(next ? { nextCursor: next.cursor } : {}),
+    });
+  });
+
+/**
+ * An IntersectionObserver that reports whatever it is told to, on demand.
+ *
+ * The global stub in `vitest.setup.ts` does nothing at all, which is right for
+ * every other test and useless for this one: with an inert observer the
+ * sentinel never fires and infinite scroll cannot be exercised at all. This
+ * one hands back a trigger, so a test drives the scroll instead of simulating
+ * layout jsdom does not have.
+ */
+function firingObservers() {
+  interface Live {
+    cb: IntersectionObserverCallback;
+    /** Whether this observer has already reported its target on screen. */
+    reported: boolean;
+    live: boolean;
+  }
+  const sentinels: Live[] = [];
+
+  class Firing {
+    private entry: Live;
+    constructor(
+      cb: IntersectionObserverCallback,
+      options?: IntersectionObserverInit,
+    ) {
+      /*
+        The feed builds TWO kinds of observer and only one of them is the
+        scroll. Firing both would hand the active-card observer an entry with
+        no `data-feed-index` on it and move the player as a side effect of a
+        paging test.
+
+        They are told apart by `rootMargin`: the sentinel is the only observer
+        that asks for one, because it deliberately fires two screens early.
+      */
+      this.entry = { cb, reported: false, live: Boolean(options?.rootMargin) };
+      if (this.entry.live) sentinels.push(this.entry);
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {
+      // Honoured, not a no-op. A stub that kept firing disconnected observers
+      // would make every "is the observer rebuilt" question unanswerable.
+      this.entry.live = false;
+    }
+    takeRecords() {
+      return [];
+    }
+    root = null;
+    rootMargin = "";
+    thresholds = [];
+  }
+  vi.stubGlobal("IntersectionObserver", Firing);
+
+  const fire = (target: Live) => {
+    target.reported = true;
+    target.cb(
+      [
+        {
+          isIntersecting: true,
+          target: document.createElement("div"),
+        } as unknown as IntersectionObserverEntry,
+      ],
+      null as unknown as IntersectionObserver,
+    );
+  };
+
+  return {
+    /**
+     * The sentinel comes into view.
+     *
+     * Fires only observers that have not reported yet, because that is what a
+     * real IntersectionObserver does: it reports CHANGES in intersection. A
+     * sentinel that is already on screen and stays there produces no further
+     * entry — which is exactly why the feed rebuilds its observer when a page
+     * lands, and why a stub that re-fired on demand would let that bug through.
+     */
+    scrollToSentinel() {
+      for (const s of [...sentinels]) if (s.live && !s.reported) fire(s);
+    },
+    /** Scrolled away and back: a genuine new intersection on a live observer. */
+    jiggle() {
+      for (const s of [...sentinels]) if (s.live) fire(s);
+    },
+    liveCount: () => sentinels.filter((s) => s.live).length,
+  };
+}
 
 /**
  * T2's states and its truthfulness rules. The feed is the one screen every
@@ -306,12 +425,12 @@ describe("Feed", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("claims the feed is complete only when it can know that", async () => {
-    // Short answer: the server had nothing more to give.
+  it("claims the feed is complete only when the server said so", async () => {
     server.use(
-      reels([
-        { media: clip("m1"), experience: listing({ title: "Only one" }) },
-      ]),
+      reels(
+        [{ media: clip("m1"), experience: listing({ title: "Only one" }) }],
+        { complete: true },
+      ),
     );
 
     renderWithQuery(<Feed />);
@@ -323,31 +442,314 @@ describe("Feed", () => {
     );
   });
 
-  it("withholds that claim when the answer is exactly the cap", async () => {
+  it("withholds that claim on a full page that is not the end", async () => {
     /*
-      `/reels` has no cursor and no `complete` flag, so a full answer and a
-      coincidentally-full one are identical on the wire. "That is everything on
-      sale right now" is the one claim on this screen that can be false with
-      nobody noticing, so at the cap the feed says what it actually knows.
+      The claim that can be false with nobody noticing. A page that comes back
+      exactly full is not evidence of anything — before yuvoy-api#114 this
+      screen said "That is the first 60 reels" because it genuinely could not
+      tell. It is told now, and being told a full page is not the end has to
+      beat the temptation to infer it from the count.
     */
     server.use(
       reels(
-        Array.from({ length: 60 }, (_, i) => ({
+        Array.from({ length: 12 }, (_, i) => ({
           media: clip(`m${i}`),
           experience: listing({ id: `e${i}`, title: `Reel ${i}` }),
         })),
+        { complete: false, nextCursor: "more" },
       ),
     );
 
     renderWithQuery(<Feed />);
 
     await waitFor(() =>
+      expect(screen.getByText("Loading more reels…")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText("That is everything on sale right now."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("tells the server stopping apart from the feed ending", async () => {
+    /*
+      `complete: false` with no cursor. The contract calls this out as "a
+      different thing from the feed having ended", and there is nothing to page
+      to — so the only honest offer is to reload the feed, and the screen must
+      not say a traveller has seen everything on sale.
+    */
+    server.use(
+      reels([{ media: clip("m1"), experience: listing() }], {
+        complete: false,
+      }),
+    );
+
+    renderWithQuery(<Feed />);
+
+    await waitFor(() =>
       expect(
-        screen.getByText("That is the first 60 reels."),
+        screen.getByText(/That is as far as we can load right now/),
       ).toBeInTheDocument(),
     );
     expect(
       screen.queryByText("That is everything on sale right now."),
     ).not.toBeInTheDocument();
+    // No control, and that is deliberate: `role="feed"` may not contain a
+    // button. The copy carries the action instead.
+    expect(screen.getByText(/Reload to try again/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Infinite scroll, over a cursor the client is not allowed to construct.
+ *
+ * The rotation is computed across every eligible reel at query time, so a
+ * client cannot resume this ordering from what it holds — page two has to be
+ * asked for with the server's own opaque string, or one business's second reel
+ * arrives before another's first.
+ */
+describe("Feed paging", () => {
+  it("asks for the next page with the server's cursor, and appends it", async () => {
+    const observers = firingObservers();
+    server.use(
+      pagedReels([
+        {
+          items: [{ media: clip("m1"), experience: listing({ title: "One" }) }],
+        },
+        {
+          cursor: "opaque-2",
+          items: [{ media: clip("m2"), experience: listing({ title: "Two" }) }],
+        },
+      ]),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("One");
+
+    observers.scrollToSentinel();
+
+    await screen.findByText("Two");
+    // Appended, not replaced — the first page is still on screen.
+    expect(screen.getByText("One")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText("That is everything on sale right now."),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("keeps walking while the server keeps handing back cursors", async () => {
+    const observers = firingObservers();
+    server.use(
+      pagedReels([
+        {
+          items: [{ media: clip("m1"), experience: listing({ title: "P1" }) }],
+        },
+        {
+          cursor: "c2",
+          items: [{ media: clip("m2"), experience: listing({ title: "P2" }) }],
+        },
+        {
+          cursor: "c3",
+          items: [{ media: clip("m3"), experience: listing({ title: "P3" }) }],
+        },
+      ]),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("P1");
+
+    observers.scrollToSentinel();
+    await screen.findByText("P2");
+
+    /*
+      The second boundary is the one that matters. One can be crossed by an
+      observer that happened to fire; two means the observer was rebuilt when
+      the page landed. Without that rebuild the sentinel stays intersecting,
+      IntersectionObserver reports only CHANGES, no further entry ever fires,
+      and the feed stalls one page in with the sentinel sitting in view.
+    */
+    observers.scrollToSentinel();
+    await screen.findByText("P3");
+  });
+
+  it("does not throw the feed away when a later page fails", async () => {
+    /*
+      The trap in `useInfiniteQuery`: `isError` is true whenever the LAST fetch
+      failed, including a `fetchNextPage` with a screen full of good cards
+      behind it. Branching the full-screen error state on `isError` would
+      delete a working feed because page two did not arrive on island signal.
+      `isLoadingError` is the narrow one, and this test is why it is used.
+    */
+    const observers = firingObservers();
+    /** Counts attempts at the NEXT page, which is the loop under test. */
+    let attempts = 0;
+    server.use(
+      http.get(`${BASE}/reels`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get("cursor");
+        if (!cursor) {
+          return HttpResponse.json({
+            items: [
+              { media: clip("m1"), experience: listing({ title: "Held" }) },
+            ],
+            complete: false,
+            nextCursor: "c2",
+          });
+        }
+        attempts += 1;
+        return HttpResponse.json(
+          { error: { code: "internal_error", message: "boom" } },
+          { status: 500 },
+        );
+      }),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("Held");
+
+    observers.scrollToSentinel();
+
+    await waitFor(() =>
+      expect(screen.getByText(/More reels did not load/)).toBeInTheDocument(),
+    );
+    // The cards that DID arrive are still there.
+    expect(screen.getByText("Held")).toBeInTheDocument();
+    // And the failure is never dressed up as an ending.
+    expect(
+      screen.queryByText("That is everything on sale right now."),
+    ).not.toBeInTheDocument();
+
+    /*
+      And scrolling away and back tries again — which is the whole recovery
+      path, because `role="feed"` may not contain a button and there is
+      therefore no Try again to tap.
+
+      This is safe from becoming a retry loop by IntersectionObserver's own
+      semantics rather than by a guard: it reports CHANGES in intersection, so
+      a sentinel that is already on screen and stays there cannot fire twice.
+      Only a deliberate scroll produces another. `jiggle()` is that scroll.
+    */
+    expect(screen.getByText(/Scroll up and back down/)).toBeInTheDocument();
+
+    const before = attempts;
+    observers.jiggle();
+    await waitFor(() => expect(attempts).toBeGreaterThan(before));
+  });
+
+  it("does not ask again while a page fetch is still in flight", async () => {
+    /*
+      The one guard that is real. Two intersections in the same tick — a
+      resize, a re-render — must not put two requests for the same cursor on a
+      0.5 Mbps link.
+    */
+    const observers = firingObservers();
+    let attempts = 0;
+    server.use(
+      http.get(`${BASE}/reels`, async ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get("cursor");
+        if (!cursor) {
+          return HttpResponse.json({
+            items: [
+              { media: clip("m1"), experience: listing({ title: "One" }) },
+            ],
+            complete: false,
+            nextCursor: "c2",
+          });
+        }
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        return HttpResponse.json({
+          items: [
+            {
+              media: clip("m2"),
+              experience: listing({ id: "e2", title: "Two" }),
+            },
+          ],
+          complete: true,
+        });
+      }),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("One");
+
+    observers.scrollToSentinel();
+    observers.jiggle();
+    observers.jiggle();
+
+    await screen.findByText("Two");
+    expect(attempts).toBe(1);
+  });
+
+  it("does not claim a total it has not been given", async () => {
+    /*
+      `aria-setsize` is a claim. Before paging, `items.length` WAS the whole
+      feed and saying so was correct; a first page of twelve now tells a screen
+      reader user "1 of 12" about a feed with more in it, and renumbers
+      everything when the next page lands. `-1` is ARIA's own word for a total
+      nobody knows yet.
+    */
+    server.use(
+      reels(
+        [
+          { media: clip("m1"), experience: listing({ title: "First" }) },
+          {
+            media: clip("m2"),
+            experience: listing({ id: "e2", title: "Second" }),
+          },
+        ],
+        { complete: false, nextCursor: "more" },
+      ),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("First");
+
+    for (const card of screen.getAllByRole("article")) {
+      expect(card).toHaveAttribute("aria-setsize", "-1");
+    }
+  });
+
+  it("states the total once the server says the feed is complete", async () => {
+    server.use(
+      reels(
+        [
+          { media: clip("m1"), experience: listing({ title: "First" }) },
+          {
+            media: clip("m2"),
+            experience: listing({ id: "e2", title: "Second" }),
+          },
+        ],
+        { complete: true },
+      ),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("First");
+
+    for (const card of screen.getAllByRole("article")) {
+      expect(card).toHaveAttribute("aria-setsize", "2");
+    }
+  });
+
+  it("never sends a cursor on the first request", async () => {
+    /*
+      An empty `cursor=` is a different request from no cursor at all, and only
+      the second is described by the contract.
+    */
+    const seen: (string | null)[] = [];
+    server.use(
+      http.get(`${BASE}/reels`, ({ request }) => {
+        const u = new URL(request.url);
+        seen.push(u.searchParams.get("cursor"));
+        return HttpResponse.json({
+          items: [{ media: clip("m1"), experience: listing() }],
+          complete: true,
+        });
+      }),
+    );
+
+    renderWithQuery(<Feed />);
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    expect(seen[0]).toBeNull();
   });
 });

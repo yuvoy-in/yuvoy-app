@@ -287,6 +287,37 @@ export const REELS: { media: Media; experience: ExperienceSummary }[] = (() => {
   ];
 })();
 
+/**
+ * The same feed, long enough to page — `?__scenario=long-feed`.
+ *
+ * `REELS` stays six because six across three rounds is what makes the operator
+ * rotation legible, and legibility is that fixture's whole job. But six is
+ * smaller than one page, so nothing in a browser or in Playwright would ever
+ * reach a second request against it, and every cursor path would be exercised
+ * only in unit tests with a bespoke handler.
+ *
+ * Forty is three-and-a-bit pages at the app's page size, so a scroll crosses
+ * more than one boundary — one boundary can be crossed by accident, two cannot.
+ *
+ * **Every media id is unique**, and that is the load-bearing detail rather
+ * than a formality. The feed keys cards by media id; repeating one across
+ * pages would give React duplicate keys and hand one clip's player state to
+ * another, which is exactly the corruption `playableReels` drops a duplicate
+ * to avoid. A fixture that repeated ids would make that guard fire constantly
+ * and hide the real thing it is watching for.
+ *
+ * The rotation is preserved: cycling a rotation that already interleaves four
+ * businesses keeps everyone's Nth reel ahead of anybody's (N+1)th.
+ */
+export const LONG_REEL_FEED: { media: Media; experience: ExperienceSummary }[] =
+  Array.from({ length: 40 }, (_, i) => {
+    const source = REELS[i % REELS.length];
+    return {
+      ...source,
+      media: { ...source.media, id: `long-${i}` },
+    };
+  });
+
 const MEETING: components["schemas"]["MeetingPoint"] = {
   text: "Jetty 2, Havelock",
   landmark: "The blue kiosk. Be there 15 minutes before departure.",
