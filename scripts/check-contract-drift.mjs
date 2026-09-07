@@ -75,14 +75,61 @@ try {
   const said = `${err.stderr ?? ""}${err.stdout ?? ""}`;
   const status = Number(said.match(/\(HTTP (\d{3})\)/)?.[1] ?? 0);
 
+  /*
+    A 404 has TWO causes here and they need opposite handling.
+
+    The one this check was written for: the pin names a commit that is not
+    there — a mistyped SHA, or one force-pushed away. That must fail, because
+    otherwise nothing is verified against upstream, on every run, silently.
+
+    The one that cost a release: **GitHub answers 404, not 403, for a private
+    repo the token may not see.** `yuvoy-api` is private and Actions' default
+    `GITHUB_TOKEN` is scoped to THIS repository, so in CI the read is refused
+    and the refusal is spelled 404. Read as "the ref is gone", that fails every
+    CI run on a correct pin — which is what happened on 7 Sep 2026, in this
+    repo and in yuvoy-operator, on a ref a local run verified fine.
+
+    They are told apart by asking whether the REPO is visible at all. If the
+    repository itself 404s, the answer was about permission and says nothing
+    about the ref, so it warns like being offline. If the repository IS
+    visible, a 404 on the path is a real answer about the pin, and fails.
+
+    Note this cannot be inverted into "warn when unauthenticated": skipping
+    silently is exactly what let a pin with an invented SHA pass for days.
+    Fail loudly when we can see, warn when we cannot.
+  */
   if (status === 404) {
-    fail(
-      `${pinned.repo} has no contracts/openapi.yaml at ref ${pinned.ref.slice(0, 12)} — GitHub answered 404.\n` +
-        `  The pin names a commit that does not exist (a mistyped SHA, or one that was\n` +
-        `  force-pushed away). This is NOT a network problem and is not skippable:\n` +
-        `  nothing would be verified against upstream, on every run, silently.\n` +
-        `  Fix contracts/PINNED, re-pull the contract, run \`pnpm codegen\`, commit both.`,
+    let repoVisible = true;
+    try {
+      execFileSync("gh", ["api", `repos/${pinned.repo}`, "--jq", ".name"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (probe) {
+      const probeSaid = `${probe.stderr ?? ""}${probe.stdout ?? ""}`;
+      repoVisible = !/\(HTTP 404\)/.test(probeSaid);
+    }
+
+    if (repoVisible) {
+      fail(
+        `${pinned.repo} has no contracts/openapi.yaml at ref ${pinned.ref.slice(0, 12)} — GitHub answered 404.\n` +
+          `  The repository IS visible to this token, so the 404 is about the pin:\n` +
+          `  a commit that does not exist (a mistyped SHA, or one force-pushed away).\n` +
+          `  This is NOT a network problem and is not skippable: nothing would be\n` +
+          `  verified against upstream, on every run, silently.\n` +
+          `  Fix contracts/PINNED, re-pull the contract, run \`pnpm codegen\`, commit both.`,
+      );
+    }
+
+    console.warn(
+      `\n⚠ contract check skipped: ${pinned.repo} is not visible to this token.\n` +
+        `  GitHub answers 404 rather than 403 for a private repository you may not\n` +
+        `  read, so this is a PERMISSIONS answer and says nothing about the pin.\n` +
+        `  In Actions the default GITHUB_TOKEN is scoped to this repository only;\n` +
+        `  give the job a token that can read ${pinned.repo} to verify pins in CI.\n` +
+        `  Pinned ref ${pinned.ref.slice(0, 12)} was not verified this run.\n`,
     );
+    process.exit(0);
   }
 
   /*
