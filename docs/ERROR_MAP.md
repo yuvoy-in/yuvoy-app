@@ -40,12 +40,12 @@ These three are somebody's decision. **A crash screen here tells the traveller Y
 when in fact a human stopped sales on purpose.** Calm, truthful copy; browsing stays intact; and
 **no retry button** — retrying just asks the decision again.
 
-| Code                    | Treatment                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------------- |
-| `booking_disabled`      | A kill switch is engaged. "We have stopped taking new bookings for a moment."          |
-| `operator_not_bookable` | Operator paused — expired licence, safety review. "Everything else is still bookable." |
-| `payments_unavailable`  | No processor configured. **You will see this today.** Nothing charged, no seat held.   |
-| `media_unavailable`     | Video provider down. Degrade to poster; the rest of the page works.                    |
+| Code                    | Treatment                                                                                                                                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `booking_disabled`      | A kill switch is engaged. "We have stopped taking new bookings for a moment."                                                                                                                                              |
+| `operator_not_bookable` | Operator paused — expired licence, safety review. "Everything else is still bookable." **In checkout it is a dead end**: the operator's standing is re-checked when a traveller re-enters, so the seat is gone. See below. |
+| `payments_unavailable`  | No processor configured. **You will see this today.** Nothing charged, no seat held.                                                                                                                                       |
+| `media_unavailable`     | Video provider down. Degrade to poster; the rest of the page works.                                                                                                                                                        |
 
 ## Idempotency and checkout
 
@@ -54,8 +54,25 @@ when in fact a human stopped sales on purpose.** Calm, truthful copy; browsing s
 | `idempotency_key_malformed` | Client bug. Regenerate correctly, log.                                                                                                                                           |
 | `idempotency_key_reuse`     | **Client bug, and a serious one. Alert on any spike** — it means we could double-book.                                                                                           |
 | `idempotency_in_progress`   | An identical request is still running. **"Still working on your last tap"** — retry keeps the same key. Implemented.                                                             |
-| `reservation_not_payable`   | Expired, released, or an unaccepted request. Calm copy, no retry: pick a departure again.                                                                                        |
+| `reservation_not_payable`   | Expired, released, or an unaccepted request. Calm copy, no retry: pick a departure again — **and the screen links there.** See below.                                            |
 | `token_expired`             | **Get a new link** on every token surface (`FailurePanel` / `ErrorState` with `tokenBearing`); the Trips card shows "Link expired" and offers recovery. Never the generic retry. |
+
+### The two checkout dead ends, and why they get a link
+
+`CHECKOUT_DEAD_ENDS` in `src/lib/api/errors.ts` names `operator_not_bookable`
+and `reservation_not_payable`. Both mean the same thing to the traveller — the
+seat is gone, and the only move is picking a departure again — and both used to
+render as a panel of text on a screen whose only control is a Pay button that
+will fail again. The copy said "pick a departure again"; there was nothing to
+tap that got them there, so the options were the browser's back button or
+leaving.
+
+`BookingScreen` now offers **See other dates**, straight to
+`/e/{experience.slug}`, on those two codes and no others. The exclusion matters
+as much as the inclusion: `payments_unavailable` is also a deliberate 503 and
+says nothing about the hold — the seats are still held and the clock is still
+running, so sending that traveller back to the dates would throw away a live
+reservation. Tests pin both directions.
 
 ## Safety refusals — a different next step each
 
