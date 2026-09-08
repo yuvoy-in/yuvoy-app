@@ -753,3 +753,93 @@ describe("Feed paging", () => {
     expect(seen[0]).toBeNull();
   });
 });
+
+/**
+ * What the card says about a price and about what the thing IS.
+ *
+ * Both from yuvoy-app#20, and the first is a consumer pricing misstatement
+ * rather than a nicety: the card hard-coded "per person" beside the figure
+ * while the platform has always supported group pricing.
+ */
+describe("Feed card claims", () => {
+  it("renders the server's pricing phrase verbatim, whatever it says", async () => {
+    server.use(
+      reels([
+        {
+          media: clip("m1"),
+          experience: listing({
+            title: "Whole boat",
+            // The label only renders beside a price, and the contract ships
+            // both fields exactly when `fromPrice` is present.
+            fromPrice: { amountMinor: 1800000, currency: "INR" },
+            pricingUnit: "per_group",
+            pricingUnitLabel: "for the group",
+          }),
+        },
+      ]),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("Whole boat");
+    expect(screen.getByText("for the group")).toBeInTheDocument();
+    expect(screen.queryByText("per person")).not.toBeInTheDocument();
+  });
+
+  it("says nothing about the basis rather than guessing one", async () => {
+    // Unreachable while both fields ship with `fromPrice`. The branch exists so
+    // a contract that ever loosened cannot silently reintroduce "per person".
+    server.use(
+      reels([
+        {
+          media: clip("m1"),
+          experience: listing({
+            title: "No basis",
+            pricingUnitLabel: undefined,
+          }),
+        },
+      ]),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("No basis");
+    expect(screen.queryByText("per person")).not.toBeInTheDocument();
+    expect(screen.queryByText("for the group")).not.toBeInTheDocument();
+  });
+
+  it("says what the thing is, when the API has classified it", async () => {
+    /*
+      The twelve categories are market-agnostic, so in the Andamans every water
+      sport is `adventure` — useless on a feed where every card is a video of
+      blue water. `activityTypeLabel` is the curated taxonomy underneath.
+    */
+    server.use(
+      reels([
+        {
+          media: clip("m1"),
+          experience: listing({
+            title: "Reef trip",
+            activityType: "scuba",
+            activityTypeLabel: "Scuba diving",
+          }),
+        },
+      ]),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("Reef trip");
+    expect(screen.getByText("Scuba diving")).toBeInTheDocument();
+  });
+
+  it("renders nothing for a listing nobody has classified", async () => {
+    // Optional by contract. No placeholder, and never a prettified key.
+    server.use(
+      reels([
+        { media: clip("m1"), experience: listing({ title: "Unclassified" }) },
+      ]),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("Unclassified");
+    expect(screen.queryByText(/scuba/i)).not.toBeInTheDocument();
+  });
+});

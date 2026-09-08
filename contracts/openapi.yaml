@@ -1199,6 +1199,17 @@ components:
         - method_not_allowed
         - not_implemented
         - internal_error
+        # The global 64 KB body limit refused the request before any handler
+        # saw it. Retrying the same body fails identically — send less, or
+        # send it in pieces.
+        - payload_too_large
+        # The unclassified case, and deliberately named as one: an HTTP-level
+        # 4xx at a status this API does not anticipate, produced by the
+        # framework rather than by a handler. There is nothing to branch on
+        # beyond the status. It replaced an undeclared literal `error` on
+        # 2026-09-07; anything seen arriving with it is a status that has
+        # earned a code of its own.
+        - unclassified_error
         # Availability and capacity. Each names a different reason a traveller
         # cannot proceed, because "unavailable" alone leaves them with no next
         # step — and one of these is not the traveller's fault at all.
@@ -1211,6 +1222,11 @@ components:
         # Deliberately stopped, rather than broken. Truthful copy depends on the
         # client being able to tell these from an outage.
         - booking_disabled
+        # Since 0053 this is returned by POST /v1/reservations/{id}/payment-order
+        # as well as by reservation create: the operator's standing is re-checked
+        # when a traveller re-enters checkout, not only when they first hold a
+        # seat. It never carries a reason — why a business stopped selling is a
+        # supply judgment about them, and this is a traveller endpoint.
         - operator_not_bookable
         # Idempotency and checkout, emitted today but previously undeclared —
         # a client cannot branch on a code the contract does not name.
@@ -1237,6 +1253,15 @@ components:
         # Configured-off surfaces. Distinguishable from an outage on purpose.
         - payments_unavailable
         - media_unavailable
+        # The booking store this endpoint needs is not wired, so recovery,
+        # cancellation quotes and "my trips" cannot answer. A 503: the request
+        # was not recorded and retrying later is the right move, which is why
+        # it is not `internal_error`. The three sibling surfaces each name
+        # themselves (`admin_unavailable`, `operator_unavailable`,
+        # `media_unavailable`); this one predates that convention and is left
+        # under the bare spelling the handlers actually write rather than
+        # renamed underneath a client.
+        - unavailable
 
     Money:
       type: object
@@ -1369,13 +1394,74 @@ components:
         destinationKey: { $ref: "#/components/schemas/DestinationKey" }
         location: { type: string, description: Display name of the destination. }
         category: { $ref: "#/components/schemas/Category" }
+        activityType:
+          type: string
+          description: >-
+            What this experience actually is — `scuba`, not `adventure`.
+
+
+            `category` is market-agnostic and is what a traveller browses by; it
+            cannot describe the thing, because in the launch market every water
+            sport is `adventure`. **Absent** on listings that predate the
+            vocabulary, so render nothing rather than a placeholder noun.
+
+
+            Deliberately **not an enum**, unlike `category`: the set grows by
+            INSERT and an enum would go stale — the same reasoning the operator
+            contract already gives for `destination`. `category` stays a closed
+            enum because it is what a traveller browses by and it is not growing.
+          examples: ["scuba"]
+        activityTypeLabel:
+          type: string
+          description: >-
+            `activityType` as the word to print. From the same table the operator
+            picker reads, so the two cannot word the same noun differently.
+            Present exactly when `activityType` is.
+          examples: ["Scuba diving"]
         bookingMode:
           $ref: "#/components/schemas/BookingMode"
         durationMinutes: { type: integer }
         maxPartySize: { type: integer }
-        # Absent until a real contracted price exists. There is no placeholder
-        # price anywhere in this API.
-        fromPrice: { $ref: "#/components/schemas/Money" }
+        fromPrice:
+          allOf:
+            - $ref: "#/components/schemas/Money"
+          description: >-
+            **The listing's unit price, in the unit `pricingUnit` names.** Absent
+            until a real contracted price exists; there is no placeholder price
+            anywhere in this API.
+
+
+            The name implies a floor across variants and that is not what it is:
+            it is a single number, and for a `per_group` charter "from ₹4,000"
+            is wrong twice — it is not a minimum, and it is not per person. The
+            field is not renamed because three generated clients carry the name.
+            If it is ever renamed, the right name is `price`.
+        pricingUnit:
+          type: string
+          enum: [per_person, per_group]
+          description: >-
+            How `fromPrice` is charged. `per_person` multiplies by the party;
+            `per_group` is the price of the whole departure whatever the party
+            size. **Present exactly when `fromPrice` is present.**
+
+
+            This existed in the schema and at checkout from the beginning and was
+            never selected by any public read path, so both traveller surfaces
+            hard-coded "per person" and a ₹4,000 per-GROUP listing read as
+            ₹4,000 per person until the last screen.
+        pricingUnitLabel:
+          type: string
+          description: >-
+            `pricingUnit` as the phrase to print beside the price. **Render it
+            verbatim; do not build one from `pricingUnit`.**
+
+
+            Same rule and the same reason as `seatsOnNextDisplay`: a client
+            deriving its own phrase is a second copy of a rule this API owns, and
+            the copy that drifts is the one that misstates a price to a consumer.
+            Money FORMATTING stays with the client — it already gets rupee
+            grouping right; only the unit phrase is ours.
+          examples: ["per person", "for the group"]
         heroMedia: { $ref: "#/components/schemas/Media" }
         operator: { $ref: "#/components/schemas/OperatorSummary" }
         nextAvailable:
@@ -1431,8 +1517,29 @@ components:
       allOf:
         - $ref: "#/components/schemas/ExperienceSummary"
         - type: object
-          required: [gallery, meetingPoint]
+          required: [gallery, meetingPoint, bookable]
           properties:
+            bookable:
+              type: boolean
+              description: >-
+                Whether this listing can be sold right now: the operator is
+                selling, the listing is published and priced, no kill switch
+                applies, and every credential its market and activity category
+                require is on file, verified and unexpired today.
+
+
+                **`false` is a 200, not a 404.** The card is already absent from
+                every browse surface, so the only way to reach this page is a
+                link somebody was handed — a shared message, a bookmark, a
+                search result — and telling that person the business does not
+                exist is worse than telling them it is not selling. Availability
+                comes back empty for the same listing, and a checkout attempt is
+                refused with `operator_not_bookable`.
+
+
+                Deliberately carries **no reason**. Why a business has stopped
+                selling is a supply judgment about them and is not published on
+                a traveller endpoint.
             summary: { type: string }
             description: { type: string }
             included:
@@ -1569,11 +1676,25 @@ components:
 
     AvailabilityPage:
       type: object
-      required: [slots, availabilityAsOf, marketTimezone, staleSlotsSuppressed]
+      required: [slots, bookable, availabilityAsOf, marketTimezone, staleSlotsSuppressed]
       properties:
         slots:
           type: array
           items: { $ref: "#/components/schemas/Slot" }
+        bookable:
+          type: boolean
+          description: >-
+            The listing-level answer, identical to `Experience.bookable`. When
+            it is `false` the response is still a 200 with an EMPTY `slots`
+            array rather than a 404, so "this is not on sale" and "nothing is on
+            between those dates" stay distinguishable to a client.
+
+
+            Note that a slot can also disappear from a range while `bookable` is
+            `true`: a credential lapsing mid-range removes the departures after
+            it and leaves the ones before it. Those are dropped silently and are
+            NOT counted in `staleSlotsSuppressed` — a counter there would
+            publish the date an operator's insurance runs out.
         availabilityAsOf: { type: string, format: date-time }
         marketTimezone: { type: string, examples: ["Asia/Kolkata"] }
         staleSlotsSuppressed:

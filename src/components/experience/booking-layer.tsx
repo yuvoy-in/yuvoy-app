@@ -22,11 +22,27 @@ type BookingMode = components["schemas"]["BookingMode"];
 export function BookingLayer({
   slug,
   bookingMode,
+  bookable,
   before,
   after,
 }: {
   slug: string;
   bookingMode: BookingMode;
+  /**
+   * Whether this listing can be sold right now — yuvoy-app#19 §1.
+   *
+   * False when the operator is not selling, a kill switch is engaged, the
+   * listing has no price, or a credential their market and activity category
+   * require is missing, unverified or expired.
+   *
+   * **It carries no reason and this screen invents none.** Why a business has
+   * stopped selling is a supply judgement about them and does not belong on a
+   * traveller endpoint, so the copy says the state and stops. It also must not
+   * imply the operator is gone — the page is still a 200 precisely because the
+   * traveller arrived by a link, a bookmark or a search result, and "this does
+   * not exist" would be worse than "not right now".
+   */
+  bookable: boolean;
   before?: ReactNode;
   after?: ReactNode;
 }) {
@@ -48,17 +64,41 @@ export function BookingLayer({
         >
           Pick a day
         </h2>
-        <AvailabilityPicker
-          slug={slug}
-          bookingMode={bookingMode}
-          selectedId={selected?.id ?? null}
-          onSelect={setSelected}
-        />
+        {bookable ? (
+          <AvailabilityPicker
+            slug={slug}
+            bookingMode={bookingMode}
+            selectedId={selected?.id ?? null}
+            onSelect={setSelected}
+          />
+        ) : (
+          /*
+            No picker at all, rather than a picker that will always be empty.
+
+            `bookable: false` always comes with `slots: []`, so rendering the
+            picker would show the ordinary "no dates in this window" state —
+            which is a different thing and would send somebody looking for
+            another month that does not exist either.
+
+            Neutral, and no reason. See the prop's own note.
+          */
+          <p className="text-forest/80 mt-4 max-w-prose text-base">
+            This experience is not available to book right now. Everything else
+            on Yuvoy is still bookable.
+          </p>
+        )}
       </section>
 
       {after}
 
-      {selected && chosen ? (
+      {/*
+        The bar is unreachable when `bookable` is false — nothing can be
+        selected without a picker — but the condition is written anyway. A
+        sticky Book button is the single most expensive thing on this page to
+        get wrong, and it should not depend on a sibling's rendering to stay
+        correct.
+      */}
+      {bookable && selected && chosen ? (
         <StickyBar>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">

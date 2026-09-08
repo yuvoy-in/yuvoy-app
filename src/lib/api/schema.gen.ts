@@ -556,7 +556,7 @@ export interface components {
          * @description A closed set, so a client can branch on the machine-readable code and never on the message. Codes are added by contract change, never invented at the call site.
          * @enum {string}
          */
-        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "invalid_reason_code" | "refund_quote_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable";
+        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "payload_too_large" | "unclassified_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "invalid_reason_code" | "refund_quote_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable" | "unavailable";
         Money: {
             /**
              * @description Amount in the currency's minor unit (paise for INR)
@@ -629,10 +629,44 @@ export interface components {
             /** @description Display name of the destination. */
             location?: string;
             category: components["schemas"]["Category"];
+            /**
+             * @description What this experience actually is — `scuba`, not `adventure`.
+             *
+             *     `category` is market-agnostic and is what a traveller browses by; it cannot describe the thing, because in the launch market every water sport is `adventure`. **Absent** on listings that predate the vocabulary, so render nothing rather than a placeholder noun.
+             *
+             *     Deliberately **not an enum**, unlike `category`: the set grows by INSERT and an enum would go stale — the same reasoning the operator contract already gives for `destination`. `category` stays a closed enum because it is what a traveller browses by and it is not growing.
+             * @example scuba
+             */
+            activityType?: string;
+            /**
+             * @description `activityType` as the word to print. From the same table the operator picker reads, so the two cannot word the same noun differently. Present exactly when `activityType` is.
+             * @example Scuba diving
+             */
+            activityTypeLabel?: string;
             bookingMode: components["schemas"]["BookingMode"];
             durationMinutes: number;
             maxPartySize?: number;
+            /**
+             * @description **The listing's unit price, in the unit `pricingUnit` names.** Absent until a real contracted price exists; there is no placeholder price anywhere in this API.
+             *
+             *     The name implies a floor across variants and that is not what it is: it is a single number, and for a `per_group` charter "from ₹4,000" is wrong twice — it is not a minimum, and it is not per person. The field is not renamed because three generated clients carry the name. If it is ever renamed, the right name is `price`.
+             */
             fromPrice?: components["schemas"]["Money"];
+            /**
+             * @description How `fromPrice` is charged. `per_person` multiplies by the party; `per_group` is the price of the whole departure whatever the party size. **Present exactly when `fromPrice` is present.**
+             *
+             *     This existed in the schema and at checkout from the beginning and was never selected by any public read path, so both traveller surfaces hard-coded "per person" and a ₹4,000 per-GROUP listing read as ₹4,000 per person until the last screen.
+             * @enum {string}
+             */
+            pricingUnit?: "per_person" | "per_group";
+            /**
+             * @description `pricingUnit` as the phrase to print beside the price. **Render it verbatim; do not build one from `pricingUnit`.**
+             *
+             *     Same rule and the same reason as `seatsOnNextDisplay`: a client deriving its own phrase is a second copy of a rule this API owns, and the copy that drifts is the one that misstates a price to a consumer. Money FORMATTING stays with the client — it already gets rupee grouping right; only the unit phrase is ours.
+             * @example per person
+             * @example for the group
+             */
+            pricingUnitLabel?: string;
             heroMedia?: components["schemas"]["Media"];
             operator: components["schemas"]["OperatorSummary"];
             /**
@@ -660,6 +694,14 @@ export interface components {
          */
         BookingMode: "allotment" | "request";
         Experience: components["schemas"]["ExperienceSummary"] & {
+            /**
+             * @description Whether this listing can be sold right now: the operator is selling, the listing is published and priced, no kill switch applies, and every credential its market and activity category require is on file, verified and unexpired today.
+             *
+             *     **`false` is a 200, not a 404.** The card is already absent from every browse surface, so the only way to reach this page is a link somebody was handed — a shared message, a bookmark, a search result — and telling that person the business does not exist is worse than telling them it is not selling. Availability comes back empty for the same listing, and a checkout attempt is refused with `operator_not_bookable`.
+             *
+             *     Deliberately carries **no reason**. Why a business has stopped selling is a supply judgment about them and is not published on a traveller endpoint.
+             */
+            bookable: boolean;
             summary?: string;
             description?: string;
             included?: string[];
@@ -742,6 +784,12 @@ export interface components {
         };
         AvailabilityPage: {
             slots: components["schemas"]["Slot"][];
+            /**
+             * @description The listing-level answer, identical to `Experience.bookable`. When it is `false` the response is still a 200 with an EMPTY `slots` array rather than a 404, so "this is not on sale" and "nothing is on between those dates" stay distinguishable to a client.
+             *
+             *     Note that a slot can also disappear from a range while `bookable` is `true`: a credential lapsing mid-range removes the departures after it and leaves the ones before it. Those are dropped silently and are NOT counted in `staleSlotsSuppressed` — a counter there would publish the date an operator's insurance runs out.
+             */
+            bookable: boolean;
             /** Format: date-time */
             availabilityAsOf: string;
             /** @example Asia/Kolkata */

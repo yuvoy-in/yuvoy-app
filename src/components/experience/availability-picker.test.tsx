@@ -232,3 +232,111 @@ describe("AvailabilityPicker — the booking cutoff", () => {
     expect(row).toHaveTextContent("Booking for this departure has closed.");
   });
 });
+
+describe("a listing that is not on sale", () => {
+  /*
+    yuvoy-app#19 §2. `bookable: false` always arrives with `slots: []`, so
+    without its own branch it falls into "this operator has not put any
+    departures on sale yet" — a different claim, and a false one. One sends a
+    traveller looking at another month; the other says not this listing, now.
+  */
+  it("does not call it a gap in the calendar", async () => {
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () =>
+        HttpResponse.json({
+          bookable: false,
+          slots: [],
+          availabilityAsOf: new Date().toISOString(),
+          marketTimezone: "Asia/Kolkata",
+          staleSlotsSuppressed: 0,
+        }),
+      ),
+    );
+
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Not available to book right now"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No dates on sale right now"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names no reason, because the endpoint carries none", async () => {
+    /*
+      "The response carries no reason, and will not. Why a business has stopped
+      selling is a supply judgement about them and does not belong on a
+      traveller endpoint." A screen inventing one would be inventing it about a
+      real business.
+    */
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () =>
+        HttpResponse.json({
+          bookable: false,
+          slots: [],
+          availabilityAsOf: new Date().toISOString(),
+          marketTimezone: "Asia/Kolkata",
+          staleSlotsSuppressed: 0,
+        }),
+      ),
+    );
+
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    await screen.findByText("Not available to book right now");
+    const text = document.body.textContent?.toLowerCase() ?? "";
+    for (const guess of [
+      "licence",
+      "license",
+      "insurance",
+      "suspend",
+      "expired",
+      "closed down",
+    ]) {
+      expect(text, guess).not.toContain(guess);
+    }
+  });
+
+  it("still distinguishes a genuinely empty window", async () => {
+    // The pre-existing branch must survive: bookable, but nothing in range.
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () =>
+        HttpResponse.json({
+          bookable: true,
+          slots: [],
+          availabilityAsOf: new Date().toISOString(),
+          marketTimezone: "Asia/Kolkata",
+          staleSlotsSuppressed: 0,
+        }),
+      ),
+    );
+
+    renderWithQuery(
+      <AvailabilityPicker
+        slug={SLUG}
+        bookingMode="allotment"
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    expect(
+      await screen.findByText("No dates on sale right now"),
+    ).toBeInTheDocument();
+  });
+});

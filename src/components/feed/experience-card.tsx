@@ -168,6 +168,28 @@ export function ExperienceCard({
             </h2>
 
             {/*
+              WHAT the thing is — yuvoy-app#20 §2.
+
+              The card gave a traveller the operator, the title, the next date
+              and the price, and never said what they would actually be doing.
+              On a feed where every card is a video of blue water, "Scuba
+              diving" is the difference between a scroll and a tap.
+
+              The twelve categories cannot carry this: they are market-agnostic
+              by design, so in the Andamans every water sport is `adventure`.
+              `activityType` is the curated taxonomy underneath, and the LABEL
+              is rendered rather than the key.
+
+              Optional, and absent on a listing nobody has classified yet — so
+              nothing is rendered rather than a placeholder or a prettified key.
+            */}
+            {experience.activityTypeLabel ? (
+              <p className="label text-cream/70 mt-2">
+                {experience.activityTypeLabel}
+              </p>
+            ) : null}
+
+            {/*
               `nextAvailable` absent means nothing is bookable in 90 days — NOT
               "we did not check". Saying so here is what stops the tap that ends
               in "no dates", which is the tap that loses the traveller.
@@ -190,9 +212,17 @@ export function ExperienceCard({
               {price ? (
                 <p className="text-cream text-lg font-bold">
                   {price}
-                  <span className="text-cream/70 ml-1.5 text-xs font-normal">
-                    per person
-                  </span>
+                  {/*
+                    The server's phrase, verbatim — yuvoy-app#20 §1. See the
+                    detail page for why this is not derived from `pricingUnit`.
+                    Omitted rather than guessed when absent: no phrase at all is
+                    a smaller error than the wrong one.
+                  */}
+                  {experience.pricingUnitLabel ? (
+                    <span className="text-cream/70 ml-1.5 text-xs font-normal">
+                      {experience.pricingUnitLabel}
+                    </span>
+                  ) : null}
                 </p>
               ) : (
                 <p className="text-cream/70 text-sm">Price on request</p>

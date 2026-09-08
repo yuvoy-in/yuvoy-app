@@ -75,6 +75,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       <BookingLayer
         slug={experience.slug}
         bookingMode={experience.bookingMode}
+        bookable={experience.bookable}
         before={
           <>
             <p className="eyebrow text-terra-deep">{location}</p>
@@ -114,9 +115,34 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                 {price ? (
                   <p className="mt-1 text-3xl font-bold">
                     {price}
-                    <span className="text-forest/70 ml-2 text-xs font-normal">
-                      per person · all-in
-                    </span>
+                    {/*
+                      The server's phrase, VERBATIM — yuvoy-app#20 §1. This said
+                      "per person" on its own authority, and the platform has
+                      always supported group pricing with checkout dividing
+                      correctly for it, so a ₹12,000 charter for six read as
+                      ₹12,000 per person on one of the two screens a traveller
+                      decides from. That is a consumer pricing misstatement.
+
+                      Never built from `pricingUnit`: the contract is explicit
+                      that a client deriving its own phrase is a second copy of
+                      a rule the API owns, and the copy that drifts is the one
+                      that misstates a price. Money FORMATTING stays ours; the
+                      unit phrase does not.
+
+                      Both fields are present exactly when `fromPrice` is, so
+                      the fallback is unreachable in practice — it exists so a
+                      contract that ever loosened cannot silently reintroduce
+                      the claim.
+                    */}
+                    {experience.pricingUnitLabel ? (
+                      <span className="text-forest/70 ml-2 text-xs font-normal">
+                        {experience.pricingUnitLabel} · all-in
+                      </span>
+                    ) : (
+                      <span className="text-forest/70 ml-2 text-xs font-normal">
+                        all-in
+                      </span>
+                    )}
                   </p>
                 ) : (
                   <p className="text-forest/70 mt-1 max-w-xs text-sm">

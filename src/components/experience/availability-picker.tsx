@@ -135,6 +135,36 @@ export function AvailabilityPicker({
 
   const suppressed = data.staleSlotsSuppressed;
 
+  /*
+    Not selling at all — yuvoy-app#19 §2, and it is checked BEFORE the empty
+    state below.
+
+    `bookable: false` always arrives with `slots: []`, so without this branch
+    it would fall into "this operator has not put any departures on sale yet"
+    — which is a different claim, and a false one. One says "look at another
+    month", the other says "not this listing, right now".
+
+    The detail page normally hides this picker entirely when the listing is not
+    bookable, so reaching here means the two answers disagreed: the page was
+    rendered when it was bookable and availability has since said otherwise.
+    Availability is the fresher of the two — it is never cached, and the detail
+    page is statically rendered with `revalidate = 300` — so it wins, and the
+    picker says so rather than deferring to a five-minute-old page.
+
+    No reason, for the same reason the detail page gives none.
+  */
+  if (data.bookable === false) {
+    return (
+      <Panel className="mt-4">
+        <p className="text-sm font-bold">Not available to book right now</p>
+        <p className="text-forest/70 mt-1.5 text-sm">
+          This is not a gap in the calendar — the experience itself is not on
+          sale at the moment. Everything else on Yuvoy still is.
+        </p>
+      </Panel>
+    );
+  }
+
   // Empty and "we withheld some" are different things, and the traveller is
   // owed the difference.
   if (days.length === 0) {

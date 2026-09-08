@@ -8,42 +8,38 @@
 #
 # `pnpm contract:check` fails the build if this copy stops matching the ref.
 repo=yuvoy-in/yuvoy-api
-# 7 Sep 2026. Forward from d40ae3b1a97e, pinned yesterday. Diffed as a parsed
-# schema tree rather than as text, because the last two defects on this
-# document were both YAML that parsed cleanly into the wrong place
-# (yuvoy-api#92, #103). PURELY ADDITIVE, and narrow: ONE endpoint changed.
-# 28 lines added, none removed, nothing retyped.
+# 8 Sep 2026. Forward from ab93328169fc. Diffed as a parsed schema tree rather
+# than as text, because the last defects on this document were YAML that parsed
+# cleanly into the wrong place (yuvoy-api#92, #103). PURELY ADDITIVE: 126 lines
+# added, and the only removals are two `required:` lists that GREW — `bookable`
+# joined `Experience` and `AvailabilityPage`. Nothing removed, nothing retyped.
 #
-# Consumed in this change (yuvoy-api#114):
-#   - `GET /reels` now takes a `cursor` and answers with `complete` and
-#     `nextCursor` — the same shape `/experiences` already had. This closes the
-#     gap the previous pin recorded: the feed was one answer that stopped at 60
-#     and could not say it had.
+# Consumed in this change:
+#   - `Experience.bookable` and `AvailabilityPage.bookable` (yuvoy-app#19) —
+#     one eligibility predicate now governs every sale. Deliberately NOT a 404:
+#     the card is already gone from every feed and from search, so the only way
+#     to this page is a link, a bookmark or a search result, and telling that
+#     person the business does not exist is worse than telling them it is not
+#     selling. It carries NO reason, and will not — why a business stopped
+#     selling is a supply judgement about them.
+#   - `pricingUnit` / `pricingUnitLabel` (yuvoy-app#20 §1) — the fix for a
+#     consumer pricing misstatement. Both screens hard-coded "per person" next
+#     to the price, and the platform has always supported group pricing, so a
+#     ₹12,000 charter for six read as ₹12,000 per person with our authority
+#     behind it. The LABEL is rendered verbatim, never mapped, so the phrase
+#     cannot drift between the card, the detail page and the operator portal.
+#   - `activityType` / `activityTypeLabel` (yuvoy-app#20 §2) — the twelve
+#     categories are market-agnostic, so in the Andamans every water sport is
+#     `adventure`. Optional: absent on a listing nobody has classified.
 #
-# The cursor is OPAQUE and must never be constructed. It carries the ROUND a
-# reel is in for its own operator, then recency, then id — the three terms the
-# ordering itself has. That is why a client cannot page this ordering: the
-# rotation is computed across every eligible reel at query time, so resuming it
-# from what the client holds restarts it, and one business's second reel
-# arrives before another's first. The interleave is the one property the
-# endpoint exists to protect.
-#
-# `complete` is TOLD, never inferred. A short page is not the end: a page that
-# happens to come back exactly full would stop the scroll early, and an
-# infinite scroll that has silently stopped looks identical to one with nothing
-# more to show, so nobody reports it. `limit` is a page size now, not a feed
-# size — the 60 cap is unchanged and no longer caps the feed.
-#
-# Landed earlier and still NOT consumed, each needing its own issue before
-# anything is built:
+# Landed and NOT consumed, each needing its own issue:
 #   - `BookingStatus.meetingPoint` / `.cancellation` / `.requestExpiresAt`
 #   - `ReservationContact.marketingConsent`
 #
-# Known gap, verified rather than assumed: `bookable` on the experience detail
-# and availability responses (yuvoy-app#19) is NOT in this document and NOT on
-# api.yuvoy.in. The issue describes it as shipped in migration 0053; master
-# carries migrations to 0051 only and no branch has more. Reassigned to the API
-# with that finding rather than built against a shape nobody serves.
-ref=ab93328169fcb305d8a3e1b5f0bdde072ffd1d81
+# A note on how this pin was nearly missed: `gh api .../commits/master` served
+# a SHA five minutes stale, twice, and an issue was raised against yuvoy-api on
+# that reading and retracted. `git ls-remote` is the check that would have
+# answered correctly, and is the one to run before claiming a ref is missing.
+ref=1cbffaa0723027d3f7dc72c49fd67aa00548de53
 branch=master
-pinned_on=2026-09-07
+pinned_on=2026-09-08

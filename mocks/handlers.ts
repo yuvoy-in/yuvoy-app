@@ -51,6 +51,16 @@ export type Scenario =
     stays readable, and `/?__scenario=long-feed` walks real cursors through
     real page boundaries in the browser and in Playwright.
   */
+  /*
+    A listing that answers 200 and cannot be bought — yuvoy-app#19.
+
+    Deliberately NOT a 404: the card is already gone from every feed and from
+    search, so the only way to this page is a link, a bookmark or a search
+    result, and telling that person the business does not exist is worse than
+    telling them it is not selling. Unreachable from the fixture otherwise, and
+    it is the state the whole flag exists to make visible.
+  */
+  | "not-bookable"
   | "long-feed"
   /*
     `complete: false` with NO `nextCursor` — the contract's third case, "a
@@ -263,9 +273,15 @@ export const handlers = [
     if (!detail) {
       return envelope("not_found", "No such experience.", 404);
     }
-    return HttpResponse.json(detail, {
-      headers: mockHeaders(requestId()),
-    });
+    /*
+      Still a 200 when not bookable. See the `not-bookable` scenario's note:
+      a 404 here would tell somebody holding a link that the business does not
+      exist, which is worse than telling them it is not selling right now.
+    */
+    return HttpResponse.json(
+      { ...detail, bookable: scenarioOf(request) !== "not-bookable" },
+      { headers: mockHeaders(requestId()) },
+    );
   }),
 
   http.get(
@@ -288,10 +304,18 @@ export const handlers = [
         return envelope("not_found", "No such experience.", 404);
       }
 
-      const slots = scenario === "empty" ? [] : availabilityFor(slug);
+      /*
+        `bookable: false` ALWAYS comes with `slots: []` — the contract is
+        explicit, and a mock that sent slots alongside it would let a client
+        ship a screen that renders bookable rows on a listing nobody can buy.
+      */
+      const bookable = scenario !== "not-bookable";
+      const slots =
+        !bookable || scenario === "empty" ? [] : availabilityFor(slug);
 
       return HttpResponse.json(
         {
+          bookable,
           slots,
           availabilityAsOf: FIXTURE_NOW.toISOString(),
           marketTimezone: "Asia/Kolkata",

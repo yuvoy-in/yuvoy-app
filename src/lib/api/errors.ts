@@ -21,6 +21,21 @@ export const ERROR_CODES = [
   "internal_error",
   "method_not_allowed",
   "not_implemented",
+  /*
+    413, from the global 64K body limit — yuvoy-app#20 §3.
+
+    A client bug in practice, and it gets its own branch for one reason: the
+    honest next step is NOT a retry. An identical body fails identically, so an
+    automatic replay is a loop that costs a traveller their signal and gets
+    them nowhere.
+  */
+  "payload_too_large",
+  /*
+    The server could not classify its own failure. Newly declared rather than
+    newly emitted — it was always the fallback and was simply not in the enum,
+    which is why no client can have a case for it and nothing breaks.
+  */
+  "unclassified_error",
   // Availability and capacity — each names a different next step.
   "capacity_unavailable",
   "request_quota_exhausted",
@@ -86,12 +101,28 @@ export function isDeliberateStop(code: ErrorCode): boolean {
  */
 export const CLIENT_BUGS = [
   "invalid_input",
+  "payload_too_large",
   "idempotency_key_malformed",
   "screening_required",
   "invalid_reason_code",
   "invalid_role",
   "method_not_allowed",
   "not_implemented",
+  /*
+    413, from the global 64K body limit — yuvoy-app#20 §3.
+
+    A client bug in practice, and it gets its own branch for one reason: the
+    honest next step is NOT a retry. An identical body fails identically, so an
+    automatic replay is a loop that costs a traveller their signal and gets
+    them nowhere.
+  */
+  "payload_too_large",
+  /*
+    The server could not classify its own failure. Newly declared rather than
+    newly emitted — it was always the fallback and was simply not in the enum,
+    which is why no client can have a case for it and nothing breaks.
+  */
+  "unclassified_error",
 ] as const satisfies readonly ErrorCode[];
 
 export function isClientBug(code: ErrorCode): boolean {

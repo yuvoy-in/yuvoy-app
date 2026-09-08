@@ -161,6 +161,16 @@ export const EXPERIENCES: ExperienceSummary[] = [
     durationMinutes: 180,
     maxPartySize: 6,
     fromPrice: inr(4500),
+    /*
+      Present exactly when `fromPrice` is — the contract's own rule. The LABEL
+      is what screens render; the key is here because the API sends both and a
+      fixture that dropped one would let a client quietly start deriving the
+      phrase itself.
+    */
+    pricingUnit: "per_person",
+    pricingUnitLabel: "per person",
+    activityType: "scuba",
+    activityTypeLabel: "Scuba diving",
     heroMedia: withClip(poster("dive", 0)),
     operator: operatorReef,
     nextAvailable: "2026-08-20",
@@ -196,6 +206,16 @@ export const EXPERIENCES: ExperienceSummary[] = [
     durationMinutes: 480,
     maxPartySize: 8,
     fromPrice: inr(18000),
+    /*
+      The listing this field exists for: a private charter priced FOR THE
+      GROUP. Before yuvoy-app#20 both traveller surfaces rendered "per person"
+      next to this figure on their own authority, so ₹18,000 for a whole boat
+      read as ₹18,000 each on the two screens somebody decides from.
+    */
+    pricingUnit: "per_group",
+    pricingUnitLabel: "for the group",
+    activityType: "private_charter",
+    activityTypeLabel: "Private charter",
     heroMedia: poster("charter", 2),
     operator: operatorBlue,
     nextAvailable: "2026-08-22",
@@ -338,6 +358,13 @@ export const EXPERIENCE_DETAIL: Record<string, Experience> = Object.fromEntries(
         "A placeholder description for development. Real copy is written by the operator and reviewed before it publishes.",
       gallery: e.heroMedia ? [e.heroMedia] : [],
       meetingPoint: MEETING,
+      /*
+        Required since migration 0053 — one eligibility predicate governs every
+        sale. True here for every fixture; the false case is reachable through
+        `?__scenario=not-bookable`, because a listing that answers 200 and
+        cannot be bought is the state the whole flag exists to make visible.
+      */
+      bookable: true,
       included: ["Instructor", "All equipment", "Boat transfer"],
       requirements: ["Be able to swim", "No prior experience needed"],
       policyTier: "weather",

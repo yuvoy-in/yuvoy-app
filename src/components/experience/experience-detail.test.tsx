@@ -64,4 +64,88 @@ describe("ExperienceDetail", () => {
     );
     expect(screen.queryByRole("link", { name: "Open in maps" })).toBeNull();
   });
+
+  describe("a listing that cannot be sold right now", () => {
+    /*
+      yuvoy-app#19 §1. Still a 200 with the full listing, deliberately not a
+      404: the card is already gone from every feed and from search, so the
+      only way here is a link, a bookmark or a search result — and telling that
+      person the business does not exist is worse than telling them it is not
+      selling.
+    */
+    const notBookable: Experience = { ...withGallery, bookable: false };
+
+    it("offers no way to pick a date", () => {
+      renderWithQuery(<ExperienceDetail experience={notBookable} />);
+      expect(
+        screen.getByText(/not available to book right now/i),
+      ).toBeInTheDocument();
+      // No picker at all — one that will always be empty would render the
+      // ordinary "no dates in this window" state, which is a different claim.
+      expect(screen.queryByText("Checking seats…")).not.toBeInTheDocument();
+    });
+
+    it("does not imply the operator is gone", () => {
+      renderWithQuery(<ExperienceDetail experience={notBookable} />);
+      const text = document.body.textContent?.toLowerCase() ?? "";
+      for (const guess of ["closed", "no longer", "suspend", "removed"]) {
+        expect(text, guess).not.toContain(guess);
+      }
+      // The listing itself is still fully rendered — that is the point of the
+      // 200.
+      expect(screen.getByText(base.title)).toBeInTheDocument();
+    });
+
+    it("still shows the dates when it IS bookable", () => {
+      renderWithQuery(<ExperienceDetail experience={withGallery} />);
+      expect(
+        screen.queryByText(/not available to book right now/i),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("the price says what it means", () => {
+    /*
+      yuvoy-app#20 §1. This screen hard-coded "per person" on its own
+      authority while the platform has always supported group pricing, so a
+      ₹18,000 whole-boat charter read as ₹18,000 each.
+    */
+    it("renders the server's phrase verbatim", () => {
+      const group: Experience = {
+        ...withGallery,
+        pricingUnit: "per_group",
+        pricingUnitLabel: "for the group",
+      };
+      renderWithQuery(<ExperienceDetail experience={group} />);
+      expect(screen.getByText(/for the group/)).toBeInTheDocument();
+      expect(screen.queryByText(/per person/)).not.toBeInTheDocument();
+    });
+
+    it("never derives the phrase from the key", () => {
+      /*
+        The contract is explicit: "Render it verbatim; do not build one from
+        `pricingUnit`." A client deriving its own is a second copy of a rule
+        the API owns, and the copy that drifts is the one that misstates a
+        price. A label that disagrees with its key must follow the LABEL.
+      */
+      const odd: Experience = {
+        ...withGallery,
+        pricingUnit: "per_group",
+        pricingUnitLabel: "per boat",
+      };
+      renderWithQuery(<ExperienceDetail experience={odd} />);
+      expect(screen.getByText(/per boat/)).toBeInTheDocument();
+      expect(screen.queryByText(/for the group/)).not.toBeInTheDocument();
+    });
+
+    it("says nothing about the basis rather than guessing one", () => {
+      const unlabelled: Experience = {
+        ...withGallery,
+        pricingUnitLabel: undefined,
+      };
+      renderWithQuery(<ExperienceDetail experience={unlabelled} />);
+      expect(screen.queryByText(/per person/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/for the group/)).not.toBeInTheDocument();
+    });
+  });
 });

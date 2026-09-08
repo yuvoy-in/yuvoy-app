@@ -229,6 +229,18 @@ export function describeError(
           body: "We pause an operator while we re-check a licence or a safety item. Everything else is still bookable.",
           canRetry: false,
         };
+      case "payload_too_large":
+        /*
+          413 from the 64K body limit. `canRetry: false` is the load-bearing
+          part: an identical body fails identically, so offering the button
+          would be a loop that costs island signal and reaches nothing.
+        */
+        return {
+          ...base,
+          title: "That was too much to send",
+          body: "Something in what you sent is larger than we can accept. Trying again with the same thing will not work — shorten it, or send us a message and we will help.",
+          canRetry: false,
+        };
       case "payments_unavailable":
         return {
           ...base,
