@@ -96,6 +96,30 @@ describe("ExperienceDetail", () => {
       expect(screen.getByText(base.title)).toBeInTheDocument();
     });
 
+    it("treats an ABSENT bookable as bookable", () => {
+      /*
+        The production regression this line caused, pinned so it cannot come
+        back.
+
+        The pinned contract marks `bookable` required, so reading
+        `experience.bookable` and trusting falsiness looked correct — and on
+        8 Sep 2026 it made every listing on `app.yuvoy.in` say "not available
+        to book", because migration 0053 was merged but not yet DEPLOYED and
+        the live API sent no such field.
+
+        A pinned contract says what the API will send, never what it is
+        sending today. Absent therefore falls back to the behaviour that was
+        correct before the field existed.
+      */
+      const older: Experience = { ...withGallery };
+      delete (older as { bookable?: boolean }).bookable;
+
+      renderWithQuery(<ExperienceDetail experience={older} />);
+      expect(
+        screen.queryByText(/not available to book right now/i),
+      ).not.toBeInTheDocument();
+    });
+
     it("still shows the dates when it IS bookable", () => {
       renderWithQuery(<ExperienceDetail experience={withGallery} />);
       expect(

@@ -75,7 +75,24 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       <BookingLayer
         slug={experience.slug}
         bookingMode={experience.bookingMode}
-        bookable={experience.bookable}
+        /*
+          ABSENT MEANS BOOKABLE, and that is not defensive habit — it is a
+          production regression this line already caused once.
+
+          The contract at the pinned commit marks `bookable` required, so this
+          read `experience.bookable` and treated `undefined` as false. But the
+          contract is what MASTER declares, not what `api.yuvoy.in` is running:
+          migration 0053 was merged and not yet deployed, so the live API sent
+          no such field and every listing on production said "not available to
+          book" the moment this shipped.
+
+          A pinned contract says what the API will send, never what it does
+          send today. So the check is `!== false`: absent falls back to the
+          behaviour that was correct before the field existed, which is the
+          only reading that is safe against a deployment lag in either
+          direction.
+        */
+        bookable={experience.bookable !== false}
         before={
           <>
             <p className="eyebrow text-terra-deep">{location}</p>
