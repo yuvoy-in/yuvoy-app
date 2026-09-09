@@ -74,7 +74,32 @@ export const qk = {
    */
   availabilityForCheckout: (slug: string, slotId: string) =>
     ["getAvailability", "checkout", slug, slotId] as const,
-  search: (q: string, bookableOn?: string) =>
-    ["searchExperiences", q, bookableOn ?? null] as const,
+  /*
+    Every axis is part of the key. Leaving one out means two different
+    searches share a cache entry and the second renders the first's results —
+    silently, and only for the length of `staleTime`, which is the hardest
+    kind of wrong answer to reproduce.
+  */
+  search: (
+    q: string,
+    bookableOn?: string,
+    destinationKey?: string,
+    category?: string,
+  ) =>
+    [
+      "searchExperiences",
+      q,
+      bookableOn ?? null,
+      destinationKey ?? null,
+      category ?? null,
+    ] as const,
+  /**
+   * The chip rail on Search — the places and kinds a traveller can filter by.
+   *
+   * Its own key rather than sharing the feed's: it reads `/experiences` for
+   * facets, not for a page of cards, and it must not be invalidated when the
+   * feed is.
+   */
+  searchFacets: () => ["searchFacets"] as const,
   bookingStatus: (token: string) => ["getBookingStatus", token] as const,
 };

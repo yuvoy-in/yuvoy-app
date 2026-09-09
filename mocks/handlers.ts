@@ -1,4 +1,5 @@
 import { http, HttpResponse, delay } from "msw";
+import type { components } from "../src/lib/api/schema.gen";
 import {
   EXPERIENCES,
   REELS,
@@ -131,6 +132,31 @@ async function commonFailure(request: Request) {
   }
 }
 
+/**
+ * The closed browse vocabulary, so the mock can tell an unknown category from
+ * one that simply matches nothing.
+ *
+ * Kept in step with `Category` in the contract by the type below: adding a
+ * value there without adding it here is a build failure, which is the only
+ * way a set written twice stays written once.
+ */
+const CATEGORIES: ReadonlySet<string> = new Set<
+  components["schemas"]["Category"]
+>([
+  "adventure",
+  "nature_wildlife",
+  "food_drink",
+  "arts_creativity",
+  "learning",
+  "culture_heritage",
+  "wellness",
+  "entertainment",
+  "community",
+  "sports",
+  "local_life",
+  "events",
+]);
+
 export const handlers = [
   /* ------------------------------------------------------------- catalog */
 
@@ -141,18 +167,41 @@ export const handlers = [
     const u = new URL(request.url);
     const scenario = scenarioOf(request);
     const category = u.searchParams.get("category");
-    const q = (u.searchParams.get("q") ?? "").toLowerCase();
+    const destinationKey = u.searchParams.get("destinationKey");
+    const bookableOn = u.searchParams.get("bookableOn");
 
     let items = EXPERIENCES;
     if (scenario === "empty") items = [];
     if (category) items = items.filter((e) => e.category === category);
-    if (q) items = items.filter((e) => e.title.toLowerCase().includes(q));
+    /*
+      `destinationKey` and `bookableOn` were implemented from the beginning and
+      documented only on 9 Sep (yuvoy-api#133). Modelled now that they are on
+      the contract.
 
-    // Two per page, so infinite scroll and the `complete` flag are both
-    // exercised in development rather than only in theory.
+      **`q` and `mode` are NOT handled, and that is the fix rather than an
+      omission.** This mock used to filter by `q` and the real handler has
+      never read it — so a client sending `q` here got a filtered list from the
+      mock and an unfiltered one from production, believing it had searched.
+      Both parameters were removed from the contract in the same change, for
+      that reason.
+    */
+    if (destinationKey) {
+      items = items.filter((e) => e.destinationKey === destinationKey);
+    }
+    if (bookableOn) items = items.filter((e) => e.nextAvailable === bookableOn);
+
+    /*
+      Two per page by default, so infinite scroll and the `complete` flag are
+      both exercised in development rather than only in theory — but `limit` is
+      honoured when asked for, because the contract takes it and the Search
+      tab's chip rail depends on one read returning the catalogue rather than
+      the first two rows of it.
+    */
     const cursor = u.searchParams.get("cursor");
     const start = cursor ? Number(atob(cursor)) : 0;
-    const pageSize = 2;
+    const asked = Number(u.searchParams.get("limit") ?? "");
+    const pageSize =
+      Number.isInteger(asked) && asked >= 1 && asked <= 50 ? asked : 2;
     const page = items.slice(start, start + pageSize);
     const next = start + pageSize;
     const complete = next >= items.length;
@@ -335,17 +384,53 @@ export const handlers = [
     const u = new URL(request.url);
     const q = (u.searchParams.get("q") ?? "").toLowerCase();
     const bookableOn = u.searchParams.get("bookableOn");
+    const destinationKey = u.searchParams.get("destinationKey");
+    const category = u.searchParams.get("category");
+    const activityType = u.searchParams.get("activityType");
+    const filtered = Boolean(
+      bookableOn || destinationKey || category || activityType,
+    );
 
     /*
-      "An empty `q` returns nothing, not everything." A day alone is still a
-      question — what is bookable on Thursday — so it is answered; nothing at
-      all is not. The mock used to answer the whole catalogue here, which is
-      how the screen shipped a default state the real API would leave empty.
+      "An empty `q` WITH NO FILTERS returns nothing, not everything" — the
+      semantics as of yuvoy-api#133. An empty `q` with any filter set returns
+      that filtered set: "a traveller who taps Havelock and types nothing is
+      not asking for everything, they are asking for Havelock, and answering
+      that with a blank screen makes every chip look like a control that does
+      nothing."
+
+      Before that fix the API returned before reading either filter, so every
+      chip tapped without text answered an empty page over real departures.
+      This mock never modelled that defect — it honoured `bookableOn` — which
+      is why the screen shipped a design the live API contradicted for a month.
     */
-    if (!q && !bookableOn) {
+    if (!q && !filtered) {
       return HttpResponse.json(
         { items: [], nextCursor: null, complete: true },
         { headers: mockHeaders(requestId()) },
+      );
+    }
+
+    /*
+      An unknown `category` is a **400**, not an empty page: the contract is
+      explicit that the two must be distinguishable, because "no results" is
+      the wrong thing to tell somebody whose filter was never going to match.
+
+      `activityType` is the opposite — an unknown value is an empty page,
+      because that set grows by INSERT and refusing it would make the API stale
+      between deploys. Both are modelled, or a client cannot have been tested
+      against the difference.
+    */
+    if (category && !CATEGORIES.has(category)) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "invalid_input",
+            message: "Unknown category.",
+            details: { category },
+          },
+        },
+        { status: 400, headers: mockHeaders(requestId()) },
       );
     }
 
@@ -359,6 +444,13 @@ export const handlers = [
     }
     // Date-first discovery: only what can actually be booked that day.
     if (bookableOn) items = items.filter((e) => e.nextAvailable === bookableOn);
+    if (destinationKey) {
+      items = items.filter((e) => e.destinationKey === destinationKey);
+    }
+    if (category) items = items.filter((e) => e.category === category);
+    if (activityType) {
+      items = items.filter((e) => e.activityType === activityType);
+    }
 
     return HttpResponse.json(
       { items, nextCursor: null, complete: true },
@@ -388,14 +480,34 @@ export const handlers = [
   // scans, it does not follow people.
   // Always 200 with a usable target, including for an unknown code — the
   // person holding the card needs a destination either way.
+  /**
+   * A printed card — and where it was printed (yuvoy-app#27).
+   *
+   * Three shapes, because `/go/[code]` has three branches and each must be
+   * reachable:
+   *
+   *   - `HAVELOCK…` — a card printed for one listing. `target` wins and the
+   *     destination is not used to widen it.
+   *   - `ISLAND…`   — a card printed for a place. No specific target, so the
+   *     destination opens Search on that place.
+   *   - anything else — unknown or market-wide. **No `destinationKey` at
+   *     all**, which is the contract's shape for both: absent means "no
+   *     destination", and an empty string would have meant "a destination
+   *     whose key is blank", which is a filter matching nothing.
+   */
   http.post(url("/scans"), async ({ request }) => {
     const { code } = (await request.json()) as { code: string };
-    const known = code.toUpperCase().startsWith("HAVELOCK");
+    const upper = code.toUpperCase();
+    const forListing = upper.startsWith("HAVELOCK");
+    const forPlace = upper.startsWith("ISLAND");
     return HttpResponse.json(
       {
-        target: known ? "/e/try-dive-nemo-reef" : "/",
-        known,
+        target: forListing ? "/e/try-dive-nemo-reef" : "/",
+        known: forListing || forPlace,
         marketKey: "andaman",
+        ...(forListing || forPlace
+          ? { destinationKey: "andaman/havelock" }
+          : {}),
       },
       { headers: mockHeaders(requestId()) },
     );
