@@ -575,3 +575,185 @@ describe("giving the seats back", () => {
     ).toBeInTheDocument();
   });
 });
+
+/*
+  yuvoy-app#22 — three fields that have been on `GET /bookings/status` and
+  rendered nowhere. This is the screen somebody opens at 5:40am on the morning
+  of a trip, and the screen they refresh while an operator decides.
+*/
+describe("BookingScreen — the day's facts", () => {
+  it("says where to meet", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            meetingPoint: {
+              text: "Jetty 2, Havelock",
+              landmark: "Beside the dive shop",
+            },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(await screen.findByText("Jetty 2, Havelock")).toBeInTheDocument();
+    expect(screen.getByText("Beside the dive shop")).toBeInTheDocument();
+  });
+
+  it("renders no row at all when the meeting point is empty", async () => {
+    // The read path coerces a NULL column to "", so the key is present and
+    // useless — the one shape optional chaining does not catch (yuvoy-app#25).
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ meetingPoint: { text: "  " } })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(await screen.findByText("You are going")).toBeInTheDocument();
+    expect(screen.queryByText("Where you meet")).toBeNull();
+  });
+
+  describe("a cancelled trip says why", () => {
+    function cancelled(reasonCode?: string) {
+      return statusBody({
+        state: "cancelled",
+        final: true,
+        cancellation: reasonCode ? { reasonCode } : undefined,
+      });
+    }
+
+    it("names the actual reason instead of guessing at the weather", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("CREDENTIAL_LAPSE")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+
+      expect(
+        await screen.findByText("The operator's paperwork was not current."),
+      ).toBeInTheDocument();
+    });
+
+    it("never prints the raw code at a traveller", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("CREDENTIAL_LAPSE")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText("This trip was called off");
+      expect(document.body.textContent).not.toMatch(/CREDENTIAL_LAPSE/);
+    });
+
+    it("drops the 'if the sea called it off' hedge", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("OPERATOR_CANCELLED")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText("This trip was called off");
+      expect(document.body.textContent).not.toMatch(
+        /if the sea called it off/i,
+      );
+      // The refund fact beside it is true whatever the reason was, and stays.
+      expect(
+        screen.getByText(/refund has already started/i),
+      ).toBeInTheDocument();
+    });
+
+    it("treats the two names for a traveller cancellation as one event", async () => {
+      // `TRAVELLER_REQUEST` and `CUSTOMER_REQUEST` are the same thing under
+      // two names in the backend's own table. Neither may fall through.
+      for (const code of ["TRAVELLER_REQUEST", "CUSTOMER_REQUEST"]) {
+        server.use(
+          http.get(`${BASE}/bookings/status`, () =>
+            HttpResponse.json(cancelled(code)),
+          ),
+        );
+        const { unmount } = renderWithQuery(<BookingScreen />);
+        expect(
+          await screen.findByText("You asked us to cancel."),
+        ).toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it("has a sentence for a code it has never seen", async () => {
+      // The set grows by INSERT on the server with no deploy here, so an
+      // unmapped code is the expected steady state after any addition — not
+      // an edge case. It must not render blank and must not render the token.
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("VOLCANO")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+
+      expect(
+        await screen.findByText("The operator or we called it off."),
+      ).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/VOLCANO/);
+    });
+
+    it("says nothing at all when no reason came back", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled()),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText("This trip was called off");
+      expect(screen.queryByText(/called it off\./)).toBeNull();
+    });
+  });
+
+  it("tells a waiting traveller how long the operator has", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "awaiting_operator",
+            final: false,
+            bookingReference: undefined,
+            // 04:30Z is 10:00 IST — stated in the market's zone, like every
+            // other time on this screen.
+            requestExpiresAt: "2026-08-21T04:30:00Z",
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(
+      await screen.findByText("The operator has until"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/10:00/)).toBeInTheDocument();
+  });
+
+  it("shows no deadline on a booking nobody is waiting on", async () => {
+    // The API drops `requestExpiresAt` once the booking is final, so the key
+    // being absent is already the answer — no state check needed here.
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(await screen.findByText("You are going")).toBeInTheDocument();
+    expect(screen.queryByText("The operator has until")).toBeNull();
+  });
+});

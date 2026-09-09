@@ -171,12 +171,37 @@ function StatusBody({
     status.state === "confirmed" &&
     new Date(status.slot.startsAt).getTime() > now;
 
+  // See the "Where you meet" row and the reason line below for why each of
+  // these is derived rather than read straight off the response.
+  const meetingText = status.meetingPoint?.text?.trim();
+  const meetingLandmark = status.meetingPoint?.landmark?.trim();
+  const reason = cancellationReason(status.cancellation?.reasonCode);
+
   return (
     <div>
       <p className="eyebrow text-terra-deep">{copy.eyebrow}</p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight sm:text-4xl">
         {copy.title}
       </h1>
+      {/*
+        WHY the trip is off — yuvoy-app#22 §2.
+
+        This screen used to hedge: "If the sea called it off, rebooking is a
+        fresh booking…". That "if" was a guess dressed as information, and the
+        wrong guess for a licence that lapsed or seats that were resold — a
+        traveller was told to wonder about the weather on a clear day. The
+        hedge is gone from `STATE_COPY.cancelled` and the actual reason is
+        rendered here.
+
+        Never the raw code: `CREDENTIAL_LAPSE` is an internal token and
+        shouting it in capitals at a customer is the same defect as Account's
+        `awaiting_operator`. `cancellationReason` maps it and falls back for
+        anything it does not know, because the set grows by INSERT on the
+        server without a deploy here.
+      */}
+      {reason ? (
+        <p className="mt-3 max-w-prose text-sm font-bold">{reason}</p>
+      ) : null}
       <p className="text-forest/70 mt-3 max-w-prose text-sm">{copy.body}</p>
 
       {/*
@@ -187,6 +212,27 @@ function StatusBody({
       */}
       {status.state === "holding" && status.holdExpiresAt ? (
         <HoldCountdown expiresAt={status.holdExpiresAt} />
+      ) : null}
+
+      {/*
+        HOW LONG THEY ARE WAITING — yuvoy-app#22 §3.
+
+        `holdExpiresAt` is set for allotment holds only, so in
+        `awaiting_operator` — the one state where somebody is genuinely
+        waiting on a human — the page carried no deadline at all. Somebody who
+        asked on Tuesday opened it on Wednesday and read exactly what it said
+        on Tuesday.
+
+        Gated on the FIELD, not on the state: the API sends
+        `requestExpiresAt` while the booking is non-terminal and drops it once
+        it is final, so the key being there is already the answer to "is
+        anybody still waiting on this".
+      */}
+      {status.requestExpiresAt ? (
+        <AnswerBy
+          expiresAt={status.requestExpiresAt}
+          timezone={status.slot.timezone}
+        />
       ) : null}
 
       {status.state === "holding" ? <PayButton status={status} /> : null}
@@ -226,6 +272,38 @@ function StatusBody({
             a 7am dive shown as 1:30am is a missed boat.
           */}
           <Row label="When">{formatDeparture(status.slot)}</Row>
+          {/*
+            WHERE THE DAY STARTS — yuvoy-app#22 §1.
+
+            `/trip/{token}` and `/me/bookings` both rendered this and the
+            private booking page — the link we send to the person who paid,
+            the one this panel's own comment calls "everything needed for the
+            day, on the page" — was the only one of the three without it. A
+            traveller awake at 5:40am was reading their reference, their guest
+            count and what they paid, and going back through WhatsApp to find
+            the jetty.
+
+            Trimmed for the reason yuvoy-app#25 gives: an unset meeting point
+            reaches a client as "" rather than as an absent key, so a
+            truthiness test on the raw value is not enough. A landmark alone
+            still answers "where".
+          */}
+          {meetingText || meetingLandmark ? (
+            <Row label="Where you meet">
+              {meetingText}
+              {meetingLandmark ? (
+                <span
+                  className={
+                    meetingText
+                      ? "text-forest/70 mt-1 block text-xs"
+                      : undefined
+                  }
+                >
+                  {meetingLandmark}
+                </span>
+              ) : null}
+            </Row>
+          ) : null}
           <Row label="Guests">{status.guests}</Row>
           <Row label="Paid">{formatTotal(status.price)}</Row>
         </dl>
@@ -344,7 +422,13 @@ const STATE_COPY: Record<
   cancelled: {
     eyebrow: "Cancelled",
     title: "This trip was called off",
-    body: "Your refund has already started. If the sea called it off, rebooking is a fresh booking rather than a silent move — the price you see will be the price you pay.",
+    /*
+      The "if the sea called it off" hedge was removed with yuvoy-app#22 §2 —
+      the real reason is rendered above this from `cancellation.reasonCode`.
+      What is left is the refund fact and the rebooking rule, both of which
+      are true whatever the reason was.
+    */
+    body: "Your refund has already started. Rebooking is a fresh booking rather than a silent move — the price you see will be the price you pay.",
   },
   expired: {
     eyebrow: "Expired",
@@ -765,6 +849,99 @@ function formatTotal(price: BookingStatus["price"]): string {
 }
 
 /** Renders the departure in the MARKET's zone, never the device's. */
+/**
+ * Why a trip was called off, in a sentence a traveller can act on.
+ *
+ * The codes are a closed set in `cancellation_reason_codes` — twelve today —
+ * and they are OUR tokens. `CREDENTIAL_LAPSE` is a column value, not an
+ * explanation, and printing it is the same defect as printing a booking state.
+ *
+ * `TRAVELLER_REQUEST` and `CUSTOMER_REQUEST` are the same event under two
+ * names. That duplicate is in the backend's data and is not ours to fix, so
+ * both are mapped to the same sentence rather than one of them falling
+ * through.
+ *
+ * The FALLBACK is the load-bearing part. The set grows by INSERT on the
+ * server with no deploy here, so an unmapped code is not a defect to guard
+ * against, it is the expected steady state after any addition. It must not
+ * render blank and it must not render the token.
+ */
+export function cancellationReason(code?: string): string | null {
+  const key = code?.trim().toUpperCase();
+  if (!key) return null;
+
+  const sentences: Record<string, string> = {
+    WEATHER: "Conditions on the day.",
+    SAFETY: "The operator made a safety call.",
+    OPERATOR_CANCELLED: "The operator cancelled.",
+    OPERATOR_DISHONOUR: "The operator could not honour the booking.",
+    OPERATOR_UNREACHABLE: "We could not reach the operator.",
+    CAPACITY_LOST: "The seats were no longer available.",
+    CREDENTIAL_LAPSE: "The operator's paperwork was not current.",
+    MEDICAL_UNFIT: "This trip was not medically suitable.",
+    TRAVELLER_REQUEST: "You asked us to cancel.",
+    CUSTOMER_REQUEST: "You asked us to cancel.",
+    PAYMENT_FAILED: "The payment did not complete.",
+    ADMIN_ERROR: "This was our mistake.",
+  };
+
+  return sentences[key] ?? "The operator or we called it off.";
+}
+
+/**
+ * How long the operator has left to answer a request.
+ *
+ * The same machinery as `HoldCountdown` and deliberately not the same copy:
+ * a hold is the traveller's clock — pay before it runs out — and this is
+ * somebody else's. Nothing is required of the person reading it, so it is
+ * `raised` rather than `alert` at every point on the clock, and there is no
+ * urgent state. A request lapsing costs them nothing; they were never charged.
+ *
+ * The deadline is stated in the MARKET's zone, like every other time on this
+ * screen, and against the server's clock via the offset each response teaches
+ * us — a phone an hour fast used to show a live hold as already expired.
+ */
+function AnswerBy({
+  expiresAt,
+  timezone,
+}: {
+  expiresAt: string;
+  timezone: string;
+}) {
+  const [left, setLeft] = useState(() => msUntil(expiresAt, clockOffsetMs()));
+
+  useEffect(() => {
+    const t = setInterval(
+      () => setLeft(msUntil(expiresAt, clockOffsetMs())),
+      1000,
+    );
+    return () => clearInterval(t);
+  }, [expiresAt]);
+
+  const when = new Date(expiresAt);
+  const deadline = new Intl.DateTimeFormat("en-IN", {
+    timeZone: timezone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(when);
+
+  return (
+    <Panel className="mt-6" role="timer" aria-live="off">
+      <p className="label text-forest/75">The operator has until</p>
+      <p className="mt-1 text-lg font-bold">{deadline}</p>
+      <p className="text-forest/70 mt-2 text-sm">
+        {left > 0
+          ? `${formatCountdown(left)} left to answer. Nothing has been charged, and you can withdraw the ask at any time.`
+          : "That has passed. If they do not answer, the request lapses on its own and nothing is charged."}
+      </p>
+    </Panel>
+  );
+}
+
 function formatDeparture(slot: BookingStatus["slot"]): string {
   const when = new Date(slot.startsAt);
   const date = new Intl.DateTimeFormat("en-IN", {
