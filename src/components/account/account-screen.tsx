@@ -93,6 +93,13 @@ export function AccountScreen() {
         <LoadingState label="Checking this device">
           <Skeleton className="h-32 w-full" />
         </LoadingState>
+        {/*
+          Here too, because this is the branch that PRERENDERS — `/account` is
+          a static route and this shell is what the HTML contains. A policy
+          link that only exists after hydration is one a crawler, a reader
+          with JavaScript off, and anybody reading the source cannot find.
+        */}
+        <LegalLinks className="mt-10 text-xs" />
       </Screen>
     );
   }
@@ -245,6 +252,17 @@ export function AccountScreen() {
         </Link>
         , no code needed.
       </p>
+
+      {/*
+        On BOTH branches of this screen — yuvoy-app#15.
+
+        It was on the signed-in one only, and almost nobody is signed in: this
+        product has no account to make, so the signed-out form is what a
+        traveller meets here. Reading the deployed page is what showed it —
+        `/account` prerenders to its loading shell, and the links were nowhere
+        in the HTML.
+      */}
+      <LegalLinks className="border-cream-line mt-10 border-t pt-6 text-xs" />
     </Screen>
   );
 }

@@ -480,3 +480,23 @@ test.describe("security headers", () => {
     );
   });
 });
+
+/**
+ * The privacy policy and the terms are reachable — yuvoy-app#15.
+ *
+ * This app collects a health-screener answer at checkout and a phone number
+ * with it, and linked to neither from anywhere. A policy that is not reachable
+ * from where the data is given is not a policy anybody relied on.
+ *
+ * Asserted against the SERVER-RENDERED HTML rather than a hydrated page,
+ * because the first version of this shipped inside a branch that only renders
+ * after IndexedDB is read — so `/account` prerendered to its loading shell
+ * with the links nowhere in it. A link that exists only after hydration is one
+ * a crawler, a reader with JavaScript off, and anybody reading the source
+ * cannot find.
+ */
+test("the app links to a privacy policy and to terms", async ({ request }) => {
+  const html = await (await request.get("/account")).text();
+  expect(html).toContain("https://yuvoy.in/privacy");
+  expect(html).toContain("https://yuvoy.in/terms");
+});
