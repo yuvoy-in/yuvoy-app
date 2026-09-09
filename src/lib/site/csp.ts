@@ -38,12 +38,26 @@
  * it is the whole of what yuvoy-app#23 asked for. Note that `'unsafe-inline'`
  * in `script-src` weakens nothing else in this policy.
  *
- * ## Rollout
+ * ## Rollout — now enforced
  *
- * Report-only first, then enforce — the ask on the issue, and the reason is
- * that a policy written from reading the code is a guess. `ENFORCED` is the
- * subset that cannot break a page that works today; everything else is
- * reported and not enforced until a real report says the list is complete.
+ * Shipped report-only on 9 Sep 2026 and enforced the same day, on the owner's
+ * call, against evidence rather than a waiting period.
+ *
+ * The evidence is `pnpm verify` run with this policy ENFORCED: 87 end-to-end
+ * tests drive the real production build in a real browser, and a directive
+ * that blocks anything they touch fails the suite rather than a traveller.
+ * That covers every route, the service worker, the feed, checkout and the
+ * offline shell.
+ *
+ * **What it does not cover, stated plainly.** The e2e suite runs against MSW
+ * mocks, so no request actually leaves for `api.yuvoy.in`, `eu.i.posthog.com`
+ * or Cloudflare Stream. Those three are in the policy from reading every
+ * call site rather than from watching one succeed, which is why each is a
+ * host or a subdomain wildcard rather than an exact URL, and why the
+ * report-only header stays alongside: it now carries the SAME policy, so a
+ * production violation is still reported even though the enforced copy would
+ * already have blocked it. When the two agree, report-only costs one header
+ * and buys the console line that says which directive did it.
  */
 
 /** An origin, or nothing when the URL is unusable. Never a path. */
@@ -121,19 +135,16 @@ export function cspDirectives(env: CspEnv): string[] {
 }
 
 /**
- * The subset enforced today.
+ * The whole policy is enforced.
  *
- * Each of these can be turned on without a report, because nothing in the app
- * uses the capability at all: there is no `<object>`, no `<base>`, and nothing
- * frames this app. The rest waits for a real
- * `Content-Security-Policy-Report-Only` run against production.
+ * It was a three-directive subset for one day. Kept as its own function rather
+ * than collapsed into `reportOnlyCsp` so that narrowing it again is a one-line
+ * change with a place to put the reason — which is what it existed for, and
+ * what it would be needed for again if a report ever showed a directive too
+ * tight to hold.
  */
-const ENFORCED = new Set(["object-src", "base-uri", "frame-ancestors"]);
-
 export function enforcedCsp(env: CspEnv): string {
-  return cspDirectives(env)
-    .filter((d) => ENFORCED.has(d.split(" ")[0]))
-    .join("; ");
+  return cspDirectives(env).join("; ");
 }
 
 export function reportOnlyCsp(env: CspEnv): string {

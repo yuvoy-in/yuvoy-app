@@ -86,16 +86,19 @@ describe("Content-Security-Policy", () => {
     expect(sources(reportOnlyCsp(PROD), "connect-src")).not.toContain("ws:");
   });
 
-  it("enforces only what cannot break a page that works today", () => {
-    // The rollout is report-only first. Anything enforced before a real report
-    // is a guess, and a CSP that breaks the app gets reverted and never
-    // returns.
-    const enforced = enforcedCsp(PROD);
-    expect(enforced).toBe(
-      "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
-    );
-    expect(enforced).not.toContain("script-src");
-    expect(enforced).not.toContain("connect-src");
+  it("enforces the whole policy, and reports the same one", () => {
+    /*
+      Enforced on 9 Sep 2026 against the e2e suite rather than a waiting
+      period. The two headers now carry the SAME policy — report-only is kept
+      because it is what turns a production block into a console line naming
+      the directive, which an enforced-only header does not give you.
+
+      If they ever diverge it means somebody narrowed one and not the other,
+      and that is the bug this pins.
+    */
+    expect(enforcedCsp(PROD)).toBe(reportOnlyCsp(PROD));
+    expect(enforcedCsp(PROD)).toContain("connect-src");
+    expect(enforcedCsp(PROD)).toContain("default-src 'none'");
   });
 
   it("drops a host it cannot parse rather than emitting a broken source", () => {

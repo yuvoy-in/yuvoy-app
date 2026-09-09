@@ -422,18 +422,25 @@ test.describe("security headers", () => {
     const res = await request.get("/");
     const headers = res.headers();
 
-    expect(headers["content-security-policy"]).toBe(
-      "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
-    );
+    /*
+      The WHOLE policy is enforced as of 9 Sep 2026 — yuvoy-app#23. It shipped
+      report-only in the morning and was enforced the same day against this
+      suite rather than a waiting period: 91 tests drive the real production
+      build in a real browser, so a directive that blocks anything they touch
+      fails here rather than in front of a traveller.
+    */
+    const enforced = headers["content-security-policy"] ?? "";
+    expect(enforced).toContain("default-src 'none'");
+    expect(enforced).toContain("connect-src");
+    expect(enforced).toContain("frame-ancestors 'none'");
+    expect(enforced).not.toContain("'unsafe-eval'");
     expect(headers["x-frame-options"]).toBe("DENY");
     expect(headers["strict-transport-security"]).toContain("max-age=");
     expect(headers["x-content-type-options"]).toBe("nosniff");
     expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   });
 
-  test("the full policy ships in report-only, and can still play a clip", async ({
-    request,
-  }) => {
+  test("the policy can still play a clip", async ({ request }) => {
     const policy =
       (await request.get("/")).headers()[
         "content-security-policy-report-only"
@@ -454,25 +461,74 @@ test.describe("security headers", () => {
     expect(policy).toContain("default-src 'none'");
   });
 
-  test("the enforced policy is a strict subset of the reported one", async ({
+  test("the enforced and reported policies are the same", async ({
     request,
   }) => {
     /*
-      The two headers are built from one directive list, and this is what stops
-      them drifting apart: an enforced directive that says something the
-      report-only header does not say is a rule nobody ever saw a report for.
+      Both headers carry one directive list. Report-only is kept alongside the
+      enforced copy on purpose: it is what turns a production block into a
+      console line naming the directive that did it, which an enforced-only
+      header does not give you.
+
+      Divergence means somebody narrowed one and not the other, and the
+      enforced copy would then be silently stricter than anything anybody ever
+      saw a report for.
     */
     const headers = (await request.get("/")).headers();
-    const reported = new Set(
-      (headers["content-security-policy-report-only"] ?? "").split("; "),
+    expect(headers["content-security-policy-report-only"]).toBe(
+      headers["content-security-policy"],
     );
-    for (const directive of (headers["content-security-policy"] ?? "").split(
-      "; ",
-    )) {
-      expect(
-        reported,
-        `enforced "${directive}" is not in report-only`,
-      ).toContain(directive);
-    }
+  });
+});
+
+/**
+ * A printed card opens on the place it was printed for — yuvoy-app#27.
+ *
+ * A Havelock guesthouse card and a Port Blair hotel card sent two travellers
+ * to the identical unfiltered feed. The destination was on the `scan_codes`
+ * row all along and was simply never returned (fixed in yuvoy-api#131), so
+ * the scan analytics were better than the experience they described.
+ *
+ * Write-free: `POST /scans` records a scan, which is a marketing counter with
+ * no traveller-visible effect, so this stays safe to run against production
+ * alongside the rest of this file.
+ */
+test.describe("arriving from a QR code", () => {
+  test("a card printed for a place opens Search on that place", async ({
+    page,
+  }) => {
+    await page.goto("/go/ISLAND-HAV-01");
+    await page.waitForURL(/\/search\?/);
+
+    const url = new URL(page.url());
+    expect(url.searchParams.get("destinationKey")).toBe("andaman/havelock");
+    // Attribution is untouched by this change and must stay on the URL.
+    expect(url.searchParams.get("src")).toBe("qr");
+    expect(url.searchParams.get("code")).toBe("ISLAND-HAV-01");
+  });
+
+  test("a card printed for one listing still opens that listing", async ({
+    page,
+  }) => {
+    /*
+      The specific target wins. Narrowing it to a whole island afterwards
+      would be a worse answer than the one the operator paid to print.
+    */
+    await page.goto("/go/HAVELOCK-01");
+    await page.waitForURL(/\/e\/try-dive-nemo-reef/);
+    expect(new URL(page.url()).searchParams.get("src")).toBe("qr");
+  });
+
+  test("a card with no destination lands on the feed, unchanged", async ({
+    page,
+  }) => {
+    // Absent means "no destination" — a market-wide card at the airport, or a
+    // code we do not recognise. No guess, exactly as before.
+    await page.goto("/go/UNKNOWN-CARD");
+    await page.waitForURL(/\/\?/);
+    const url = new URL(page.url());
+    expect(url.pathname).toBe("/");
+    expect(url.searchParams.get("destinationKey")).toBeNull();
+    expect(url.searchParams.get("src")).toBe("qr");
   });
 });
