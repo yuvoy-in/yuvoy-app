@@ -65,7 +65,11 @@ export interface paths {
          *
          *     Its own route rather than a `q` on the feed: the feed is ordered by recency and is the browsing surface, search is ordered by relevance and is the finding surface. One endpoint doing both means one of the two orderings is always wrong and the client cannot tell which it got.
          *
-         *     An empty `q` returns **nothing**, not everything — "everything" is what the feed is for, and a search box that shows the whole catalog when you clear it looks broken. Not paginated: a traveller who does not find it in twenty results changes the words rather than paging.
+         *     An empty `q` **with no filters** returns nothing, not everything — "everything" is what the feed is for, and a search box that shows the whole catalog when you clear it looks broken.
+         *
+         *     An empty `q` **with any filter set** returns that filtered set, ordered by recency. A traveller who taps Havelock and types nothing is not asking for everything, they are asking for Havelock, and answering that with a blank screen makes every chip look like a control that does nothing. Text and filters are independent; either alone is a real search, and together they intersect.
+         *
+         *     Not paginated: a traveller who does not find it in twenty results changes the words rather than paging.
          */
         get: operations["searchExperiences"];
         put?: never;
@@ -94,6 +98,8 @@ export interface paths {
          *     Deliberately forgiving about everything except the three fields needed to have a conversation — the business, a person, and a number that can be dialled. A form that rejects a boat owner for omitting a destination key loses supply in a market where supply is the constraint.
          *
          *     The response carries no identifier: there is nothing a stranger could do with one, and handing out ids for rows in a review queue is one more authorization boundary to get right later.
+         *
+         *     `next` points the applicant at self-service signup rather than promising a call. It used to say somebody would ring within two working days, and nothing kept that promise — the operators who submitted this form in August 2026 were still waiting a month later. `POST /operator/v1/auth/signup` is open to them right now, the account it creates is PROSPECT and cannot be booked, and document verification is still the gate — so both halves of the new sentence are things the system actually does.
          */
         post: operations["submitOperatorApplication"];
         delete?: never;
@@ -208,7 +214,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List published experiences */
+        /**
+         * List published experiences
+         * @description The browse surface, ordered by recency and cursor-paged. Use `/search` to find something; this is for looking.
+         *
+         *     **`mode` and `q` used to be documented here and were never implemented** — the handler has never read either, so a client sending them got them silently ignored, and one sending `q` got an unfiltered list back believing it had searched. They are removed rather than implemented: relevance ordering belongs on `/search`, and one endpoint doing both means one of the two orderings is always wrong and the client cannot tell which it got.
+         *
+         *     `destinationKey` and `bookableOn` are the reverse — implemented from the beginning and never documented, so a client built from this file could not know they existed. Now written down.
+         */
         get: operations["listExperiences"];
         put?: never;
         post?: never;
@@ -853,9 +866,11 @@ export interface components {
         Attribution: {
             /**
              * @description Anything outside this set is stored as `unknown` rather than rejected — a checkout must not fail over a marketing field.
+             *
+             *     `web` is **our own marketing site**, and is deliberately not `referral`, which means somebody else's site, nor `direct`, which means the address was typed. A person who read `yuvoy.in` and tapped through did neither, and filing them under either name makes the funnel unreadable a quarter later.
              * @enum {string}
              */
-            source?: "qr" | "direct" | "search" | "social" | "referral" | "operator" | "unknown";
+            source?: "qr" | "direct" | "search" | "social" | "referral" | "operator" | "web" | "unknown";
             /** @description Which card, which boat, which door. */
             placement?: string;
             campaign?: string;
@@ -1296,7 +1311,15 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
-                destinationKey?: string;
+                destinationKey?: components["schemas"]["DestinationKey"];
+                /** @description The closed browse vocabulary. **An unknown value is a `400`**, not an empty page — the two are indistinguishable to a client otherwise, and "no results" is the wrong thing to tell somebody whose filter was never going to match: they change the words instead of the spelling. */
+                category?: components["schemas"]["Category"];
+                /**
+                 * @description What the thing actually is — `scuba`, not `adventure`. Matched exactly.
+                 *
+                 *     **An unknown value is an empty page, not a `400`** — the opposite of `category`, and deliberately. This set grows by `INSERT`, so today's unknown value is tomorrow's real one and refusing it would make the API stale between deploys. Read the current set from the operator vocabulary endpoint rather than hardcoding it.
+                 */
+                activityType?: string;
                 /** @description Only what can actually be booked that day, in the market's timezone. */
                 bookableOn?: string;
             };
@@ -1340,11 +1363,23 @@ export interface operations {
                     operations?: string;
                     /** @description Where they heard about us. */
                     source?: string;
+                    /**
+                     * @description Send `true` and this call **also records the marketing lead and its consent, in the same transaction as the application**. One call, one unit of work: either both rows exist and are linked, or neither does.
+                     *
+                     *     **Optional, and absent is not `false`.** Omitting it writes the application alone and behaves exactly as this endpoint always has, so a deployed form does not start failing because we grew a field. Sending `false` is a person declining, and is refused with `400` rather than filed — recording a marketing contact for somebody who declined is the one outcome this must not produce.
+                     *
+                     *     Until yuvoy-web sends this, the site calls `/leads` separately. That works and is what it does today; it is simply two independent writes that can half-succeed, and the failure that matters is an application with no consent row on a site whose privacy policy says we hold one.
+                     */
+                    privacyAccepted?: boolean;
+                    /** @description Only meaningful alongside `privacyAccepted`. Defaults false. */
+                    marketingOptIn?: boolean;
+                    /** @description Campaign attribution for the lead. Ignored unless `privacyAccepted` is sent, because without consent there is no lead to attribute. */
+                    utm?: components["schemas"]["Utm"];
                 };
             };
         };
         responses: {
-            /** @description Received. Somebody will call. */
+            /** @description Recorded. `next` tells them how to start without waiting for us. */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -1456,7 +1491,7 @@ export interface operations {
                     "application/json": {
                         /**
                          * @description Path to send the traveller to.
-                         * @example /experiences/scuba-discover-havelock
+                         * @example /e/scuba-discover-havelock
                          */
                         target: string;
                         /** @description Whether the code resolved. `false` still carries a usable target. */
@@ -1465,6 +1500,14 @@ export interface operations {
                         experienceId?: string;
                         /** @example andaman */
                         marketKey?: string;
+                        /**
+                         * @description Where the code is, when it is registered against a destination rather than the market as a whole. A jetty card in Havelock carries `andaman/havelock`.
+                         *
+                         *     **Absent when the code names no destination**, and absent for an unknown code. It is not a filter the client has to apply: it is what the client needs in order to open the feed or search on the place the person is standing in, rather than on the whole market.
+                         *
+                         *     This has always been on the `scan_codes` row and has always been written to the analytics table. It was simply not returned, so a jetty card in Havelock and a hotel card in Port Blair sent two travellers to the identical unfiltered feed.
+                         */
+                        destinationKey?: components["schemas"]["DestinationKey"];
                     };
                 };
             };
@@ -1511,10 +1554,10 @@ export interface operations {
             query?: {
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
+                destinationKey?: components["schemas"]["DestinationKey"];
                 category?: components["schemas"]["Category"];
-                mode?: components["schemas"]["ExperienceMode"];
-                /** @description Free-text search */
-                q?: string;
+                /** @description Only what can actually be booked that day, in the market's timezone. */
+                bookableOn?: string;
             };
             header?: never;
             path?: never;

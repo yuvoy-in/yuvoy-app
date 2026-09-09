@@ -8,38 +8,41 @@
 #
 # `pnpm contract:check` fails the build if this copy stops matching the ref.
 repo=yuvoy-in/yuvoy-api
-# 8 Sep 2026. Forward from ab93328169fc. Diffed as a parsed schema tree rather
-# than as text, because the last defects on this document were YAML that parsed
-# cleanly into the wrong place (yuvoy-api#92, #103). PURELY ADDITIVE: 126 lines
-# added, and the only removals are two `required:` lists that GREW — `bookable`
-# joined `Experience` and `AvailabilityPage`. Nothing removed, nothing retyped.
+# 9 Sep 2026. Forward from 1cbffaa07230, across six deploys in one day
+# (#130, #131, #133, #135, #136, #137). PURELY ADDITIVE to everything this app
+# reads; the only removals are two `/experiences` query parameters the API had
+# never implemented.
 #
 # Consumed in this change:
-#   - `Experience.bookable` and `AvailabilityPage.bookable` (yuvoy-app#19) —
-#     one eligibility predicate now governs every sale. Deliberately NOT a 404:
-#     the card is already gone from every feed and from search, so the only way
-#     to this page is a link, a bookmark or a search result, and telling that
-#     person the business does not exist is worse than telling them it is not
-#     selling. It carries NO reason, and will not — why a business stopped
-#     selling is a supply judgement about them.
-#   - `pricingUnit` / `pricingUnitLabel` (yuvoy-app#20 §1) — the fix for a
-#     consumer pricing misstatement. Both screens hard-coded "per person" next
-#     to the price, and the platform has always supported group pricing, so a
-#     ₹12,000 charter for six read as ₹12,000 per person with our authority
-#     behind it. The LABEL is rendered verbatim, never mapped, so the phrase
-#     cannot drift between the card, the detail page and the operator portal.
-#   - `activityType` / `activityTypeLabel` (yuvoy-app#20 §2) — the twelve
-#     categories are market-agnostic, so in the Andamans every water sport is
-#     `adventure`. Optional: absent on a listing nobody has classified.
+#   - `/search` honours a filter with an EMPTY `q` (yuvoy-api#132 → #133). It
+#     used to return before reading `destinationKey` or `bookableOn`, so the
+#     day chips this app has shipped for a month answered "Nothing on that day"
+#     against real departures. Text and filters are independent now; either
+#     alone is a real search and together they intersect.
+#   - `/search` gains `category` (closed enum, unknown = 400) and
+#     `activityType` (open set, unknown = empty page). The asymmetry is
+#     deliberate and both are handled: a 400 is a bug in this client, an empty
+#     page is a vocabulary that grew since the last deploy.
+#   - `Scan.destinationKey` (yuvoy-app#27) — a printed card says where it is.
+#     Absent for a market-wide card AND for an unknown code, which is one shape
+#     for "no destination" rather than two.
+#   - `Attribution.source` gains `web` (yuvoy-api#134 → #135) — our own
+#     marketing site, which is neither `referral` (somebody else's) nor
+#     `direct` (typed the address).
+#   - `POST /operator-applications` gains `privacyAccepted`, `marketingOptIn`
+#     and `utm` (yuvoy-web#157). Consumed by yuvoy-web, not by this app.
 #
-# Landed and NOT consumed, each needing its own issue:
-#   - `BookingStatus.meetingPoint` / `.cancellation` / `.requestExpiresAt`
-#   - `ReservationContact.marketingConsent`
+# NOT consumed, and deliberately:
+#   - `/experiences` now declares `destinationKey` and `bookableOn`. This app
+#     calls that endpoint nowhere — the feed reads `/reels` and search reads
+#     `/search` — so the declaration changes nothing here. Its `mode` and `q`
+#     were REMOVED; `git grep` confirms neither was ever sent from this repo.
 #
-# A note on how this pin was nearly missed: `gh api .../commits/master` served
-# a SHA five minutes stale, twice, and an issue was raised against yuvoy-api on
-# that reading and retracted. `git ls-remote` is the check that would have
-# answered correctly, and is the one to run before claiming a ref is missing.
-ref=1cbffaa0723027d3f7dc72c49fd67aa00548de53
+# `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
+# which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
+# issue. And every field above is consumed as OPTIONAL regardless of what
+# `required:` says — a pinned contract states what an API WILL send, never what
+# it does send today (yuvoy-api#126).
+ref=d4a09f197ea4f70e4cbaf2dc05d4f002c3cb19f6
 branch=master
-pinned_on=2026-09-08
+pinned_on=2026-09-09

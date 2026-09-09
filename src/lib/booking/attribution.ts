@@ -25,6 +25,21 @@ export type Attribution = components["schemas"]["Attribution"];
 
 const STORAGE_KEY = "yuvoy.attribution";
 
+/*
+  The accepted set, and it is the CONTRACT'S rather than this app's.
+
+  `satisfies` is what makes that true: adding a value here that the contract
+  does not declare is a build failure, so the client cannot drift from the
+  server's list. That property is the reason `web` was added upstream rather
+  than here — yuvoy-web#154 asked for it as an app change, and it was not one
+  (raised as yuvoy-api#134, shipped in yuvoy-api#135).
+
+  `web` means OUR OWN marketing site. Deliberately not `referral`, which the
+  column defines as somebody else's site, and not `direct`, which means the
+  address was typed — a person who read yuvoy.in and tapped through did
+  neither, and filing them under either makes the one channel we control
+  indistinguishable from the ones we do not.
+*/
 const SOURCES = [
   "qr",
   "direct",
@@ -32,6 +47,7 @@ const SOURCES = [
   "social",
   "referral",
   "operator",
+  "web",
   "unknown",
 ] as const satisfies readonly NonNullable<Attribution["source"]>[];
 
