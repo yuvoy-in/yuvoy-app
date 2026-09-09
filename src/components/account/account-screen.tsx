@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { StateChip } from "@/components/booking/state-chip";
 import { Screen } from "@/components/chrome/screen";
+import { LegalLinks } from "@/components/site/legal-links";
 import {
   describeError,
   FailurePanel,
@@ -365,6 +366,14 @@ function SignedIn({
         This leaves the bookings saved on this device alone — they stay under
         Trips.
       </p>
+
+      {/*
+        The standing place for the policy — yuvoy-app#15. The consent banner
+        carries it at the moment of asking and then never appears again; this
+        is where somebody comes looking for it a week later, on the tab that
+        already holds everything about them rather than about a trip.
+      */}
+      <LegalLinks className="border-cream-line mt-10 border-t pt-6 text-xs" />
     </Screen>
   );
 }

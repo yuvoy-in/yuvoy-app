@@ -9,6 +9,7 @@ import {
 } from "@/lib/analytics/consent";
 import { installReporter, consoleReporter } from "@/lib/observability/report";
 import { Button } from "@/components/ui/button";
+import { LegalLinks } from "@/components/site/legal-links";
 
 /**
  * The consent prompt, and the only thing that loads analytics.
@@ -73,6 +74,13 @@ export function ConsentBanner() {
           No thanks
         </Button>
       </div>
+      {/*
+        The policy, at the moment somebody is asked to agree to something —
+        yuvoy-app#15. A consent prompt that does not link what it is asking
+        consent under is asking somebody to agree to a document they have no
+        way to read.
+      */}
+      <LegalLinks tone="dark" className="mt-4 text-xs" />
     </div>
   );
 }
