@@ -13,8 +13,8 @@ import { rememberBooking } from "@/lib/booking/token-store";
 import { isDeadToken } from "@/lib/api/errors";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
+import { StateChip } from "@/components/booking/state-chip";
 import { Screen } from "@/components/chrome/screen";
 import {
   describeError,
@@ -89,7 +89,7 @@ export function AccountScreen() {
   if (token === undefined) {
     return (
       <Screen>
-        <LoadingState label="Loading your trips">
+        <LoadingState label="Checking this device">
           <Skeleton className="h-32 w-full" />
         </LoadingState>
       </Screen>
@@ -322,7 +322,14 @@ function SignedIn({
               <Panel>
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-bold">{b.experience}</p>
-                  <Chip size="sm">{b.state}</Chip>
+                  {/*
+                    The SHARED chip — yuvoy-app#26. This rendered the wire
+                    value, so a traveller waiting on an operator read
+                    `awaiting_operator` and somebody who missed the boat read
+                    `no_show`. Trips had the full map two directories away and
+                    this screen bypassed it; there is now one map.
+                  */}
+                  <StateChip state={b.state} />
                 </div>
                 <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
                   {b.reference}
@@ -331,9 +338,12 @@ function SignedIn({
                   {b.localTime} on {b.localDate} · {b.guests} guest
                   {b.guests === 1 ? "" : "s"}
                 </p>
-                {b.meetingPoint ? (
+                {/* Trimmed for the reason `experience-detail` gives — an
+                    empty meeting point reaches this list as "" or as spaces,
+                    never as an absent key (yuvoy-app#25). */}
+                {b.meetingPoint?.trim() ? (
                   <p className="text-forest/70 mt-1 text-xs">
-                    {b.meetingPoint}
+                    {b.meetingPoint.trim()}
                   </p>
                 ) : null}
               </Panel>

@@ -13,6 +13,7 @@ import { Screen } from "@/components/chrome/screen";
 import { ButtonLink } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
+import { StateChip } from "@/components/booking/state-chip";
 import { CalendarIcon, ChevronRightIcon } from "@/components/ui/icons";
 import type { components } from "@/lib/api/schema.gen";
 
@@ -226,34 +227,5 @@ export function TripsScreen() {
         </Link>
       </p>
     </Screen>
-  );
-}
-
-function StateChip({ state }: { state: BookingStatus["state"] }) {
-  const live = state === "confirmed" || state === "completed";
-  const over =
-    state === "cancelled" || state === "declined" || state === "expired";
-
-  const label: Record<BookingStatus["state"], string> = {
-    holding: "Holding",
-    awaiting_operator: "Asked",
-    verifying: "Checking",
-    confirmed: "Confirmed",
-    declined: "Refunded",
-    cancelled: "Cancelled",
-    expired: "Expired",
-    released: "Released",
-    completed: "Done",
-    no_show: "Not boarded",
-  };
-
-  return (
-    <Chip
-      size="sm"
-      tone={live ? "accent" : "neutral"}
-      className={over ? "text-forest/70" : undefined}
-    >
-      {label[state]}
-    </Chip>
   );
 }

@@ -732,6 +732,49 @@ for (const f of files) {
   }
 }
 
+/**
+ * A WIRE ENUM MUST NOT BE RENDERED AT A TRAVELLER.
+ *
+ * Account shipped `<Chip size="sm">{b.state}</Chip>`, so somebody waiting on
+ * an operator read `awaiting_operator` and somebody who missed the boat read
+ * `no_show` (yuvoy-app#26). Trips had the full label map two directories away
+ * and this screen bypassed it. The same class of defect appeared again on the
+ * cancellation reason, where `CREDENTIAL_LAPSE` would have been shouted in
+ * capitals at a customer (yuvoy-app#22 §2).
+ *
+ * These fields are OUR tokens: closed sets in our own tables, in
+ * SCREAMING_SNAKE or lower_snake, that grow by INSERT without a deploy here.
+ * There is no phrasing of them that is English.
+ *
+ * The rule is narrow on purpose — it fires only on a whole JSX CHILD that is
+ * exactly one of these property reads. Passing one to a component that maps
+ * it (`<StateChip state={b.state} />`) is the fix, not the defect, and sits
+ * in prop position, so it is not matched.
+ */
+const RAW_ENUM_FIELDS = ["state", "reasonCode", "bookingMode"];
+const RAW_ENUM_ALLOWED = new Set(["src/components/booking/state-chip.tsx"]);
+for (const f of files) {
+  if (/\.test\.tsx?$/.test(f)) continue;
+  if (RAW_ENUM_ALLOWED.has(rel(f))) continue;
+  const s = code(f);
+  const pattern = new RegExp(
+    // Not preceded by `=`, so `state={b.state}` (prop position) is exempt,
+    // nor by `$`, so `${response.status}` in a template literal is not JSX.
+    String.raw`(^|[^=$])\{\s*([A-Za-z_$][\w$]*(?:\??\.[\w$]+)*\??\.(?:` +
+      RAW_ENUM_FIELDS.join("|") +
+      String.raw`))\s*\}`,
+    "gm",
+  );
+  for (const m of s.matchAll(pattern)) {
+    problems.push(
+      `${rel(f)}: renders \`${m[2]}\` straight into the page. That is a wire ` +
+        `enum — a token from one of our own tables — and it reaches a reader ` +
+        `as \`awaiting_operator\` or \`CREDENTIAL_LAPSE\`. Map it to a ` +
+        `sentence, with a fallback for a value that has not been seen before.`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);
