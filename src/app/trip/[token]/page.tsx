@@ -97,6 +97,9 @@ export default async function SharedTripPage({
     throw err;
   }
 
+  const tripMeeting = trip.meetingPoint?.trim();
+  const tripLandmark = trip.landmark?.trim();
+
   return (
     <Screen
       back={{ href: "/", label: "the feed" }}
@@ -127,14 +130,33 @@ export default async function SharedTripPage({
               timeZone: "Asia/Kolkata",
             }).format(new Date(`${trip.localDate}T12:00:00+05:30`))}
           </Row>
-          <Row label="Where">
-            {trip.meetingPoint}
-            {trip.landmark ? (
-              <span className="text-forest/70 mt-1 block text-xs">
-                {trip.landmark}
-              </span>
-            ) : null}
-          </Row>
+          {/*
+            yuvoy-app#25 — `meetingPoint` is REQUIRED on this response and the
+            read path coerces a NULL column to "", so the field is always
+            present and can still be empty. Unguarded, that printed a "Where"
+            row with nothing beside it on the one page somebody opens at dawn
+            to find the jetty.
+
+            Trimmed to agree with the publish gate in migration 0055, which
+            treats whitespace-only as empty. A landmark on its own is still an
+            answer, so it carries the row when the text does not.
+          */}
+          {tripMeeting || tripLandmark ? (
+            <Row label="Where">
+              {tripMeeting}
+              {tripLandmark ? (
+                <span
+                  className={
+                    tripMeeting
+                      ? "text-forest/70 mt-1 block text-xs"
+                      : undefined
+                  }
+                >
+                  {tripLandmark}
+                </span>
+              ) : null}
+            </Row>
+          ) : null}
           <Row label="Who is coming">{trip.partySize}</Row>
           {trip.operator ? <Row label="Run by">{trip.operator}</Row> : null}
         </dl>

@@ -172,4 +172,155 @@ describe("ExperienceDetail", () => {
       expect(screen.queryByText(/for the group/)).not.toBeInTheDocument();
     });
   });
+
+  /*
+    yuvoy-app#25. The section rendered unconditionally while everything inside
+    it was guarded, so an empty meeting point produced a heading over an empty
+    outlined box — live on two production listings when it was found.
+
+    The data is not being fixed underneath us: migration 0055 gates the
+    TRANSITION into published and deliberately unpublishes nothing, so the two
+    listings already in that state stay live, stay in the feed and stay
+    sellable. The guard is the fix.
+  */
+  describe("a meeting point with nothing in it", () => {
+    const nothing: Experience = {
+      ...withGallery,
+      meetingPoint: { text: "" },
+    };
+
+    it("renders no section at all rather than an empty box", () => {
+      renderWithQuery(<ExperienceDetail experience={nothing} />);
+      expect(screen.queryByText("Where you meet")).toBeNull();
+    });
+
+    it("treats whitespace as empty, the way the publish gate does", () => {
+      // The gate is `btrim(coalesce(meeting_point_text,'')) = ''`, so a screen
+      // that tested truthiness alone would disagree with the database.
+      renderWithQuery(
+        <ExperienceDetail
+          experience={{ ...withGallery, meetingPoint: { text: "   " } }}
+        />,
+      );
+      expect(screen.queryByText("Where you meet")).toBeNull();
+    });
+
+    it("still shows the section when only a landmark is set", () => {
+      renderWithQuery(
+        <ExperienceDetail
+          experience={{
+            ...withGallery,
+            meetingPoint: { text: "", landmark: "Beside the dive shop" },
+          }}
+        />,
+      );
+      expect(screen.getByText("Where you meet")).toBeInTheDocument();
+      expect(screen.getByText("Beside the dive shop")).toBeInTheDocument();
+    });
+
+    it("still shows the section when only coordinates are set", () => {
+      renderWithQuery(
+        <ExperienceDetail
+          experience={{
+            ...withGallery,
+            meetingPoint: { text: " ", lat: 11.9756, lng: 92.9862 },
+          }}
+        />,
+      );
+      expect(
+        screen.getByRole("link", { name: "Open in maps" }),
+      ).toBeInTheDocument();
+    });
+
+    it("promises nothing it cannot keep", () => {
+      renderWithQuery(<ExperienceDetail experience={nothing} />);
+      const text = document.body.textContent ?? "";
+      expect(text).not.toMatch(/to be confirmed/i);
+      expect(text).not.toMatch(/will confirm/i);
+    });
+  });
+
+  /*
+    yuvoy-app#21 — four fields the API sends that this page never read. Two of
+    them are what the operator sat down and typed; the other two the feed card
+    already renders, so the second screen was dropping what the first one used
+    to earn the tap.
+  */
+  describe("what the operator wrote", () => {
+    const written: Experience = {
+      ...withGallery,
+      description: "Two dives on the house reef.\n\nBoat leaves at seven.",
+      safetyNotes: "There is current here. You must swim 200m unaided.",
+      activityTypeLabel: "Scuba diving",
+      operator: {
+        ...withGallery.operator,
+        logoUrl: "https://cdn.example.com/logo.png",
+      },
+    };
+
+    it("renders the description as the paragraphs they typed", () => {
+      renderWithQuery(<ExperienceDetail experience={written} />);
+      expect(
+        screen.getByText("Two dives on the house reef."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Boat leaves at seven.")).toBeInTheDocument();
+    });
+
+    it("gives the safety notes their own section, apart from You need", () => {
+      renderWithQuery(<ExperienceDetail experience={written} />);
+      expect(screen.getByText("Before you book")).toBeInTheDocument();
+      expect(
+        screen.getByText(/You must swim 200m unaided/),
+      ).toBeInTheDocument();
+    });
+
+    it("shows the operator's mark beside their name", () => {
+      renderWithQuery(<ExperienceDetail experience={written} />);
+      const logo = document.querySelector(
+        'img[src="https://cdn.example.com/logo.png"]',
+      );
+      expect(logo).not.toBeNull();
+      // Decorative: the business name is right beside it and is the label.
+      expect(logo?.getAttribute("alt")).toBe("");
+    });
+
+    it("prints the activity label, never the key", () => {
+      renderWithQuery(
+        <ExperienceDetail experience={{ ...written, activityType: "scuba" }} />,
+      );
+      expect(screen.getByText("Scuba diving")).toBeInTheDocument();
+      expect(screen.queryByText("scuba")).toBeNull();
+    });
+
+    it("renders nothing for the fields a listing has not filled in", () => {
+      // All four are `omitempty` on the wire, so an unfilled one arrives as an
+      // ABSENT key rather than "". Nothing is rendered rather than a heading
+      // over an empty box, or a placeholder noun where the label should be.
+      renderWithQuery(
+        <ExperienceDetail
+          experience={{
+            ...withGallery,
+            description: undefined,
+            safetyNotes: undefined,
+            activityTypeLabel: undefined,
+            operator: { ...withGallery.operator, logoUrl: undefined },
+          }}
+        />,
+      );
+      expect(screen.queryByText("About this experience")).toBeNull();
+      expect(screen.queryByText("Before you book")).toBeNull();
+      expect(
+        document.querySelector('img[src="https://cdn.example.com/logo.png"]'),
+      ).toBeNull();
+    });
+
+    it("renders no section for prose that is only whitespace", () => {
+      renderWithQuery(
+        <ExperienceDetail
+          experience={{ ...withGallery, description: "  \n  \n " }}
+        />,
+      );
+      expect(screen.queryByText("About this experience")).toBeNull();
+    });
+  });
 });
