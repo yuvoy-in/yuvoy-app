@@ -17,6 +17,11 @@ import { EXPERIENCES } from "../../../mocks/fixtures";
  * that work.
  */
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/",
+}));
+
 const disconnect = vi.fn();
 const observe = vi.fn();
 /** Counts INSTANCES, which is what "one observer for the feed" means. */

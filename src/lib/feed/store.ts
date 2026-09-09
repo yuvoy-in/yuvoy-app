@@ -20,10 +20,32 @@ interface FeedState {
   muted: boolean;
   /** False when the connection or the user's preferences say do not autoplay. */
   autoplayAllowed: boolean;
+  /**
+   * Whether the app's chrome is out of the way — the masthead lifted, the
+   * floating tab bar dropped, the caption given back the room it was leaving.
+   *
+   * DERIVED, never set from outside: it is a function of which way the last
+   * move went, and the whole rule is the one line in `setActiveIndex`. See
+   * there for why direction rather than position.
+   *
+   * The shell reads it (`TabBar`), which is the only reason it lives in a
+   * store rather than in the feed's own state.
+   */
+  chromeRetracted: boolean;
 
   setActiveIndex: (i: number) => void;
   toggleMuted: () => void;
   setAutoplayAllowed: (allowed: boolean) => void;
+  /**
+   * Back to the top of the feed with the chrome out.
+   *
+   * Called when `Feed` mounts, when it unmounts, and whenever it stops
+   * showing reels at all. All three are the same statement: the retract
+   * belongs to a scrolling feed, and there is no scrolling feed right now —
+   * so nothing else in the app can inherit a tab bar that is off the bottom
+   * of the window with no way to fetch it back.
+   */
+  resetFeed: () => void;
   /** Whether this index is inside the preload budget. */
   shouldMount: (index: number) => boolean;
 }
@@ -32,10 +54,33 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   activeIndex: 0,
   muted: true,
   autoplayAllowed: false,
+  chromeRetracted: false,
 
-  setActiveIndex: (i) => set({ activeIndex: i }),
+  /*
+    The chrome follows the DIRECTION of the move, not the position in the feed.
+
+    "Only on the first reel" was the other candidate and it is a trap: a
+    traveller eleven reels down has no bar, and the only way back to Search or
+    Trips is eleven swipes up. Direction keeps navigation exactly one swipe
+    away from everywhere — down goes immersive, up brings the app back — and
+    it still leaves the first reel with the bar in place, because arriving at
+    index 0 can only ever be an upward move.
+
+    `i > s.activeIndex` is the whole rule and it needs no floor at zero: a
+    move to 0 is a move to an index below any other, so it can never be
+    upward. A re-report of the SAME index is not a move and changes nothing,
+    which also keeps an observer that fires twice on one card from flickering
+    the bar.
+  */
+  setActiveIndex: (i) =>
+    set((s) =>
+      i === s.activeIndex
+        ? s
+        : { activeIndex: i, chromeRetracted: i > s.activeIndex },
+    ),
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
   setAutoplayAllowed: (autoplayAllowed) => set({ autoplayAllowed }),
+  resetFeed: () => set({ activeIndex: 0, chromeRetracted: false }),
 
   shouldMount: (index) => {
     const { activeIndex } = get();

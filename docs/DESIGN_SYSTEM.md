@@ -8,6 +8,94 @@
 > preview, destination plates) are **retained for reference** — the app does not implement them,
 > but the reasoning in them is why the rules below are what they are.
 
+## v2.8 (2026-09-09, owner-directed) — the feed's chrome retracts
+
+**The change: on the reels feed, the chrome gets out of the way as a traveller
+moves down and comes straight back when they move up. The masthead loses its
+Search disc and centres the mark. Both feed scrims are re-cut as eased ramps.
+A right-to-left swipe opens the reel. Nothing else in the app moves.**
+
+The brief: _"the bottom nav bar should be only visible for the first reel …
+scrolling to the second reel should hide the navbar … if I scroll to the
+previous reel the navbar should come back … the darker shades under header and
+bottom navbar are not smooth … swiping from right to left should directly open
+the see dates thing."_ One fork was put to the owner and settled the same day.
+
+### The rule: direction, not position
+
+The bar is out on the first reel, hidden the moment the traveller moves DOWN a
+reel, and back the moment they move UP one — from anywhere, not only at the
+top. "Visible on the first reel only" was the other candidate and was rejected
+**by the owner** on the trade it forces: a traveller eleven reels down would
+have eleven swipes between them and Search. Direction keeps navigation one
+gesture away from everywhere, and still leaves reel one with the bar in place,
+because arriving at index 0 can only ever be an upward move.
+
+The rule is one line — `setActiveIndex` in `lib/feed/store.ts` — and everything
+else draws it. `Feed` publishes `data-chrome` on its root; the masthead, every
+caption and the tail are descendants of that node, so they cannot disagree.
+The tab bar lives in the shell, not the feed, so it carries the same state on
+its own `data-retracted` **and** checks `isFeedRoute`: the store is a module
+and outlives every component, so a value left behind by a feed must never be
+able to take the navigation off Search, Trips or Account.
+
+### Three consequences that are not optional
+
+- **The layout follows the bar.** The caption's foot is its own 32px, and it
+  rises by `--feed-lift` (60px) while the bar is there — which is exactly the
+  92px `tabbar-clearance` was giving it. Hiding the bar without this leaves
+  60px of dead space under the button on every reel but the first. The tail
+  does the same in padding, because it is in flow and padding is its height.
+- **The bar is translated, never hidden.** `visibility`, `inert` and
+  `display: none` all take the app's navigation away from anyone who moves
+  through the feed with a keyboard or a screen reader, since the gesture that
+  restores it is one they cannot make. `:focus-within` brings it back.
+- **The swipe is a shortcut, never the only way.** WCAG 2.5.1, and the button
+  stays primary. The card builds the href once and hands the same string to
+  both.
+
+### Motion: this is interaction feedback, not an entrance
+
+Everything here is **250ms on `--ease-interaction`** — §3's first budget. It
+shipped at 460ms of `--ease-cinematic` first and that was wrong for the same
+reason the marketing site's sliding header is already ruled on: chrome that
+answers a gesture is not a composition arriving, and half a second of it on a
+movement a traveller makes on every swipe reads as lag. `palette.test.ts`
+parses the durations out of the chrome layer and fails anything slower or on
+the other curve.
+
+### The scrims are eased ramps now
+
+Both feed scrims were four stops, and their slopes ran −0.29, −1.00, −1.48
+between the knots. A change in slope is what an eye reads as an edge, so a
+gradient that was smooth by construction had two visible seams across it and a
+third where it met `transparent` with its slope still at −1.48 — a hard line
+across moving footage on the one screen that is the product. They are now
+twelve and nine stops sampling a sigmoid: the slope rises from ~0 at the foot
+to −1.9 in the middle and falls back toward 0 at the head, so the scrim **ends
+rather than stopping**.
+
+The floors are unchanged in intent and are now **computed** rather than
+asserted: `palette.test.ts` parses the stops, composites them over the palest
+surf highlight measured (`#E8E2D4`) and recomputes the contrast. The caption
+band holds 7.9:1 at the 50% stop and 5.4:1 at the 62% one; the wordmark sits
+between 10.1:1 and 6.2:1. The figure this replaces — 8.9:1, written against
+the 62% stop — did not survive being recomputed: it corresponds to about 76%
+abyss, not 62%.
+
+The masthead's height is part of that measurement, not a layout detail: the
+mark occupies 12%–39% of a 132px block, and moving the padding slides it into
+a lighter band with every contrast test still passing. The test pins the
+padding to the gradient for exactly that reason.
+
+### And the Search disc is gone
+
+The masthead carried a Search disc while the floating bar two inches below it
+carried Search as one of its four tabs — two controls for one screen, on the
+smallest surface in the product, and the one on top was the one competing with
+the picture. The mark takes the centre, the strip is wholly inert, and the
+whole top of a reel scrolls the feed again.
+
 ## v2.7 (2026-09-02, owner-directed) — the app is rounded
 
 **The change: the app gets a radius scale, pills and circles, a stage-and-sheet

@@ -254,9 +254,36 @@
  * poster loads can be white surf two seconds later, so there is no fixed place
  * in the frame where a highlight can be assumed not to be.
  *
- * The floor: at its weakest stop this is 62% abyss, which puts `cream` at
- * 8.9:1 over the palest surf highlight measured (#E8E2D4). Every stop below
- * that is darker, so a scrim safe at its weakest stop is safe at all of them.
+ * ## Why twelve stops rather than four
+ *
+ * The four-stop version was correct about darkness and wrong about shape. Its
+ * slopes ran −0.29, −1.00, −1.48 between the knots: the alpha ramp changed
+ * gradient three-and-a-half-fold at 28% and again at 58%, and a CHANGE in
+ * slope is the thing an eye reads as an edge. So a scrim that was smooth by
+ * construction had two visible seams across it and a third where it hit
+ * `transparent` with slope still at −1.48 — a hard line at the top, over
+ * moving footage, on the one screen that is the product.
+ *
+ * These twelve stops sample a sigmoid: the slope rises from ~0 at the foot to
+ * −1.9 in the middle and falls back toward 0 at the head, so there is no knot
+ * anywhere for an eye to catch and the scrim ENDS rather than stopping.
+ *
+ * ## The floor, restated for the new curve
+ *
+ * The caption's top edge lands between 50% and 62% of the scrim's height —
+ * 50% for a one-line title, 62% for the longest that fits with an activity
+ * line under it — and the ramp holds **61% abyss or darker to the 62% mark**.
+ * Composited over the palest surf highlight measured (#E8E2D4) that is
+ * **7.9:1 at the 50% stop and 5.4:1 at the 62% one**: AAA where the caption
+ * usually starts, AA at body size at the very worst of it, and every stop
+ * below is darker — so a scrim safe at the TOP of the caption is safe through
+ * all of it. Above 62% nothing is written; that band is atmosphere.
+ *
+ * Those two numbers are not typed here on trust. `palette.test.ts` parses
+ * these stops, composites them and recomputes both, so lightening the ramp
+ * fails the suite rather than the next traveller in bright sun. (The figure
+ * this replaces — 8.9:1 — did not survive being recomputed: it corresponds to
+ * about 76% abyss, not to the 62% the sentence attached it to.)
  *
  * Accent text is the exception and the caption's ORDER is load-bearing for
  * it: `terra-soft` measures 5.5:1 only from the 85% stop downward, so the
@@ -267,21 +294,49 @@
   background: linear-gradient(
     to top,
     var(--color-abyss) 0%,
-    color-mix(in srgb, var(--color-abyss) 92%, transparent) 28%,
-    color-mix(in srgb, var(--color-abyss) 62%, transparent) 58%,
+    color-mix(in srgb, var(--color-abyss) 97%, transparent) 8%,
+    color-mix(in srgb, var(--color-abyss) 92%, transparent) 18%,
+    color-mix(in srgb, var(--color-abyss) 86%, transparent) 30%,
+    color-mix(in srgb, var(--color-abyss) 79%, transparent) 42%,
+    color-mix(in srgb, var(--color-abyss) 71%, transparent) 52%,
+    color-mix(in srgb, var(--color-abyss) 61%, transparent) 62%,
+    color-mix(in srgb, var(--color-abyss) 47%, transparent) 72%,
+    color-mix(in srgb, var(--color-abyss) 30%, transparent) 82%,
+    color-mix(in srgb, var(--color-abyss) 13%, transparent) 91%,
+    color-mix(in srgb, var(--color-abyss) 4%, transparent) 96%,
     transparent 100%
   );
 }
 
 /**
- * The same scrim, mirrored, under the feed's floating masthead. The wordmark
- * is cream on whatever the clip is showing, so it gets the same floor.
+ * The same treatment, mirrored, under the feed's floating masthead.
+ *
+ * The mark is cream on whatever the clip is showing, so it keeps the same
+ * floor: it occupies 12%–39% of this gradient's height (16px to 52px of a
+ * 132px block) and the ramp holds **65% abyss or darker across all of it** —
+ * 10.1:1 at the mark's top edge and 6.2:1 at its lowest, over the same
+ * highlight, recomputed by `palette.test.ts` from the stops below.
+ *
+ * The block's height is part of the measurement, not a layout detail: move
+ * the masthead's padding and the mark lands in a different band. The test
+ * pins the padding to this gradient for exactly that reason.
+ *
+ * It is TALLER than what it replaced (132px against 92px) for one reason: a
+ * short scrim over a long fade reads as a bar, and a bar is what the masthead
+ * is trying not to be. The extra height is spent entirely below the mark, on
+ * the tail, where the eye cannot find the end of it.
  */
 @utility feed-scrim-top {
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--color-abyss) 78%, transparent) 0%,
-    color-mix(in srgb, var(--color-abyss) 62%, transparent) 45%,
+    color-mix(in srgb, var(--color-abyss) 80%, transparent) 0%,
+    color-mix(in srgb, var(--color-abyss) 80%, transparent) 12%,
+    color-mix(in srgb, var(--color-abyss) 77%, transparent) 25%,
+    color-mix(in srgb, var(--color-abyss) 67%, transparent) 38%,
+    color-mix(in srgb, var(--color-abyss) 52%, transparent) 50%,
+    color-mix(in srgb, var(--color-abyss) 33%, transparent) 62%,
+    color-mix(in srgb, var(--color-abyss) 15%, transparent) 74%,
+    color-mix(in srgb, var(--color-abyss) 3%, transparent) 86%,
     transparent 100%
   );
 }
@@ -366,6 +421,162 @@
 
   @media (min-width: 64rem) {
     padding-bottom: 2rem;
+  }
+}
+
+/* ------------------------------------------------------- the feed's chrome */
+
+/**
+ * The feed retracts its chrome as a traveller moves DOWN the reels and puts it
+ * back the moment they move UP one.
+ *
+ * Three layers move together and they are driven by ONE attribute on the
+ * feed's root — `data-chrome="shown" | "hidden"`, written by `Feed` from the
+ * store: the masthead lifts and dissolves, the floating tab bar drops out of
+ * the window, and the room the caption was leaving for that bar is given back
+ * to the caption. Two of those deciding for themselves is how a caption ends
+ * up half a bar's height out of step with the bar it is clearing.
+ *
+ * The tab bar is the exception to "one attribute": it lives in the SHELL, not
+ * in the feed, so it cannot be a descendant of this root. It carries the same
+ * state on its own `data-retracted` and shares the timing below.
+ *
+ * ## The geometry, once
+ *
+ * The bar's object is 68px tall — a 56px pill (44px targets in a `p-1.5`
+ * shell) standing on `tabbar-foot`'s 12px. `tabbar-clearance` leaves 92px for
+ * it, which is that 68px plus 24px of air. With the bar gone a caption still
+ * wants a foot, and 32px is it — so the caption's own padding is 32px and
+ * `--feed-lift` is the 60px difference it rises by when the bar is there.
+ * Both numbers are here rather than in two components, because they are one
+ * number seen from two ends.
+ *
+ * ## Why transform on the caption and padding on the tail
+ *
+ * The caption is `position: absolute` against the card, so lifting it is a
+ * translate — no layout, no reflow of twelve cards a frame, and the block
+ * cannot change size while it moves. The tail is IN FLOW at the end of the
+ * scroller and its padding is what gives it height, so there the padding is
+ * the honest property to animate; there is exactly one of it.
+ */
+@layer components {
+  .feed-stage {
+    --feed-lift: 0rem;
+  }
+
+  .feed-stage[data-chrome="shown"] {
+    --feed-lift: 3.75rem; /* 60px — see the geometry above */
+  }
+
+  /**
+   * ## The budget: 250ms and `--ease-interaction`, not the cinematic curve
+   *
+   * This is chrome ANSWERING A GESTURE, not a composition arriving, so §3 of
+   * the design system puts it in the interaction budget — the same ruling the
+   * marketing site's sliding header already sits under, for the same reason.
+   * The cinematic curve is for entrances on first paint; half a second of it
+   * on something a traveller triggers with every swipe reads as lag, and by
+   * the third reel it reads as the app being slow.
+   *
+   * `--ease-interaction` is a hard ease-out: almost all of the distance is
+   * covered in the first third and the rest is settle, which is what lets a
+   * quarter of a second feel unhurried rather than abrupt.
+   *
+   * Reduced motion is handled globally in the base layer. Nothing below
+   * branches on it, and nothing below should.
+   */
+
+  /**
+   * The masthead: it lifts a little and dissolves, rather than sliding its
+   * whole height out. A wordmark that travels 132px to leave reads as a
+   * banner being dismissed; one that rises 24px and fades reads as the
+   * picture taking the screen, which is what it is.
+   *
+   * Opacity leads and transform follows, so the mark is gone before it has
+   * finished moving and never crosses the frame as a ghost.
+   */
+  .feed-masthead {
+    transition:
+      opacity 180ms var(--ease-interaction),
+      transform 250ms var(--ease-interaction);
+  }
+
+  .feed-stage[data-chrome="hidden"] .feed-masthead {
+    opacity: 0;
+    transform: translate3d(0, -1.5rem, 0);
+  }
+
+  /** A card's caption, and the foot it keeps when nothing floats over it. */
+  .feed-caption {
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    transform: translate3d(0, calc(-1 * var(--feed-lift, 0px)), 0);
+    transition: transform 250ms var(--ease-interaction);
+  }
+
+  /** The end of the scroller, which pays for the bar in height. */
+  .feed-tail {
+    padding-bottom: calc(
+      2rem + var(--feed-lift, 0px) + env(safe-area-inset-bottom, 0px)
+    );
+    transition: padding-bottom 250ms var(--ease-interaction);
+  }
+
+  /**
+   * The floating tab bar's own half of the same movement.
+   *
+   * `100%` is the bar's whole 68px object; the extra rem is margin against a
+   * sub-pixel window height and against the pill's own hairline ring, so
+   * nothing peeks along the bottom edge on a 2.75x screen.
+   *
+   * It is translated, never hidden, and that is deliberate: a keyboard
+   * traveller tabbing out of the feed lands on the first destination in this
+   * bar, and `:focus-within` brings the whole thing back before they can
+   * arrive at something they cannot see. Hiding it — `visibility`, `inert`,
+   * `display: none` — would take the app's navigation away from exactly the
+   * people who cannot swipe a reel back to fetch it. It must stay after the
+   * retracted rule: the two have equal specificity and source order is what
+   * decides.
+   */
+  .tabbar-slide {
+    transition: transform 250ms var(--ease-interaction);
+  }
+
+  .tabbar-slide[data-retracted="true"] {
+    transform: translate3d(0, calc(100% + 1rem), 0);
+  }
+
+  .tabbar-slide:focus-within {
+    transform: none;
+  }
+
+  /**
+   * A reel card's gesture contract.
+   *
+   * The browser keeps the vertical pan (the feed's whole scroll) and keeps
+   * pinch-zoom (never take that from anybody); the horizontal one is ours,
+   * which is what makes the swipe-to-open in `use-swipe-to-open.ts` a stream
+   * of pointer events rather than a race against a scroll the browser might
+   * decide to claim.
+   *
+   * Any `touch-action` but `auto` or `manipulation` also costs double-tap
+   * zoom, which is the price and is worth stating: pinch — the one WCAG
+   * cares about — is kept, and double-tapping a full-bleed clip was never a
+   * gesture this feed offered anything for.
+   */
+  .feed-card {
+    touch-action: pan-y pinch-zoom;
+  }
+
+  /**
+   * Above `lg` the rail replaces the bar, nothing floats over the well, and
+   * every reel keeps the same foot. Matched on the attribute so it outranks
+   * the `shown` rule whatever the order; the masthead and the bar are both
+   * `lg:hidden` already, so only the geometry needs saying.
+   */
+  @media (min-width: 64rem) {
+    .feed-stage[data-chrome] {
+      --feed-lift: 0rem;
+    }
   }
 }
 

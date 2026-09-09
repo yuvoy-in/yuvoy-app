@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
 import { formatFromPrice } from "@/lib/format/money";
 import { useFeedStore } from "@/lib/feed/store";
+import { useSwipeToOpen } from "@/lib/feed/use-swipe-to-open";
 import { ButtonArrow, ButtonLink } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { IconButton } from "@/components/ui/icon-button";
@@ -70,6 +71,14 @@ export function ExperienceCard({
 }) {
   const price = formatFromPrice(experience.fromPrice);
   const instant = experience.bookingMode === "allotment";
+  /*
+    Built ONCE, and handed to both ways in. The button and the swipe are two
+    routes to one screen; two string literals a hundred lines apart are how
+    they quietly stop agreeing.
+  */
+  const href = `/e/${experience.slug}`;
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const swipeHandlers = useSwipeToOpen(href, surfaceRef);
   // Whether there is a clip to control. Set by the player; false for a
   // poster that will never play, so no dead mute disc is drawn.
   const [playable, setPlayable] = useState(false);
@@ -82,29 +91,39 @@ export function ExperienceCard({
       // the node rather than through a closure, so the observer does not need
       // to be rebuilt when the list re-renders.
       data-feed-index={index}
-      className="bg-abyss relative h-full w-full snap-start snap-always overflow-hidden"
+      className="feed-card bg-abyss relative h-full w-full snap-start snap-always overflow-hidden"
       aria-posinset={index + 1}
       aria-setsize={total}
       aria-label={experience.title}
+      /*
+        Right to left opens this experience — the same href the button below
+        carries. The handlers sit on the ARTICLE so the whole card is the
+        target, and the transform sits on the surface inside it so the snap
+        child's own box is never touched: a scroll-snap area is the
+        TRANSFORMED border box, and moving the element the scroller is
+        snapping to is not a thing to find out about in production.
+      */
+      {...swipeHandlers}
     >
-      {media ? (
-        <FeedPlayer
-          media={media}
-          active={active}
-          mounted={mounted}
-          muted={muted}
-          autoplayAllowed={autoplayAllowed}
-          onPlayableChange={setPlayable}
-          /*
+      <div ref={surfaceRef} className="relative h-full w-full">
+        {media ? (
+          <FeedPlayer
+            media={media}
+            active={active}
+            mounted={mounted}
+            muted={muted}
+            autoplayAllowed={autoplayAllowed}
+            onPlayableChange={setPlayable}
+            /*
             Asked once, trusted from then on. A traveller who taps play has
             answered the question the connection heuristic was guessing at, so
             the rest of the feed stops guessing — scrolling to the next card
             and having to tap again would read as the app not listening.
           */
-          onRequestPlay={() => setAutoplayAllowed(true)}
-        />
-      ) : (
-        /*
+            onRequestPlay={() => setAutoplayAllowed(true)}
+          />
+        ) : (
+          /*
           No clip. Still a complete card — an editorial type plate, the same
           fallback the marketing site's destination panels use.
 
@@ -114,60 +133,66 @@ export function ExperienceCard({
           logo, absent when not" — so there is no placeholder branch and no
           broken-image state to design around.
         */
-        <div className="bg-abyss absolute inset-0 flex flex-col items-center justify-center gap-6 px-8">
-          {experience.operator.logoUrl ? (
-            /*
+          <div className="bg-abyss absolute inset-0 flex flex-col items-center justify-center gap-6 px-8">
+            {experience.operator.logoUrl ? (
+              /*
               A plain `<img>`, deliberately. `next/image` needs every remote
               host in `remotePatterns`, which would make adding a partner a
               deploy — and this is a small mark on a card that has no clip,
               not the LCP element.
             */
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={experience.operator.logoUrl}
-              alt={experience.operator.name}
-              className="max-h-20 w-auto max-w-[40%] object-contain opacity-80"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : null}
-          <p className="font-display text-cream/60 text-center text-3xl leading-tight">
-            {experience.title}
-          </p>
-        </div>
-      )}
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={experience.operator.logoUrl}
+                alt={experience.operator.name}
+                className="max-h-20 w-auto max-w-[40%] object-contain opacity-80"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : null}
+            <p className="font-display text-cream/60 text-center text-3xl leading-tight">
+              {experience.title}
+            </p>
+          </div>
+        )}
 
-      {/*
+        {/*
         The scrim. Sized against the brightest pixel a clip can show, not the
         average — video moves, and a frame that is dark when the poster loads
         can be white surf two seconds later.
       */}
-      <div
-        aria-hidden="true"
-        className="feed-scrim pointer-events-none absolute inset-x-0 bottom-0 h-2/3"
-      />
+        <div
+          aria-hidden="true"
+          className="feed-scrim pointer-events-none absolute inset-x-0 bottom-0 h-2/3"
+        />
 
-      <div className="tabbar-clearance absolute inset-x-0 bottom-0 px-5">
-        <div className="flex items-end gap-4">
-          <div className="min-w-0 flex-1">
-            {/* Operator, and what we can honestly say about them. */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="label text-cream/70">
-                {experience.operator.name}
-              </span>
-              {experience.operator.verified ? (
-                <Chip surface="dark" size="sm">
-                  <CheckIcon className="size-3.5" />
-                  Verified
-                </Chip>
-              ) : null}
-            </div>
+        {/*
+        The caption keeps its OWN foot — 32px — and rises by `--feed-lift`
+        while the floating bar is out, so the space the bar was occupying
+        comes back to the card the moment the bar leaves. See `.feed-caption`
+        in globals.css for the two numbers and why they live in one place.
+      */}
+        <div className="feed-caption absolute inset-x-0 bottom-0 px-5">
+          <div className="flex items-end gap-4">
+            <div className="min-w-0 flex-1">
+              {/* Operator, and what we can honestly say about them. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="label text-cream/70">
+                  {experience.operator.name}
+                </span>
+                {experience.operator.verified ? (
+                  <Chip surface="dark" size="sm">
+                    <CheckIcon className="size-3.5" />
+                    Verified
+                  </Chip>
+                ) : null}
+              </div>
 
-            <h2 className="font-display text-cream tracking-display mt-2 text-[2rem] leading-[1.05]">
-              {experience.title}
-            </h2>
+              <h2 className="font-display text-cream tracking-display mt-2 text-[2rem] leading-[1.05]">
+                {experience.title}
+              </h2>
 
-            {/*
+              {/*
               WHAT the thing is — yuvoy-app#20 §2.
 
               The card gave a traveller the operator, the title, the next date
@@ -183,91 +208,92 @@ export function ExperienceCard({
               Optional, and absent on a listing nobody has classified yet — so
               nothing is rendered rather than a placeholder or a prettified key.
             */}
-            {experience.activityTypeLabel ? (
-              <p className="label text-cream/70 mt-2">
-                {experience.activityTypeLabel}
-              </p>
-            ) : null}
+              {experience.activityTypeLabel ? (
+                <p className="label text-cream/70 mt-2">
+                  {experience.activityTypeLabel}
+                </p>
+              ) : null}
 
-            {/*
+              {/*
               `nextAvailable` absent means nothing is bookable in 90 days — NOT
               "we did not check". Saying so here is what stops the tap that ends
               in "no dates", which is the tap that loses the traveller.
             */}
-            <p className="text-cream/70 mt-2 text-xs">
-              {experience.nextAvailable
-                ? nextAvailableLabel(
-                    experience.nextAvailable,
-                    experience.seatsOnNextDisplay,
-                  )
-                : "No dates in the next 90 days"}
-            </p>
+              <p className="text-cream/70 mt-2 text-xs">
+                {experience.nextAvailable
+                  ? nextAvailableLabel(
+                      experience.nextAvailable,
+                      experience.seatsOnNextDisplay,
+                    )
+                  : "No dates in the next 90 days"}
+              </p>
 
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-              {/*
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                {/*
                 `fromPrice` is absent until a real contracted price exists. Never
                 render ₹0 — that would be a fabricated claim, and this project
                 removed a whole site for doing exactly that.
               */}
-              {price ? (
-                <p className="text-cream text-lg font-bold">
-                  {price}
-                  {/*
+                {price ? (
+                  <p className="text-cream text-lg font-bold">
+                    {price}
+                    {/*
                     The server's phrase, verbatim — yuvoy-app#20 §1. See the
                     detail page for why this is not derived from `pricingUnit`.
                     Omitted rather than guessed when absent: no phrase at all is
                     a smaller error than the wrong one.
                   */}
-                  {experience.pricingUnitLabel ? (
-                    <span className="text-cream/70 ml-1.5 text-xs font-normal">
-                      {experience.pricingUnitLabel}
-                    </span>
-                  ) : null}
-                </p>
-              ) : (
-                <p className="text-cream/70 text-sm">Price on request</p>
-              )}
+                    {experience.pricingUnitLabel ? (
+                      <span className="text-cream/70 ml-1.5 text-xs font-normal">
+                        {experience.pricingUnitLabel}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : (
+                  <p className="text-cream/70 text-sm">Price on request</p>
+                )}
 
-              <Chip
-                surface="dark"
-                tone={instant ? "accent" : "neutral"}
-                size="sm"
-              >
-                {instant ? <ZapIcon className="size-3.5" /> : null}
-                {instant ? "Instant book" : "Ask the operator"}
-              </Chip>
+                <Chip
+                  surface="dark"
+                  tone={instant ? "accent" : "neutral"}
+                  size="sm"
+                >
+                  {instant ? <ZapIcon className="size-3.5" /> : null}
+                  {instant ? "Instant book" : "Ask the operator"}
+                </Chip>
+              </div>
+            </div>
+
+            {/* The action rail. Only controls that do something are drawn. */}
+            <div className="flex shrink-0 flex-col gap-3">
+              {playable ? (
+                <IconButton
+                  label={muted ? "Unmute" : "Mute"}
+                  variant="onDark"
+                  onClick={toggleMuted}
+                >
+                  {muted ? <VolumeOffIcon /> : <VolumeIcon />}
+                </IconButton>
+              ) : null}
+              <ShareExperience
+                slug={experience.slug}
+                title={experience.title}
+                variant="onDark"
+              />
             </div>
           </div>
 
-          {/* The action rail. Only controls that do something are drawn. */}
-          <div className="flex shrink-0 flex-col gap-3">
-            {playable ? (
-              <IconButton
-                label={muted ? "Unmute" : "Mute"}
-                variant="onDark"
-                onClick={toggleMuted}
-              >
-                {muted ? <VolumeOffIcon /> : <VolumeIcon />}
-              </IconButton>
-            ) : null}
-            <ShareExperience
-              slug={experience.slug}
-              title={experience.title}
-              variant="onDark"
-            />
-          </div>
+          <ButtonLink
+            href={href}
+            variant="paper"
+            size="lg"
+            block
+            className="mt-5"
+          >
+            {experience.nextAvailable ? "See dates" : "Have a look"}
+            <ButtonArrow />
+          </ButtonLink>
         </div>
-
-        <ButtonLink
-          href={`/e/${experience.slug}`}
-          variant="paper"
-          size="lg"
-          block
-          className="mt-5"
-        >
-          {experience.nextAvailable ? "See dates" : "Have a look"}
-          <ButtonArrow />
-        </ButtonLink>
       </div>
     </article>
   );

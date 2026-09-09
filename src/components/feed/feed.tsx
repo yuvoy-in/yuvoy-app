@@ -12,8 +12,6 @@ import {
   Skeleton,
 } from "@/components/states";
 import { Wordmark } from "@/components/ui/wordmark";
-import { IconLink } from "@/components/ui/icon-button";
-import { SearchIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
 
 /**
@@ -94,18 +92,31 @@ function FeedFrame({
 }
 
 /**
- * The masthead that floats over the feed on a phone: the mark, and the way
- * to Search. The rail carries both on a desktop. Inert except for the disc,
- * so the strip beside it still scrolls the feed; the top scrim keeps the
- * cream mark legible over whatever the clip is showing.
+ * The masthead that floats over the feed on a phone: the mark, centred, and
+ * nothing else. The rail carries the mark on a desktop.
+ *
+ * ## It used to carry Search, and that was one Search too many
+ *
+ * A disc in the top-right went to `/search`, while the floating bar two
+ * inches below it carried the same destination as one of its four tabs. Two
+ * controls for one screen, on the smallest surface in the product, and the
+ * one on top was the one competing with the picture. It is gone, the mark
+ * takes the centre, and Search is where the app has always said it is.
+ *
+ * ## Wholly inert, now that it is only a mark
+ *
+ * There is nothing to press here any more, so `pointer-events-none` runs the
+ * full width and the entire top of a reel scrolls the feed — including the
+ * strip the disc used to occupy, which did not.
+ *
+ * The block is 132px tall (16 above the mark, 36 of mark, 80 of tail) and
+ * `feed-scrim-top` is measured against exactly that; changing the padding
+ * without changing the gradient moves the mark into a lighter band.
  */
 function FeedMasthead() {
   return (
-    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between px-4 pt-3 pb-10 lg:hidden">
-      <Wordmark tone="cream" className="mt-1 h-9" priority />
-      <IconLink href="/search" label="Search" className="pointer-events-auto">
-        <SearchIcon />
-      </IconLink>
+    <div className="feed-scrim-top feed-masthead pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-center px-4 pt-4 pb-20 lg:hidden">
+      <Wordmark tone="cream" className="h-9" priority />
     </div>
   );
 }
@@ -147,6 +158,8 @@ export function Feed({
   const muted = useFeedStore((s) => s.muted);
   const autoplayAllowed = useFeedStore((s) => s.autoplayAllowed);
   const shouldMount = useFeedStore((s) => s.shouldMount);
+  const chromeRetracted = useFeedStore((s) => s.chromeRetracted);
+  const resetFeed = useFeedStore((s) => s.resetFeed);
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -155,6 +168,23 @@ export function Feed({
   useEffect(() => {
     setAutoplayAllowed(detectAutoplayAllowed());
   }, [setAutoplayAllowed]);
+
+  /**
+   * The retract belongs to a MOUNTED feed, and to nothing else.
+   *
+   * The store outlives this component — it is a module, not a context — so a
+   * traveller who reaches reel nine, opens an experience and comes back would
+   * otherwise return to a scroller sitting at the top with a tab bar still
+   * off the bottom of the window. Worse, the shell's bar reads the same flag
+   * on every route, so a stale `true` is an app-wide navigation outage.
+   *
+   * Reset on mount because the scroller is a new element at scrollTop 0, and
+   * on unmount because whatever comes next is not this feed.
+   */
+  useEffect(() => {
+    resetFeed();
+    return resetFeed;
+  }, [resetFeed]);
 
   /*
     The server's order, untouched. Reels are numbered within each business, so
@@ -186,6 +216,23 @@ export function Feed({
    * ended, so the count in hand is not the total either.
    */
   const setSize = tail === "complete" ? items.length : -1;
+
+  /**
+   * Whether there is a scrolling feed on screen at all.
+   *
+   * The other four states — loading, the load error, an empty feed, and the
+   * paused kill switch that renders as an empty one — draw no scroller, so
+   * nothing can ever report a new active card and the retract would sit
+   * wherever the last scroll left it. A background refetch that comes back
+   * empty while the traveller is nine reels down is the case that makes this
+   * a bug rather than a theory: the cards vanish, the message appears, and
+   * the tab bar stays off the bottom of the window with no gesture left that
+   * could bring it back.
+   */
+  const showsReels = !isPending && !isLoadingError && items.length > 0;
+  useEffect(() => {
+    if (!showsReels) resetFeed();
+  }, [showsReels, resetFeed]);
 
   /**
    * ONE observer for the whole feed, wired in an effect.
@@ -347,7 +394,17 @@ export function Feed({
   return (
     <>
       <FeedHeading />
-      <div className="container-feed relative lg:my-6">
+      {/*
+        The one attribute the whole retract hangs on. The masthead, every
+        caption and the tail are all descendants of this node, so they cannot
+        disagree about which state they are in; the shell's tab bar is not,
+        and carries the same state from the store. See `.feed-stage` in
+        globals.css.
+      */}
+      <div
+        className="feed-stage container-feed relative lg:my-6"
+        data-chrome={chromeRetracted ? "hidden" : "shown"}
+      >
         <FeedMasthead />
         <div
           ref={scrollerRef}
@@ -395,7 +452,7 @@ export function Feed({
           */}
           <div
             ref={sentinelRef}
-            className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center"
+            className="feed-tail flex snap-start items-center justify-center px-8 pt-12 text-center"
           >
             {isFetchNextPageError ? (
               <p className="text-cream/60 text-xs">

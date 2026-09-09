@@ -7,6 +7,16 @@ import { http, HttpResponse } from "msw";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
+/*
+  A card carries the swipe-to-open gesture, which needs a router. There is no
+  app router mounted under `render`, so the hook is given one — the same shape
+  the checkout tests use.
+*/
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/",
+}));
+
 /** One reel's worth of listing, with only what a card actually reads. */
 const listing = (over: Record<string, unknown> = {}) => ({
   id: "e1",

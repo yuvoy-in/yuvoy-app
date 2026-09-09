@@ -262,6 +262,198 @@ describe("measured contrast", () => {
   });
 
   /**
+   * The feed's scrims, recomputed from the stops rather than from the prose.
+   *
+   * Every other rule in this file is a shape or a name. This one is a NUMBER
+   * a person typed into a comment once, in a file where the number is the
+   * whole justification for the design — and the number that was there
+   * (8.9:1, attached to the 62% stop) did not survive being recomputed. It
+   * corresponds to roughly 76% abyss. So the comment no longer holds the
+   * claim: this does, out of the gradient the browser will actually paint.
+   *
+   * The reference ground is the palest surf highlight in the fixture set. A
+   * scrim is sized against the BRIGHTEST pixel a clip can show, because video
+   * moves — a frame that is dark when the poster loads can be white water two
+   * seconds later.
+   */
+  describe("the feed's scrims", () => {
+    const css = readFileSync(join(SRC, "app/globals.css"), "utf8");
+
+    /** The palest thing a clip has been measured showing. */
+    const HIGHLIGHT = "#e8e2d4";
+
+    /** Reads one gradient's abyss-percentage stops straight out of the CSS. */
+    function stops(utility: string): [number, number][] {
+      const block = new RegExp(
+        `@utility ${utility} \\{([\\s\\S]*?)\\n\\}`,
+      ).exec(css);
+      if (!block) throw new Error(`no @utility ${utility}`);
+
+      const found: [number, number][] = [];
+      for (const line of block[1].split("\n")) {
+        const mixed =
+          /color-mix\(in srgb, var\(--color-abyss\) (\d+)%, transparent\)\s+(\d+)%/.exec(
+            line,
+          );
+        if (mixed) {
+          found.push([Number(mixed[2]), Number(mixed[1])]);
+          continue;
+        }
+        const solid = /var\(--color-abyss\)\s+(\d+)%/.exec(line);
+        if (solid) {
+          found.push([Number(solid[1]), 100]);
+          continue;
+        }
+        const clear = /transparent\s+(\d+)%/.exec(line);
+        if (clear) found.push([Number(clear[1]), 0]);
+      }
+      return found.sort((a, b) => a[0] - b[0]);
+    }
+
+    /** The scrim's opacity part-way along it, the way a browser reads it. */
+    function alphaAt(ramp: [number, number][], at: number): number {
+      for (let i = 0; i < ramp.length - 1; i++) {
+        const [p0, a0] = ramp[i];
+        const [p1, a1] = ramp[i + 1];
+        if (at >= p0 && at <= p1) {
+          return (a0 + ((a1 - a0) * (at - p0)) / (p1 - p0)) / 100;
+        }
+      }
+      throw new Error(`${at}% is outside the ramp`);
+    }
+
+    /**
+     * `cream` over the scrim over the highlight.
+     *
+     * Composited in sRGB, which is where a browser blends a translucent
+     * gradient — blending in linear light gives a materially different answer
+     * and would be measuring a scrim nobody will ever see.
+     */
+    function creamOverScrim(alpha: number): number {
+      const ch = (hex: string) =>
+        [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      const ground = ch(HIGHLIGHT).map((c, i) =>
+        Math.round(alpha * ch(abyss)[i] + (1 - alpha) * c),
+      );
+      const hex =
+        "#" + ground.map((c) => c.toString(16).padStart(2, "0")).join("");
+      return ratio(cream, hex);
+    }
+
+    it("keeps the caption legible over the brightest frame a clip can show", () => {
+      /*
+        The caption's top edge lands between 50% and 62% of the scrim's height
+        — 50% for a one-line title, 62% for the longest that fits with an
+        activity line under it. Both ends are checked, because "it passes
+        where the copy usually starts" is not the claim being made.
+      */
+      const ramp = stops("feed-scrim");
+      expect(creamOverScrim(alphaAt(ramp, 50))).toBeGreaterThanOrEqual(7);
+      expect(creamOverScrim(alphaAt(ramp, 62))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("only ever gets lighter on the way up", () => {
+      // A scrim safe at the top of the caption is safe through all of it —
+      // which is only true while the ramp is monotone. A stop out of order is
+      // a band of sky in the middle of the copy.
+      for (const utility of ["feed-scrim", "feed-scrim-top"]) {
+        const ramp = stops(utility);
+        expect(
+          ramp.length,
+          `${utility} has too few stops to be smooth`,
+        ).toBeGreaterThan(6);
+        for (let i = 1; i < ramp.length; i++) {
+          expect(
+            ramp[i][1],
+            `${utility} lightens then darkens`,
+          ).toBeLessThanOrEqual(ramp[i - 1][1]);
+        }
+      }
+    });
+
+    it("ends rather than stopping, at both ends of the feed", () => {
+      // The seam this replaced: the old ramp hit `transparent` with its slope
+      // still at −1.48, which draws a line across moving footage. A gradient
+      // whose last step is small has no edge to catch.
+      for (const utility of ["feed-scrim", "feed-scrim-top"]) {
+        const ramp = stops(utility);
+        const last = ramp[ramp.length - 1];
+        const before = ramp[ramp.length - 2];
+        expect(last[1], `${utility} does not reach transparent`).toBe(0);
+        expect(
+          before[1],
+          `${utility} falls off a cliff at the top`,
+        ).toBeLessThanOrEqual(5);
+      }
+    });
+
+    it("keeps the feed's chrome inside the interaction budget", () => {
+      /*
+        §3 of the design system splits motion in two, and this is the half
+        that is easy to get wrong: the retract ANSWERS A GESTURE, so it is
+        interaction feedback (≤250ms, `--ease-interaction`) and not an
+        entrance (~1100ms, `--ease-cinematic`).
+
+        It shipped at 460ms of the cinematic curve first. That is a fifth of a
+        second of lag on a movement a traveller triggers with every swipe —
+        and the same mistake the marketing site's sliding header already had a
+        ruling against, which is what this test is here to remember.
+
+        Comments are stripped first: the block explains the budget it obeys,
+        and a scanner that read the explanation would fail the file for
+        documenting its own rule.
+      */
+      const chrome = /@layer components \{([\s\S]*?)\n\}/.exec(
+        read(join(SRC, "app/globals.css")),
+      );
+      expect(chrome, "the feed's chrome layer is gone").not.toBeNull();
+
+      const timings = [
+        ...chrome![1].matchAll(/(\d+)ms var\(--ease-([a-z]+)\)/g),
+      ];
+      expect(timings.length, "no transitions found to check").toBeGreaterThan(
+        3,
+      );
+
+      for (const [whole, ms, ease] of timings) {
+        expect(Number(ms), whole).toBeLessThanOrEqual(250);
+        expect(ease, whole).toBe("interaction");
+      }
+    });
+
+    it("keeps the wordmark legible over the same frame", () => {
+      // The mark occupies 12%–39% of the top scrim, which is 16px to 52px of
+      // the masthead's 132px block. The next test is what keeps that true.
+      const ramp = stops("feed-scrim-top");
+      expect(creamOverScrim(alphaAt(ramp, 12))).toBeGreaterThanOrEqual(7);
+      expect(creamOverScrim(alphaAt(ramp, 39))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("pins the masthead's height to the gradient measured against it", () => {
+      /*
+        The one above is a claim about a POSITION in a gradient, and the
+        position is decided by the block's padding — 16px above the mark, 36px
+        of mark, 80px of tail. Change the padding without changing the stops
+        and the mark slides into a lighter band with every contrast test still
+        passing, which is the quietest possible way to break this.
+      */
+      const feed = readFileSync(join(SRC, "components/feed/feed.tsx"), "utf8");
+      const masthead = /className="feed-scrim-top feed-masthead[^"]*"/.exec(
+        feed,
+      );
+      expect(
+        masthead,
+        "the masthead no longer wears its own scrim",
+      ).not.toBeNull();
+      expect(masthead![0]).toContain("pt-4");
+      expect(masthead![0]).toContain("pb-20");
+      expect(feed).toContain(
+        '<Wordmark tone="cream" className="h-9" priority />',
+      );
+    });
+  });
+
+  /**
    * A translucent cream fill under accent text, on the stage.
    *
    * The v2.7 chips wanted a `cream/10` tint behind `terra-soft` on forest.
