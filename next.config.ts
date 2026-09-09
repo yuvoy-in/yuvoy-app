@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { marketingRedirects } from "./src/lib/site/marketing-redirects";
+import { cspHeaders } from "./src/lib/site/csp";
 
 /**
  * The app is a different security surface from the marketing site: it holds a
@@ -20,7 +21,14 @@ const securityHeaders = [
     See plan §4.4 — "three ways it leaks that are easy to miss".
   */
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  /*
+    DENY rather than SAMEORIGIN, matching `frame-ancestors 'none'` in the CSP
+    (yuvoy-app#23). Nothing in this app frames anything, including itself, and
+    the two headers saying different things is how one of them ends up being
+    the one that is wrong. `X-Frame-Options` is kept alongside the CSP because
+    it is still honoured by things that ignore CSP.
+  */
+  { key: "X-Frame-Options", value: "DENY" },
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=()",
@@ -64,8 +72,25 @@ const nextConfig: NextConfig = {
     return marketingRedirects();
   },
   async headers() {
+    /*
+      The CSP is built from the same env the client reads, so the API origin
+      in the policy cannot drift from the API the app calls. See
+      src/lib/site/csp.ts for the directive list and, more importantly, for
+      why `script-src` has no nonce.
+
+      Two headers, deliberately: a small enforced subset that cannot break a
+      working page, and the full policy in report-only until a real run
+      against production says the enumeration is complete.
+    */
+    const csp = cspHeaders({
+      apiUrl: process.env.NEXT_PUBLIC_API_URL,
+      posthogHost:
+        process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://eu.i.posthog.com",
+      dev: process.env.NODE_ENV !== "production",
+    });
+
     return [
-      { source: "/(.*)", headers: securityHeaders },
+      { source: "/(.*)", headers: [...securityHeaders, ...csp] },
       {
         /*
           The booking screen must never be cached by a shared cache. It is

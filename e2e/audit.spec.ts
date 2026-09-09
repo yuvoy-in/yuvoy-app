@@ -407,3 +407,72 @@ test.describe("the rendered audit", () => {
     ).toBe(pageSaysNoindex);
   });
 });
+
+/**
+ * Security headers, asserted against a running origin — yuvoy-app#23.
+ *
+ * Read-only GETs, so this runs against production the same way the rest of
+ * this file does. That matters more than usual here: `next.config.ts` builds
+ * the policy from environment variables, so the only place the real policy
+ * exists is a deployed response. A green unit test on the builder says the
+ * string is right; only this says the string arrived.
+ */
+test.describe("security headers", () => {
+  test("every response carries the enforced policy", async ({ request }) => {
+    const res = await request.get("/");
+    const headers = res.headers();
+
+    expect(headers["content-security-policy"]).toBe(
+      "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    );
+    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["strict-transport-security"]).toContain("max-age=");
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  });
+
+  test("the full policy ships in report-only, and can still play a clip", async ({
+    request,
+  }) => {
+    const policy =
+      (await request.get("/")).headers()[
+        "content-security-policy-report-only"
+      ] ?? "";
+
+    // The directive the issue is actually about.
+    expect(policy).toMatch(/connect-src [^;]*'self'/);
+    // Cloudflare Stream in all three places it is needed. Missing one of them
+    // is a feed of black rectangles, and report-only is where that is found.
+    for (const d of ["img-src", "media-src", "connect-src"]) {
+      const found = policy.split("; ").find((x) => x.startsWith(`${d} `)) ?? "";
+      expect(found, `${d} must allow Cloudflare Stream`).toContain(
+        "cloudflarestream.com",
+      );
+    }
+    // Nothing that would make the policy decorative.
+    expect(policy).not.toContain("'unsafe-eval'");
+    expect(policy).toContain("default-src 'none'");
+  });
+
+  test("the enforced policy is a strict subset of the reported one", async ({
+    request,
+  }) => {
+    /*
+      The two headers are built from one directive list, and this is what stops
+      them drifting apart: an enforced directive that says something the
+      report-only header does not say is a rule nobody ever saw a report for.
+    */
+    const headers = (await request.get("/")).headers();
+    const reported = new Set(
+      (headers["content-security-policy-report-only"] ?? "").split("; "),
+    );
+    for (const directive of (headers["content-security-policy"] ?? "").split(
+      "; ",
+    )) {
+      expect(
+        reported,
+        `enforced "${directive}" is not in report-only`,
+      ).toContain(directive);
+    }
+  });
+});
