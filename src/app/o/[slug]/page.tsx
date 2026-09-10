@@ -79,7 +79,9 @@ export default async function OperatorPage({
           { name: operator.name, path: `/o/${operator.slug}` },
         ])}
       />
-      <OperatorScreen slug={slug} />
+      {/* Seeded with what this route already fetched: one request, and a
+          body that is in the served HTML rather than only after hydration. */}
+      <OperatorScreen slug={slug} initial={operator} />
     </>
   );
 }

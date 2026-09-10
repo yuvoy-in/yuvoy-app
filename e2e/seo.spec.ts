@@ -62,6 +62,35 @@ test("the experience page is in the HTML, not only the RSC payload", async ({
   expect(visible).toMatch(/₹4,500/);
 });
 
+test("the operator page is in the HTML, not only the RSC payload", async ({
+  request,
+}) => {
+  /*
+    The same defect as the test above, and it shipped: `OperatorScreen` is a
+    client component that fetched the profile itself, so the served HTML for
+    `/o/[slug]` carried a correct `<title>` and an empty body. The route had
+    already fetched the profile for `generateMetadata` and the 404 — it just
+    was not handing it over.
+
+    This page is registered as indexable, so content that exists only after
+    hydration is the one thing it must not be. Caught by curling production
+    after the deploy, which is later than it should have been; this is the
+    check that would have caught it first.
+
+    Fetched with `request` rather than `page`: no JavaScript runs, which is
+    what a crawler does.
+  */
+  const res = await request.get("/o/sample-boat-operator");
+  const html = await res.text();
+  const body = html.slice(html.indexOf("<body"));
+  const visible = body.replace(/<script[\s\S]*?<\/script>/g, "");
+
+  expect(visible).toContain("Sample Boat Operator");
+  expect(visible).toContain("What they run");
+  // And the listings themselves, which are the point of the page.
+  expect(visible).toContain("Snorkel trip to Elephant Beach");
+});
+
 test("every route describes itself, rather than inheriting the homepage", async ({
   request,
 }) => {

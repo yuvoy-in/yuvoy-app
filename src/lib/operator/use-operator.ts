@@ -21,7 +21,20 @@ export const OPERATOR_REELS_PAGE_SIZE = 12;
  * screen of the grid — because a profile that arrives in three waves is three
  * layout shifts on a jetty connection.
  */
-export function useOperator(slug: string) {
+export function useOperator(
+  slug: string,
+  /**
+   * The profile the SERVER already fetched, seeded as this query's first
+   * answer.
+   *
+   * The route fetches it anyway — for `generateMetadata` and for the 404 — so
+   * without this the page paid for the same request twice and, worse, the
+   * whole body was client-rendered: the served HTML carried a correct `<title>`
+   * and an empty page. This route is registered as indexable, so content that
+   * needs JavaScript to exist is the one thing it must not be.
+   */
+  initial?: OperatorProfile,
+) {
   return useQuery({
     queryKey: qk.operator(slug),
     queryFn: async ({ signal }) => {
@@ -32,6 +45,7 @@ export function useOperator(slug: string) {
       if (error) throw error;
       return data;
     },
+    ...(initial ? { initialData: initial } : {}),
     ...CACHE.getExperience,
   });
 }

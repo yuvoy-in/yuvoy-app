@@ -2,7 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useOperator, useOperatorReels } from "@/lib/operator/use-operator";
+import {
+  useOperator,
+  useOperatorReels,
+  type OperatorProfile,
+} from "@/lib/operator/use-operator";
 import { formatFromPrice } from "@/lib/format/money";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
@@ -44,8 +48,19 @@ import { ChevronRightIcon } from "@/components/ui/icons";
  * on yuvoy-app#30; the page is reachable by slug today and the links land when
  * the field does.
  */
-export function OperatorScreen({ slug }: { slug: string }) {
-  const operator = useOperator(slug);
+export function OperatorScreen({
+  slug,
+  initial,
+}: {
+  slug: string;
+  /**
+   * The profile the route already fetched. Seeded so the first paint is
+   * server-rendered — this page is indexable, and a body that only exists
+   * once JavaScript runs is not indexable content.
+   */
+  initial?: OperatorProfile;
+}) {
+  const operator = useOperator(slug, initial);
   const reels = useOperatorReels(
     slug,
     operator.data?.reels ?? null,
