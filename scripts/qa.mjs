@@ -775,6 +775,143 @@ for (const f of files) {
   }
 }
 
+/**
+ * A REQUIRED CONDITION WHOSE CONTROL IS CONDITIONAL — yuvoy-app#28.
+ *
+ * Checkout required acceptance of the cancellation policy unconditionally,
+ * and rendered the checkbox that accepts it only inside
+ * `{experience.cancellationPolicy ? … : null}`. The field is `omitempty` and
+ * was populated by nothing, so it was absent from every response — and every
+ * listing on `app.yuvoy.in` got a permanently dead submit button asking for a
+ * control that was not on the page. Nothing could be booked, by anybody, from
+ * launch until 9 Sep 2026.
+ *
+ * Neither half looks wrong alone. The blocker is a correct requirement, and
+ * refusing to display terms we did not send is a correct refusal. Only the
+ * PAIR is the defect — which is why no test, no type and no response-shape
+ * validation caught it, and why the check has to be about the pair.
+ *
+ * The rule: **if a requirement is unconditional, the control that clears it
+ * must be unconditional too.** A requirement gated on the same response field
+ * as its control is fine, and is how the screening fields already work.
+ * Wanting the control absent is fine too — refuse the whole screen with a
+ * reason (`checkoutRefusal`), never leave a dead button.
+ */
+const REQUIREMENT_DATA_ROOTS = ["experience", "safety", "slot"];
+const DATA_ROOT_RE = new RegExp(
+  String.raw`\b(?:${REQUIREMENT_DATA_ROOTS.join("|")})\b`,
+);
+
+/** The balanced `{…}` or `(…)` run starting at `open`. */
+function balanced(s, open, [lhs, rhs]) {
+  let depth = 0;
+  for (let i = open; i < s.length; i++) {
+    if (s[i] === lhs) depth++;
+    else if (s[i] === rhs && --depth === 0) return s.slice(open, i + 1);
+  }
+  return s.slice(open);
+}
+
+/** Conditions of every `if (…) {` block still open at each index of `body`. */
+function enclosingConditions(body, at) {
+  const open = [];
+  let depth = 0;
+  for (let i = 0; i < at; i++) {
+    if (body[i] === "{") depth++;
+    else if (body[i] === "}") {
+      depth--;
+      while (open.length && open[open.length - 1].depth > depth) open.pop();
+    } else if (body.startsWith("if", i) && /[^\w$]/.test(body[i - 1] ?? " ")) {
+      const paren = body.indexOf("(", i);
+      if (paren === -1) continue;
+      const cond = balanced(body, paren, ["(", ")"]);
+      const rest = body.slice(paren + cond.length);
+      // Only a braced `if` encloses anything; `if (x) out.push(…)` does not.
+      if (/^\s*\{/.test(rest)) open.push({ depth: depth + 1, cond });
+      i = paren + cond.length - 1;
+    }
+  }
+  return open.map((o) => o.cond);
+}
+
+for (const f of files) {
+  if (/\.test\.tsx?$/.test(f)) continue;
+  const s = code(f);
+  const memo = /const\s+blockers\s*=\s*useMemo\s*\(/.exec(s);
+  if (!memo) continue;
+
+  const bodyStart = memo.index + memo[0].length - 1;
+  const body = balanced(s, bodyStart, ["(", ")"]);
+  const markupFrom = bodyStart + body.length;
+
+  /*
+    Every JSX region gated on a field of the response. A control reachable
+    ONLY from inside one of these is a control that can fail to render.
+  */
+  const gated = [];
+  for (const g of s.matchAll(
+    new RegExp(
+      String.raw`\{\s*(?:${REQUIREMENT_DATA_ROOTS.join("|")})\??\.[\w$?.]+\s*\?`,
+      "g",
+    ),
+  )) {
+    gated.push([g.index, g.index + balanced(s, g.index, ["{", "}"]).length]);
+  }
+  const isGated = (i) => gated.some(([a, b]) => i >= a && i < b);
+
+  for (const push of body.matchAll(/out\.push\s*\(/g)) {
+    const guards = enclosingConditions(body, push.index);
+    // The `if (…) out.push(…)` on the same statement, if it is one.
+    const line = body.slice(body.lastIndexOf("\n", push.index) + 1, push.index);
+    const inline = /if\s*\(([\s\S]*)\)\s*$/.exec(line);
+    if (inline) guards.push(inline[1]);
+
+    // A requirement gated on the response is ALLOWED a gated control: the
+    // two conditions agree, which is exactly what the fix asks for.
+    if (guards.some((c) => DATA_ROOT_RE.test(c))) continue;
+
+    for (const id of new Set(
+      guards.join(" ").match(/[A-Za-z_$][\w$]*/g) ?? [],
+    )) {
+      const setter = `set${id[0].toUpperCase()}${id.slice(1)}`;
+      const declared = new RegExp(
+        String.raw`const\s*\[\s*${id}\s*,\s*${setter}\s*\]`,
+      ).test(s);
+      if (!declared) continue;
+
+      const call = `${setter}(`;
+      let found = false;
+      let unconditional = false;
+      for (
+        let i = s.indexOf(call, markupFrom);
+        i !== -1;
+        i = s.indexOf(call, i + 1)
+      ) {
+        found = true;
+        if (!isGated(i)) unconditional = true;
+      }
+
+      if (!found) {
+        problems.push(
+          `${rel(f)}: \`${id}\` is required unconditionally in \`blockers\`, ` +
+            `and \`${setter}\` is never called in the markup — the traveller ` +
+            `is asked for something no control on the page can give.`,
+        );
+      } else if (!unconditional) {
+        problems.push(
+          `${rel(f)}: \`${id}\` is required unconditionally in \`blockers\`, ` +
+            `but \`${setter}\` is only reachable inside a region gated on the ` +
+            `response. When that field is absent the traveller is asked to ` +
+            `clear a blocker whose control never renders, and the submit ` +
+            `button can never enable. Render the control unconditionally and ` +
+            `refuse the screen with a reason when the data is missing — see ` +
+            `\`checkoutRefusal\` in src/lib/booking/checkout-readiness.ts.`,
+        );
+      }
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

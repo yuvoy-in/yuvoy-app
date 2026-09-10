@@ -180,6 +180,81 @@ describe("CheckoutForm — the money rules", () => {
     expect(screen.getByText("01JCAP")).toBeInTheDocument();
   });
 
+  /*
+    THE BUG THAT STOPPED EVERY SALE — yuvoy-app#28.
+
+    The blocker was unconditional and its checkbox was not, so a listing with
+    no `cancellationPolicy` asked the traveller to accept something that was
+    never on the page. Every listing on `app.yuvoy.in` was in that state from
+    launch: the field is `omitempty` and the API populated it with nothing.
+
+    These fixtures all carry the field, which is exactly why the suite stayed
+    green through the whole outage — so the absent case has to be built by
+    hand here, and both halves of the pair are asserted.
+  */
+  describe("when the operator has published no cancellation terms", () => {
+    const noPolicy = { ...kayak, cancellationPolicy: undefined };
+
+    it("says so, and does not render a form that can never be submitted", () => {
+      renderWithQuery(<CheckoutForm experience={noPolicy} slot={kayakSlot} />);
+
+      expect(
+        screen.getByText(/cannot take a booking for this one yet/i),
+      ).toBeInTheDocument();
+      // The dead button is the defect. There must be no submit at all.
+      expect(
+        screen.queryByRole("button", { name: /hold these seats/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Your name")).not.toBeInTheDocument();
+      // And nothing may name a control that is not on the page.
+      expect(screen.queryByText(/Still needed:/i)).not.toBeInTheDocument();
+    });
+
+    it("leaves a way back rather than a dead end", () => {
+      renderWithQuery(<CheckoutForm experience={noPolicy} slot={kayakSlot} />);
+      expect(
+        screen.getByRole("link", { name: /back to this experience/i }),
+      ).toHaveAttribute("href", `/e/${kayak.slug}`);
+    });
+
+    it("treats terms of whitespace as no terms at all", () => {
+      renderWithQuery(
+        <CheckoutForm
+          experience={{ ...kayak, cancellationPolicy: "   " }}
+          slot={kayakSlot}
+        />,
+      );
+      expect(
+        screen.getByText(/cannot take a booking for this one yet/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("renders the acceptance checkbox whenever the form itself renders", async () => {
+    // The other half of the pair: the control that clears the blocker must be
+    // there every time the blocker is asked for.
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+
+    const box = screen.getByRole("checkbox", { name: /called off/i });
+    expect(box).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(kayak.cancellationPolicy!.slice(0, 30), "i")),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Your name"), "Asha Menon");
+    await user.type(screen.getByLabelText("WhatsApp number"), "+919000000000");
+    // Blocked until it is ticked, and released by ticking it — which is the
+    // thing that was impossible.
+    expect(
+      screen.getByRole("button", { name: /hold these seats/i }),
+    ).toBeDisabled();
+    await user.click(box);
+    expect(
+      screen.getByRole("button", { name: /hold these seats/i }),
+    ).toBeEnabled();
+  });
+
   it("says the operator answers first in request mode, and does not promise a seat", () => {
     const snorkel = EXPERIENCE_DETAIL["snorkel-elephant-beach"];
     const snorkelSlot = availabilityFor("snorkel-elephant-beach")[0];

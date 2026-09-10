@@ -43,6 +43,21 @@ repo=yuvoy-in/yuvoy-api
 # issue. And every field above is consumed as OPTIONAL regardless of what
 # `required:` says — a pinned contract states what an API WILL send, never what
 # it does send today (yuvoy-api#126).
-ref=d4a09f197ea4f70e4cbaf2dc05d4f002c3cb19f6
+#
+# ---
+#
+# 10 Sep 2026. Forward from d4a09f197ea4 to 3a643cde69c0, and the traveller
+# document is BYTE-IDENTICAL between the two — the two commits in between
+# touch only the operator contract (`gates` on `Blocker`, yuvoy-operator#38).
+# Nothing is generated differently and nothing new is consumed here.
+#
+# The bump exists for the property this file opens with: both frontends pin
+# ONE yuvoy-api commit, so they cannot be reasoning about different versions
+# of the same backend. That had drifted by two commits, which is how a
+# question like "is this field live?" gets two answers in one afternoon.
+#
+# Verified with `git ls-remote` and by hashing both documents, not with
+# `gh api .../commits/master`.
+ref=3a643cde69c0ced7d710279e68fa086111fea096
 branch=master
-pinned_on=2026-09-09
+pinned_on=2026-09-10

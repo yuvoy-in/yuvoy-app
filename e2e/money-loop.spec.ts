@@ -178,3 +178,54 @@ test("the health check blocks a dive booking until it is answered", async ({
   // passing for the wrong reason.
   await expect(page.getByText(/Still needed:.*health check/i)).toBeVisible();
 });
+
+test("a listing with no cancellation terms says so, and offers no dead button", async ({
+  page,
+}) => {
+  /*
+    THE BUG THAT STOPPED EVERY SALE — yuvoy-app#28.
+
+    Checkout required acceptance of the cancellation policy unconditionally
+    and rendered the checkbox that accepts it only when the field was present.
+    `cancellationPolicy` is `omitempty` and the API populated it with nothing,
+    so it was absent from EVERY response: the traveller was asked to accept
+    something that was never on the page, and nothing on `app.yuvoy.in` could
+    be booked, by anybody, from launch until 9 Sep 2026.
+
+    The header carries the scenario because it survives the client-side
+    navigation into `/book` — a `?__scenario=` on the first URL does not.
+  */
+  await page.setExtraHTTPHeaders({
+    "x-yuvoy-scenario": "no-cancellation-policy",
+  });
+  await page.goto("/e/mangrove-kayak-at-dawn");
+  await page.waitForLoadState("networkidle");
+
+  await page
+    .getByRole("button", { name: /seats left|available/i })
+    .first()
+    .click();
+  await page.getByRole("link", { name: /continue|ask the operator/i }).click();
+  await expect(page).toHaveURL(/\/book\?slot=/);
+
+  // It says why, in a sentence that blames us rather than the traveller.
+  await expect(
+    page.getByText(/cannot take a booking for this one yet/i),
+  ).toBeVisible();
+
+  /*
+    And there is no form at all. A dead submit button with a hint naming a
+    control that does not exist is the worst of the available outcomes, and it
+    is what shipped — so the assertion is that none of it is reachable.
+  */
+  await expect(
+    page.getByRole("button", { name: /Hold these seats|Ask the operator/i }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel(/Your name/i)).toHaveCount(0);
+  await expect(page.getByText(/Still needed:/i)).toHaveCount(0);
+
+  // A way onward rather than a dead end.
+  await expect(
+    page.getByRole("link", { name: /back to this experience/i }),
+  ).toBeVisible();
+});

@@ -62,6 +62,19 @@ export type Scenario =
     it is the state the whole flag exists to make visible.
   */
   | "not-bookable"
+  /*
+    A listing whose `cancellationPolicy` is absent — yuvoy-app#28.
+
+    Not a hypothetical: the field is `omitempty` and the API populated it with
+    nothing, so this was the shape of EVERY listing in production from launch
+    until 9 Sep 2026, and checkout could never be submitted for any of them.
+    The fixtures all carry the field, which is precisely why the suite stayed
+    green throughout — so the absent case has to be reachable on purpose.
+
+    An optional field that is never populated passes every check either side
+    has. This scenario is the standing answer to that.
+  */
+  | "no-cancellation-policy"
   | "long-feed"
   /*
     `complete: false` with NO `nextCursor` — the contract's third case, "a
@@ -327,8 +340,18 @@ export const handlers = [
       a 404 here would tell somebody holding a link that the business does not
       exist, which is worse than telling them it is not selling right now.
     */
+    const scenario = scenarioOf(request);
+    /*
+      `omitempty` means the key is GONE, not null and not empty — so the mock
+      deletes it rather than blanking it. A client that only ever met `""`
+      would still not be meeting what production sent.
+    */
+    const { cancellationPolicy: _omitted, ...withoutPolicy } = detail;
     return HttpResponse.json(
-      { ...detail, bookable: scenarioOf(request) !== "not-bookable" },
+      {
+        ...(scenario === "no-cancellation-policy" ? withoutPolicy : detail),
+        bookable: scenario !== "not-bookable",
+      },
       { headers: mockHeaders(requestId()) },
     );
   }),

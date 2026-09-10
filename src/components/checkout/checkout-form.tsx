@@ -10,6 +10,7 @@ import {
   bandMeetsMinimum,
   type AgeBand,
 } from "./screening-fields";
+import { checkoutRefusal } from "@/lib/booking/checkout-readiness";
 import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
@@ -41,6 +42,44 @@ type Slot = components["schemas"]["Slot"];
  * it sticks for the whole page and never covers the last field.
  */
 export function CheckoutForm({
+  experience,
+  slot,
+}: {
+  experience: Experience;
+  slot: Slot;
+}) {
+  /*
+    THE DEAD FORM, REFUSED BEFORE IT RENDERS — yuvoy-app#28.
+
+    This wrapper exists so the refusal can come before a single piece of form
+    state is created: the rules of hooks forbid returning early from inside
+    `CheckoutFields`, and a traveller must not be able to fill in a form that
+    can never be submitted. `checkoutRefusal` owns both the condition and the
+    sentence, so the two cannot drift apart the way the blocker and its
+    checkbox did.
+  */
+  const refusal = checkoutRefusal(experience);
+  if (refusal) {
+    return (
+      <Panel tone="alert" role="alert">
+        <p className="text-sm font-bold">{refusal.title}</p>
+        <p className="text-forest/70 mt-1.5 text-sm">{refusal.body}</p>
+        <ButtonLink
+          href={`/e/${experience.slug}`}
+          variant="outline"
+          size="sm"
+          className="mt-4"
+        >
+          Back to this experience
+        </ButtonLink>
+      </Panel>
+    );
+  }
+
+  return <CheckoutFields experience={experience} slot={slot} />;
+}
+
+function CheckoutFields({
   experience,
   slot,
 }: {
@@ -304,21 +343,34 @@ export function CheckoutForm({
             All in. Nothing is added after this screen.
           </p>
 
-          {experience.cancellationPolicy ? (
-            <label className="mt-4 flex cursor-pointer gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={policyAccepted}
-                onChange={(e) => setPolicyAccepted(e.target.checked)}
-                className="accent-terra-deep mt-0.5 size-4 shrink-0"
-                aria-describedby="policy-text"
-              />
-              <span id="policy-text" className="text-forest/80">
-                I have read what happens if it is called off:{" "}
-                {experience.cancellationPolicy}
-              </span>
-            </label>
-          ) : null}
+          {/*
+            UNCONDITIONAL, and that is the fix for yuvoy-app#28.
+
+            `policyAccepted` is required unconditionally in `blockers`, so the
+            control that clears it must render unconditionally too. It was
+            gated on `experience.cancellationPolicy` while the blocker was
+            not, and every listing that came back without the field — which
+            was all of them — got a permanently dead submit button asking for
+            a checkbox that was not on the page.
+
+            The absent case is now refused above, in `CheckoutForm`, before
+            this form exists at all. So by the time this renders the policy is
+            present, and this must NOT go back to a conditional: the pair
+            being conditional-and-unconditional is the defect itself.
+          */}
+          <label className="mt-4 flex cursor-pointer gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={policyAccepted}
+              onChange={(e) => setPolicyAccepted(e.target.checked)}
+              className="accent-terra-deep mt-0.5 size-4 shrink-0"
+              aria-describedby="policy-text"
+            />
+            <span id="policy-text" className="text-forest/80">
+              I have read what happens if it is called off:{" "}
+              {experience.cancellationPolicy}
+            </span>
+          </label>
 
           {/* Separate, and unticked. Consent to be marketed to is not consent
               to be transported. */}
