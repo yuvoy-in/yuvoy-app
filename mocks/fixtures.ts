@@ -287,6 +287,51 @@ export const EXPERIENCES: ExperienceSummary[] = [
  * here is deliberately NOT sorted by any field a client could reconstruct, so
  * a test can tell "passed through" from "coincidentally agrees".
  */
+/**
+ * The operator page's profile — yuvoy-app#30.
+ *
+ * `op_blue` because it is the only fixture business that is actually a
+ * BUSINESS: three listings and two clips. `op_reef` has three clips and one
+ * listing, which would make "what they run" a single row and leave the
+ * bookable-false case unreachable — and that case is the one the issue is
+ * most explicit about.
+ *
+ * Derived from `EXPERIENCES` and `REELS` rather than written out beside them,
+ * so the counts on this page cannot disagree with the feed the traveller just
+ * came from.
+ *
+ * `credentialsSummary` is deliberately absent: `OperatorProfile` does not
+ * carry it, and this page shows a verified tick rather than a list of claims.
+ */
+export function operatorProfileFor(slug: string) {
+  const listings = EXPERIENCES.filter((e) => e.operator.id === "op_blue");
+  const clips = REELS.filter((r) => r.experience.operator.id === "op_blue");
+  return {
+    id: "op_blue",
+    slug,
+    name: "Sample Boat Operator",
+    verified: true,
+    bookable: true,
+    locations: ["Havelock (Swaraj Dweep)", "Neil (Shaheed Dweep)"],
+    listingCount: listings.length,
+    reelCount: clips.length,
+    listings: listings.map((experience, i) => ({
+      experience,
+      /*
+        The second one is off. "`bookable: false` on a listing card means show
+        it and say it cannot be booked, not hide it" — somebody followed a link
+        looking for a specific thing they saw, and an emptier page with no
+        explanation is worse than a card marked "Not available right now".
+      */
+      bookable: i !== 1,
+    })),
+    reels: {
+      items: clips,
+      complete: true,
+    },
+  };
+}
+
 export const REELS: { media: Media; experience: ExperienceSummary }[] = (() => {
   const by = (id: string) => EXPERIENCES.find((e) => e.id === id)!;
   const dive = by("exp_try_dive");

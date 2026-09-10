@@ -56,6 +56,16 @@ export const qk = {
    */
   reels: (pageSize: number) => ["listReels", pageSize] as const,
   experience: (slug: string) => ["getExperience", slug] as const,
+  /** A business and its whole first paint — yuvoy-app#30. */
+  operator: (slug: string) => ["getOperator", slug] as const,
+  /**
+   * The reel grid on a business's page.
+   *
+   * Not keyed by cursor: the cursor is a page param React Query stores inside
+   * this entry. A key that included it would give every page its own entry and
+   * lose the accumulated grid on the first refetch.
+   */
+  operatorReels: (slug: string) => ["listOperatorReels", slug] as const,
   availability: (slug: string, from?: string, to?: string) =>
     ["getAvailability", slug, from ?? null, to ?? null] as const,
   /**

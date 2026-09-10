@@ -20,6 +20,13 @@ import { openHostedCheckout } from "@/lib/booking/payment-handoff";
 import { YuvoyError, isCheckoutDeadEnd } from "@/lib/api/errors";
 import { CancelSheet } from "./cancel-sheet";
 import { ShareButton } from "./share-button";
+import {
+  amountToBring,
+  isBooked,
+  isCashDue,
+  readPayAtCounter,
+  type CashBooking,
+} from "@/lib/booking/cash-booking";
 import { ReviewForm } from "./review-form";
 import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -140,7 +147,7 @@ function StatusBody({
   token?: string | null;
   onChanged?: () => void;
 }) {
-  const copy = STATE_COPY[status.state];
+  const copy = stateCopy(status.state);
 
   /*
     The reference in the tab, because the server cannot put it there.
@@ -235,7 +242,45 @@ function StatusBody({
         />
       ) : null}
 
-      {status.state === "holding" ? <PayButton status={status} /> : null}
+      {/*
+        WHAT TO BRING, FOR AS LONG AS IT IS OWED — yuvoy-app#29.
+
+        The success panel is transient by design: the moment a cash booking
+        lands the status is refetched, the state becomes `paid_pending_ops`,
+        and the pay area stops rendering. Without this the amount and the
+        instruction would vanish with it — and a traveller who reloads on the
+        morning of the trip would have a reference and no idea what to bring.
+
+        Driven by the FROZEN price on the booking, not a fresh read of the
+        listing: an operator editing a price cannot restate what this traveller
+        agreed to.
+
+        It disappears at `confirmed`, which is the operator recording that they
+        took the money. "The honest version is a quiet line that disappears
+        once it flips."
+      */}
+      {isCashDue(status.state) ? (
+        <Panel className="mt-6">
+          <p className="text-base font-bold">
+            Bring {formatTotal(status.price)} in cash
+          </p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            Pay the operator at the meeting point. The money goes to them, not
+            to us, and there is nothing to pay before you arrive.
+          </p>
+        </Panel>
+      ) : null}
+
+      {status.state === "holding" ? (
+        /*
+          `onChanged` refetches the status, so once a cash booking lands the
+          screen re-reads the server rather than believing its own optimism —
+          the same rule the release button follows. The success moment renders
+          from the booking response either way, so a slow refetch never leaves
+          somebody who just committed looking at a pay button.
+        */
+        <PayButton status={status} onBooked={onChanged} />
+      ) : null}
 
       {/*
         The way out of a hold or a pending request. Until now cancel existed
@@ -305,7 +350,24 @@ function StatusBody({
             </Row>
           ) : null}
           <Row label="Guests">{status.guests}</Row>
-          <Row label="Paid">{formatTotal(status.price)}</Row>
+          {/*
+            "PAID" IS A CLAIM, AND IT IS FALSE ON A CASH BOOKING —
+            yuvoy-app#29.
+
+            The money has not moved: the traveller hands it to the operator on
+            the day, and `capturedAmountPaise` is `0` on these bookings for
+            their whole life. Labelling it "Paid" tells somebody they have
+            settled up when they are about to be asked for the notes.
+
+            "To pay on the day" rather than "Unpaid" or "Due": the booking is
+            confirmed and the wording must not read as a debt or as a problem
+            with it. Once the operator records taking the cash the state
+            becomes `confirmed` and this goes back to "Paid", which is then
+            true.
+          */}
+          <Row label={isCashDue(status.state) ? "To pay on the day" : "Paid"}>
+            {formatTotal(status.price)}
+          </Row>
         </dl>
       </Panel>
 
@@ -380,9 +442,28 @@ function StatusBody({
  * who has just been debited that they have lost their money.
  */
 const STATE_COPY: Record<
-  BookingStatus["state"],
+  string,
   { eyebrow: string; title: string; body: string }
 > = {
+  /*
+    A CASH BOOKING, BEFORE THE OPERATOR HAS RECORDED THE MONEY — yuvoy-app#29.
+
+    Keyed by `string` rather than by `BookingStatus["state"]` because
+    `paid_pending_ops` is NOT in that enum: the traveller contract declares it
+    only on `CashBooking`. `STATE_COPY[status.state]` is dereferenced three
+    lines into the render, so an undeclared state was a TypeError on the screen
+    of somebody who had just committed money — the worst place in the product
+    to crash. `stateCopy` below makes the lookup total.
+
+    The copy says BOOKED. "Both should read as booked to the traveller — the
+    difference is our bookkeeping, not their standing." Never "unpaid", never
+    "pending payment": it is a confirmed seat on a boat.
+  */
+  paid_pending_ops: {
+    eyebrow: "Booked",
+    title: "You're booked",
+    body: "Your seat is held on the boat. Pay the operator in cash when you arrive — the amount and where to meet are below.",
+  },
   holding: {
     eyebrow: "Seats held",
     title: "Your seats are held",
@@ -452,6 +533,36 @@ const STATE_COPY: Record<
   },
 };
 
+/**
+ * The copy for a state, for ANY state.
+ *
+ * `STATE_COPY[status.state]` was dereferenced unguarded three lines into the
+ * render, so a state this build has never heard of took the whole booking
+ * screen to the error boundary — for somebody holding a reference, possibly
+ * having just handed over money. `paid_pending_ops` is exactly such a state
+ * today: real, returned after a cash booking, and absent from the enum.
+ *
+ * The fallback is deliberately vague and deliberately not alarming. There is
+ * no honest specific: "Confirmed" would be a lie for a cancellation and
+ * "Something went wrong" a lie for a booking that is fine. It says what is
+ * certainly true — the booking exists, we can see it, here is your reference —
+ * and leaves the rest of the screen, which is all derived from fields rather
+ * than from the state, to say the rest.
+ */
+function stateCopy(state: string): {
+  eyebrow: string;
+  title: string;
+  body: string;
+} {
+  return (
+    STATE_COPY[state] ?? {
+      eyebrow: "Your booking",
+      title: "Your booking",
+      body: "We can see this booking. Your reference and the details are below — if anything here looks wrong, send us the reference and we will check it.",
+    }
+  );
+}
+
 /* ------------------------------------------------------------- fragments */
 
 function HoldCountdown({ expiresAt }: { expiresAt: string }) {
@@ -518,7 +629,14 @@ function HoldCountdown({ expiresAt }: { expiresAt: string }) {
  * rendered. A 503 `payments_unavailable` is still handled below, because a
  * transport can always say it.
  */
-function PayButton({ status }: { status: BookingStatus }) {
+function PayButton({
+  status,
+  onBooked,
+}: {
+  status: BookingStatus;
+  /** Refetch the status once a cash booking lands, so the screen catches up. */
+  onBooked?: () => void;
+}) {
   const [handoff, setHandoff] = useState<"idle" | "opening" | "no_adapter">(
     "idle",
   );
@@ -543,7 +661,61 @@ function PayButton({ status }: { status: BookingStatus }) {
   });
 
   const answer = order.data;
-  const failure = order.error ? describeError(order.error) : null;
+
+  /*
+    PAYING THE OPERATOR IN CASH ON THE DAY — yuvoy-app#29.
+
+    Until a processor is live this is the ONLY way a booking can be finished.
+    The payment step reached `coming_soon`, rendered the message and stopped,
+    and the held seats lapsed fifteen minutes later — so nothing in the app
+    could be booked to completion at all.
+
+    Read by PRESENCE off either answer. `payAtCounter` arrives on the
+    `coming_soon` answer AND on `ready`, and production has a processor
+    configured and returns `ready` — so gating this on `state` would have
+    hidden it exactly where it is live. See `readPayAtCounter`.
+  */
+  const cashOffer = readPayAtCounter(answer);
+
+  const cash = useMutation({
+    retry: false,
+    mutationFn: async () => {
+      const client = createApiClient();
+      /*
+        The typed path, not `payAtCounter.confirmAt`.
+
+        `confirmAt` is what SAYS the option is available and is honoured as
+        that signal. It is not used as the request target: posting the
+        traveller's own reservation to a path taken from a response body is a
+        redirect we would be following on the server's word, and the path is
+        declared in the contract anyway, so nothing is gained by trusting it.
+        Flagged on the issue in case the API means to move it.
+
+        No `Idempotency-Key`, and that is not an omission: "one reservation has
+        at most one booking by construction."
+      */
+      const { data, error } = await client.POST(
+        "/reservations/{id}/cash-booking",
+        { params: { path: { id: status.reservationId } } },
+      );
+      if (error) throw error;
+      return data;
+    },
+    /*
+      `201` the first time, `200` if it was already confirmed — the second tap
+      on ferry wifi. Same booking, so both land here and are rendered
+      identically. Nothing counts a `200` as a fresh conversion because nothing
+      counts conversions here at all.
+    */
+    onSuccess: () => onBooked?.(),
+  });
+
+  const booked = cash.data;
+  const failure = order.error
+    ? describeError(order.error)
+    : cash.error
+      ? describeError(cash.error)
+      : null;
   const busy = order.isPending || handoff === "opening";
 
   /*
@@ -566,6 +738,15 @@ function PayButton({ status }: { status: BookingStatus }) {
   const deadEnd =
     order.error instanceof YuvoyError && isCheckoutDeadEnd(order.error.code);
 
+  /*
+    Somebody has just committed. This is the one screen in the product where
+    the absence is NOT the design — everywhere else a state change is a quiet
+    line, and here it should feel like something happened.
+  */
+  if (booked && isBooked(booked)) {
+    return <CashBooked booking={booked} status={status} />;
+  }
+
   return (
     <div className="mt-6">
       <Button size="lg" block onClick={() => order.mutate()} disabled={busy}>
@@ -583,6 +764,45 @@ function PayButton({ status }: { status: BookingStatus }) {
               : " Your seats stay held while the clock above runs."}
           </p>
         </Panel>
+      ) : null}
+
+      {/*
+        CASH, AS A REAL CHOICE — yuvoy-app#29.
+
+        Not a fallback tucked under a "having trouble?" link. "On a jetty in
+        the Andamans it is how people pay, and a traveller with no card or no
+        signal at the moment they decide is not an edge case."
+
+        When the card flow is not open (`coming_soon`) this is the ONLY way to
+        finish, so it leads. When an order is ready the card flow leads and
+        this sits beside it, clearly labelled and full size.
+
+        The amount is in the button on purpose: "a traveller deciding whether
+        to commit wants to know what they are committing to, and 'pay on the
+        day' without a number reads as a trap."
+      */}
+      {cashOffer && !busy ? (
+        <div className="mt-4">
+          <Button
+            size="lg"
+            block
+            variant={answer?.state === "ready" ? "outline" : "primary"}
+            disabled={cash.isPending}
+            onClick={() => cash.mutate()}
+          >
+            {cash.isPending
+              ? "Booking…"
+              : `Book now, pay ${formatTotal(status.price)} cash on the day`}
+          </Button>
+          <p className="text-forest/70 mt-2 text-center text-xs">
+            {/*
+              "Pay the operator", never "pay Yuvoy" or "amount due". The money
+              never reaches us, and it is what they will be holding when they
+              arrive.
+            */}
+            You pay the operator at the meeting point. Nothing is charged now.
+          </p>
+        </div>
       ) : null}
 
       {answer?.state === "ready" && handoff === "no_adapter" ? (
@@ -939,6 +1159,75 @@ function AnswerBy({
           : "That has passed. If they do not answer, the request lapses on its own and nothing is charged."}
       </p>
     </Panel>
+  );
+}
+
+/**
+ * The moment somebody has committed — yuvoy-app#29.
+ *
+ * "This is the one screen where somebody has just committed, so it can have a
+ * moment. Everywhere else the absence is the design; here it should feel like
+ * something happened."
+ *
+ * Three things carry it, in this order:
+ *
+ *   - **The reference, large and selectable.** It is what they say out loud at
+ *     a jetty, so it is the biggest thing on the screen and monospaced. The
+ *     alphabet already excludes letters people mishear.
+ *   - **"Bring ₹X in cash" — an instruction, not a balance.** From
+ *     `payAtCounterPaise` and never `capturedAmountPaise`, which is `0` on
+ *     these bookings and stays `0` forever because we never touch the money.
+ *   - **"Pay the operator"**, never "pay Yuvoy" and never "amount due".
+ *
+ * The word "booked" does the work. Nothing here calls it unpaid or pending:
+ * `paid_pending_ops` is our word for "committed, ops have not confirmed", and
+ * the traveller-facing word is booked.
+ */
+function CashBooked({
+  booking,
+  status,
+}: {
+  booking: CashBooking;
+  status: BookingStatus;
+}) {
+  const bring = amountToBring(booking);
+  const meeting = status.meetingPoint?.text?.trim();
+
+  return (
+    <div className="mt-6">
+      <Panel tone="raised" role="status">
+        <p className="eyebrow text-terra-deep">Booked</p>
+        <p className="font-display tracking-display mt-2 text-3xl leading-tight">
+          You&rsquo;re booked
+        </p>
+
+        {/*
+          Selectable, and big. Somebody reads this to an operator over the
+          noise of an outboard motor.
+        */}
+        <p className="mt-5 font-mono text-3xl font-bold tracking-wider select-all">
+          {booking.bookingReference}
+        </p>
+
+        <p className="mt-6 text-lg font-bold">
+          Bring{" "}
+          {formatMoney({
+            amountMinor: bring,
+            currency: booking.currency || status.price.currency,
+          })}{" "}
+          in cash
+        </p>
+        <p className="text-forest/80 mt-1 text-sm">
+          Pay the operator at the meeting point. The money goes to them, not to
+          us.
+        </p>
+
+        <p className="border-cream-line text-forest/80 mt-5 border-t pt-4 text-sm">
+          {formatDeparture(status.slot)}
+          {meeting ? ` · ${meeting}` : null}
+        </p>
+      </Panel>
+    </div>
   );
 }
 

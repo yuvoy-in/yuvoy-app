@@ -66,6 +66,10 @@ describe("palette", () => {
       "src/components/feed/",
       "src/components/experience/experience-detail.tsx",
       "src/components/search/search-screen.tsx",
+      // The operator page's poster grounds — the listing cards' thumbnails and
+      // the reel grid's tiles. Same use as the two above it: a ground standing
+      // in for media on a sheet, never a surface.
+      "src/components/operator/operator-screen.tsx",
       "src/app/globals.css",
     ];
 

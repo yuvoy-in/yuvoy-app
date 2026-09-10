@@ -1,7 +1,4 @@
 import { Chip } from "@/components/ui/chip";
-import type { components } from "@/lib/api/schema.gen";
-
-type BookingState = components["schemas"]["BookingStatus"]["state"];
 
 /**
  * A booking's state, in the traveller's words rather than ours.
@@ -16,7 +13,24 @@ type BookingState = components["schemas"]["BookingStatus"]["state"];
  * that happened in our state machine; `no_show: "Not boarded"` is what
  * happened without the accusation.
  */
-const LABEL: Record<BookingState, string> = {
+const LABEL: Record<string, string> = {
+  /*
+    BOOKED, AND OURS TO SETTLE — yuvoy-app#29.
+
+    A cash booking sits at `paid_pending_ops` until the operator records
+    taking the money, then becomes `confirmed`. **Both read as booked to the
+    traveller**: the difference is our bookkeeping, not their standing. They
+    have a seat on a boat.
+
+    It is deliberately NOT called "unpaid" or "pending payment" anywhere —
+    `paid_pending_ops` is our internal word, and a traveller who reads
+    "pending" on a seat they committed to rings somebody.
+
+    Keyed by `string` rather than the closed union because this value is not
+    in `BookingStatus.state`'s enum: it is declared only on `CashBooking`.
+    Raised on yuvoy-app#29; the label is right whichever way that is settled.
+  */
+  paid_pending_ops: "Booked",
   holding: "Holding",
   awaiting_operator: "Asked",
   verifying: "Checking",
@@ -41,10 +55,13 @@ const LABEL: Record<BookingState, string> = {
  * missing chip loses a word; a wrong or internal one misinforms.
  */
 export function StateChip({ state }: { state: string }) {
-  const label = LABEL[state as BookingState];
+  const label = LABEL[state];
   if (!label) return null;
 
-  const live = state === "confirmed" || state === "completed";
+  const live =
+    state === "confirmed" ||
+    state === "completed" ||
+    state === "paid_pending_ops";
   const over =
     state === "cancelled" || state === "declined" || state === "expired";
 

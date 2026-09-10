@@ -229,3 +229,62 @@ test("a listing with no cancellation terms says so, and offers no dead button", 
     page.getByRole("link", { name: /back to this experience/i }),
   ).toBeVisible();
 });
+
+test("a traveller can finish a booking by paying the operator in cash", async ({
+  page,
+}) => {
+  /*
+    THE LOOP CLOSING — yuvoy-app#29.
+
+    Before this, checkout reached the payment step, got `coming_soon`, told the
+    traveller to wait for a message nothing sends, and the held seats lapsed
+    fifteen minutes later. Nothing in the app could be booked to completion.
+
+    This is the whole journey, in the state production is actually in.
+  */
+  await page.goto("/e/mangrove-kayak-at-dawn");
+  await page.waitForLoadState("networkidle");
+
+  await page
+    .getByRole("button", { name: /seats left|available/i })
+    .first()
+    .click();
+  await page.getByRole("link", { name: /continue|ask the operator/i }).click();
+
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await expect(page).toHaveURL(/\/booking#t=/);
+
+  // The payment step, and the way out of it that actually exists.
+  await page.getByRole("button", { name: /^Pay /i }).click();
+  const cash = page.getByRole("button", { name: /Book now, pay .* cash/i });
+  await expect(cash).toBeVisible();
+  await cash.click();
+
+  /*
+    Booked. The reference is the thing they say out loud at a jetty, and the
+    amount is an instruction rather than a balance.
+  */
+  await expect(page.getByText(/You.{1,3}re booked/)).toBeVisible();
+  await expect(page.getByText(/^YV-/)).toBeVisible();
+  await expect(page.getByText(/Bring ₹.* in cash/)).toBeVisible();
+  // Said more than once by design — in the state line and beside the amount —
+  // so this asserts it is said at all rather than exactly where.
+  await expect(page.getByText(/Pay the operator/i).first()).toBeVisible();
+
+  /*
+    And the amount is NOT labelled "Paid". The money has not moved: they hand
+    it over on the day, and our ledger holds nothing.
+  */
+  await expect(page.getByText("To pay on the day")).toBeVisible();
+
+  /*
+    And never our internal word for it. `paid_pending_ops` means "committed,
+    ops have not confirmed"; the traveller-facing word is booked.
+  */
+  const body = (await page.locator("body").textContent()) ?? "";
+  expect(body).not.toMatch(/paid_pending_ops|unpaid|pending payment/i);
+  expect(body).not.toMatch(/pay Yuvoy|amount due/i);
+});

@@ -5,6 +5,7 @@ import {
   REELS,
   LONG_REEL_FEED,
   EXPERIENCE_DETAIL,
+  operatorProfileFor,
   availabilityFor,
   FIXTURE_NOW,
   mockHeaders,
@@ -260,6 +261,65 @@ export const handlers = [
    * business so that everyone's first precedes anybody's second, and the
    * ordering "rotates operators, it never ranks them".
    */
+  /* ----------------------------------------------------- operator page */
+
+  /*
+    A business, and everything it sells — yuvoy-app#30.
+
+    One request for the whole first paint: header, listings and the first
+    screen of the grid. `?__scenario=not-bookable` pauses the whole business,
+    which must RENDER with one honest line rather than error — somebody was
+    sent the link.
+  */
+  http.get(url("/operators/:slug"), async ({ request, params }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+
+    const slug = String(params.slug);
+    if (slug !== "sample-boat-operator") {
+      return envelope("not_found", "No such operator.", 404);
+    }
+
+    const profile = operatorProfileFor(slug);
+    return HttpResponse.json(
+      {
+        ...profile,
+        bookable: scenarioOf(request) !== "not-bookable",
+      },
+      { headers: mockHeaders(requestId()) },
+    );
+  }),
+
+  /*
+    The grid beyond the first screen. `complete` is TOLD, never inferred from a
+    short page — the client is contractually forbidden from stopping on length,
+    and a mock that only ever returned complete pages would never exercise it.
+  */
+  http.get(url("/operators/:slug/reels"), async ({ request, params }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+
+    if (String(params.slug) !== "sample-boat-operator") {
+      return envelope("not_found", "No such operator.", 404);
+    }
+
+    const all = REELS.filter((r) => r.experience.operator.id === "op_blue");
+    const u = new URL(request.url);
+    const cursor = Number(u.searchParams.get("cursor") ?? 0);
+    const limit = Number(u.searchParams.get("limit") ?? 12);
+    const page = all.slice(cursor, cursor + limit);
+    const end = cursor + page.length;
+
+    return HttpResponse.json(
+      {
+        items: page,
+        complete: end >= all.length,
+        ...(end < all.length ? { nextCursor: String(end) } : {}),
+      },
+      { headers: mockHeaders(requestId()) },
+    );
+  }),
+
   http.get(url("/reels"), async ({ request }) => {
     const failed = await commonFailure(request);
     if (failed) return failed;
@@ -346,7 +406,9 @@ export const handlers = [
       deletes it rather than blanking it. A client that only ever met `""`
       would still not be meeting what production sent.
     */
-    const { cancellationPolicy: _omitted, ...withoutPolicy } = detail;
+    const withoutPolicy = Object.fromEntries(
+      Object.entries(detail).filter(([k]) => k !== "cancellationPolicy"),
+    );
     return HttpResponse.json(
       {
         ...(scenario === "no-cancellation-policy" ? withoutPolicy : detail),

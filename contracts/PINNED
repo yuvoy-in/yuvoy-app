@@ -46,18 +46,48 @@ repo=yuvoy-in/yuvoy-api
 #
 # ---
 #
-# 10 Sep 2026. Forward from d4a09f197ea4 to 3a643cde69c0, and the traveller
-# document is BYTE-IDENTICAL between the two — the two commits in between
-# touch only the operator contract (`gates` on `Blocker`, yuvoy-operator#38).
-# Nothing is generated differently and nothing new is consumed here.
+# 10 Sep 2026, second bump today. Forward from 3a643cde69c0 to 64d49ee5481e.
+# Three new paths and three new schemas; nothing removed.
 #
-# The bump exists for the property this file opens with: both frontends pin
-# ONE yuvoy-api commit, so they cannot be reasoning about different versions
-# of the same backend. That had drifted by two commits, which is how a
-# question like "is this field live?" gets two answers in one afternoon.
+# Consumed in this change:
+#   - `POST /reservations/{id}/cash-booking` + `CashBooking` (app#29). The
+#     traveller commits in the app and pays the operator in cash on the day.
+#     This is currently the ONLY way a booking can be completed at all: the
+#     payment step reached `coming_soon`, rendered the message and stopped, and
+#     the held seats lapsed fifteen minutes later.
+#   - `payAtCounter` on the payment-order answer. Branched on by PRESENCE, not
+#     by `state` — see the note below, which is the one place this bump is
+#     ahead of the document.
+#   - `GET /operators/{slug}` + `OperatorProfile`, and
+#     `GET /operators/{slug}/reels` + `ReelPage` (app#30). A reel opened its
+#     listing and the operator on that listing opened nothing.
 #
-# Verified with `git ls-remote` and by hashing both documents, not with
-# `gh api .../commits/master`.
-ref=3a643cde69c0ced7d710279e68fa086111fea096
+# NOT consumed here, and it needs the API to move first:
+#   - The LINK to an operator page from a reel or a listing card.
+#     `OperatorSummary` still carries `id`, `name`, `verified`, `logoUrl` and
+#     `credentialsSummary` — no `slug` — so a card has nothing to link with.
+#     Confirmed against the live API as well as the document. Raised on
+#     yuvoy-app#30; the page ships now and the links land when the field does.
+#
+# ## Where this repo is deliberately ahead of the contract
+#
+# `payAtCounter` is declared ONLY on the `200 coming_soon` answer. The issue's
+# own correction says it arrives on BOTH answers and that production, which has
+# a processor configured, returns `state: "ready"` — so a client that gated
+# cash on `coming_soon` would never show it. `PaymentOrder` does not declare
+# the field, so the generated type does not carry it on the 201.
+#
+# This app therefore reads it by PRESENCE off either answer, through a narrow
+# reader that does not depend on the declared type (`readPayAtCounter`). That
+# is exactly what the issue asks for, it is correct under both documents, and
+# it degrades to "no cash option" if the field never arrives. The contract gap
+# is raised on yuvoy-app#29 for the API side to close.
+#
+# `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
+# which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
+# issue. And every field above is consumed as OPTIONAL regardless of what
+# `required:` says — a pinned contract states what an API WILL send, never what
+# it does send today (yuvoy-api#126).
+ref=64d49ee5481e96ca1313c32941672df9f7e9f477
 branch=master
 pinned_on=2026-09-10

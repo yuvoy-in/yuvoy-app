@@ -42,4 +42,17 @@ export const INDEXABLE_FIXED_ROUTES: readonly FixedRoute[] = [
 export const INDEXABLE_DYNAMIC_ROUTES = [
   "/e/[slug]",
   "/guides/[slug]",
+  /*
+    A business's own page — yuvoy-app#30. Public and worth indexing: it is what
+    somebody searching an operator's name should land on.
+
+    NOT in the sitemap yet, and that is a gap rather than a decision.
+    `GET /catalog/index` enumerates `experience`, `destination` and `market`
+    and has no `operator` kind, so there is nothing to build the URL list from
+    — and inventing one by walking every listing's operator would be a third
+    copy of data that already has an owner, which is what the comment at the
+    top of this file refuses. Raised on yuvoy-app#30; the entries appear the
+    day the catalog index carries operators.
+  */
+  "/o/[slug]",
 ] as const;

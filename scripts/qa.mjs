@@ -912,6 +912,71 @@ for (const f of files) {
   }
 }
 
+/**
+ * A LOOKUP KEYED BY A WIRE STATE MUST HAVE A FALLBACK — yuvoy-app#29.
+ *
+ * `STATE_COPY[status.state]` was dereferenced three lines into the booking
+ * screen's render. `paid_pending_ops` — the state a cash booking sits in until
+ * the operator records the money — is not in `BookingStatus.state`'s enum: the
+ * contract declares it only on `CashBooking`, and the API returns it anyway.
+ * So the map returned `undefined`, `copy.eyebrow` threw, and the whole booking
+ * screen went to the error boundary **for somebody who had just committed to
+ * paying at a jetty**. There is no worse place in this product to crash.
+ *
+ * The type system cannot help here and never could: these enums grow by INSERT
+ * on the server, a pinned contract states what an API WILL send rather than
+ * what it does, and `Record<Enum, T>` indexes as `T` while the value at runtime
+ * is `T | undefined`.
+ *
+ * So every lookup keyed by a state needs a fallback in the same breath —
+ * `MAP[state] ?? something`, or an assignment followed by a null check. This
+ * is the same lesson as the wire-enum check below it, one layer up: that one
+ * stops a raw token reaching a reader, this one stops an unknown token taking
+ * the screen down.
+ */
+for (const f of files) {
+  if (/\.test\.tsx?$/.test(f)) continue;
+  const s = code(f);
+  /*
+    `NAME[...state]` — a bracket index whose key is a state. Deliberately not
+    every bracket index: an array index or a lookup by id is a different thing
+    with a different failure, and a check that fired on all of them would be
+    turned off.
+  */
+  for (const m of s.matchAll(
+    /\b([A-Z_][A-Z0-9_]*|[a-z][\w$]*)\[\s*([\w$.?]*\bstate)\s*(?:as[^\]]*)?\]/g,
+  )) {
+    const [whole, map, key] = m;
+    const after = s.slice(m.index + whole.length, m.index + whole.length + 240);
+
+    // `MAP[state] ?? fallback`, on the spot.
+    if (/^\s*\?\?/.test(after)) continue;
+
+    /*
+      Or assigned and then checked: `const label = MAP[state];` followed by
+      `if (!label)`. The booking screen had neither, which is what made it a
+      crash rather than a blank.
+    */
+    const before = s.slice(Math.max(0, m.index - 80), m.index);
+    const assigned = /(?:const|let)\s+([\w$]+)\s*(?::[^=]+)?=\s*$/.exec(before);
+    if (
+      assigned &&
+      new RegExp(String.raw`if\s*\(\s*!\s*${assigned[1]}\b`).test(after)
+    )
+      continue;
+
+    problems.push(
+      `${rel(f)}: \`${map}[${key}]\` is a lookup keyed by a wire state with ` +
+        `no fallback. These enums grow by INSERT on the server and a pinned ` +
+        `contract says what the API WILL send, not what it does — ` +
+        `\`paid_pending_ops\` reached the booking screen before it was ever ` +
+        `in \`BookingStatus.state\`, and the unguarded read took the page ` +
+        `down for somebody who had just committed money. Add \`?? fallback\`, ` +
+        `or assign it and handle the missing case.`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

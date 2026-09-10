@@ -335,6 +335,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/operators/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A business, everything it sells, and its reels
+         * @description The page behind the name on a reel. Tapping a reel opens its listing; tapping the operator on that listing had nowhere to go, so every business in the catalog was a name and a logo, and the other clips they had shot were reachable only by scrolling the whole feed until one came round again.
+         *
+         *     **One request for the whole first paint** — who they are, what they sell, and the first screen of reels. Page the grid beyond that with `/operators/{slug}/reels`.
+         *
+         *     **There are no followers and no rating.** Reviews do not exist until real completed bookings produce them, and a number nobody earned is a fabricated claim. Nothing here counts anything a person could inflate.
+         *
+         *     **`bookable` is per listing as well as for the business**, and the page answers for a business that has paused rather than 404-ing — somebody was sent this link an hour ago and is looking for a specific thing they saw. A business that has never published anything has no page.
+         */
+        get: operations["getOperator"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operators/{slug}/reels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The rest of a business's reels
+         * @description Newest first, which is **not** the main feed's ordering. The feed rotates operators so no business owns the scroll; on one business's own page that rotation has a single member and means nothing, and what somebody opening a portfolio wants is the most recent work first.
+         *
+         *     Paged, and it says whether it ended. Pass `nextCursor` back; its absence with `complete: true` is the end. Do not infer the end from a short page.
+         */
+        get: operations["listOperatorReels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reservations/{id}/cash-booking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a held reservation, to be paid in cash on the day
+         * @description The traveller commits now and pays the operator at the counter. The booking is real from this moment — it holds the seat, appears on the operator's manifest and can be cancelled like any other. The only thing not yet true is that anybody has been paid.
+         *
+         *     **Cash is not a synthetic payment.** We never touch the money, so `capturedAmountPaise` on this booking stays `0` for its whole life and the commission becomes something the operator owes us, settled outside the payout run. Nothing about this booking claims we hold funds.
+         *
+         *     **No `Idempotency-Key`, and that is not an omission.** One reservation has at most one booking by construction, so asking twice returns the booking the first ask made — with `200` rather than `201`, because nothing was created the second time. This matters more here than anywhere: two bookings for one reservation is one seat sold twice.
+         *
+         *     The price is the one agreed at checkout, never a fresh read of the listing: an operator editing their price this afternoon must not change what somebody agreed to this morning.
+         */
+        post: operations["confirmCashBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bookings/recovery/request": {
         parameters: {
             query?: never;
@@ -814,6 +888,17 @@ export interface components {
             slotId: string;
             guests: number;
             contact: components["schemas"]["ReservationContact"];
+            /**
+             * Format: int64
+             * @description The total the traveller was shown, in paise, for this party size.
+             *
+             *     **Optional, and send it.** Omitted, nothing is checked and this endpoint behaves exactly as it always has. Sent, the checkout is refused `409 price_moved` when the listing no longer costs that.
+             *
+             *     It exists because an operator now changes their own price with no review (D-032.3). That used to take days, so the gap between reading a total and pressing the button could not matter; it is now however long a checkout screen sits open. The price snapshot is taken from the LIVE listing inside the checkout transaction, so without this a traveller is charged the new number having agreed to the old one — and the snapshot records the new number as what they agreed to.
+             *
+             *     Trusted, unlike `attribution`, and safely: the worst a wrong value can do is refuse a booking that would have overcharged whoever sent it.
+             */
+            expectTotalPaise?: number;
             attribution?: components["schemas"]["Attribution"];
             screening?: components["schemas"]["Screening"];
         };
@@ -936,6 +1021,50 @@ export interface components {
              * @description The hold's deadline, not a separate payment clock. Paying after it may still succeed — the capture re-acquires capacity — but the seat is no longer reserved and the booking can be declined with a full automatic refund.
              */
             expiresAt: string;
+        };
+        ReelPage: {
+            items: {
+                media?: components["schemas"]["Media"];
+                experience?: components["schemas"]["ExperienceSummary"];
+            }[];
+            /** @description Told rather than inferred. `false` with no `nextCursor` means the server stopped, which is a different thing from the grid having ended. */
+            complete: boolean;
+            /** @description Absent when there is nothing after this page. */
+            nextCursor?: string;
+        };
+        OperatorProfile: {
+            id: string;
+            slug: string;
+            name: string;
+            /** @description True only when EVERY visible listing of theirs is — every mandatory credential on file, verified and unexpired. Stated across the business rather than per listing on purpose: an operator whose diving licence has lapsed must not collect a badge from a listing that needs no licence. A statement about evidence we hold, not a reputation score. */
+            verified: boolean;
+            /** @description Whether anything of theirs can be bought right now. `false` is a real, renderable state — a business that has paused is still a business somebody was linked to, so render the page and say so. */
+            bookable: boolean;
+            /** @description Absent when they have not set one. Fall back to your own placeholder rather than rendering a broken image. */
+            logoUrl?: string;
+            /** @description The destinations they run in, from their own listings. */
+            locations?: string[];
+            listingCount: number;
+            reelCount: number;
+            listings: {
+                experience: components["schemas"]["ExperienceSummary"];
+                /** @description Per listing, and projected rather than filtered on: a listing that has stopped selling says "not available" rather than vanishing. Truer here than anywhere — somebody sent this link is looking for a specific thing they saw. */
+                bookable: boolean;
+            }[];
+            /** @description The first screen of the grid. Page it at /operators/{slug}/reels. */
+            reels: components["schemas"]["ReelPage"];
+        };
+        CashBooking: {
+            /** @description `YV-XXXXXXXX`. The one thing the traveller has to be able to say out loud at a jetty, so the alphabet excludes the letters people mishear. */
+            bookingReference: string;
+            /**
+             * @description Committed, and nobody has been paid yet. The booking holds the seat from this moment; the state changes to `confirmed` when the operator records taking the cash.
+             * @enum {string}
+             */
+            state: "paid_pending_ops";
+            /** @description What to bring, in INR paise. The price agreed at checkout, not a fresh read of the listing. Named for what the traveller does rather than for what our ledger calls it — this money never reaches us, so calling it an amount due would be wrong in both directions. */
+            payAtCounterPaise: number;
+            currency: string;
         };
         BookingStatus: {
             reservationId: string;
@@ -1718,6 +1847,12 @@ export interface operations {
                         state: "coming_soon";
                         message: string;
                         holdStillActive?: boolean;
+                        /** @description Where to finish instead. While no card processor is live this is the ONLY way a booking can be completed, so a client that renders `message` and stops leaves the traveller unable to book at all. */
+                        payAtCounter?: {
+                            available: boolean;
+                            /** @description Path to POST to, relative to the API base. */
+                            confirmAt: string;
+                        };
                     };
                 };
             };
@@ -1733,6 +1868,106 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description The hold has ended; this reservation can no longer be paid for. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getOperator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The business. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatorProfile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listOperatorReels: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the grid. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReelPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    confirmCashBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description This reservation was already confirmed — the second tap on bad signal. The same booking, not a new one. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashBooking"];
+                };
+            };
+            /** @description The booking. Show the reference and what to bring. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashBooking"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description The seats are no longer held, or a card payment is already open for them. Either way the traveller starts again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description We have stopped selling this operator's departures. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

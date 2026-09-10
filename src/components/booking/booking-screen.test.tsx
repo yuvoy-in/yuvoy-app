@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { BookingScreen } from "./booking-screen";
 import { server } from "../../../mocks/server";
@@ -755,5 +756,293 @@ describe("BookingScreen — the day's facts", () => {
 
     expect(await screen.findByText("You are going")).toBeInTheDocument();
     expect(screen.queryByText("The operator has until")).toBeNull();
+  });
+});
+
+/*
+  PAYING THE OPERATOR IN CASH — yuvoy-app#29.
+
+  Until a processor is live this is the ONLY way a booking can be finished.
+  Before it, checkout reached the payment step, rendered "payment is coming
+  soon" and stopped, and the held seats lapsed fifteen minutes later — so
+  nothing in the app could be booked to completion at all.
+*/
+describe("finishing a booking in cash", () => {
+  const payAtCounter = {
+    available: true,
+    confirmAt: "/v1/reservations/res_1/cash-booking",
+  };
+
+  function holding(over: Record<string, unknown> = {}) {
+    return statusBody({
+      state: "holding",
+      final: false,
+      holdExpiresAt: new Date(Date.now() + 600_000).toISOString(),
+      bookingReference: undefined,
+      ...over,
+    });
+  }
+
+  it("offers cash on the `coming_soon` answer, with the amount in the button", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json({
+          state: "coming_soon",
+          message: "Card and UPI are opening shortly.",
+          holdStillActive: true,
+          payAtCounter,
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookingScreen />);
+    await user.click(await screen.findByRole("button", { name: /^Pay / }));
+
+    /*
+      The amount is in the button on purpose: "a traveller deciding whether to
+      commit wants to know what they are committing to, and 'pay on the day'
+      without a number reads as a trap."
+    */
+    expect(
+      await screen.findByRole("button", { name: /Book now, pay ₹9,000 cash/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers cash on the `ready` answer too — production returns that one", async () => {
+    /*
+      The correction on the issue: branching on `state === "coming_soon"` would
+      have hidden the option exactly where a processor is configured, which is
+      production. The test is that presence, not state, is what decides.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json(
+          {
+            state: "ready",
+            orderId: "ord_1",
+            providerOrderId: "p_1",
+            provider: "mock",
+            amountPaise: 900000,
+            currency: "INR",
+            expiresAt: new Date(Date.now() + 600_000).toISOString(),
+            payAtCounter,
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookingScreen />);
+    await user.click(await screen.findByRole("button", { name: /^Pay / }));
+
+    expect(
+      await screen.findByRole("button", { name: /Book now, pay ₹9,000 cash/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not offer cash when the API does not — that is the off switch", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json({
+          state: "coming_soon",
+          message: "Payment opens shortly.",
+          holdStillActive: true,
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookingScreen />);
+    await user.click(await screen.findByRole("button", { name: /^Pay / }));
+
+    await screen.findByText(/Payment opens shortly/);
+    expect(
+      screen.queryByRole("button", { name: /Book now, pay/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("gives the reference, the amount to bring, and where — in the operator's favour", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          holding({
+            meetingPoint: { text: "Havelock Jetty, gate 2" },
+          }),
+        ),
+      ),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json({
+          state: "coming_soon",
+          message: "Card and UPI are opening shortly.",
+          holdStillActive: true,
+          payAtCounter,
+        }),
+      ),
+      http.post(`${BASE}/reservations/res_1/cash-booking`, () =>
+        HttpResponse.json(
+          {
+            bookingReference: "YV-8F3K2A",
+            state: "paid_pending_ops",
+            payAtCounterPaise: 900000,
+            currency: "INR",
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookingScreen />);
+    await user.click(await screen.findByRole("button", { name: /^Pay / }));
+    await user.click(
+      await screen.findByRole("button", { name: /Book now, pay/i }),
+    );
+
+    // The reference is what gets said out loud at a jetty.
+    const booked = (await screen.findByText("YV-8F3K2A")).closest("div")!;
+    // An instruction, not a balance.
+    expect(
+      within(booked).getByText(/Bring ₹9,000 in cash/),
+    ).toBeInTheDocument();
+    /*
+      Scoped to the success panel: the meeting point also renders in the
+      details below, and asserting on the page would pass whether or not this
+      panel carried it — which is the half that matters at a jetty.
+    */
+    expect(
+      within(booked).getByText(/Havelock Jetty, gate 2/),
+    ).toBeInTheDocument();
+
+    /*
+      "Pay the operator", never "pay Yuvoy" or "amount due" — the money never
+      reaches us. And never "unpaid" or "pending payment": it is a confirmed
+      seat on a boat.
+    */
+    expect(within(booked).getByText(/Pay the operator/i)).toBeInTheDocument();
+    expect(screen.queryByText(/pay Yuvoy|amount due/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/unpaid|pending payment/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a 200 retry exactly like the 201 — the same booking", async () => {
+    /*
+      "A phone loses signal mid-request and the traveller taps again. That is
+      the correct instinct and must not be punished." Same booking, not a new
+      one, and not an error.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json({
+          state: "coming_soon",
+          message: "…",
+          holdStillActive: true,
+          payAtCounter,
+        }),
+      ),
+      http.post(`${BASE}/reservations/res_1/cash-booking`, () =>
+        HttpResponse.json(
+          {
+            bookingReference: "YV-8F3K2A",
+            state: "paid_pending_ops",
+            payAtCounterPaise: 900000,
+            currency: "INR",
+          },
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookingScreen />);
+    await user.click(await screen.findByRole("button", { name: /^Pay / }));
+    await user.click(
+      await screen.findByRole("button", { name: /Book now, pay/i }),
+    );
+
+    expect(await screen.findByText("YV-8F3K2A")).toBeInTheDocument();
+    expect(screen.getByText(/You.{1,3}re booked/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("says start again on a 409, rather than a dead button", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json({
+          state: "coming_soon",
+          message: "…",
+          holdStillActive: true,
+          payAtCounter,
+        }),
+      ),
+      http.post(`${BASE}/reservations/res_1/cash-booking`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "reservation_not_payable",
+              message: "That hold has ended. Pick a departure again.",
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookingScreen />);
+    await user.click(await screen.findByRole("button", { name: /^Pay / }));
+    await user.click(
+      await screen.findByRole("button", { name: /Book now, pay/i }),
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("YV-8F3K2A")).not.toBeInTheDocument();
+  });
+
+  it("reads a cash booking as BOOKED, never as pending payment", async () => {
+    /*
+      `paid_pending_ops` is not in `BookingStatus.state`'s enum — the contract
+      declares it only on `CashBooking` — and the API returns it here. The
+      screen dereferenced its state map unguarded, so this state took the whole
+      page to the error boundary for somebody who had just committed money.
+
+      "Both should read as booked to the traveller — the difference is our
+      bookkeeping, not their standing."
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({ state: "paid_pending_ops", final: false }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+
+    expect(await screen.findByText(/You.{1,3}re booked/)).toBeInTheDocument();
+    expect(screen.getByText("YV-4K2M9P7Q")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/unpaid|pending payment/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not crash on a state this build has never heard of", async () => {
+    // The general form of the bug above. A booking screen that throws is the
+    // worst outcome in the product: the person may have just handed over money.
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ state: "some_new_state_from_2027" })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(await screen.findByText("YV-4K2M9P7Q")).toBeInTheDocument();
   });
 });
