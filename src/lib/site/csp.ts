@@ -80,6 +80,20 @@ function originOf(url: string | undefined): string | null {
  */
 const STREAM = ["https://*.cloudflarestream.com", "https://videodelivery.net"];
 
+/**
+ * Cloudflare Images, which serves every picture an OPERATOR uploads: the logo
+ * on a card and a listing page, and the photographs on their own page
+ * (yuvoy-app#30, yuvoy-operator#41). One host for every business — the account
+ * is in the path, not the hostname — so naming it does not make a new operator
+ * a deploy.
+ *
+ * Missing from the policy the day it was enforced, and nothing noticed: the
+ * one operator live then had not set a logo, and the e2e fixtures draw every
+ * picture as a `data:` URI. The first logo anybody uploaded would have been
+ * blocked on every card that shows it.
+ */
+const IMAGES = ["https://imagedelivery.net"];
+
 export interface CspEnv {
   apiUrl?: string;
   posthogHost?: string;
@@ -111,8 +125,9 @@ export function cspDirectives(env: CspEnv): string[] {
     // drives animation state through them. A style is not a script: this is a
     // much smaller concession than the same token in `script-src`.
     `style-src 'self' 'unsafe-inline'`,
-    // `data:` for the blur placeholders `next/image` inlines.
-    `img-src 'self' data: ${STREAM.join(" ")}`,
+    // `data:` for the blur placeholders `next/image` inlines. Operator logos
+    // are plain `<img>` elements, so they load from Cloudflare Images directly.
+    `img-src 'self' data: ${[...STREAM, ...IMAGES].join(" ")}`,
     // `blob:` because hls.js plays through Media Source Extensions, which
     // assigns a blob URL to the video element.
     `media-src 'self' blob: ${STREAM.join(" ")}`,

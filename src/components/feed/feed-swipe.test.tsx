@@ -269,3 +269,50 @@ describe("the click that follows a swipe", () => {
     expect(fireEvent.click(article)).toBe(true);
   });
 });
+
+describe("the operator's name — yuvoy-app#30", () => {
+  it("leads to the business's own page, by slug", () => {
+    renderCard();
+    expect(
+      screen.getByRole("link", { name: experience.operator.name }),
+    ).toHaveAttribute("href", `/o/${experience.operator.slug}`);
+  });
+
+  it("does not open that page when a swipe starts on it", () => {
+    /*
+      The name sits in the caption, exactly where a thumb lands to swipe. The
+      gesture is decided on the article, so a drag that begins on the link is
+      still a swipe — and the click it leaves on the link must not open the
+      operator page on top of the experience the swipe just opened.
+    */
+    renderCard();
+    const link = screen.getByRole("link", { name: experience.operator.name });
+    drag(link, { x: 300, y: 400 }, { x: 180, y: 400 });
+    expect(push).toHaveBeenCalledWith(href);
+    expect(fireEvent.click(link)).toBe(false);
+  });
+
+  it("names the business without a link when the API sends no slug", () => {
+    render(
+      <ExperienceCard
+        experience={{
+          ...experience,
+          operator: {
+            ...experience.operator,
+            slug: undefined,
+          } as unknown as typeof experience.operator,
+        }}
+        index={0}
+        total={3}
+        active
+        mounted={false}
+        muted
+        autoplayAllowed={false}
+      />,
+    );
+    expect(screen.getByText(experience.operator.name)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: experience.operator.name }),
+    ).toBeNull();
+  });
+});

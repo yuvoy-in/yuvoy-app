@@ -81,13 +81,42 @@ repo=yuvoy-in/yuvoy-api
 # reader that does not depend on the declared type (`readPayAtCounter`). That
 # is exactly what the issue asks for, it is correct under both documents, and
 # it degrades to "no cash option" if the field never arrives. The contract gap
-# is raised on yuvoy-app#29 for the API side to close.
+# is raised on yuvoy-app#29 for the API side to close. (Closed 11 Sep — see
+# below.)
+#
+# ---
+#
+# 11 Sep 2026. Forward from 64d49ee5481e to 79ce45afd3fb. Additive to
+# everything this app reads; nothing removed.
+#
+# Consumed in this change:
+#   - `OperatorSummary.slug`, now REQUIRED (yuvoy-api#152). The operator's name
+#     on a reel card and "Who runs this" on a listing link to `/o/{slug}` —
+#     the last arrow of reel → listing → operator (app#30). Checked on the live
+#     API before building on it: every `/reels` card carries one. A card
+#     without it still names the business, with no link: required in the
+#     document is a promise about master, not about the deployed API.
+#   - `OperatorProfile.about`, `operatingSince`, `languages`, `findThemAt` and
+#     `photos` (yuvoy-operator#41). Absent when empty, and each draws nothing
+#     when absent — never a heading over a blank. Live on `hc-diving-skl`
+#     today: `operatingSince` and `findThemAt`, no words and no photos yet.
+#   - `payAtCounter` is now declared on `PaymentOrder` as well as on the
+#     `coming_soon` answer, which closes the gap described above. No code
+#     changes with it: `readPayAtCounter` already read the field by presence
+#     off either answer, and still does.
+#
+# Found while consuming the above, and fixed in the same change: operator
+# pictures are Cloudflare Images (`imagedelivery.net`), which neither the
+# enforced CSP's `img-src` nor `next/image`'s `remotePatterns` named. No
+# operator had a logo live, so nothing was visibly broken yet; the first
+# upload would have been blocked on every card and refused by the optimiser
+# on the operator page.
 #
 # `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
 # which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
 # issue. And every field above is consumed as OPTIONAL regardless of what
 # `required:` says — a pinned contract states what an API WILL send, never what
 # it does send today (yuvoy-api#126).
-ref=64d49ee5481e96ca1313c32941672df9f7e9f477
+ref=79ce45afd3fb78ed35e8b590c278d46eb463fd2c
 branch=master
-pinned_on=2026-09-10
+pinned_on=2026-09-11

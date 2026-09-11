@@ -1,12 +1,15 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
+import { paragraphsOf } from "@/lib/format/paragraphs";
 import { formatDuration } from "@/lib/format/time";
 import { Screen } from "@/components/chrome/screen";
 import { Chip } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
 import { ButtonArrow, buttonVariants } from "@/components/ui/button";
 import {
+  ChevronRightIcon,
   ClockIcon,
   MapPinIcon,
   PlayIcon,
@@ -268,33 +271,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
               <h2 className="label text-forest/75">Who runs this</h2>
               <Panel className="mt-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {/*
-                      The operator's mark — yuvoy-app#21 §3. A traveller who
-                      recognised the logo in the feed landed on the page about
-                      that business and found it gone.
-
-                      A plain `<img>` for the same reason the card uses one:
-                      `next/image` needs every remote host in `remotePatterns`,
-                      which would make adding an operator a deploy. Absent
-                      means no logo, so there is no placeholder branch and no
-                      broken-image state — the name alone is what was here
-                      before and is what stays.
-                    */}
-                    {experience.operator.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={experience.operator.logoUrl}
-                        alt=""
-                        className="size-10 shrink-0 rounded-full object-contain"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : null}
-                    <p className="truncate font-bold">
-                      {experience.operator.name}
-                    </p>
-                  </div>
+                  <OperatorName operator={experience.operator} />
                   {experience.operator.verified ? (
                     <Chip tone="accent" size="sm">
                       Verified
@@ -408,6 +385,62 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
 }
 
 /**
+ * Who runs it: their mark, their name, and the way to everything else they
+ * run.
+ *
+ * The link is yuvoy-app#30 — a page about the business existed and nothing a
+ * traveller was reading led to it. The whole row is the target rather than
+ * the name alone: the logo is what somebody recognised in the feed and the
+ * bigger thing to aim at, and the chevron says the row goes somewhere.
+ *
+ * By `slug`, never `id` — the id is ours. A plain row when `slug` is absent:
+ * the contract marks it required, and a pinned contract says what the API
+ * WILL send, not what the deployed one does.
+ */
+function OperatorName({ operator }: { operator: Experience["operator"] }) {
+  const mark = (
+    <>
+      {/*
+        The operator's mark — yuvoy-app#21 §3. A traveller who recognised the
+        logo in the feed landed on the page about that business and found it
+        gone.
+
+        A plain `<img>`, as on the card: a small mark that is never the LCP
+        element, loaded straight from Cloudflare Images — whose host the CSP's
+        `img-src` names for exactly this. Absent means no logo, so there is no
+        placeholder branch and no broken-image state: the name alone is what
+        was here before and is what stays.
+      */}
+      {operator.logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={operator.logoUrl}
+          alt=""
+          className="size-10 shrink-0 rounded-full object-contain"
+          loading="lazy"
+          decoding="async"
+        />
+      ) : null}
+      <span className="truncate font-bold">{operator.name}</span>
+    </>
+  );
+
+  if (!operator.slug) {
+    return <div className="flex min-w-0 items-center gap-3">{mark}</div>;
+  }
+
+  return (
+    <Link
+      href={`/o/${operator.slug}`}
+      className="ease-interaction flex min-h-11 min-w-0 items-center gap-3 transition-opacity duration-200 hover:opacity-80"
+    >
+      {mark}
+      <ChevronRightIcon className="text-forest/70 size-5 shrink-0" />
+    </Link>
+  );
+}
+
+/**
  * A maps link from the meeting point's coordinates, when it has them.
  *
  * A universal maps URL rather than `geo:` — it opens the phone's own maps app
@@ -444,10 +477,7 @@ function Paragraphs({
   text?: string;
   tone?: "alert";
 }) {
-  const paragraphs = (text ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const paragraphs = paragraphsOf(text);
   if (paragraphs.length === 0) return null;
 
   const body = (

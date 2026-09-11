@@ -16,6 +16,8 @@ const ROUTES = [
   "/trips/recover",
   "/account",
   "/e/try-dive-nemo-reef",
+  // A business's own page (yuvoy-app#30), with every section it can draw.
+  "/o/sample-boat-operator",
   "/booking",
   "/offline",
 ];

@@ -323,4 +323,37 @@ describe("ExperienceDetail", () => {
       expect(screen.queryByText("About this experience")).toBeNull();
     });
   });
+
+  /*
+    yuvoy-app#30 — reel → listing → operator. The operator's page existed, and
+    nothing on the listing a traveller was reading led to it.
+  */
+  describe("who runs it", () => {
+    const operator = withGallery.operator;
+
+    it("leads to the business's own page, by slug and never by id", () => {
+      renderWithQuery(<ExperienceDetail experience={withGallery} />);
+      const link = screen.getByRole("link", { name: operator.name });
+      expect(link).toHaveAttribute("href", `/o/${operator.slug}`);
+      expect(link.getAttribute("href")).not.toContain(operator.id);
+    });
+
+    it("still names the business when the API sends no slug", () => {
+      // Required in the contract — which is not yet a promise about the
+      // deployed API.
+      renderWithQuery(
+        <ExperienceDetail
+          experience={{
+            ...withGallery,
+            operator: {
+              ...operator,
+              slug: undefined,
+            } as unknown as typeof operator,
+          }}
+        />,
+      );
+      expect(screen.getByText(operator.name)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: operator.name })).toBeNull();
+    });
+  });
 });

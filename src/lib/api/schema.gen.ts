@@ -695,6 +695,12 @@ export interface components {
         };
         OperatorSummary: {
             id: string;
+            /**
+             * @description How a card links to the business's own page, `/v1/operators/{slug}`.
+             *
+             *     Added when that page shipped and was reachable from nothing: every card carried the operator's name and id, the page is addressed by slug, and so the one journey it exists for — reel, listing, operator — could not be built. Use this rather than `id` in a URL: the id is ours, and the slug is what a traveller can read and yuvoy-web can index.
+             */
+            slug: string;
             name: string;
             /** @description True only when every mandatory credential is on file, verified and unexpired. It is a statement about evidence we hold, not a badge. */
             verified: boolean;
@@ -1021,6 +1027,16 @@ export interface components {
              * @description The hold's deadline, not a separate payment clock. Paying after it may still succeed — the capture re-acquires capacity — but the seat is no longer reserved and the booking can be declined with a full automatic refund.
              */
             expiresAt: string;
+            /**
+             * @description Present **alongside** a live payment order, not only in its absence. On a jetty in the Andamans cash is not a fallback for when the card machine is broken; it is how people pay, and a traveller with no card or no signal at the moment they decide is not an edge case.
+             *
+             *     Absent means cash is not on offer for this reservation. Offer it as a real second choice rather than hiding it behind the card flow.
+             */
+            payAtCounter?: {
+                available: boolean;
+                /** @description Path to POST to, relative to the API base. */
+                confirmAt: string;
+            };
         };
         ReelPage: {
             items: {
@@ -1042,6 +1058,16 @@ export interface components {
             bookable: boolean;
             /** @description Absent when they have not set one. Fall back to your own placeholder rather than rendering a broken image. */
             logoUrl?: string;
+            /** @description What this business says about itself, 40 to 600 characters. **Absent when they have not written one** — render nothing rather than an empty "About" heading, which on a trust surface reads as a business that could not be bothered rather than one that has not got to it. */
+            about?: string;
+            /** @description The year they started. Sits beside the verified badge and is read as something we checked, which is why an operator cannot restate it in place — it changes through review. */
+            operatingSince?: number;
+            /** @description What the crew speaks. On these islands it is often the deciding fact for a traveller who is nervous in the water. */
+            languages?: string[];
+            /** @description Where a traveller physically goes. **Not the registered address** — that is compliance data and is frequently an accountant's office on a different island. Also not the meeting point, which belongs to a listing and can differ per experience. */
+            findThemAt?: string;
+            /** @description Up to five photographs **of the operation** — the boat, the shop, the crew. Deliberately not the experience: that is what the reels are, and a gallery standing in for footage is the failure a video-first feed exists to prevent. */
+            photos?: string[];
             /** @description The destinations they run in, from their own listings. */
             locations?: string[];
             listingCount: number;

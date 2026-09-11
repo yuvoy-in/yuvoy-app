@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
 import { formatFromPrice } from "@/lib/format/money";
@@ -136,10 +137,9 @@ export function ExperienceCard({
           <div className="bg-abyss absolute inset-0 flex flex-col items-center justify-center gap-6 px-8">
             {experience.operator.logoUrl ? (
               /*
-              A plain `<img>`, deliberately. `next/image` needs every remote
-              host in `remotePatterns`, which would make adding a partner a
-              deploy — and this is a small mark on a card that has no clip,
-              not the LCP element.
+              A plain `<img>`, deliberately: a small mark on a card that has
+              no clip, not the LCP element, loaded straight from Cloudflare
+              Images — the host the CSP's `img-src` names for it.
             */
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -177,9 +177,40 @@ export function ExperienceCard({
             <div className="min-w-0 flex-1">
               {/* Operator, and what we can honestly say about them. */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="label text-cream/70">
-                  {experience.operator.name}
-                </span>
+                {experience.operator.slug ? (
+                  /*
+                    The business's own page — yuvoy-app#30, the last arrow in
+                    reel → listing → operator. By `slug`, never `id`: the id is
+                    ours, and the slug is what a traveller can read.
+
+                    `tap-target` because a label-sized link is a 16px target,
+                    under SC 2.5.8. A swipe that starts on the name is still a
+                    swipe: the article's click-capture swallows the click that
+                    follows, as it does for every control on the card.
+
+                    `prefetch={false}` because `/o/[slug]` revalidates rather
+                    than rendering per request, so Next would prefetch the
+                    WHOLE page — profile, listings, a screen of reels — for
+                    every card that scrolls into view, on a jetty connection,
+                    for a tap most travellers never make. "See dates" keeps its
+                    prefetch: that is the tap the card exists for.
+
+                    The name alone when `slug` is absent. The contract marks it
+                    required, and a pinned contract still says what the API
+                    WILL send, never what the deployed one does.
+                  */
+                  <Link
+                    href={`/o/${experience.operator.slug}`}
+                    prefetch={false}
+                    className="label text-cream/70 hover:text-cream tap-target ease-interaction transition-colors duration-200"
+                  >
+                    {experience.operator.name}
+                  </Link>
+                ) : (
+                  <span className="label text-cream/70">
+                    {experience.operator.name}
+                  </span>
+                )}
                 {experience.operator.verified ? (
                   <Chip surface="dark" size="sm">
                     <CheckIcon className="size-3.5" />

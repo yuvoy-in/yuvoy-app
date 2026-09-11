@@ -5,6 +5,7 @@ import {
   REELS,
   LONG_REEL_FEED,
   EXPERIENCE_DETAIL,
+  OPERATORS,
   operatorProfileFor,
   availabilityFor,
   FIXTURE_NOW,
@@ -275,8 +276,9 @@ export const handlers = [
     const failed = await commonFailure(request);
     if (failed) return failed;
 
+    // Any fixture business: every card links to its own operator now.
     const slug = String(params.slug);
-    if (slug !== "sample-boat-operator") {
+    if (!OPERATORS.some((o) => o.slug === slug)) {
       return envelope("not_found", "No such operator.", 404);
     }
 
@@ -299,11 +301,12 @@ export const handlers = [
     const failed = await commonFailure(request);
     if (failed) return failed;
 
-    if (String(params.slug) !== "sample-boat-operator") {
+    const operator = OPERATORS.find((o) => o.slug === String(params.slug));
+    if (!operator) {
       return envelope("not_found", "No such operator.", 404);
     }
 
-    const all = REELS.filter((r) => r.experience.operator.id === "op_blue");
+    const all = REELS.filter((r) => r.experience.operator.id === operator.id);
     const u = new URL(request.url);
     const cursor = Number(u.searchParams.get("cursor") ?? 0);
     const limit = Number(u.searchParams.get("limit") ?? 12);

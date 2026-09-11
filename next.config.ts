@@ -60,6 +60,14 @@ const nextConfig: NextConfig = {
       // video element, not the image optimiser.
       { protocol: "https", hostname: "*.cloudflarestream.com" },
       { protocol: "https", hostname: "videodelivery.net" },
+      /*
+        Cloudflare Images: an operator's logo and the photographs of their
+        operation, drawn through `next/image` on `/o/[slug]` (yuvoy-app#30).
+        One host for every business — the account is in the path — so a new
+        operator is not a deploy. Absent, the optimiser answers 400 and the
+        page shows a broken logo.
+      */
+      { protocol: "https", hostname: "imagedelivery.net" },
     ],
   },
   /**

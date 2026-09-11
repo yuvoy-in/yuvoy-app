@@ -199,4 +199,87 @@ describe("OperatorScreen", () => {
       screen.getByRole("heading", { name: "Their reels" }),
     ).toBeInTheDocument();
   });
+
+  /*
+    yuvoy-operator#41 — what the business says about itself, on the page a
+    traveller reads before getting on a stranger's boat. "Every one of those
+    fields is absent when empty, never "". Render nothing rather than a
+    heading over a blank."
+  */
+  describe("what the business says about itself", () => {
+    it("shows their words as the paragraphs they typed", async () => {
+      renderWithQuery(<OperatorScreen slug={SLUG} />);
+      expect(
+        await screen.findByRole("heading", { name: "About" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/^Two boats and a crew of five/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/^We keep the groups small on purpose/),
+      ).toBeInTheDocument();
+    });
+
+    it("states the reviewed year, where to find them, and what they speak", async () => {
+      renderWithQuery(<OperatorScreen slug={SLUG} />);
+      expect(await screen.findByText("Running since 2014")).toBeInTheDocument();
+      expect(
+        screen.getByText("Beach No. 3, Havelock (Swaraj Dweep)"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("English · Hindi · Bengali")).toBeInTheDocument();
+    });
+
+    it("shows the photographs, each saying whose it is", async () => {
+      renderWithQuery(<OperatorScreen slug={SLUG} />);
+      await screen.findByRole("heading", { name: "Photos" });
+      expect(
+        screen.getAllByRole("img", {
+          name: /^Sample Boat Operator, photo \d of 3$/,
+        }),
+      ).toHaveLength(3);
+    });
+
+    it("draws nothing at all for a business that has written nothing", async () => {
+      renderWithQuery(<OperatorScreen slug="sample-new-operator" />);
+      await screen.findByRole("heading", { name: /Sample New Operator/ });
+      expectNoStory();
+    });
+
+    it("shows the two reviewed facts on their own, as the live operator has them", async () => {
+      // `hc-diving-skl` on 11 Sep 2026: a year and a place, and no words yet.
+      renderWithQuery(<OperatorScreen slug="sample-dive-operator" />);
+      expect(await screen.findByText("Running since 2019")).toBeInTheDocument();
+      expect(screen.getByText(/beside the jetty/)).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "About" })).toBeNull();
+      expect(screen.queryByText("Languages")).toBeNull();
+    });
+
+    it("reads blank, null and empty as not written", async () => {
+      server.use(
+        http.get(`${BASE}/operators/${SLUG}`, () =>
+          HttpResponse.json({
+            ...operatorProfileFor(SLUG),
+            about: "  \n \n",
+            operatingSince: null,
+            languages: ["", "   "],
+            findThemAt: null,
+            photos: [],
+          }),
+        ),
+      );
+
+      renderWithQuery(<OperatorScreen slug={SLUG} />);
+      await screen.findByText("What they run");
+      expectNoStory();
+    });
+  });
 });
+
+/** None of the five story fields, and none of their labels. */
+function expectNoStory() {
+  expect(screen.queryByRole("heading", { name: "About" })).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Photos" })).toBeNull();
+  expect(screen.queryByText(/Running since/)).toBeNull();
+  expect(screen.queryByText("Find them at")).toBeNull();
+  expect(screen.queryByText("Languages")).toBeNull();
+}

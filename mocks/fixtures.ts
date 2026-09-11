@@ -120,8 +120,15 @@ export const withClip = (media: Media): Media => ({
   hlsUrl: "https://stream.example.invalid/mock/manifest.m3u8",
 });
 
+/*
+  `slug` on every operator — yuvoy-api#152, required since it shipped. It is
+  what a card links to the business's own page with (yuvoy-app#30), and the
+  fixtures carry it because a fixture without it would only ever exercise the
+  fallback that renders the name with no link.
+*/
 const operatorReef: components["schemas"]["OperatorSummary"] = {
   id: "op_reef",
+  slug: "sample-dive-operator",
   name: "Sample Dive Operator",
   verified: true,
   credentialsSummary: [
@@ -133,6 +140,7 @@ const operatorReef: components["schemas"]["OperatorSummary"] = {
 
 const operatorBlue: components["schemas"]["OperatorSummary"] = {
   id: "op_blue",
+  slug: "sample-boat-operator",
   name: "Sample Boat Operator",
   verified: true,
   credentialsSummary: [
@@ -143,10 +151,14 @@ const operatorBlue: components["schemas"]["OperatorSummary"] = {
 
 const operatorNew: components["schemas"]["OperatorSummary"] = {
   id: "op_new",
+  slug: "sample-new-operator",
   name: "Sample New Operator",
   // Not yet verified — the card must not claim otherwise.
   verified: false,
 };
+
+/** Every fixture business. A card's `operator.slug` resolves to one of these. */
+export const OPERATORS = [operatorReef, operatorBlue, operatorNew] as const;
 
 export const EXPERIENCES: ExperienceSummary[] = [
   {
@@ -288,13 +300,73 @@ export const EXPERIENCES: ExperienceSummary[] = [
  * a test can tell "passed through" from "coincidentally agrees".
  */
 /**
- * The operator page's profile — yuvoy-app#30.
+ * A photograph of an operation, as a placeholder — yuvoy-operator#41.
  *
- * `op_blue` because it is the only fixture business that is actually a
- * BUSINESS: three listings and two clips. `op_reef` has three clips and one
- * listing, which would make "what they run" a single row and leave the
- * bookable-false case unreachable — and that case is the one the issue is
- * most explicit about.
+ * Landscape, because these are the boat, the shop and the crew rather than a
+ * reel. Built from the same four tokens as `poster`, so `palette.test.ts`
+ * holds here too, and a `data:` URI for the same reasons: no network, no
+ * rights question, and `next/image` draws it without the optimiser.
+ */
+const photo = (variant: number): string => {
+  const waterline = Math.round(360 * DEPTHS[variant % DEPTHS.length]);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
+<rect width="480" height="360" fill="${TOKEN.forest}"/>
+<rect y="${waterline}" width="480" height="${360 - waterline}" fill="${TOKEN.abyss}"/>
+<line x1="0" y1="${waterline}" x2="480" y2="${waterline}" stroke="${TOKEN.cream}" stroke-opacity="0.18"/>
+<rect x="${220 + variant * 16}" y="150" width="9" height="9" fill="${TOKEN.terra}"/>
+</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
+type OperatorStory = Pick<
+  components["schemas"]["OperatorProfile"],
+  "about" | "operatingSince" | "languages" | "findThemAt" | "photos"
+>;
+
+/**
+ * What each fixture business has told travellers about itself —
+ * yuvoy-operator#41, drawn on the operator page (yuvoy-app#30).
+ *
+ * Three shapes, because the page has three to get right:
+ *
+ *   - `op_blue` has filled in everything.
+ *   - `op_reef` has only the two facts Yuvoy reviews, and none of its own
+ *     words — exactly what the one live operator looked like on 11 Sep 2026.
+ *   - `op_new` has written nothing, so every field is ABSENT. Never `""` or
+ *     `[]`: "every one of those fields is absent when empty".
+ */
+const STORIES: Record<string, OperatorStory> = {
+  op_blue: {
+    about:
+      "Two boats and a crew of five, working out of Havelock since 2014.\n\nWe keep the groups small on purpose. If you are nervous in the water, say so when you book and we will go at your pace.",
+    operatingSince: 2014,
+    languages: ["English", "Hindi", "Bengali"],
+    findThemAt: "Beach No. 3, Havelock (Swaraj Dweep)",
+    photos: [photo(0), photo(1), photo(2)],
+  },
+  op_reef: {
+    operatingSince: 2019,
+    findThemAt: "The dive shop beside the jetty, Havelock (Swaraj Dweep)",
+  },
+};
+
+/** Where each fixture business runs, which the API derives from its listings. */
+const LOCATIONS: Record<string, string[]> = {
+  op_reef: ["Havelock (Swaraj Dweep)"],
+  // Two, so the page's separator is exercised.
+  op_blue: ["Havelock (Swaraj Dweep)", "Neil (Shaheed Dweep)"],
+  op_new: ["Neil (Shaheed Dweep)"],
+};
+
+/**
+ * The operator page's profile — yuvoy-app#30, for any fixture business.
+ *
+ * Most tests use `sample-boat-operator`, the only fixture business that is
+ * actually a BUSINESS: three listings and two clips, which is what makes "what
+ * they run" a list and the bookable-false case reachable — the case the issue
+ * is most explicit about. The other two answer too, because every card links
+ * to its operator now (yuvoy-api#152) and a card that led to a 404 would be a
+ * broken journey in the mock world.
  *
  * Derived from `EXPERIENCES` and `REELS` rather than written out beside them,
  * so the counts on this page cannot disagree with the feed the traveller just
@@ -302,17 +374,25 @@ export const EXPERIENCES: ExperienceSummary[] = [
  *
  * `credentialsSummary` is deliberately absent: `OperatorProfile` does not
  * carry it, and this page shows a verified tick rather than a list of claims.
+ *
+ * Throws for a slug no fixture has: that is a mistake in a test, not a state.
+ * The handler checks `OPERATORS` first and answers 404, the way the API does.
  */
 export function operatorProfileFor(slug: string) {
-  const listings = EXPERIENCES.filter((e) => e.operator.id === "op_blue");
-  const clips = REELS.filter((r) => r.experience.operator.id === "op_blue");
+  const operator = OPERATORS.find((o) => o.slug === slug);
+  if (!operator) {
+    throw new Error(`No fixture operator has the slug "${slug}".`);
+  }
+  const listings = EXPERIENCES.filter((e) => e.operator.id === operator.id);
+  const clips = REELS.filter((r) => r.experience.operator.id === operator.id);
   return {
-    id: "op_blue",
-    slug,
-    name: "Sample Boat Operator",
-    verified: true,
+    id: operator.id,
+    slug: operator.slug,
+    name: operator.name,
+    verified: operator.verified,
     bookable: true,
-    locations: ["Havelock (Swaraj Dweep)", "Neil (Shaheed Dweep)"],
+    locations: LOCATIONS[operator.id],
+    ...STORIES[operator.id],
     listingCount: listings.length,
     reelCount: clips.length,
     listings: listings.map((experience, i) => ({

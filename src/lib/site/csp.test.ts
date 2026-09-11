@@ -73,6 +73,19 @@ describe("Content-Security-Policy", () => {
     expect(directive(policy, "worker-src")).toContain("blob:");
   });
 
+  it("can show an operator's own pictures", () => {
+    /*
+      yuvoy-app#30. Logos and the photographs on an operator's page are
+      Cloudflare Images, one host for every business. The policy enforced on
+      9 Sep 2026 named only Stream, so the first logo an operator uploaded
+      would have been blocked on every card — invisible to the e2e suite,
+      whose fixtures draw every picture as a `data:` URI.
+    */
+    expect(sources(reportOnlyCsp(PROD), "img-src")).toContain(
+      "https://imagedelivery.net",
+    );
+  });
+
   it("never ships eval to a traveller", () => {
     expect(directive(reportOnlyCsp(PROD), "script-src")).not.toContain(
       "unsafe-eval",

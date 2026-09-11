@@ -8,6 +8,7 @@ import {
   type OperatorProfile,
 } from "@/lib/operator/use-operator";
 import { formatFromPrice } from "@/lib/format/money";
+import { paragraphsOf } from "@/lib/format/paragraphs";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,13 @@ import { ChevronRightIcon } from "@/components/ui/icons";
  * other clips they had shot were reachable only by scrolling the feed until
  * one came round again.
  *
+ * ## How a traveller gets here
+ *
+ * From the operator's name on a reel card, and from "Who runs this" on a
+ * listing — both by `OperatorSummary.slug` (yuvoy-api#152). The page shipped a
+ * day before that field did, reachable by URL and from nowhere a traveller
+ * actually was.
+ *
  * ## Three real facts, and no invented ones
  *
  * Instagram's profile adapted to a business that sells trips rather than
@@ -40,13 +48,14 @@ import { ChevronRightIcon } from "@/components/ui/icons";
  *     number nobody earned is a fabricated claim. An honest header with three
  *     real facts beats a full one with two invented ones.
  *
- * ## What is NOT here yet
+ * ## What the business says about itself — yuvoy-operator#41
  *
- * The link INTO this page from a reel or a listing card. `OperatorSummary`
- * carries `id`, `name` and `verified` and no `slug`, so a card has nothing to
- * link with — confirmed against the live API as well as the document. Raised
- * on yuvoy-app#30; the page is reachable by slug today and the links land when
- * the field does.
+ * `about`, `languages` and `photos` are the operator's own. `operatingSince`
+ * and `findThemAt` change only through Yuvoy, because a traveller reads a year
+ * and a street as things somebody checked. All five are absent until written,
+ * and an absent one draws NOTHING — never a heading over a blank, which on a
+ * trust surface reads as a business that could not be bothered rather than
+ * one that has not got to it yet.
  */
 export function OperatorScreen({
   slug,
@@ -93,6 +102,7 @@ export function OperatorScreen({
   }
 
   const profile = operator.data;
+  const story = storyOf(profile);
   const pages = reels.data?.pages ?? [];
   const clips = pages.flatMap((p) => p.items ?? []);
 
@@ -151,6 +161,18 @@ export function OperatorScreen({
               {profile.locations.join(" · ")}
             </p>
           ) : null}
+          {/*
+            The year they started, up here beside the tick rather than down
+            with what they wrote: a traveller reads it as something Yuvoy
+            checked, which is why an operator cannot restate it in place — it
+            changes through review.
+          */}
+          {story.since ? (
+            <p className="text-forest/70 mt-1 text-sm">
+              {/* One text node, so the served HTML reads as the sentence. */}
+              {`Running since ${story.since}`}
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -180,6 +202,46 @@ export function OperatorScreen({
         </Panel>
       ) : null}
 
+      {/* ------------------------------------------------- in their words */}
+      {story.about.length > 0 ? (
+        <section className="mt-8" aria-labelledby="about-them">
+          <h2 id="about-them" className="label text-forest/75">
+            About
+          </h2>
+          {/* Paragraphs, because they typed newlines — see `paragraphsOf`. */}
+          <div className="text-forest/70 mt-3 max-w-prose space-y-3 text-sm">
+            {story.about.map((paragraph, i) => (
+              <p key={`${i}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {story.findThemAt || story.languages.length > 0 ? (
+        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+          {story.findThemAt ? (
+            <div>
+              {/*
+                Where a traveller physically goes. "Not the registered
+                address" — that is compliance data, and often an accountant's
+                office on another island — and not a listing's meeting point,
+                which can differ per experience.
+              */}
+              <dt className="label text-forest/75">Find them at</dt>
+              <dd className="mt-1 text-sm">{story.findThemAt}</dd>
+            </div>
+          ) : null}
+          {story.languages.length > 0 ? (
+            <div>
+              {/* "Often the deciding fact for a traveller who is nervous in
+                  the water." */}
+              <dt className="label text-forest/75">Languages</dt>
+              <dd className="mt-1 text-sm">{story.languages.join(" · ")}</dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
+
       {/* ---------------------------------------------------- what they run */}
       {profile.listings.length > 0 ? (
         <section className="mt-8" aria-labelledby="what-they-run">
@@ -190,6 +252,42 @@ export function OperatorScreen({
             {profile.listings.map(({ experience, bookable }) => (
               <li key={experience.id}>
                 <ListingCard experience={experience} bookable={bookable} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/* ------------------------------------------------------- the photos */}
+      {story.photos.length > 0 ? (
+        <section className="mt-10" aria-labelledby="their-photos">
+          <h2 id="their-photos" className="label text-forest/75">
+            Photos
+          </h2>
+          {/*
+            The boat, the shop, the crew — "deliberately not the experience:
+            that is what the reels are, and a gallery standing in for footage
+            is the failure a video-first feed exists to prevent." So they come
+            after what the business runs, never ahead of it.
+
+            No caption travels with a photograph, and a description written
+            here would be a claim about a picture nobody here has seen. Whose
+            it is, and which of how many, is true of every one.
+          */}
+          <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {story.photos.map((url, i) => (
+              <li
+                key={`${i}-${url}`}
+                className="rounded-tile bg-abyss relative aspect-4/3 overflow-hidden"
+              >
+                <Image
+                  src={url}
+                  alt={`${profile.name}, photo ${i + 1} of ${story.photos.length}`}
+                  fill
+                  sizes="(max-width: 640px) 50vw, 256px"
+                  className="object-cover"
+                  unoptimized={url.startsWith("data:")}
+                />
               </li>
             ))}
           </ul>
@@ -265,6 +363,37 @@ export function OperatorScreen({
       ) : null}
     </Screen>
   );
+}
+
+/**
+ * What the business has told travellers, read so that "not written" has
+ * exactly one shape.
+ *
+ * The contract promises absent-when-empty, and the live API keeps it. Read
+ * defensively all the same, because every miss is the same visible defect — a
+ * heading over a blank: whitespace-only prose, a `null` from a column that
+ * lost its `omitempty`, an empty string inside `languages`.
+ */
+function storyOf(profile: OperatorProfile) {
+  const since = profile.operatingSince;
+  return {
+    about: paragraphsOf(profile.about),
+    since: typeof since === "number" && Number.isInteger(since) ? since : null,
+    findThemAt: textOf(profile.findThemAt),
+    languages: listOf(profile.languages),
+    photos: listOf(profile.photos),
+  };
+}
+
+/** A trimmed, non-empty string, or nothing. */
+function textOf(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** The non-empty strings of something that may not even be a list. */
+function listOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(textOf).filter((v): v is string => v !== null);
 }
 
 /** A poster, or the dark tile that stands in for one. */

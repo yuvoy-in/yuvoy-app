@@ -89,6 +89,10 @@ test("the operator page is in the HTML, not only the RSC payload", async ({
   expect(visible).toContain("What they run");
   // And the listings themselves, which are the point of the page.
   expect(visible).toContain("Snorkel trip to Elephant Beach");
+  // And what the business wrote about itself (yuvoy-operator#41) — the part
+  // of this page a crawler has no other source for.
+  expect(visible).toContain("Two boats and a crew of five");
+  expect(visible).toContain("Running since 2014");
 });
 
 test("every route describes itself, rather than inheriting the homepage", async ({
