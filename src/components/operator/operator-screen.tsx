@@ -196,7 +196,7 @@ export function OperatorScreen({
             {profile.name} is not taking bookings right now
           </p>
           <p className="text-forest/70 mt-1.5 text-sm">
-            Everything they run is below. It is worth checking back — this is
+            Everything they run is below. It is worth checking back. This is
             usually a season or a boat out of the water rather than the end.
           </p>
         </Panel>
@@ -354,7 +354,7 @@ export function OperatorScreen({
               </Button>
               {reels.isFetchNextPageError ? (
                 <p role="alert" className="text-terra-deep mt-2 text-sm">
-                  That did not load. The reels above are still here — tap again.
+                  That did not load. The reels above are still here. Tap again.
                 </p>
               ) : null}
             </div>

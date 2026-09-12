@@ -402,7 +402,7 @@ describe("PayButton — both contract answers", () => {
     (await screen.findByRole("button", { name: /^Pay/ })).click();
 
     expect(
-      await screen.findByText(/Your order is ready — ₹9,000/),
+      await screen.findByText(/Your order is ready: ₹9,000/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/cannot open the razorpay payment page yet/),

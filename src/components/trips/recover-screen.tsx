@@ -85,8 +85,8 @@ export function RecoverScreen() {
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
         We will send a code to the number you booked with. Your booking link
-        cannot be looked up any other way — it is not stored anywhere we can
-        read it.
+        cannot be looked up any other way. It is not stored anywhere we can read
+        it.
       </p>
 
       <form
@@ -122,9 +122,7 @@ export function RecoverScreen() {
             required
             className="font-mono"
             hint={
-              devCode
-                ? `Development build — the code is ${devCode}.`
-                : undefined
+              devCode ? `Development build: the code is ${devCode}.` : undefined
             }
           />
         ) : null}

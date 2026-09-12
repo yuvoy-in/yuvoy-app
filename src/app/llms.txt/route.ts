@@ -24,7 +24,7 @@ export function GET(): Response {
 
   const body = `# Yuvoy
 
-> Yuvoy sells experiences in the Andaman Islands — diving, snorkelling, boat
+> Yuvoy sells experiences in the Andaman Islands: diving, snorkelling, boat
 > trips, island tours. A traveller finds a departure in a vertical video feed,
 > books a seat on a specific boat at a specific time, pays, and turns up at a
 > jetty. Booking never requires an account.
@@ -53,7 +53,7 @@ ${
   guides.length
     ? guides
         .map(
-          (g) => `- [${g.title}](${BASE}/guides/${g.slug}) — ${g.description}`,
+          (g) => `- [${g.title}](${BASE}/guides/${g.slug}) · ${g.description}`,
         )
         .join("\n")
     : "- None published yet."
@@ -61,9 +61,9 @@ ${
 
 ## Key routes
 
-- ${BASE}/ — the experience feed
-- ${BASE}/search — find something by date
-- ${BASE}/guides — guides to the Andamans
+- ${BASE}/ · the experience feed
+- ${BASE}/search · find something by date
+- ${BASE}/guides · guides to the Andamans
 
 ## Not for indexing
 

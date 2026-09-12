@@ -143,7 +143,7 @@ describe("CheckoutForm — the money rules", () => {
     // minAge is 12, so 10–11 must be refused. Comparing the TOP of the band
     // would admit exactly the person the rule exists to stop.
     const select = screen.getByLabelText("Your age range");
-    const tooYoung = screen.getByRole("option", { name: /10–11/ });
+    const tooYoung = screen.getByRole("option", { name: /10-11/ });
     expect(tooYoung).toBeDisabled();
 
     await user.selectOptions(select, "18_plus");

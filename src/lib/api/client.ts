@@ -7,6 +7,7 @@ import {
   type ErrorCode,
 } from "./errors";
 import { recordServerDate } from "@/lib/booking/clock";
+import { dedash } from "@/lib/format/dedash";
 
 /**
  * The one place `fetch` is called.
@@ -130,7 +131,7 @@ const errorMiddleware: Middleware = {
     if (isErrorEnvelope(body)) {
       throw new YuvoyError({
         code: body.error.code,
-        message: body.error.message,
+        message: dedash(body.error.message),
         status: response.status,
         details: body.error.details,
         requestId: body.error.requestId ?? requestId ?? undefined,

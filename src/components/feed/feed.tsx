@@ -456,7 +456,7 @@ export function Feed({
           >
             {isFetchNextPageError ? (
               <p className="text-cream/60 text-xs">
-                More reels did not load — usually the island signal rather than
+                More reels did not load: usually the island signal rather than
                 you. Scroll up and back down to try again.
               </p>
             ) : hasNextPage || isFetchingNextPage ? (
@@ -482,7 +482,7 @@ export function Feed({
                 told about.
               */
               <p className="text-cream/60 text-xs">
-                That is as far as we can load right now — not the end of what is
+                That is as far as we can load right now, not the end of what is
                 on sale. Reload to try again.
               </p>
             )}

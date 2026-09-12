@@ -410,7 +410,7 @@ function CheckoutFields({
             </p>
             <p className="text-forest/70 mt-1.5 text-sm">
               The booking went through. To reach it, ask for your link with the
-              number you just used — it arrives the same way it always does.
+              number you just used. It arrives the same way it always does.
             </p>
             <ButtonLink
               href={RECOVER_PATH}

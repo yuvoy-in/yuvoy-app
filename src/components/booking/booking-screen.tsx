@@ -75,8 +75,8 @@ export function BookingScreen() {
         </h1>
         <p className="text-forest/70 mt-3 text-sm">
           Your booking opens from the private link we gave you when you booked,
-          and from the message we sent. It is the only way in — we cannot look
-          it up from a name.
+          and from the message we sent. It is the only way in. We cannot look it
+          up from a name.
         </p>
         <ButtonLink href="/trips" className="mt-6">
           Bookings on this device
@@ -462,7 +462,7 @@ const STATE_COPY: Record<
   paid_pending_ops: {
     eyebrow: "Booked",
     title: "You're booked",
-    body: "Your seat is held on the boat. Pay the operator in cash when you arrive — the amount and where to meet are below.",
+    body: "Your seat is held on the boat. Pay the operator in cash when you arrive. The amount and where to meet are below.",
   },
   holding: {
     eyebrow: "Seats held",
@@ -493,7 +493,7 @@ const STATE_COPY: Record<
   confirmed: {
     eyebrow: "Confirmed",
     title: "You are going",
-    body: "Everything you need is on this page. Save the link — it works from any device, and you do not need an account or a password.",
+    body: "Everything you need is on this page. Save the link. It works from any device, and you do not need an account or a password.",
   },
   declined: {
     eyebrow: "Refunded",
@@ -509,7 +509,7 @@ const STATE_COPY: Record<
       What is left is the refund fact and the rebooking rule, both of which
       are true whatever the reason was.
     */
-    body: "Your refund has already started. Rebooking is a fresh booking rather than a silent move — the price you see will be the price you pay.",
+    body: "Your refund has already started. Rebooking is a fresh booking rather than a silent move. The price you see will be the price you pay.",
   },
   expired: {
     eyebrow: "Expired",
@@ -558,7 +558,7 @@ function stateCopy(state: string): {
     STATE_COPY[state] ?? {
       eyebrow: "Your booking",
       title: "Your booking",
-      body: "We can see this booking. Your reference and the details are below — if anything here looks wrong, send us the reference and we will check it.",
+      body: "We can see this booking. Your reference and the details are below. If anything here looks wrong, send us the reference and we will check it.",
     }
   );
 }
@@ -599,7 +599,7 @@ function HoldCountdown({ expiresAt }: { expiresAt: string }) {
       {left === 0 ? (
         <p className="text-forest/70 mt-2 text-sm">
           The hold has run out. If you pay now it may still work, but the seat
-          is no longer reserved — and if it has gone we refund you in full,
+          is no longer reserved, and if it has gone we refund you in full,
           automatically.
         </p>
       ) : null}
@@ -808,7 +808,7 @@ function PayButton({
       {answer?.state === "ready" && handoff === "no_adapter" ? (
         <Panel role="status" className="mt-4">
           <p className="text-sm font-bold">
-            Your order is ready —{" "}
+            Your order is ready:{" "}
             {formatMoney({
               amountMinor: answer.amountPaise,
               currency: answer.currency,
@@ -962,7 +962,7 @@ function OperatorUpdates({
           ))}
         </ul>
         <p className="text-forest/70 mt-3 text-xs">
-          Shown here and not sent to your phone — this page is the place to
+          Shown here and not sent to your phone. This page is the place to
           check.
         </p>
       </section>
@@ -1001,8 +1001,8 @@ function RefundProgress({
         /* A failed refund tells the truth and promises a human, rather than
            hiding behind a spinner. */
         <p className="text-forest/80 mt-2 text-sm">
-          The refund did not go through. That is ours to fix, not yours to chase
-          — someone is on it and will message you.
+          The refund did not go through. That is ours to fix, not yours to
+          chase. Someone is on it and will message you.
         </p>
       ) : (
         <ol className="mt-3 space-y-2.5">
@@ -1049,7 +1049,7 @@ function HandOver({ status }: { status: BookingStatus }) {
     <Panel tone="alert" role="alert" className="mt-8">
       <p className="text-sm font-bold">This is taking longer than it should</p>
       <p className="text-forest/70 mt-1.5 text-sm">
-        We have stopped checking automatically. Nothing is lost — your booking
+        We have stopped checking automatically. Nothing is lost. Your booking
         reference is{" "}
         <span className="font-mono font-bold">
           {status.bookingReference ?? status.reservationId}

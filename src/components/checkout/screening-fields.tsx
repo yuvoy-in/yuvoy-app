@@ -20,9 +20,9 @@ type Safety = components["schemas"]["SafetyRequirements"];
 
 export const AGE_BANDS = [
   { value: "under_10", label: "Under 10", floor: 0 },
-  { value: "10_11", label: "10–11", floor: 10 },
-  { value: "12_14", label: "12–14", floor: 12 },
-  { value: "15_17", label: "15–17", floor: 15 },
+  { value: "10_11", label: "10-11", floor: 10 },
+  { value: "12_14", label: "12-14", floor: 12 },
+  { value: "15_17", label: "15-17", floor: 15 },
   { value: "18_plus", label: "18 or over", floor: 18 },
 ] as const;
 
@@ -83,7 +83,7 @@ export function ScreeningFields({
                     return (
                       <option key={b.value} value={b.value} disabled={tooYoung}>
                         {b.label}
-                        {tooYoung ? " — too young for this one" : ""}
+                        {tooYoung ? " · too young for this one" : ""}
                       </option>
                     );
                   })}

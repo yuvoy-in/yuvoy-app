@@ -158,7 +158,7 @@ export function AvailabilityPicker({
       <Panel className="mt-4">
         <p className="text-sm font-bold">Not available to book right now</p>
         <p className="text-forest/70 mt-1.5 text-sm">
-          This is not a gap in the calendar — the experience itself is not on
+          This is not a gap in the calendar. The experience itself is not on
           sale at the moment. Everything else on Yuvoy still is.
         </p>
       </Panel>
