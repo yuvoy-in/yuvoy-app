@@ -141,13 +141,13 @@ export function AccountScreen() {
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
         Booking never needs one. If you want every trip on your number in one
-        place — including ones booked on another phone — we send a code to that
+        place, including ones booked on another phone, we send a code to that
         number. That is the whole of it: no password, no sign-up.
       </p>
 
       {expired ? (
         <Panel role="status" className="mt-4 px-4 py-3 text-xs">
-          Your sign-in has expired — they do, after a while. Send a new code and
+          Your sign-in has expired. They do, after a while. Send a new code and
           every trip on your number is back.
         </Panel>
       ) : null}
@@ -181,9 +181,7 @@ export function AccountScreen() {
             onChange={(e) => setCode(e.target.value)}
             className="font-mono"
             hint={
-              devCode
-                ? `Development build — the code is ${devCode}.`
-                : undefined
+              devCode ? `Development build: the code is ${devCode}.` : undefined
             }
             required
           />
@@ -381,7 +379,7 @@ function SignedIn({
       </Button>
 
       <p className="text-forest/70 mt-4 text-xs">
-        This leaves the bookings saved on this device alone — they stay under
+        This leaves the bookings saved on this device alone. They stay under
         Trips.
       </p>
 

@@ -102,7 +102,7 @@ export function playableReels(pages: readonly ReelsPage[] | undefined): Reel[] {
           if (process.env.NODE_ENV !== "production") {
             console.warn(
               `[feed] GET /reels returned media ${id} on more than one page. ` +
-                "Dropping the repeat — the cursor is not resuming where it " +
+                "Dropping the repeat. The cursor is not resuming where it " +
                 "left off, and the interleave may be wrong too.",
             );
           }

@@ -38,7 +38,7 @@ export default function GuidesIndexPage() {
       </h1>
       <p className="text-forest/70 mt-4 max-w-prose text-base">
         Written by people who live here, checked against something we can point
-        at. No prices, no availability — those live on the experience pages,
+        at. No prices, no availability. Those live on the experience pages,
         where they are real.
       </p>
 

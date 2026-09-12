@@ -116,7 +116,7 @@ export function CancelSheet({
         <div className="mt-3">
           <p className="text-forest/70 text-sm">
             {quote.data.note ??
-              "This one needs a person to look at it — the refund is partial, and we would rather a human got that right."}
+              "This one needs a person to look at it. The refund is partial, and we would rather a human got that right."}
           </p>
           <p className="text-forest/70 mt-3 text-sm">
             Message us on WhatsApp and we will sort it today.

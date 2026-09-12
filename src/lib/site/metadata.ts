@@ -93,7 +93,7 @@ function resolveSiteUrl(): string {
   } catch {
     throw new Error(
       `NEXT_PUBLIC_SITE_URL is not a URL. It must be an origin such as ` +
-        `"https://app.yuvoy.in" — a bare "app.yuvoy.in" is accepted and ` +
+        `"https://app.yuvoy.in". A bare "app.yuvoy.in" is accepted and ` +
         `assumed https. Every canonical, Open Graph URL, sitemap entry and ` +
         `share card is built from it.\n` +
         `The value is masked in deploy logs, so here is its shape instead: ` +
@@ -125,7 +125,7 @@ const SHARE_CARD = {
   url: "/opengraph-image",
   width: 1200,
   height: 630,
-  alt: "Yuvoy — Experience More.",
+  alt: "Yuvoy · Experience More.",
   type: "image/png",
 };
 

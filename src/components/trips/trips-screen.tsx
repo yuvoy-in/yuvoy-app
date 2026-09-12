@@ -90,7 +90,7 @@ export function TripsScreen() {
       <Screen>
         <EmptyState
           title="Nothing booked yet"
-          body="Bookings you make on this device show up here — no account needed. If you booked on another phone, open the link we sent you."
+          body="Bookings you make on this device show up here. No account needed. If you booked on another phone, open the link we sent you."
           action={<ButtonLink href="/">Find something</ButtonLink>}
         />
         <p className="text-forest/70 mt-8 text-center text-xs">

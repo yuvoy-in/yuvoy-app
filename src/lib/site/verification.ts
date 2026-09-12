@@ -87,7 +87,7 @@ export function readToken(
   if (/[<>]/.test(trimmed)) {
     throw new VerificationTokenError(
       `${name} looks like a whole HTML tag. Paste only the value of the ` +
-        `content attribute — not the <meta …> element around it. ` +
+        `content attribute, not the <meta …> element around it. ` +
         `(${describeShape(trimmed)})`,
     );
   }

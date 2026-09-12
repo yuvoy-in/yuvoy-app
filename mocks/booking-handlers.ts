@@ -350,32 +350,28 @@ export const bookingHandlers = [
         currency: "INR",
         // The HOLD's deadline, not a separate payment clock.
         expiresAt: record.holdExpiresAt ?? new Date().toISOString(),
+        /*
+          `payAtCounter` ON THE `ready` ANSWER TOO — yuvoy-app#29's correction.
+
+          "Production has a provider configured, so it returns `ready`, not
+          `coming_soon`. If you had branched on `state === 'coming_soon'` to
+          decide whether to show the cash option, it would never have appeared."
+
+          Inside the `satisfies` now. It used to be spread on after it, because
+          `PaymentOrder` did not declare the field and the document was behind
+          what production sent. yuvoy-api declared it at `79ce45af`, so the
+          contract type-checks this answer instead of being worked around.
+        */
+        payAtCounter: {
+          available: true,
+          confirmAt: `/v1/reservations/${record.reservationId}/cash-booking`,
+        },
       } satisfies PaymentOrder;
 
-      /*
-        `payAtCounter` ON THE `ready` ANSWER TOO — yuvoy-app#29's correction.
-
-        "Production has a provider configured, so it returns `ready`, not
-        `coming_soon`. If you had branched on `state === 'coming_soon'` to
-        decide whether to show the cash option, it would never have appeared."
-
-        Spread on AFTER the `satisfies` rather than inside it, and that is the
-        point rather than a workaround: `PaymentOrder` does not declare the
-        field, so putting it inside would not compile. The contract is behind
-        the correction here, which is raised on yuvoy-app#29 — and this mock
-        answers what production answers rather than what the document says, so
-        the client is exercised against reality either way.
-      */
-      return HttpResponse.json(
-        {
-          ...order,
-          payAtCounter: {
-            available: true,
-            confirmAt: `/v1/reservations/${record.reservationId}/cash-booking`,
-          },
-        },
-        { status: 201, headers: mockHeaders(rid()) },
-      );
+      return HttpResponse.json(order, {
+        status: 201,
+        headers: mockHeaders(rid()),
+      });
     },
   ),
 

@@ -151,7 +151,7 @@ export function describeError(
         return {
           ...base,
           title: "This link has expired",
-          body: "Booking links stop working after a while, and a newer link replaces an older one. We can send a fresh one to the number you booked with — nothing about the booking itself has changed.",
+          body: "Booking links stop working after a while, and a newer link replaces an older one. We can send a fresh one to the number you booked with. Nothing about the booking itself has changed.",
           canRetry: false,
           recover: true,
         };
@@ -168,7 +168,7 @@ export function describeError(
         return {
           ...base,
           title: "That code did not work",
-          body: "It may be wrong, expired, or already used. Ask for a new one — we answer the same way whatever was wrong with it.",
+          body: "It may be wrong, expired, or already used. Ask for a new one. We answer the same way whatever was wrong with it.",
           canRetry: false,
         };
       case "request_window_closed":
@@ -176,8 +176,8 @@ export function describeError(
           ...base,
           title: "The operator is not taking requests right now",
           body: error.opensAt
-            ? `Requests are answered by a person, and they take them from ${marketClock(error.opensAt)}. Nothing was sent, and the seats are not held — ask again then.`
-            : "Requests are answered by a person, and they are not taking them at this hour. Nothing was sent — ask again in the morning.",
+            ? `Requests are answered by a person, and they take them from ${marketClock(error.opensAt)}. Nothing was sent, and the seats are not held. Ask again then.`
+            : "Requests are answered by a person, and they are not taking them at this hour. Nothing was sent. Ask again in the morning.",
           canRetry: false,
         };
       case "cutoff_passed":
@@ -191,28 +191,28 @@ export function describeError(
         return {
           ...base,
           title: "This one cannot be paid for any more",
-          body: "The hold has ended, or the request was not accepted. Nothing was charged — pick a departure again to start over.",
+          body: "The hold has ended, or the request was not accepted. Nothing was charged. Pick a departure again to start over.",
           canRetry: false,
         };
       case "request_quota_exhausted":
         return {
           ...base,
           title: "This operator has too many requests open",
-          body: "Not your doing — they can only hold so many unanswered requests at once. Nothing was sent. Try another day, or another operator, and this one may be free again later.",
+          body: "Not your doing. They can only hold so many unanswered requests at once. Nothing was sent. Try another day, or another operator, and this one may be free again later.",
           canRetry: false,
         };
       case "grant_ceiling_exceeded":
         return {
           ...base,
           title: "Those seats are no longer there",
-          body: "The operator could not grant that many just now. Nothing was charged — check the dates again, the count has moved.",
+          body: "The operator could not grant that many just now. Nothing was charged. Check the dates again, the count has moved.",
           canRetry: false,
         };
       case "idempotency_in_progress":
         return {
           ...base,
           title: "Still working on your last tap",
-          body: "Your previous attempt is still being processed. Give it a moment — it finishes on its own, and trying again continues the same booking rather than starting a second one.",
+          body: "Your previous attempt is still being processed. Give it a moment. It finishes on its own, and trying again continues the same booking rather than starting a second one.",
           canRetry: true,
         };
       case "booking_disabled":
@@ -238,7 +238,7 @@ export function describeError(
         return {
           ...base,
           title: "That was too much to send",
-          body: "Something in what you sent is larger than we can accept. Trying again with the same thing will not work — shorten it, or send us a message and we will help.",
+          body: "Something in what you sent is larger than we can accept. Trying again with the same thing will not work. Shorten it, or send us a message and we will help.",
           canRetry: false,
         };
       case "payments_unavailable":

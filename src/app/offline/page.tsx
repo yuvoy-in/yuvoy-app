@@ -23,7 +23,7 @@ export default function OfflinePage() {
       </p>
       <p className="text-cream/70 mt-3 max-w-sm text-sm">
         Havelock does this. Your bookings are saved on this device and still
-        open without signal — everything else needs a connection to tell you
+        open without signal. Everything else needs a connection to tell you
         anything true.
       </p>
       <ButtonLink href="/trips" variant="paper" className="mt-6">

@@ -25,23 +25,21 @@ export interface PayAtCounter {
  *
  * So this switches on the field, not on the state, and not on the status code.
  *
- * ## Why it does not use the generated type
+ * ## Why it reads the field itself rather than trusting the generated type
  *
- * The contract at the pinned ref declares `payAtCounter` on the `200`
- * (`coming_soon`) response only; `PaymentOrder`, which is what a `201` returns,
- * does not declare it. The correction says it is on both. Reading it off the
- * generated type would therefore compile for one answer and fail for the
- * other, and would break again whichever way the document moves.
+ * When this shipped, the contract declared `payAtCounter` on the `200`
+ * (`coming_soon`) answer only, while the correction said it arrives on both —
+ * so a read off the generated type compiled for one answer and not the other.
+ * yuvoy-api closed that gap at `79ce45af`: `PaymentOrder`, the `201`, declares
+ * it now too, and this app is pinned there.
  *
- * A structural read is correct under both versions of the contract, needs no
- * cast at the call site, and degrades the only safe way: a response that does
+ * The structural read stays anyway, for the reason that outlives the gap: one
+ * reader for both answers that does not care which of them arrived, needs no
+ * cast at the call site, and degrades the only safe way. A response that does
  * not carry the field, or carries it with `available: false`, produces `null`
  * and no cash option is offered. "Do not offer cash if `payAtCounter` is
  * absent from the payment-order response. That is how this gets turned off
  * when a processor goes live."
- *
- * The contract gap is raised on yuvoy-app#29 for the API side to close; when
- * it does, this function keeps working unchanged.
  */
 export function readPayAtCounter(answer: unknown): PayAtCounter | null {
   if (!answer || typeof answer !== "object") return null;
