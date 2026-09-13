@@ -149,6 +149,26 @@ function StatusBody({
   onChanged?: () => void;
 }) {
   const copy = stateCopy(status.state);
+  /*
+    A CANCELLED BOOKING THAT PAID NOTHING ONLINE HAS NO REFUND COMING —
+    yuvoy-app#48 §2.
+
+    `STATE_COPY.cancelled` opens "Your refund has already started." That was
+    safe while every cancellable booking had money in it, and D28 ended that:
+    a booking paid in cash cancels from the sheet with `refundPaise` 0, and
+    then reads a promise of money that is not moving because none was taken.
+
+    The sentence is DROPPED rather than replaced with its opposite. `refund` is
+    "present only when a refund exists", and a real refund may not have a row
+    the instant the cancellation lands, so asserting "nothing is coming back"
+    would be the same mistake pointed the other way. What is left is true in
+    both cases, and `RefundProgress` below renders the refund the moment there
+    is one, from the server's own state rather than from static copy.
+  */
+  const body =
+    status.state === "cancelled" && !status.refund
+      ? "Rebooking is a fresh booking rather than a silent move. The price you see will be the price you pay."
+      : copy.body;
 
   /*
     The reference in the tab, because the server cannot put it there.
@@ -210,7 +230,7 @@ function StatusBody({
       {reason ? (
         <p className="mt-3 max-w-prose text-sm font-bold">{reason}</p>
       ) : null}
-      <p className="text-forest/70 mt-3 max-w-prose text-sm">{copy.body}</p>
+      <p className="text-forest/70 mt-3 max-w-prose text-sm">{body}</p>
 
       {/*
         The countdown renders ONLY while holding. `holdExpiresAt` is absent in
@@ -1131,6 +1151,14 @@ export function cancellationReason(code?: string): string | null {
     MEDICAL_UNFIT: "This trip was not medically suitable.",
     TRAVELLER_REQUEST: "You asked us to cancel.",
     CUSTOMER_REQUEST: "You asked us to cancel.",
+    /*
+      D-032.3, yuvoy-app#48 §1. The operator moved the departure after this
+      booking was made, so cancelling refunded everything paid online whatever
+      the tier. Without an entry the fallback said "The operator or we called
+      it off." to somebody who cancelled BECAUSE the time changed under them:
+      the wrong actor, and it hides the one fact that explains the full refund.
+    */
+    OPERATOR_MOVED_IT: "The operator moved this departure after you booked.",
     PAYMENT_FAILED: "The payment did not complete.",
     ADMIN_ERROR: "This was our mistake.",
   };

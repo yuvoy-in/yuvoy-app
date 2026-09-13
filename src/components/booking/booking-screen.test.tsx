@@ -704,10 +704,77 @@ describe("BookingScreen — the day's facts", () => {
       expect(document.body.textContent).not.toMatch(
         /if the sea called it off/i,
       );
-      // The refund fact beside it is true whatever the reason was, and stays.
+      // The rebooking rule is true whatever the reason was, and stays.
       expect(
-        screen.getByText(/refund has already started/i),
+        screen.getByText(/Rebooking is a fresh booking/i),
       ).toBeInTheDocument();
+    });
+
+    /*
+      yuvoy-app#48 §2. D28 made a booking paid in cash cancellable from the
+      sheet with `refundPaise` 0, and `STATE_COPY.cancelled` opened "Your
+      refund has already started." — a promise of money to somebody from whom
+      none was ever taken. This test used to assert that sentence was present
+      on a body carrying no `refund` at all, which is how it survived.
+    */
+    it("promises no refund on a cancelled booking that has none", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("TRAVELLER_REQUEST")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText("This trip was called off");
+      expect(document.body.textContent).not.toMatch(
+        /refund has already started/i,
+      );
+    });
+
+    /*
+      The other direction, and the reason the sentence is dropped rather than
+      inverted: when a refund DOES exist the traveller must still be told. It
+      comes from the server's own refund state now, not from static copy that
+      cannot know.
+    */
+    it("still shows the refund when there is one", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json({
+            ...cancelled("OPERATOR_CANCELLED"),
+            refund: { state: "pending", amountPaise: 900000 },
+          }),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      expect(await screen.findByText("Your refund")).toBeInTheDocument();
+      expect(screen.getByText("Refund started")).toBeInTheDocument();
+    });
+
+    /*
+      yuvoy-app#48 §1. `OPERATOR_MOVED_IT` is what the server records when a
+      full refund was granted because the departure moved. Unmapped, it fell
+      to "The operator or we called it off." — which names the wrong actor for
+      a cancellation the traveller pressed, and hides the fact that explains
+      the money.
+    */
+    it("names a moved departure rather than blaming the traveller's own tap", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("OPERATOR_MOVED_IT")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      expect(
+        await screen.findByText(
+          "The operator moved this departure after you booked.",
+        ),
+      ).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(
+        /The operator or we called it off/i,
+      );
     });
 
     it("treats the two names for a traveller cancellation as one event", async () => {
