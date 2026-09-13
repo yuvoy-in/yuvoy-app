@@ -12,7 +12,7 @@ import {
   LoadingState,
   StaleNotice,
 } from "@/components/states";
-import { Chip } from "@/components/ui/chip";
+import { Chip, ChipButton } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
 import { CheckIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
@@ -53,11 +53,23 @@ export function AvailabilityPicker({
   bookingMode,
   selectedId,
   onSelect,
+  day,
+  onDay,
 }: {
   slug: string;
   bookingMode: BookingMode;
   selectedId: string | null;
   onSelect: (slot: Slot | null) => void;
+  /**
+   * Which day's departures are showing, as `YYYY-MM-DD`.
+   *
+   * Owned by the caller so it survives the pop-up closing and reopening: a
+   * traveller who looked at Thursday, closed the sheet to read the safety
+   * notes and came back should still be on Thursday. Absent or unknown falls
+   * back to the first day with anything on it.
+   */
+  day?: string | null;
+  onDay?: (date: string) => void;
 }) {
   // Computed once per mount. Recomputing per render would change the query
   // key at midnight mid-session and silently refetch.
@@ -180,6 +192,21 @@ export function AvailabilityPicker({
     );
   }
 
+  /*
+    ONE DAY AT A TIME — yuvoy-app#32.
+
+    Every day in the window used to be stacked on the page: the owner walked it
+    and called it an endless scroll. "Make this simple sweet." So the days are
+    a chip row and the departures below belong to the chosen one.
+
+    The chosen day is the caller's `day`/`onDay` when it gives them, so the
+    sheet can keep the choice across a close and reopen; otherwise the first
+    day with anything on it, which is where a traveller wants to start.
+  */
+  const dayKeys = days.map(([date]) => date);
+  const openDay = day && dayKeys.includes(day) ? day : dayKeys[0];
+  const showing = days.find(([date]) => date === openDay)?.[1] ?? [];
+
   return (
     <div className="mt-4">
       {isFetching ? (
@@ -188,25 +215,51 @@ export function AvailabilityPicker({
         </p>
       ) : null}
 
-      <div className="space-y-6">
+      <div
+        className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1"
+        role="group"
+        aria-label="Which day"
+      >
         {days.map(([date, slots]) => (
-          <div key={date}>
-            <h3 className="label text-forest/75">{formatDayHeading(date)}</h3>
-            <ul className="mt-2.5 space-y-2.5">
-              {slots.map((slot) => (
-                <li key={slot.id}>
-                  <SlotRow
-                    slot={slot}
-                    now={now}
-                    selected={selectedId === slot.id}
-                    onSelect={() => onSelect(slot)}
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
+          <ChipButton
+            key={date}
+            size="lg"
+            pressed={date === openDay}
+            onClick={() => onDay?.(date)}
+          >
+            {formatDayChip(date)}
+            {/*
+              A day with nothing left on it is still OFFERED, and says so.
+              Hiding it would tell a traveller the day does not exist, which is
+              the same mistake the contract forbids for a single departure.
+            */}
+            {slots.every((slot) => !isSelectable(slot, now)) ? (
+              /*
+                No colour of its own. A pressed chip inverts to a forest fill,
+                so any `text-forest/*` here would be forest on forest on the
+                one day a traveller has actually selected — and the opacity
+                ladder in §1 forbids the shade that would have been reached
+                for anyway. The word inherits the chip's own colour in both
+                states and stays legible in both.
+              */
+              <span className="text-xs">· Full</span>
+            ) : null}
+          </ChipButton>
         ))}
       </div>
+
+      <ul className="mt-4 space-y-2.5">
+        {showing.map((slot) => (
+          <li key={slot.id}>
+            <SlotRow
+              slot={slot}
+              now={now}
+              selected={selectedId === slot.id}
+              onSelect={() => onSelect(slot)}
+            />
+          </li>
+        ))}
+      </ul>
 
       {suppressed > 0 ? (
         <StaleNotice className="mt-5" onRefresh={() => void refetch()}>
@@ -227,9 +280,48 @@ export function AvailabilityPicker({
 
 /** Whether a departure can still be chosen, by the same rules the row draws. */
 function isSelectable(slot: Slot, now: number): boolean {
-  const closed = slot.status !== "open" || cutoffPassed(slot, now);
-  const full = slot.remainingDisplay === "Full";
-  return !closed && !full;
+  return !isClosed(slot, now) && !isSoldOut(slot);
+}
+
+/**
+ * Nobody more can book, or ask for, this departure.
+ *
+ * ## Read `soldOut`, not `remainingDisplay === "Full"`
+ *
+ * This used to sniff the display string, which was the only signal there was
+ * and was wrong in two ways the contract now fixes (`Slot.soldOut`,
+ * yuvoy-api#171).
+ *
+ * It only ever worked in ALLOTMENT mode. Request mode withholds seat counts on
+ * purpose — its display string is "Ask the operator" whatever the state — so a
+ * departure whose whole capacity the operator had already granted looked
+ * exactly like an open one, and the traveller asked for a seat that could not
+ * be given. `soldOut` is published in both modes and is the only signal
+ * request mode gets.
+ *
+ * And it compared against copy. A string the server owns, matched exactly, in
+ * a client: the day "Full" becomes "Fully booked" every sold-out departure
+ * silently becomes bookable again. The contract now says it outright: "Grey
+ * the departure out in a date picker on this field, in both booking modes,
+ * rather than deriving it from `remainingSeats` or `remainingDisplay`."
+ */
+function isSoldOut(slot: Slot): boolean {
+  return slot.soldOut === true;
+}
+
+/**
+ * Closed for a reason that is not capacity: withdrawn, cancelled, or past its
+ * booking cutoff.
+ *
+ * Kept apart from `isSoldOut` because the contract is explicit that the two
+ * are independent: "`soldOut` says nothing about `status` or
+ * `bookingCutoffAt`. A departure that is `closed`, `cancelled` or past its
+ * cutoff is unbookable too and should be shown disabled on those fields, with
+ * `soldOut` possibly false." A picker that checked only one of them would
+ * offer a departure that had already sailed.
+ */
+function isClosed(slot: Slot, now: number): boolean {
+  return slot.status !== "open" || cutoffPassed(slot, now);
 }
 
 /**
@@ -261,14 +353,29 @@ function SlotRow({
 }) {
   // `bookingCutoffAt`: "After this instant the slot cannot be booked. Shown
   // disabled, never hidden." Read together with `status` — a slot the server
-  // still calls open is closed the moment its cutoff passes.
-  const closed = slot.status !== "open" || cutoffPassed(slot, now);
-  const full = slot.remainingDisplay === "Full";
+  // still calls open is closed the moment its cutoff passes. And separately
+  // from `soldOut`, which is capacity: see both helpers above.
+  const closed = isClosed(slot, now);
+  const full = isSoldOut(slot);
   const request = slot.bookingMode === "request";
   const stale = slot.availability?.stale === true;
   const disabled = closed || full;
   const chosen = selected && !disabled;
-  const display = slot.remainingDisplay ?? (closed ? "Closed" : "");
+  /*
+    THE string, rendered rather than re-derived — except where the server
+    publishes none for a state a traveller must be able to see.
+
+    A sold-out REQUEST departure is exactly that case: request mode withholds
+    seat counts on purpose, so `remainingDisplay` still reads "Ask the
+    operator" while `soldOut` is true. Rendering it verbatim would put an
+    invitation on a departure nobody can be given, so the one word the server
+    cannot say here is said instead. Allotment mode is untouched: its own
+    string already says "Full".
+  */
+  const display =
+    full && request
+      ? "Fully booked"
+      : (slot.remainingDisplay ?? (closed ? "Closed" : ""));
 
   return (
     <button
@@ -350,12 +457,42 @@ function SlotRow({
         <span className="text-forest/70 border-cream-line mt-3 block border-t pt-2.5 text-xs">
           Booking for this departure has closed.
         </span>
+      ) : full ? (
+        /*
+          Said in words as well as greyed. The two are different facts and a
+          traveller is owed the difference: a closed departure may have seats
+          and no time left, and a full one may have days left and no seats.
+        */
+        <span className="text-forest/70 border-cream-line mt-3 block border-t pt-2.5 text-xs">
+          {request
+            ? "The operator has promised out this departure. Another day may be open."
+            : "Every seat on this departure has gone. Another day may be open."}
+        </span>
       ) : null}
     </button>
   );
 }
 
 /* ------------------------------------------------------------------ labels */
+
+/**
+ * A day, short enough for a chip. "Today", then "Sun 14".
+ *
+ * Deliberately not `formatDayHeading`'s longer form: a row of chips reading
+ * "Sunday, 14 September" is two chips wide on a phone, and the month is
+ * already obvious from a window that never spans more than thirty days.
+ */
+function formatDayChip(date: string): string {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+  if (date === today) return "Today";
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(`${date}T12:00:00+05:30`));
+}
 
 function trimSeconds(hms: string): string {
   return hms.slice(0, 5);

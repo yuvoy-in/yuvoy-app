@@ -65,6 +65,15 @@ describe("palette", () => {
     const ALLOWED = [
       "src/components/feed/",
       "src/components/experience/experience-detail.tsx",
+      /*
+        The listing's gallery and its full-screen view — yuvoy-app#32. The
+        strip's ground behind a poster that has not loaded, and the lightbox's
+        ground behind an `object-contain` frame. Both are the sanctioned media
+        usage: `forest` letterboxes in a visibly green frame and tints dark
+        underwater footage, which is the same reasoning §1 records for the
+        feed.
+      */
+      "src/components/experience/gallery.tsx",
       "src/components/search/search-screen.tsx",
       /*
         The operator page's poster grounds — the profile's logo tile and photo

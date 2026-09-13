@@ -15,9 +15,8 @@ import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
 import { Field } from "@/components/ui/field";
+import { PartyStepper } from "@/components/ui/party-stepper";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
-import { MinusIcon, PlusIcon } from "@/components/ui/icons";
 import { Panel } from "@/components/ui/panel";
 import { StickyBar } from "@/components/ui/sticky-bar";
 import type { components } from "@/lib/api/schema.gen";
@@ -245,35 +244,14 @@ function CheckoutFields({
       }}
     >
       <div className="space-y-8">
-        {/* Party size, checked against the WHOLE party rather than one seat. */}
-        <div>
-          <span className="label text-forest/75">How many of you</span>
-          <div className="mt-3 flex items-center gap-4">
-            <IconButton
-              label="One fewer guest"
-              variant="onCream"
-              disabled={guests <= 1}
-              onClick={() => setGuests((g) => Math.max(1, g - 1))}
-            >
-              <MinusIcon />
-            </IconButton>
-            <span
-              className="w-8 text-center text-xl font-bold tabular-nums"
-              aria-live="polite"
-            >
-              {guests}
-            </span>
-            <IconButton
-              label="One more guest"
-              variant="onCream"
-              disabled={guests >= maxParty}
-              onClick={() => setGuests((g) => Math.min(maxParty, g + 1))}
-            >
-              <PlusIcon />
-            </IconButton>
-            <span className="text-forest/70 text-xs">Up to {maxParty}</span>
-          </div>
-        </div>
+        {/*
+          Party size, checked against the WHOLE party rather than one seat.
+
+          The same component the listing now carries (yuvoy-app#32), so the two
+          cannot disagree about the cap or about what to say at it. A traveller
+          who set four on the listing arrives here with four already chosen.
+        */}
+        <PartyStepper value={guests} onChange={setGuests} max={maxParty} />
 
         {/* Name and WhatsApp. Nothing else is required, on purpose. */}
         <div className="space-y-4">

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { ExperienceDetail } from "./experience-detail";
 import { EXPERIENCE_DETAIL } from "../../../mocks/fixtures";
@@ -38,14 +39,75 @@ describe("ExperienceDetail", () => {
     expect(screen.getByText("About 3 hours")).toBeInTheDocument();
   });
 
-  it("shows the rest of the gallery, marking clips", () => {
+  it("shows every photograph and clip in one gallery, marking the clips", () => {
+    /*
+      It was `gallery[0]` at the top and `gallery.slice(1)` in a "More from the
+      water" strip of 160px thumbnails further down, which were not links to
+      anything — so a listing with six clips showed one where it mattered and
+      five below the fold (yuvoy-app#32).
+    */
     renderWithQuery(<ExperienceDetail experience={withGallery} />);
-    const strip = screen.getByRole("region", {
-      name: "More from this experience",
+    const gallery = screen.getByRole("group", {
+      name: /Photographs and clips of/,
     });
-    expect(strip.querySelectorAll("li")).toHaveLength(2);
+    expect(
+      within(gallery).getAllByRole("button", { name: /^Open \d+ of/ }),
+    ).toHaveLength(withGallery.gallery.length);
     expect(screen.getByAltText("Divers at the reef")).toBeInTheDocument();
-    expect(screen.getByText("Clip")).toBeInTheDocument();
+
+    // One badge per clip, and none on a photograph — it is the only thing
+    // distinguishing a poster frame from a still.
+    const clips = withGallery.gallery.filter((m) => m.kind === "video").length;
+    expect(clips).toBeGreaterThan(0);
+    expect(screen.getAllByText("Clip")).toHaveLength(clips);
+
+    // And the strip it replaced is gone, not merely moved.
+    expect(
+      screen.queryByRole("region", { name: "More from this experience" }),
+    ).toBeNull();
+  });
+
+  it("opens a frame full screen", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<ExperienceDetail experience={withGallery} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Open 2 of 3 full screen" }),
+    );
+    const lightbox = await screen.findByRole("dialog", {
+      name: /2 of 3/,
+    });
+    expect(within(lightbox).getByText("2 of 3")).toBeInTheDocument();
+  });
+
+  it("calls the operator row Operator, and shows their mark", () => {
+    /*
+      "Who runs this" was a sentence answering a question nobody had asked.
+      The logo is the one thing on the row that is theirs — and it is absent
+      when they have not set one, so there is no placeholder to design around.
+    */
+    renderWithQuery(
+      <ExperienceDetail
+        experience={{
+          ...withGallery,
+          operator: {
+            ...withGallery.operator,
+            logoUrl: "https://imagedelivery.net/x/logo/public",
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText("Operator")).toBeInTheDocument();
+    expect(screen.queryByText("Who runs this")).toBeNull();
+    expect(
+      document.querySelector('img[src*="imagedelivery.net"]'),
+    ).not.toBeNull();
+  });
+
+  it("draws no operator mark when they have not set one", () => {
+    renderWithQuery(<ExperienceDetail experience={withGallery} />);
+    expect(screen.getByText("Operator")).toBeInTheDocument();
+    expect(document.querySelector('img[src*="imagedelivery.net"]')).toBeNull();
   });
 
   it("links the meeting point to a map by its coordinates", () => {

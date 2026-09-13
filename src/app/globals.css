@@ -575,6 +575,43 @@
   }
 }
 
+/* ------------------------------------------------------------- lightbox */
+
+/**
+ * The gallery's full-screen view — `components/experience/gallery.tsx`.
+ *
+ * A `<dialog>` filling the viewport in the top layer, which is why none of
+ * this is a utility class: `::backdrop` has no class to hang one on and the
+ * element's own box is the browser's rather than the page's.
+ *
+ * The ground is `abyss` and the image is `object-contain`, so a portrait frame
+ * is letterboxed rather than cropped — the point of opening a photograph full
+ * screen is to see all of it. `forest` would letterbox in a visibly green
+ * frame and tint dark underwater footage, which is the same reasoning §1
+ * records for the feed.
+ */
+@layer components {
+  dialog.app-lightbox {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    padding: 0;
+  }
+
+  dialog.app-lightbox::backdrop {
+    background: var(--color-abyss);
+  }
+
+  dialog.app-lightbox[open] {
+    animation: sheet-tint 200ms var(--ease-interaction);
+  }
+}
+
 /* ------------------------------------------------------------- long form */
 
 /**
