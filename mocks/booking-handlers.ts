@@ -710,33 +710,164 @@ export const bookingHandlers = [
     There are deliberately NO /auth/otp/* handlers.
 
     That endpoint pair was deleted upstream on 2026-08-20 ("the second sign-in
-    is deleted"). Signing in is now the same OTP that recovers a booking, and
-    /me/bookings is authenticated by the status token recovery returns.
+    is deleted"). A mock for an endpoint the contract no longer has is worse
+    than no mock: it is how somebody rebuilds a deleted feature against a shape
+    that only exists on their laptop.
 
-    A mock for an endpoint the contract no longer has is worse than no mock: it
-    is how somebody rebuilds a deleted feature against a shape that only exists
-    on their laptop.
+    `/me/sign-in/*` below is a DIFFERENT thing and is current (yuvoy-api#172):
+    a session over a phone number, which any number can get whether or not it
+    has ever booked, and which revokes nothing.
   */
+
+  http.post(url("/me/sign-in/request"), async ({ request }) => {
+    const body = (await request.json()) as { phone?: string };
+    const phone = body.phone?.trim() ?? "";
+
+    // E.164 or nothing. The real API is strict here and the screen has a
+    // branch for it, so the mock has to be able to reach that branch.
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+      return envelope("invalid_input", "That is not a phone number.", 400);
+    }
+    // Reachable with `?__scenario=otp-rate-limited`, so the 429 copy is
+    // testable without sending six codes.
+    if (scenarioOf(request) === "otp-rate-limited") {
+      return envelope("rate_limited", "Too many codes for that number.", 429);
+    }
+
+    /*
+      202 and a plain answer. Unlike recovery, this one has nothing to reveal:
+      "there is no booking for the answer to reveal, so it says plainly that a
+      code was sent."
+    */
+    return HttpResponse.json(
+      {
+        sent: true,
+        message: "A code is on its way to that number.",
+        devCode: DEV_SIGN_IN_CODE,
+      },
+      { status: 202, headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.post(url("/me/sign-in/verify"), async ({ request }) => {
+    const body = (await request.json()) as { phone?: string; code?: string };
+    const phone = body.phone?.trim() ?? "";
+    const code = body.code?.trim() ?? "";
+
+    if (!phone) {
+      return envelope("invalid_input", "That is not a phone number.", 400);
+    }
+    /*
+      "Wrong, expired, used and over-attempted codes all answer 401 with one
+      message." One answer, deliberately: telling them apart would say whether
+      a code had been issued for a number.
+    */
+    if (code !== DEV_SIGN_IN_CODE) {
+      return envelope("unauthorized", "That code did not work.", 401);
+    }
+
+    return HttpResponse.json(
+      {
+        sessionToken: `sess_${phone.replace(/\D/g, "")}`,
+        expiresAt: new Date(mockNow() + 30 * 24 * 60 * 60_000).toISOString(),
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.delete(url("/me/session"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    /*
+      204 whatever the token was, including one already ended — so there is no
+      server-side session to forget here. The mock deliberately keeps none: the
+      real API's session is a token the client holds, and inventing a
+      server-side record would let a test pass on state production does not
+      have.
+    */
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.get(url("/me/bookings"), async ({ request }) => {
     if (!request.headers.get("authorization")) {
       return envelope("unauthorized", "Sign in first.", 401);
     }
+    // Reachable with `?__scenario=session-expired`, so the Trips tab's
+    // "sign in again" branch is testable.
+    if (scenarioOf(request) === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+
+    /*
+      Every trip on the number, including ones this device has never seen —
+      which is the whole point of signing in, and what a mock returning only
+      this device's reservations could never exercise.
+
+      `ANOTHER_PHONES_TRIP` is booked on another phone. It carries a real
+      reference and a token of its own, so merging it in has something to
+      claim onto the device.
+
+      `WAITING_REQUEST` is the state yuvoy-api#172 added: `pending_request`
+      with an EMPTY reference. It is here because a list that never contains
+      one cannot prove that matching falls back to `reservationId` — and
+      without that fallback every waiting request appears twice.
+    */
+    const own = [...reservations.values()].map((r) => ({
+      reference: r.state === "pending_request" ? "" : r.reference,
+      reservationId: r.reservationId,
+      experience: "Try-dive at Nemo Reef",
+      operator: "Sample Dive Operator",
+      localDate: "2026-08-22",
+      localTime: "07:00",
+      state: r.state === "pending_request" ? "pending_request" : "confirmed",
+      guests: r.guests,
+      meetingPoint: "Jetty 2, Havelock",
+      statusToken: r.token,
+    }));
+
     return HttpResponse.json({
-      bookings: [...reservations.values()].map((r) => ({
-        reference: r.reference,
-        experience: "Try-dive at Nemo Reef",
-        operator: "Sample Dive Operator",
-        localDate: "2026-08-22",
-        localTime: "07:00",
-        state: "confirmed",
-        guests: r.guests,
-        meetingPoint: "Jetty 2, Havelock",
-        statusToken: r.token,
-      })),
+      bookings: [...own, ANOTHER_PHONES_TRIP, WAITING_REQUEST],
     });
   }),
 ];
+
+/**
+ * The code every demo number accepts.
+ *
+ * "There is no channel that delivers a traveller code yet (yuvoy-api#68);
+ * until there is, only the demo numbers receive one." The real API returns it
+ * as `devCode` in development, which is exactly what this mock does.
+ */
+const DEV_SIGN_IN_CODE = "123456";
+
+/** A trip on this number that this device has never seen. */
+const ANOTHER_PHONES_TRIP = {
+  reference: "YV-OTHERPH",
+  reservationId: "res_other_phone",
+  experience: "Snorkel trip to Elephant Beach",
+  operator: "Sample Boat Operator",
+  localDate: "2026-08-24",
+  localTime: "09:00",
+  state: "confirmed",
+  guests: 2,
+  meetingPoint: "Jetty 2, Havelock",
+  statusToken: "tok_other_phone",
+};
+
+/** A request the operator has not answered: no reference, only an id. */
+const WAITING_REQUEST = {
+  reference: "",
+  reservationId: "res_waiting_request",
+  experience: "Mangrove kayak at dawn",
+  operator: "Sample New Operator",
+  localDate: "2026-08-26",
+  localTime: "06:30",
+  state: "pending_request",
+  guests: 1,
+  meetingPoint: "Mangrove jetty",
+  statusToken: "tok_waiting_request",
+};
 
 /** Test-only: forget every reservation between cases. */
 export function __resetBookingMocks(): void {

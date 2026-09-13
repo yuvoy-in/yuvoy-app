@@ -7,6 +7,7 @@ import { createApiClient } from "@/lib/api/client";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { describeError, FailurePanel } from "@/components/states";
 import { Field } from "@/components/ui/field";
+import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
 import { Button } from "@/components/ui/button";
 import { Screen } from "@/components/chrome/screen";
 
@@ -24,7 +25,7 @@ import { Screen } from "@/components/chrome/screen";
  */
 export function RecoverScreen() {
   const router = useRouter();
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(DEFAULT_DIAL_CODE);
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [devCode, setDevCode] = useState<string | undefined>(undefined);
@@ -100,14 +101,19 @@ export function RecoverScreen() {
           }
         }}
       >
-        <Field
+        {/*
+          The same field the sign-in uses — yuvoy-app#34. It was free text with
+          a `+91…` PLACEHOLDER, which is a hint rather than a value: it
+          disappears on the first keystroke, so somebody typing their number
+          sent it with no country code and the API refused it with a message
+          about E.164. Recovery had the identical defect one screen away, so it
+          gets the identical fix.
+        */}
+        <PhoneField
           label="WhatsApp number"
-          type="tel"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={setPhone}
           disabled={sent}
-          placeholder="+91…"
-          autoComplete="tel"
           required
         />
 
