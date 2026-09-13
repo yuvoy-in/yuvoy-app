@@ -7,11 +7,10 @@ import {
   useOperatorReels,
   type OperatorProfile,
 } from "@/lib/operator/use-operator";
-import { formatFromPrice } from "@/lib/format/money";
 import { paragraphsOf } from "@/lib/format/paragraphs";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
-import { Button } from "@/components/ui/button";
+import { ReelGrid } from "@/components/feed/reel-grid";
 import { Panel } from "@/components/ui/panel";
 import { ChevronRightIcon } from "@/components/ui/icons";
 
@@ -243,19 +242,39 @@ export function OperatorScreen({
       ) : null}
 
       {/* ---------------------------------------------------- what they run */}
+      {/*
+        A DOOR, not the list — yuvoy-app#33. The owner liked this page and
+        asked for one change to it: "What they run" is a proper page of its
+        own at `/o/{slug}/listings`, so the profile stays a profile.
+
+        It was a stack of full listing cards between the story and the reels,
+        which on a business with eight listings pushed their footage below two
+        screens of rows — on a page whose whole argument is the footage. The
+        count is stated on the door so the tap is informed rather than hopeful.
+      */}
       {profile.listings.length > 0 ? (
-        <section className="mt-8" aria-labelledby="what-they-run">
-          <h2 id="what-they-run" className="label text-forest/75">
-            What they run
-          </h2>
-          <ul className="mt-3 space-y-3">
-            {profile.listings.map(({ experience, bookable }) => (
-              <li key={experience.id}>
-                <ListingCard experience={experience} bookable={bookable} />
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Link
+          href={`/o/${profile.slug}/listings`}
+          className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction mt-8 flex items-center gap-4 border p-4 transition-colors duration-200"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="font-bold">What they run</p>
+            {/*
+              A sentence, not a `<Count>`. `Count` is a `<dt>`/`<dd>` pair and
+              only means anything inside the header's `<dl>`; used here it was
+              a description list item with no list, which axe calls a serious
+              structure violation and a screen reader reads as a stray term.
+              Caught by the accessibility suite on the deployed shape rather
+              than by looking, which is the whole reason that suite runs on
+              every route.
+            */}
+            <p className="text-forest/70 mt-1 text-sm">
+              {profile.listings.length}{" "}
+              {profile.listings.length === 1 ? "experience" : "experiences"}
+            </p>
+          </div>
+          <ChevronRightIcon className="text-forest/70 size-5 shrink-0" />
+        </Link>
       ) : null}
 
       {/* ------------------------------------------------------- the photos */}
@@ -301,64 +320,28 @@ export function OperatorScreen({
             Their reels
           </h2>
           {/*
-            Three across at 9:16, newest first. Deliberately not the feed's
-            ordering: the feed rotates operators so no business owns the
-            scroll, and on one business's own page that rotation means nothing.
-          */}
-          <ul className="mt-3 grid grid-cols-3 gap-2">
-            {clips.map((clip, i) => {
-              const poster = clip.media?.posterUrl;
-              const target = clip.experience?.slug;
-              const title = clip.experience?.title ?? "";
-              return (
-                <li key={`${clip.media?.id ?? "clip"}-${i}`}>
-                  {/*
-                    A clip whose listing we do not know is still shown — it is
-                    their work — but it is not a link to nowhere.
-                  */}
-                  {target ? (
-                    <Link
-                      href={`/e/${target}`}
-                      className="rounded-tile bg-abyss ease-interaction relative block aspect-[9/16] overflow-hidden transition-opacity duration-200 hover:opacity-90"
-                      aria-label={title || "Open this reel's listing"}
-                    >
-                      <Poster url={poster} />
-                    </Link>
-                  ) : (
-                    <div className="rounded-tile bg-abyss relative block aspect-[9/16] overflow-hidden">
-                      <Poster url={poster} />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+            Tapping a tile PLAYS that reel — yuvoy-app#33. It used to open the
+            reel's listing, which is the one thing a poster does not promise:
+            somebody tapping a clip means the clip.
 
-          {/*
-            `complete` is told, not inferred — the contract is explicit: "do
-            not stop the grid because a page came back short."
-
-            `isFetchNextPageError` rather than `isError`: on an infinite query
-            `isError` is true whenever the LAST fetch failed, which would
-            replace a grid full of loaded clips with an error state the moment
-            one extra page failed.
+            Swiping from there moves through this business's reels only, in
+            this same order, and back returns here. The order is the server's
+            and is deliberately not the feed's: the feed rotates operators so
+            no business owns the scroll, and on one business's own page that
+            rotation means nothing.
           */}
-          {reels.hasNextPage ? (
-            <div className="mt-4 text-center">
-              <Button
-                variant="outline"
-                disabled={reels.isFetchingNextPage}
-                onClick={() => void reels.fetchNextPage()}
-              >
-                {reels.isFetchingNextPage ? "Loading…" : "Show more"}
-              </Button>
-              {reels.isFetchNextPageError ? (
-                <p role="alert" className="text-terra-deep mt-2 text-sm">
-                  That did not load. The reels above are still here. Tap again.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+          <ReelGrid
+            className="mt-3"
+            label={`Reels by ${profile.name}`}
+            items={clips}
+            hrefFor={(reel) =>
+              reel.media?.id ? `/o/${profile.slug}/r/${reel.media.id}` : null
+            }
+            hasNextPage={reels.hasNextPage}
+            isFetchingNextPage={reels.isFetchingNextPage}
+            isFetchNextPageError={reels.isFetchNextPageError}
+            fetchNextPage={() => void reels.fetchNextPage()}
+          />
         </section>
       ) : null}
     </Screen>
@@ -396,21 +379,6 @@ function listOf(value: unknown): string[] {
   return value.map(textOf).filter((v): v is string => v !== null);
 }
 
-/** A poster, or the dark tile that stands in for one. */
-function Poster({ url }: { url?: string }) {
-  if (!url) return null;
-  return (
-    <Image
-      src={url}
-      alt=""
-      fill
-      sizes="(max-width: 640px) 33vw, 200px"
-      className="object-cover"
-      unoptimized={url.startsWith("data:")}
-    />
-  );
-}
-
 /**
  * One real number about this business.
  *
@@ -428,57 +396,5 @@ function Count({ n, one, many }: { n: number; one: string; many: string }) {
       <dt className="text-forest/70 text-sm">{n === 1 ? one : many}</dt>
       <dd className="text-xl font-bold tabular-nums">{n}</dd>
     </div>
-  );
-}
-
-/**
- * One thing they run.
- *
- * `bookable: false` means **show it and say so**, never hide it: "somebody
- * followed a link looking for a specific thing they saw; an emptier page with
- * no explanation is worse than a card marked 'Not available right now'."
- */
-function ListingCard({
-  experience,
-  bookable,
-}: {
-  experience: NonNullable<
-    ReturnType<typeof useOperator>["data"]
-  >["listings"][number]["experience"];
-  bookable: boolean;
-}) {
-  const price = formatFromPrice(experience.fromPrice);
-
-  return (
-    <Link
-      href={`/e/${experience.slug}`}
-      className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-3 pr-4 transition-colors duration-200"
-    >
-      <div className="rounded-tile bg-abyss relative h-24 w-18 shrink-0 overflow-hidden">
-        <Poster url={experience.heroMedia?.posterUrl} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="font-bold">{experience.title}</p>
-        <p className="text-forest/70 mt-1 text-xs">
-          {experience.location ?? "Andaman"}
-        </p>
-        <p className="mt-2 text-sm font-bold">
-          {price ?? (
-            <span className="text-forest/70 font-normal">Price on request</span>
-          )}
-        </p>
-        {/*
-          `nextAvailable` absent means "no dates in the next 90 days", the same
-          as on the feed. It is a meaningful value rather than a missing one,
-          so it gets a sentence rather than a blank.
-        */}
-        <p className="text-forest/70 mt-1 text-xs">
-          {!bookable
-            ? "Not available right now"
-            : (experience.nextAvailable ?? "No dates in the next 90 days")}
-        </p>
-      </div>
-      <ChevronRightIcon className="text-forest/70 size-5 shrink-0" />
-    </Link>
   );
 }

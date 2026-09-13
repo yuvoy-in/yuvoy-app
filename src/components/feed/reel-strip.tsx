@@ -133,6 +133,7 @@ export function ReelStrip({
   fetchNextPage,
   chrome,
   emptyTailNote,
+  initialIndex = 0,
 }: {
   /** In the server's order. Never re-sorted here — see `useReels`. */
   items: Reel[];
@@ -151,6 +152,15 @@ export function ReelStrip({
    * sentence is the caller's and the logic is not.
    */
   emptyTailNote?: string;
+  /**
+   * Which reel the strip opens on.
+   *
+   * A grid that plays in place has to start where the thumb landed, and
+   * swiping on from there has to continue the same sequence — Instagram's
+   * behaviour, and what yuvoy-app#33 and #37 both ask for. Zero everywhere
+   * else.
+   */
+  initialIndex?: number;
 }) {
   const setActiveIndex = useFeedStore((s) => s.setActiveIndex);
   const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
@@ -182,6 +192,45 @@ export function ReelStrip({
     resetFeed();
     return resetFeed;
   }, [resetFeed]);
+
+  /**
+   * Opening on a reel other than the first, for a grid that plays in place.
+   *
+   * ## Why `scrollTop` rather than `scrollTo`
+   *
+   * A smooth scroll through forty snap children is forty snap decisions and
+   * lands somewhere the browser chose, so this has to be instant: the strip
+   * must be on the tile the thumb hit before paint, with no flash of the first
+   * reel and no travel. `scrollTop` IS instant by definition, needs no options
+   * bag, and exists on every element everywhere — `scrollTo` is not
+   * implemented on elements in jsdom, so the first version of this threw in
+   * every unit test that opened a reel other than the first.
+   *
+   * ## Why `activeIndex` is set here rather than left to the observer
+   *
+   * The observer reports on intersection change, and it is set up in the same
+   * commit as this scroll. The card at `initialIndex` may already be
+   * intersecting by the time it attaches, in which case nothing ever fires and
+   * the strip would play reel zero while showing reel five. Setting it here
+   * makes the two agree from the first frame; the observer takes over on the
+   * next real move, and its own same-index guard keeps that from being a
+   * second render.
+   *
+   * `items.length` is in the deps, not `initialIndex`: the target card does
+   * not exist until the page holding it has loaded, and a strip deep-linked
+   * into page three mounts empty and fills in. Guarded so it runs once per
+   * arrival rather than yanking the scroller back every time a page lands.
+   */
+  const jumped = useRef(false);
+  useEffect(() => {
+    if (jumped.current || initialIndex <= 0) return;
+    const scroller = scrollerRef.current;
+    if (!scroller || items.length <= initialIndex) return;
+
+    jumped.current = true;
+    scroller.scrollTop = scroller.clientHeight * initialIndex;
+    setActiveIndex(initialIndex);
+  }, [initialIndex, items.length, setActiveIndex]);
 
   /**
    * How many reels this strip HAS, or `-1` for "nobody knows yet".
