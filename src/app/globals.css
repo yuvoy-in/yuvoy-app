@@ -122,6 +122,35 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /*
+    The floor that keeps iOS Safari from zooming the page in — yuvoy-app#35.
+
+    Safari on iOS scales the whole page up the moment a focused `input`,
+    `select` or `textarea` computes below 16px, and it does not scale back
+    afterwards: the traveller is left on a zoomed page they did not ask for,
+    mid-form. The documented cure is `maximum-scale=1` / `user-scalable=no` in
+    the viewport, and it is not taken here, because it also takes pinch-zoom
+    away from everybody who needs to magnify the page. Sizing the controls
+    correctly costs nobody anything.
+
+    `max()` rather than a flat `1rem` on purpose. `1rem` is only 16px while the
+    root is 16px; a root font-size change, or Safari's own per-site page zoom,
+    silently drops every control in the app under the threshold at once — which
+    is exactly the shape of a bug that reads as "all the text fields zoom" and
+    has no single component to blame. The absolute floor cannot be moved by
+    either.
+
+    This is the floor, not the enforcement. Tailwind's type utilities live in a
+    later cascade layer and still win, so `text-sm` on a control beats this
+    rule; `pnpm qa` refuses that class on a form control, and
+    `e2e/ios-input-zoom.spec.ts` measures what WebKit actually computed.
+  */
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 16px);
+  }
+
   body {
     @apply bg-cream text-forest font-sans antialiased;
     text-rendering: optimizeLegibility;

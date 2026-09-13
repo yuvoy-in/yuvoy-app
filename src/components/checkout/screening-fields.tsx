@@ -73,7 +73,15 @@ export function ScreeningFields({
                   onChange={(e) =>
                     onAgeBandChange(i, e.target.value as AgeBand)
                   }
-                  className="rounded-control border-cream-line bg-cream-deep focus:border-forest/60 ease-interaction h-12 flex-1 border px-4 text-sm transition-colors duration-200 outline-none"
+                  /*
+                    `text-base`, not `text-sm`, and it is not a style choice:
+                    iOS Safari zooms the whole page in whenever a focused
+                    control computes below 16px, and never zooms back out
+                    (yuvoy-app#35). This select was the one control in the app
+                    still at 14px, and it sits in checkout — the worst place to
+                    throw somebody's viewport off mid-form.
+                  */
+                  className="rounded-control border-cream-line bg-cream-deep focus:border-forest/60 ease-interaction h-12 flex-1 border px-4 text-base transition-colors duration-200 outline-none"
                 >
                   <option value="" disabled>
                     Choose a range

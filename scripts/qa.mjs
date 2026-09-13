@@ -977,6 +977,173 @@ for (const f of files) {
   }
 }
 
+/* --------- 16. a form control may not be typeset under 16px -------------- */
+
+/**
+ * `text-xs`, `text-sm` or an explicit sub-16px size on an `input`, `select`
+ * or `textarea`.
+ *
+ * iOS Safari zooms the entire page in when a focused form control computes
+ * below 16px, and does not zoom back out. It shipped as `text-sm` on the
+ * safety screener's age select — 14px, in checkout — and reached the owner on
+ * their own phone (yuvoy-app#35).
+ *
+ * There are three guards and each catches what the others cannot. The base
+ * layer in `globals.css` sets an absolute floor for a control that states no
+ * size of its own. `e2e/ios-input-zoom.spec.ts` measures what WebKit actually
+ * computed, on a real WebKit iPhone, which is the only thing that can catch a
+ * size arriving by inheritance. This one catches the mistake at the moment
+ * somebody writes it, in the diff, by name — a Tailwind type utility sits in a
+ * later cascade layer than the base floor and beats it, so writing the class
+ * really does undo the fix.
+ *
+ * Checkboxes and radios are exempt: they render no text and WebKit does not
+ * zoom for them.
+ */
+
+{
+  const TOO_SMALL = /^text-(xs|sm)$/;
+  /** `text-[13px]`, `text-[0.8rem]` — anything arbitrary and under 16px. */
+  const arbitraryUnder16 = (cls) => {
+    const m = /^text-\[(\d*\.?\d+)(px|rem|em)\]$/.exec(cls);
+    if (!m) return false;
+    const n = Number(m[1]);
+    return m[2] === "px" ? n < 16 : n < 1;
+  };
+
+  /**
+   * The open tag starting at `<`, as source text.
+   *
+   * Not `/<select[^>]*>/`. A JSX prop routinely contains a bare `>`: every
+   * arrow function does (`onChange={(e) => …}`), and so does any comparison
+   * inside a brace. That regex stops at the first one, hands back a fragment
+   * with no `className` in it, and the check silently passes on exactly the
+   * elements most likely to be wrong. It did, on the first draft of this
+   * check, against the very select that prompted it.
+   *
+   * So: walk forward, count `{}` depth, skip over quoted strings and template
+   * literals, and take the first `>` at depth zero.
+   */
+  const openTag = (src, from) => {
+    let depth = 0;
+    for (let i = from; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === '"' || c === "'" || c === "`") {
+        const quote = c;
+        i++;
+        while (i < src.length && src[i] !== quote) {
+          if (src[i] === "\\") i++;
+          i++;
+        }
+      } else if (c === ">" && depth === 0) {
+        return src.slice(from, i + 1);
+      }
+    }
+    return src.slice(from);
+  };
+
+  /** The class strings inside a tag's own `className` value, and no other. */
+  const classTokens = (attrs) => {
+    const at = attrs.indexOf("className=");
+    if (at === -1) return [];
+    let v = attrs.slice(at + "className=".length);
+
+    if (v[0] === '"' || v[0] === "'") {
+      const end = v.indexOf(v[0], 1);
+      v = end === -1 ? v.slice(1) : v.slice(1, end);
+    } else if (v[0] === "{") {
+      // The balanced brace run, so the value stops where the prop stops.
+      let depth = 0;
+      let end = v.length;
+      for (let i = 0; i < v.length; i++) {
+        const c = v[i];
+        if (c === "{") depth++;
+        else if (c === "}" && --depth === 0) {
+          end = i;
+          break;
+        } else if (c === '"' || c === "'" || c === "`") {
+          const quote = c;
+          i++;
+          while (i < v.length && v[i] !== quote) {
+            if (v[i] === "\\") i++;
+            i++;
+          }
+        }
+      }
+      v = v.slice(1, end);
+    } else {
+      return [];
+    }
+
+    return [
+      ...new Set(
+        [...v.matchAll(/"([^"]*)"|'([^']*)'|`([^`$]*)`/g)]
+          .flatMap((c) => (c[1] ?? c[2] ?? c[3] ?? "").split(/\s+/))
+          .concat(v.split(/\s+/)) // the bare `className="a b"` form
+          .filter(Boolean),
+      ),
+    ];
+  };
+
+  for (const f of files) {
+    const src = code(f);
+    for (const m of src.matchAll(/<(input|select|textarea)[\s/>]/g)) {
+      const tag = m[1];
+      const attrs = openTag(src, m.index);
+      if (tag === "input" && /type=["'](checkbox|radio|hidden)["']/.test(attrs))
+        continue;
+
+      /*
+        Every class token the tag could ever apply.
+
+        `className` is rarely a bare string here. The shared `Field` writes
+        `className={cn("…", cond && "…", shape === "pill" ? "…" : "…")}`, and
+        that is the input almost every text field in the app is made of — so a
+        matcher that only understood `className="…"` would pass the single most
+        important file in this check. It did, on the second draft.
+
+        So: take the whole `className=` value, however it is written, and pull
+        every string and template literal out of it. A conditional branch
+        counts, because it can apply. A string that is not a class at all —
+        the `"pill"` in a comparison — tokenises to something no rule matches,
+        so it costs nothing.
+      */
+      /*
+        Every class token the tag could ever apply.
+
+        `className` is rarely a bare string here. The shared `Field` writes
+        `className={cn("…", cond && "…", shape === "pill" ? "…" : "…")}`, and
+        that is the input almost every text field in the app is made of — so a
+        matcher that only understood `className="…"` would pass the single most
+        important file in this check. It did, on the second draft.
+
+        So: take the `className` value alone, however it is written, and pull
+        every string and template literal out of it. A conditional branch
+        counts, because it can apply. A string that is not a class at all — the
+        `"pill"` in a comparison — tokenises to something no rule matches, so
+        it costs nothing. The value is delimited exactly rather than read to
+        the end of the tag, or a `placeholder="…"` after it would be scanned
+        as if it were classes.
+      */
+      const classes = classTokens(attrs);
+      const bad = classes.filter(
+        (c) => TOO_SMALL.test(c) || arbitraryUnder16(c),
+      );
+      if (bad.length) {
+        problems.push(
+          `${rel(f)}: <${tag}> is typeset ${bad.join(" ")} — iOS Safari zooms ` +
+            `the whole page in when a focused control computes under 16px, and ` +
+            `never zooms back out. Use text-base or larger. This shipped once ` +
+            `as text-sm on the screener's age select, in checkout ` +
+            `(yuvoy-app#35).`,
+        );
+      }
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);
