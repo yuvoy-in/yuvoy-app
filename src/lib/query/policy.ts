@@ -67,6 +67,15 @@ export const qk = {
   reels: (pageSize: number) => ["listReels", pageSize] as const,
   /** One reel by its own id — a shared link (yuvoy-app#36). */
   reel: (id: string) => ["getReel", id] as const,
+  /**
+   * Every trip on a signed-in number (yuvoy-app#34).
+   *
+   * Keyed by the SESSION TOKEN, not by a constant. Two numbers on one phone —
+   * a guide and a traveller sharing it, a family — must not read each other's
+   * trips out of the cache, and a stale entry under a shared key is exactly
+   * how that happens.
+   */
+  myBookings: (token: string) => ["listMyBookings", token] as const,
   /** The filter chips' word list (yuvoy-app#37). */
   vocabulary: () => ["getPublicVocabulary"] as const,
   /**
