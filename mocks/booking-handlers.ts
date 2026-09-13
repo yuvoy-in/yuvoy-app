@@ -552,15 +552,26 @@ export const bookingHandlers = [
           : {}),
         ...(scenario === "operator-updates"
           ? {
+              /*
+                `kind` and `from`, which is what the server sends.
+
+                This mock sent `intent`, a name that only ever existed in the
+                document — "Never emitted ... the server has always sent
+                `kind`". So the screen read `intent`, found it, and every test
+                passed while the real API mislabelled every update as "A note".
+                Sending what the server sends is what makes the panel testable.
+              */
               operatorUpdates: [
                 {
-                  intent: "meeting_point_change",
+                  kind: "meeting_point_change",
+                  from: "Sample Dive Operator",
                   detail: "Jetty 2, not Jetty 1",
                   note: "The usual spot is under repair this week.",
                   sentAt: "2026-08-21T10:15:00Z",
                 },
                 {
-                  intent: "bring_item",
+                  kind: "bring_item",
+                  from: "Sample Dive Operator",
                   detail: "A towel and a dry change of clothes",
                   sentAt: "2026-08-21T10:16:00Z",
                 },
