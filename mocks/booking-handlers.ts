@@ -637,6 +637,46 @@ export const bookingHandlers = [
         note: "Under 24 hours, so this one is half back and a person checks it.",
       });
     }
+    /*
+      A DEPARTURE THE OPERATOR MOVED — D-032.3, yuvoy-app#48 §1.
+
+      Everything paid online comes back whatever tier the snapshot holds, so
+      this is self-service AND carries a `note`. That pairing is the whole
+      point of the fix: the sheet used to show `note` only when `selfService`
+      was false, so this quote rendered "You get everything back." with no
+      explanation at all.
+    */
+    if (scenario === "operator-moved") {
+      return HttpResponse.json({
+        bookingReference: "YV-4K2M9P7Q",
+        cancellable: true,
+        selfService: true,
+        capturedPaise: 900000,
+        refundPaise: 900000,
+        refundTier: "half",
+        hoursBeforeStart: 20,
+        note: "The operator moved this departure after you booked, so you get everything back whatever the usual policy says.",
+      });
+    }
+    /*
+      A CASH BOOKING IN THE 24-TO-48-HOUR TIER — D28, yuvoy-app#48 §2.
+
+      A partial tier with nothing to refund "needs nobody", so this quotes
+      `selfService: true` where it used to send the traveller to WhatsApp.
+      Both figures are 0, which is what used to print "You get everything
+      back." above ₹0.
+    */
+    if (scenario === "cash-nothing-to-refund") {
+      return HttpResponse.json({
+        bookingReference: "YV-4K2M9P7Q",
+        cancellable: true,
+        selfService: true,
+        capturedPaise: 0,
+        refundPaise: 0,
+        refundTier: "half",
+        hoursBeforeStart: 30,
+      });
+    }
     if (scenario === "not-cancellable") {
       return HttpResponse.json({
         cancellable: false,
@@ -660,8 +700,16 @@ export const bookingHandlers = [
     const scenario = scenarioOf(request);
     const body = (await request.json()) as { expectedRefundPaise: number };
 
-    // The quote moved between quoting and committing.
-    if (scenario === "quote-moved" || body.expectedRefundPaise !== 900000) {
+    /*
+      The quote moved between quoting and committing.
+
+      `0` is a legitimate echo now, not only `900000`: a partial tier with
+      nothing to refund cancels from here (D28), and treating its `0` as a
+      moved quote would make the one path yuvoy-app#48 §2 opens impossible to
+      exercise. The scenario switch stays the way to force a real re-quote.
+    */
+    const quoted = scenario === "cash-nothing-to-refund" ? 0 : 900000;
+    if (scenario === "quote-moved" || body.expectedRefundPaise !== quoted) {
       return envelope(
         "refund_quote_moved",
         "The refund changed while you were deciding.",
@@ -673,8 +721,18 @@ export const bookingHandlers = [
       bookingReference: "YV-4K2M9P7Q",
       state: "cancelled",
       refundPaise: body.expectedRefundPaise,
-      refundTier: "full",
+      refundTier: quoted === 0 ? "half" : "full",
       seatsReleased: 2,
+      /*
+        "Says why" when nothing comes back. Present only then, so a full
+        refund is not narrated at somebody who can see the figure.
+      */
+      ...(quoted === 0
+        ? {
+            refundNote:
+              "Nothing was paid online for this booking, so there is nothing to refund.",
+          }
+        : {}),
     });
   }),
 
