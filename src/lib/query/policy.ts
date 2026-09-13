@@ -67,6 +67,18 @@ export const qk = {
   reels: (pageSize: number) => ["listReels", pageSize] as const,
   /** One reel by its own id — a shared link (yuvoy-app#36). */
   reel: (id: string) => ["getReel", id] as const,
+  /** The filter chips' word list (yuvoy-app#37). */
+  vocabulary: () => ["getPublicVocabulary"] as const,
+  /**
+   * Search results as reels, keyed by the WHOLE filter set.
+   *
+   * Not a convenience. `GET /reels` mints a cursor against the filters it was
+   * called with and answers `400` to a cursor replayed under different ones,
+   * so a key missing one field would keep the accumulated pages across a
+   * change to it and turn the next page into an error. See `reelFilterKey`.
+   */
+  searchReels: (filterKey: string) =>
+    ["listReels", "search", filterKey] as const,
   experience: (slug: string) => ["getExperience", slug] as const,
   /** A business and its whole first paint — yuvoy-app#30. */
   operator: (slug: string) => ["getOperator", slug] as const,
@@ -102,26 +114,5 @@ export const qk = {
     silently, and only for the length of `staleTime`, which is the hardest
     kind of wrong answer to reproduce.
   */
-  search: (
-    q: string,
-    bookableOn?: string,
-    destinationKey?: string,
-    category?: string,
-  ) =>
-    [
-      "searchExperiences",
-      q,
-      bookableOn ?? null,
-      destinationKey ?? null,
-      category ?? null,
-    ] as const,
-  /**
-   * The chip rail on Search — the places and kinds a traveller can filter by.
-   *
-   * Its own key rather than sharing the feed's: it reads `/experiences` for
-   * facets, not for a page of cards, and it must not be invalidated when the
-   * feed is.
-   */
-  searchFacets: () => ["searchFacets"] as const,
   bookingStatus: (token: string) => ["getBookingStatus", token] as const,
 };
