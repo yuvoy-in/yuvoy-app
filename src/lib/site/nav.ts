@@ -80,18 +80,6 @@ export const FOCUSED_ROUTE_PREFIXES = [
   "/offline",
 ] as const;
 
-/**
- * THE feed — the one route whose chrome retracts as a traveller scrolls.
- *
- * Here rather than as a `pathname === "/"` in the tab bar, because the bar is
- * the one place in the app that must be able to say "the feed asked for this
- * and we are on the feed". `/e/...` is a focused route and never reaches that
- * question; a future second reel surface would be added here and nowhere else.
- */
-export function isFeedRoute(pathname: string | null | undefined): boolean {
-  return pathname === "/";
-}
-
 export function isFocusedRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
   return FOCUSED_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));

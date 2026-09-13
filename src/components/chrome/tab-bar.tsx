@@ -1,8 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { isFeedRoute, isFocusedRoute } from "@/lib/site/nav";
-import { useFeedStore } from "@/lib/feed/store";
+import { isFocusedRoute } from "@/lib/site/nav";
 import { NavList } from "./nav-items";
 
 /**
@@ -15,35 +14,25 @@ import { NavList } from "./nav-items";
  *
  * The wrapper is inert so the strip beside the pill still scrolls the feed.
  *
- * ## It retracts on the feed, and only on the feed
+ * ## It used to retract on the feed, and no longer does
  *
- * A traveller moving DOWN the reels is watching, not navigating, so the bar
- * drops out of the window and the card takes the room back; moving UP one
- * reel brings it straight back. The rule itself is one line in the feed store
- * — see `setActiveIndex` — and this component only draws it.
- *
- * TWO conditions, and the second is not redundant. The flag lives in a module
- * store that outlives any component, so `isFeedRoute` is what guarantees that
- * a value left behind by a feed can never take the navigation off a different
- * screen. `Feed` clears it on unmount as well; belt and braces, because the
- * failure mode here is an app with no way to get anywhere.
- *
- * It is TRANSLATED, never unmounted or hidden — see `.tabbar-slide` for why
- * a keyboard traveller can still tab straight to it.
+ * Moving DOWN a reel dropped the bar out of the window and moving up brought
+ * it back, so a traveller watching got the whole screen. The owner ruled
+ * against it on 13 September (yuvoy-app#36): "the tab bar must stay visible on
+ * every reel." The flag, the store rule, the slide and the masthead fade are
+ * all gone rather than left switched off, so there is nothing here to
+ * re-enable by accident. The reel's own overlay was cut back in the same
+ * change, which is what buys the picture its room instead.
  */
 export function TabBar() {
   const pathname = usePathname();
-  const chromeRetracted = useFeedStore((s) => s.chromeRetracted);
 
   if (isFocusedRoute(pathname)) return null;
-
-  const retracted = chromeRetracted && isFeedRoute(pathname);
 
   return (
     <nav
       aria-label="Primary"
-      data-retracted={retracted ? "true" : "false"}
-      className="tabbar-foot tabbar-slide pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 lg:hidden"
+      className="tabbar-foot pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 lg:hidden"
     >
       <div className="app-chrome ring-cream/12 pointer-events-auto rounded-full p-1.5 ring-1">
         <NavList orientation="bar" />

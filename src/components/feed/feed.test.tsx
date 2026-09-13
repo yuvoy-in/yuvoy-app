@@ -293,51 +293,6 @@ describe("Feed", () => {
     expect(screen.getAllByRole("article")).toHaveLength(1);
   });
 
-  it("never renders a placeholder price when none is contracted", async () => {
-    server.use(
-      reels([
-        { media: clip("m1"), experience: listing({ fromPrice: undefined }) },
-      ]),
-    );
-
-    renderWithQuery(<Feed />);
-
-    expect(await screen.findByText("Price on request")).toBeInTheDocument();
-    // ₹0 would be a fabricated claim.
-    expect(screen.queryByText("₹0")).not.toBeInTheDocument();
-  });
-
-  it("renders the server's seat sentence verbatim, and derives none of its own", async () => {
-    /*
-      yuvoy-api#92. The card used to print "N seats left" below a threshold of
-      five that IT kept — a second copy of a rule the server owns, which
-      disagrees with the slot row the moment the threshold moves or counts start
-      being suppressed.
-
-      `seatsOnNext: 40` with a sentence saying "2 seats left" is deliberately
-      contradictory: only a card that renders the string wins, and one that
-      re-derives from the integer would print nothing (40 is over the old
-      threshold) or "40 seats left".
-    */
-    server.use(
-      reels([
-        {
-          media: clip("m1"),
-          experience: listing({
-            title: "Verbatim",
-            nextAvailable: "2026-08-23",
-            seatsOnNext: 40,
-            seatsOnNextDisplay: "2 seats left",
-          }),
-        },
-      ]),
-    );
-
-    renderWithQuery(<Feed />);
-    expect(await screen.findByText(/2 seats left/)).toBeInTheDocument();
-    expect(screen.queryByText(/40 seats/)).not.toBeInTheDocument();
-  });
-
   it("says nothing about availability when the server sends no sentence", async () => {
     // Absent means say nothing — not "derive one from `seatsOnNext`". Both
     // live listings are request mode today and correctly carry no sentence.
@@ -358,27 +313,6 @@ describe("Feed", () => {
     renderWithQuery(<Feed />);
     await screen.findByText("Silent");
     expect(screen.queryByText(/seats? left/)).not.toBeInTheDocument();
-  });
-
-  it("says so when nothing is bookable in 90 days, rather than staying silent", async () => {
-    server.use(
-      reels([
-        {
-          media: clip("m1"),
-          experience: listing({
-            title: "Night fishing with a local crew",
-            nextAvailable: undefined,
-          }),
-        },
-      ]),
-    );
-
-    renderWithQuery(<Feed />);
-
-    // The tap that ends in "no dates" is the tap that loses the traveller.
-    expect(
-      await screen.findByText("No dates in the next 90 days"),
-    ).toBeInTheDocument();
   });
 
   it("does not claim an operator is verified when they are not", async () => {
@@ -772,29 +706,6 @@ describe("Feed paging", () => {
  * while the platform has always supported group pricing.
  */
 describe("Feed card claims", () => {
-  it("renders the server's pricing phrase verbatim, whatever it says", async () => {
-    server.use(
-      reels([
-        {
-          media: clip("m1"),
-          experience: listing({
-            title: "Whole boat",
-            // The label only renders beside a price, and the contract ships
-            // both fields exactly when `fromPrice` is present.
-            fromPrice: { amountMinor: 1800000, currency: "INR" },
-            pricingUnit: "per_group",
-            pricingUnitLabel: "for the group",
-          }),
-        },
-      ]),
-    );
-
-    renderWithQuery(<Feed />);
-    await screen.findByText("Whole boat");
-    expect(screen.getByText("for the group")).toBeInTheDocument();
-    expect(screen.queryByText("per person")).not.toBeInTheDocument();
-  });
-
   it("says nothing about the basis rather than guessing one", async () => {
     // Unreachable while both fields ship with `fromPrice`. The branch exists so
     // a contract that ever loosened cannot silently reintroduce "per person".
@@ -814,30 +725,6 @@ describe("Feed card claims", () => {
     await screen.findByText("No basis");
     expect(screen.queryByText("per person")).not.toBeInTheDocument();
     expect(screen.queryByText("for the group")).not.toBeInTheDocument();
-  });
-
-  it("says what the thing is, when the API has classified it", async () => {
-    /*
-      The twelve categories are market-agnostic, so in the Andamans every water
-      sport is `adventure` — useless on a feed where every card is a video of
-      blue water. `activityTypeLabel` is the curated taxonomy underneath.
-    */
-    server.use(
-      reels([
-        {
-          media: clip("m1"),
-          experience: listing({
-            title: "Reef trip",
-            activityType: "scuba",
-            activityTypeLabel: "Scuba diving",
-          }),
-        },
-      ]),
-    );
-
-    renderWithQuery(<Feed />);
-    await screen.findByText("Reef trip");
-    expect(screen.getByText("Scuba diving")).toBeInTheDocument();
   });
 
   it("renders nothing for a listing nobody has classified", async () => {

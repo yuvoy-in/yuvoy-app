@@ -67,6 +67,23 @@ export const PRIVATE_ROUTES = [
   "/trips",
   "/account",
   "/offline",
+  /*
+    A shared reel — yuvoy-app#36.
+
+    Not private in the sense the rest of this list is: anybody with the link
+    may open it, which is the point of sharing one. It is here because the URL
+    must never be INDEXED, for two reasons that both hold on their own.
+
+    It is not stable. `GET /reels/{id}` answers 404 for any reel the feed would
+    not show, so the address dies the day the listing pauses, sells out for the
+    season or has its clip taken down — a normal Tuesday for an operator, and
+    an indexed 404 to a crawler.
+
+    And it would compete with the page that should win. The listing at
+    `/e/{slug}` is the indexable asset and carries the same subject; a second
+    URL about the same experience splits whatever authority it earns.
+  */
+  "/r/",
 ] as const;
 
 /**

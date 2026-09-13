@@ -9,19 +9,27 @@ import { test, expect } from "@playwright/test";
  * and about one that has not (yuvoy-operator#41).
  */
 
-test("a reel's operator name opens the business's own page", async ({
+test("a reel no longer names the operator, and that is deliberate", async ({
   page,
 }) => {
+  /*
+    This used to walk reel → operator by clicking the business's name on a feed
+    card. yuvoy-app#36 removed the name and its Verified tag from the overlay:
+    they were the first two of nine things over the clip, and the owner's
+    complaint was the pile rather than any one of them.
+
+    The route is not orphaned — the test below walks listing → operator, which
+    is the path that survives and the one `/o/{slug}` was built for. This one
+    is inverted rather than deleted so the removal stays a decision on the
+    record instead of coverage that quietly went missing.
+  */
   await page.goto("/");
-  await page
-    .getByRole("article")
-    .first()
-    .getByRole("link", { name: "Sample Dive Operator" })
-    .click();
-  await page.waitForURL("**/o/sample-dive-operator");
+  const card = page.getByRole("article").first();
+  await expect(card).toBeVisible();
   await expect(
-    page.getByRole("heading", { level: 1, name: /Sample Dive Operator/ }),
-  ).toBeVisible();
+    card.getByRole("link", { name: "Sample Dive Operator" }),
+  ).toHaveCount(0);
+  await expect(card.getByText("Verified")).toHaveCount(0);
 });
 
 test("Who runs this, on a listing, opens the business's page too", async ({

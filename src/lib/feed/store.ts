@@ -20,30 +20,17 @@ interface FeedState {
   muted: boolean;
   /** False when the connection or the user's preferences say do not autoplay. */
   autoplayAllowed: boolean;
-  /**
-   * Whether the app's chrome is out of the way — the masthead lifted, the
-   * floating tab bar dropped, the caption given back the room it was leaving.
-   *
-   * DERIVED, never set from outside: it is a function of which way the last
-   * move went, and the whole rule is the one line in `setActiveIndex`. See
-   * there for why direction rather than position.
-   *
-   * The shell reads it (`TabBar`), which is the only reason it lives in a
-   * store rather than in the feed's own state.
-   */
-  chromeRetracted: boolean;
 
   setActiveIndex: (i: number) => void;
   toggleMuted: () => void;
   setAutoplayAllowed: (allowed: boolean) => void;
   /**
-   * Back to the top of the feed with the chrome out.
+   * Back to the top of the feed.
    *
-   * Called when `Feed` mounts, when it unmounts, and whenever it stops
-   * showing reels at all. All three are the same statement: the retract
-   * belongs to a scrolling feed, and there is no scrolling feed right now —
-   * so nothing else in the app can inherit a tab bar that is off the bottom
-   * of the window with no way to fetch it back.
+   * Called when a reel scroller mounts and when it unmounts, so the next one
+   * starts at its own first card rather than inheriting an index from a list
+   * it has nothing to do with. The feed, the search grid's reel view and a
+   * business's reels are three different sequences behind one store.
    */
   resetFeed: () => void;
   /** Whether this index is inside the preload budget. */
@@ -54,33 +41,26 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   activeIndex: 0,
   muted: true,
   autoplayAllowed: false,
-  chromeRetracted: false,
 
   /*
-    The chrome follows the DIRECTION of the move, not the position in the feed.
+    The chrome used to retract here.
 
-    "Only on the first reel" was the other candidate and it is a trap: a
-    traveller eleven reels down has no bar, and the only way back to Search or
-    Trips is eleven swipes up. Direction keeps navigation exactly one swipe
-    away from everywhere — down goes immersive, up brings the app back — and
-    it still leaves the first reel with the bar in place, because arriving at
-    index 0 can only ever be an upward move.
+    Moving DOWN a reel dropped the floating tab bar out of the window, lifted
+    the masthead and gave the caption the room back; moving up brought it all
+    back. It was deliberate, it was one line, and the owner ruled against it on
+    13 September (yuvoy-app#36): the bar stays visible on every reel. Removed
+    rather than defaulted to false, because a flag nothing writes is a flag
+    somebody re-wires.
 
-    `i > s.activeIndex` is the whole rule and it needs no floor at zero: a
-    move to 0 is a move to an index below any other, so it can never be
-    upward. A re-report of the SAME index is not a move and changes nothing,
-    which also keeps an observer that fires twice on one card from flickering
-    the bar.
+    A re-report of the same index is still short-circuited. An
+    IntersectionObserver can fire twice for one card, and every subscriber to
+    this store re-renders on a set.
   */
   setActiveIndex: (i) =>
-    set((s) =>
-      i === s.activeIndex
-        ? s
-        : { activeIndex: i, chromeRetracted: i > s.activeIndex },
-    ),
+    set((s) => (i === s.activeIndex ? s : { activeIndex: i })),
   toggleMuted: () => set((s) => ({ muted: !s.muted })),
   setAutoplayAllowed: (autoplayAllowed) => set({ autoplayAllowed }),
-  resetFeed: () => set({ activeIndex: 0, chromeRetracted: false }),
+  resetFeed: () => set({ activeIndex: 0 }),
 
   shouldMount: (index) => {
     const { activeIndex } = get();
