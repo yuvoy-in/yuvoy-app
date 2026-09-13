@@ -195,7 +195,74 @@ repo=yuvoy-in/yuvoy-api
 # issue. And every field above is consumed as OPTIONAL regardless of what
 # `required:` says — a pinned contract states what an API WILL send, never what
 # it does send today (yuvoy-api#126).
+#
+# ---
+#
+# 13 Sep 2026, second bump today. Forward from d4e03a39ea29 to 4c9e49f2,
+# a large operator-side batch that also carries three traveller features.
+# Additive to every path this app already calls; nothing it reads narrows.
+#
+# The diff was read for removals before pinning, because that is the half that
+# breaks a deployed client. There are five, and all five are quoting or
+# rewording: `"204": { description: Released, or already was. }` gained quotes,
+# so did `whatsapp`'s example, and three prose blocks were rewritten in place.
+# Every `required:` change on a RESPONSE widens (`/me/bookings` gains
+# `nextCursor`, `BookingStatus` gains `review`, a row gains nine fields), which
+# a client reading them as optional cannot notice. No REQUEST gained a required
+# field except on the three paths that did not exist before.
+#
+# New, and each one is consumed by a named issue:
+#   - `questions` on `GET /experiences/{slug}` + `ListingQuestion`, `answers`
+#     on `POST /reservations` + `BookingAnswer`, `questions` / `answersOpen` on
+#     `GET /bookings/status` + `PartyQuestion`, and `POST /bookings/answers`
+#     (app#46). A business asks its own questions on a listing.
+#   - `GET /bookings/messages`, `POST /bookings/messages`,
+#     `POST /bookings/messages/read` + `BookingMessage`,
+#     `BookingMessageThread`, `BookingMessageInput`, `BookingMessageReadInput`
+#     and `BookingMessageReadReceipt` (app#47). The conversation between the
+#     traveller and the business running the trip.
+#   - `answers_required`, `answers_closed` and `messages_closed` join the
+#     `Error.code` enum. All three are added to `ERROR_CODES` under app#46 and
+#     app#47; without them `YuvoyError.code` reads `unknown_error` and
+#     `describeError` says "Something went wrong".
+#
+# Behaviour that changed under paths already called:
+#   - **`GET /bookings/cancellation-quote` refunds a moved departure in full**
+#     (D-032.3, app#48). If the operator moved the departure while this
+#     booking, or the hold it was made from, was on it, the quote is everything
+#     paid online whatever tier the snapshot holds, and `note` says why. The
+#     sheet showed `note` only when `selfService` was false, so the traveller
+#     read "You get everything back." without learning why. Fixed under app#48.
+#   - **A partial tier with nothing to refund is now self-service** (D28,
+#     app#48). A cash booking cancelled 24 to 48 hours ahead quotes
+#     `selfService: true` with `capturedPaise` and `refundPaise` both 0, where
+#     it used to route to a person. It reaches the sheet for the first time.
+#   - `cancellation.reasonCode` can now read `OPERATOR_MOVED_IT`. It is an open
+#     `type: string` with no enum, so this is not a typecheck failure and only
+#     `cancellationReason()` stands between it and the fallback sentence "The
+#     operator or we called it off." — which is about a booking the traveller
+#     cancelled. Mapped under app#48.
+#   - **`POST /bookings/review` splits `conflict` into `not_reviewable_yet`,
+#     `already_reviewed` and `review_window_closed`**, and `conflict` is no
+#     longer returned. `review-form.tsx:60` branches on `conflict` alone to
+#     render "Already recorded", so that branch is now dead and all three codes
+#     fall through to `describeError`'s default: "Something went wrong ... 
+#     trying again often fixes it", with a retry button that fails forever.
+#     NOT fixed here, and it is not caused here either — the API has been
+#     answering the new codes since 2026-09-13, so the deployed app already
+#     reads this way. Found while diffing this bump and raised as its own
+#     issue; these three codes are deliberately left out of `ERROR_CODES`
+#     so the fix lands with the branch that reads them.
+#
+# NOT consumed, and deliberately: the operator-side batch this bump is mostly
+# made of. `git grep` confirms this repo calls none of those paths.
+#
+# `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
+# which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
+# issue. And every field above is consumed as OPTIONAL regardless of what
+# `required:` says — a pinned contract states what an API WILL send, never what
+# it does send today (yuvoy-api#126).
 
-ref=d4e03a39ea298bdf8e6169f943edad951d4bfe78
+ref=4c9e49f2845152a8798573429410a50920013e94
 branch=master
 pinned_on=2026-09-13

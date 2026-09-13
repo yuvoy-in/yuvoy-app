@@ -936,6 +936,23 @@ function ReleaseButton({
   );
 }
 
+/**
+ * What sort of update this is.
+ *
+ * `kind` is the field, and `intent` is a name that was only ever in the
+ * document: "Never emitted. This document named the field `intent` while the
+ * server has always sent `kind`; read `kind`." So the panel read a key the API
+ * has never sent, fell through to `"note"` on every update, and labelled a
+ * moved meeting point "A note" for as long as it has shipped. The mock sent
+ * `intent`, which is why nothing caught it.
+ *
+ * `intent` is still read, second: the contract keeps declaring it, and a field
+ * that is deprecated rather than deleted costs one `??` to honour.
+ */
+function updateKind(u: { kind?: string; intent?: string }): string {
+  return u.kind ?? u.intent ?? "note";
+}
+
 /** What the operator has told everybody on this departure. */
 const UPDATE_LABEL: Record<string, string> = {
   time_change: "Time changed",
@@ -960,12 +977,9 @@ function OperatorUpdates({
         </h2>
         <ul className="mt-3 space-y-3">
           {updates.map((u, i) => (
-            <li
-              key={`${u.sentAt ?? i}-${u.intent ?? "note"}`}
-              className="text-sm"
-            >
+            <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
               <p className="font-bold">
-                {UPDATE_LABEL[u.intent ?? "note"] ?? "From the operator"}
+                {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
                 {u.detail ? `: ${u.detail}` : ""}
               </p>
               {u.note ? <p className="text-forest/80 mt-1">{u.note}</p> : null}

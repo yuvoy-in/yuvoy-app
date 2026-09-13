@@ -477,15 +477,24 @@ describe("operator updates", () => {
       http.get(`${BASE}/bookings/status`, () =>
         HttpResponse.json(
           statusBody({
+            /*
+              `kind`, which is what the server sends. This test fed `intent`
+              and asserted the labels, so it passed while the deployed screen
+              read a field the API "never emitted" and labelled every update
+              "A note". Feeding the shape the server actually sends is the
+              whole value of the assertion.
+            */
             operatorUpdates: [
               {
-                intent: "meeting_point_change",
+                kind: "meeting_point_change",
+                from: "Sample Dive Operator",
                 detail: "Jetty 2, not Jetty 1",
                 note: "The usual spot is under repair this week.",
                 sentAt: "2026-08-21T10:15:00Z",
               },
               {
-                intent: "bring_item",
+                kind: "bring_item",
+                from: "Sample Dive Operator",
                 detail: "A towel",
                 sentAt: "2026-08-21T10:16:00Z",
               },
@@ -507,6 +516,36 @@ describe("operator updates", () => {
     expect(screen.getByText("Bring: A towel")).toBeInTheDocument();
     // Sent 10:15Z = 15:45 IST, in the market's zone.
     expect(screen.getByText(/15:45/)).toBeInTheDocument();
+  });
+
+  /*
+    The deprecated name, honoured second.
+
+    `intent` is declared and never emitted. It costs one `??` to keep reading
+    it, and this is what says so out loud — so that deleting the fallback is a
+    decision somebody makes rather than a line somebody tidies away.
+  */
+  it("still labels an update that arrives under the deprecated intent", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            operatorUpdates: [
+              {
+                intent: "time_change",
+                detail: "06:30, not 07:00",
+                sentAt: "2026-08-21T10:15:00Z",
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText("Time changed: 06:30, not 07:00"),
+    ).toBeInTheDocument();
   });
 });
 
