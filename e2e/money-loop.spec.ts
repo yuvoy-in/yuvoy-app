@@ -264,11 +264,32 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   await cash.click();
 
   /*
-    Booked. The reference is the thing they say out loud at a jetty, and the
-    amount is an instruction rather than a balance.
+    Booked, and this asserts the SETTLED screen rather than the moment.
+
+    The success panel is transient by design: the status refetches the instant
+    the booking lands, the pay area unmounts and the panel goes with it. So a
+    test racing it is a test that fails on a fast machine — and this one did,
+    intermittently, reported as a flake on #36.
+
+    It survived that long by accident. The panel's headline and the headline
+    for `paid_pending_ops` were the same words, so whichever won the race the
+    assertion passed. D-034 made a cash booking settle at `confirmed`, whose
+    headline is "You are going", and the accident stopped covering it.
+
+    The transient panel is worth testing and is tested — deterministically, in
+    `booking-screen.test.tsx`, where the refetch can be held. What belongs
+    here is the journey and what a traveller is left holding.
   */
-  await expect(page.getByText(/You.{1,3}re booked/)).toBeVisible();
-  await expect(page.getByText(/^YV-/)).toBeVisible();
+  await expect(page.getByText("You are going")).toBeVisible();
+
+  /*
+    `.first()` on the reference, and that is the other half of the same race:
+    it is in the success panel AND in the details below, so an unqualified
+    locator resolved to one element or two depending on which won and failed
+    strict mode. The claim is that the reference is on the page, not that it
+    is there exactly once.
+  */
+  await expect(page.getByText(/^YV-/).first()).toBeVisible();
   await expect(page.getByText(/Bring ₹.* in cash/)).toBeVisible();
   // Said more than once by design — in the state line and beside the amount —
   // so this asserts it is said at all rather than exactly where.
@@ -283,6 +304,11 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   /*
     And never our internal word for it. `paid_pending_ops` means "committed,
     ops have not confirmed"; the traveller-facing word is booked.
+
+    D-034 stopped `GET /bookings/status` returning that state at all — it
+    answers `confirmed` with a `payment` object now — but the assertion stays:
+    it is about a class of word reaching a traveller, and `/me/bookings` still
+    carries the raw value one screen away.
   */
   const body = (await page.locator("body").textContent()) ?? "";
   expect(body).not.toMatch(/paid_pending_ops|unpaid|pending payment/i);

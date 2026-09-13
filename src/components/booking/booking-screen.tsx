@@ -23,7 +23,8 @@ import { ShareButton } from "./share-button";
 import {
   amountToBring,
   isBooked,
-  isCashDue,
+  cashOwed,
+  cashOwedPaise,
   readPayAtCounter,
   type CashBooking,
 } from "@/lib/booking/cash-booking";
@@ -246,23 +247,35 @@ function StatusBody({
         WHAT TO BRING, FOR AS LONG AS IT IS OWED — yuvoy-app#29.
 
         The success panel is transient by design: the moment a cash booking
-        lands the status is refetched, the state becomes `paid_pending_ops`,
-        and the pay area stops rendering. Without this the amount and the
-        instruction would vanish with it — and a traveller who reloads on the
-        morning of the trip would have a reference and no idea what to bring.
+        lands the status is refetched and the pay area stops rendering. Without
+        this the amount and the instruction would vanish with it, and a
+        traveller who reloads on the morning of the trip would have a reference
+        and no idea what to bring.
 
-        Driven by the FROZEN price on the booking, not a fresh read of the
-        listing: an operator editing a price cannot restate what this traveller
-        agreed to.
+        Read off `payment`, NOT off the state, and that is a correction rather
+        than a preference — see `cashOwed`. D-034 made a cash booking read
+        `confirmed` from the moment it is made, so the old
+        `state === "paid_pending_ops"` test silently stopped matching and this
+        panel silently stopped rendering.
 
-        It disappears at `confirmed`, which is the operator recording that they
-        took the money. "The honest version is a quiet line that disappears
-        once it flips."
+        The amount is `payment.amountPaise`: the price frozen at checkout, so
+        an operator editing a price cannot restate what this traveller agreed
+        to, and the field that names the obligation rather than the one that
+        names the sale.
+
+        It disappears when `collected` flips, which is the operator recording
+        that they took the money. "The honest version is a quiet line that
+        disappears once it flips."
       */}
-      {isCashDue(status.state) ? (
+      {cashOwed(status) ? (
         <Panel className="mt-6">
           <p className="text-base font-bold">
-            Bring {formatTotal(status.price)} in cash
+            Bring{" "}
+            {formatMoney({
+              amountMinor: cashOwedPaise(status) ?? 0,
+              currency: status.price?.currency ?? "INR",
+            })}{" "}
+            in cash
           </p>
           <p className="text-forest/70 mt-1.5 text-sm">
             Pay the operator at the meeting point. The money goes to them, not
@@ -361,11 +374,14 @@ function StatusBody({
 
             "To pay on the day" rather than "Unpaid" or "Due": the booking is
             confirmed and the wording must not read as a debt or as a problem
-            with it. Once the operator records taking the cash the state
-            becomes `confirmed` and this goes back to "Paid", which is then
-            true.
+            with it. Once the operator records taking the cash `payment
+            .collected` flips and this goes back to "Paid", which is then true.
+
+            It used to key on the state, and D-034 made that always false — so
+            this row said "Paid ₹9,000" to somebody who had not handed over a
+            rupee. See `cashOwed`.
           */}
-          <Row label={isCashDue(status.state) ? "To pay on the day" : "Paid"}>
+          <Row label={cashOwed(status) ? "To pay on the day" : "Paid"}>
             {formatTotal(status.price)}
           </Row>
         </dl>

@@ -88,6 +88,16 @@ interface MockReservation {
   cashBookingReference?: string;
   /** Committed in cash, awaiting the operator recording the money. */
   cashBooked?: boolean;
+  /**
+   * Whether the operator has recorded taking the cash — `payment.collected`.
+   *
+   * Reachable with `?__scenario=cash-collected`, so the state a traveller sees
+   * on the morning AFTER handing the money over is testable. Without it the
+   * "Bring ₹X in cash" line could only ever be proven to appear, never to go
+   * away, which is half the behaviour and the half that would leave the line
+   * on the screen of somebody who has already paid.
+   */
+  cashCollected?: boolean;
 }
 
 const reservations = new Map<string, MockReservation>();
@@ -472,16 +482,25 @@ export const bookingHandlers = [
     if (scenario === "cancelled") state = "cancelled";
     if (scenario === "expired") state = "expired";
     /*
-      COMMITTED IN CASH — yuvoy-app#29.
+      COMMITTED IN CASH — yuvoy-app#29, and the projection changed under us.
 
-      `paid_pending_ops` until the operator records taking the money. It is
-      NOT in `BookingStatus.state`'s enum — the traveller contract declares it
-      only on `CashBooking` — and the API returns it here, so the mock returns
-      it here too. That is what caught the screen dereferencing its state map
-      unguarded: an undeclared state took the whole booking page to the error
-      boundary, for somebody who had just committed. Raised on yuvoy-app#29.
+      This used to answer `paid_pending_ops`, which is what the API returned
+      and which is NOT in `BookingStatus.state`'s enum. That mock is what
+      caught the screen dereferencing its state map unguarded — an undeclared
+      state took the whole booking page to the error boundary, for somebody who
+      had just committed money.
+
+      Owner decision D-034 (yuvoy-api#168, live since 12 Sep) changed it: a
+      cash booking reads `confirmed` from the moment it is made, because the
+      seat was taken against a live hold and no money is in flight to wait on.
+      What is still owed moved to `payment`, below.
+
+      `GET /me/bookings` is unchanged and still carries the raw
+      `paid_pending_ops` — two endpoints, two shapes, and the mock has to keep
+      them apart or the trips list is tested against a state it will never see.
     */
-    if (record.cashBooked) state = "paid_pending_ops";
+    if (record.cashBooked) state = "confirmed";
+    if (scenario === "cash-collected") record.cashCollected = true;
     if (record.released) state = "released";
 
     const final = [
@@ -515,6 +534,22 @@ export const bookingHandlers = [
           timezone: "Asia/Kolkata",
         },
         price: { totalPaise: 450000 * record.guests, currency: "INR" },
+        /*
+          Present ONLY for a cash booking — D-034. `collected` flips when the
+          operator records taking the money, and `cashCollected` is what the
+          operator-side mock sets. A card booking carries no `payment` at all,
+          which is the distinction the booking screen now reads instead of the
+          state it used to.
+        */
+        ...(record.cashBooked
+          ? {
+              payment: {
+                method: "cash" as const,
+                collected: Boolean(record.cashCollected),
+                amountPaise: 450000 * record.guests,
+              },
+            }
+          : {}),
         ...(scenario === "operator-updates"
           ? {
               operatorUpdates: [
