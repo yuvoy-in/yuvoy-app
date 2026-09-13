@@ -469,6 +469,74 @@ describe("a dead link", () => {
   });
 });
 
+/* ---------------------------------------- what the operator asked (#46) */
+
+describe("the listing's own questions", () => {
+  const questions = [
+    {
+      questionId: "q_dived",
+      text: "Has everyone dived before?",
+      answerType: "yes_no",
+      required: true,
+      current: true,
+      answered: false,
+    },
+  ];
+
+  it("renders the panel when the booking carries questions", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ questions, answersOpen: true })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText("What the operator asked"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Has everyone dived before?")).toBeInTheDocument();
+  });
+
+  /*
+    The commoner case by far, and the one a new panel must not intrude on.
+    `questions` is "absent when the listing asks nothing and nothing was
+    answered", so its absence is the whole test.
+  */
+  it("draws nothing at all for a booking that was asked nothing", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("You are going");
+    expect(
+      screen.queryByText("What the operator asked"),
+    ).not.toBeInTheDocument();
+  });
+
+  /*
+    `answersOpen` is read as TOLD. A booking whose questions arrive without it
+    must not be offered a form: the contract sends it "so a form is never
+    offered that would be refused", and inferring it from `state` and
+    `slot.startsAt` would be two clocks disagreeing across a timezone.
+  */
+  it("offers no form when answersOpen is absent", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ questions })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("What the operator asked");
+    expect(
+      screen.queryByRole("button", { name: /save answers/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 /* ------------------------------------------ what the operator said */
 
 describe("operator updates", () => {

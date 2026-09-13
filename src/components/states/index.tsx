@@ -285,6 +285,29 @@ export function describeError(
           body: "That was a lot of requests at once. Give it a few seconds.",
           canRetry: true,
         };
+      /*
+        THE LISTING'S OWN QUESTIONS - yuvoy-app#46.
+
+        `answers_required` reaches a screen that can do better than this panel:
+        the checkout form marks each named question and scrolls to it. This
+        copy is what is read BESIDE that, and what is read anywhere the form
+        is not, so it says the true thing and never offers a retry - the same
+        body sent again is refused identically.
+      */
+      case "answers_required":
+        return {
+          ...base,
+          title: "Some questions need an answer first",
+          body: "This trip asks a few questions of its own, and at least one of them has to be answered before it can be booked. Nothing was held and nothing was charged.",
+          canRetry: false,
+        };
+      case "answers_closed":
+        return {
+          ...base,
+          title: "This booking is no longer taking answers",
+          body: "Its departure has left, or the booking is no longer going ahead. Nothing you just wrote was saved. If it still matters, send it to us and we will pass it on.",
+          canRetry: false,
+        };
       case "not_found":
         return {
           ...base,

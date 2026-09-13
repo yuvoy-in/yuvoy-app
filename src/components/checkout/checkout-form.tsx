@@ -10,7 +10,15 @@ import {
   bandMeetsMinimum,
   type AgeBand,
 } from "./screening-fields";
+import { QuestionFields } from "./question-fields";
 import { checkoutRefusal } from "@/lib/booking/checkout-readiness";
+import {
+  answersRequiredIds,
+  canEnforceAnswers,
+  toBookingAnswers,
+  unansweredRequired,
+  type AnswerDraft,
+} from "@/lib/booking/answers";
 import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
@@ -112,6 +120,8 @@ function CheckoutFields({
     undefined,
   );
   const [ageBands, setAgeBands] = useState<(AgeBand | undefined)[]>([]);
+  /** One draft per question the listing asks. Empty means not answered yet. */
+  const [answers, setAnswers] = useState<AnswerDraft>({});
   /**
    * The server made the reservation and returned no token to open it with.
    * The schema allows it; a traveller must not be left on a frozen form.
@@ -121,6 +131,21 @@ function CheckoutFields({
   const safety = experience.safety;
   const maxParty = slot.maxPartySize ?? experience.maxPartySize ?? 10;
   const isRequest = slot.bookingMode === "request";
+
+  /*
+    THE LISTING'S OWN QUESTIONS - yuvoy-app#46.
+
+    `enforceAnswers` is the whole decision in one boolean. Sending `answers`,
+    even as an empty list, is what makes a required question count; omitting
+    it means "nothing about questions is checked" and the traveller answers
+    from the booking link afterwards. Both are legitimate, and the second is
+    the safe fallback when the listing carries a required question no control
+    can answer - see `canEnforceAnswers`. Without that guard a mis-saved
+    `choice` with no options would be a permanently dead Book button, which is
+    yuvoy-app#28 all over again.
+  */
+  const questions = experience.questions ?? [];
+  const enforceAnswers = canEnforceAnswers(questions);
 
   const total = slot.price
     ? {
@@ -143,8 +168,29 @@ function CheckoutFields({
       const filled = ageBands.slice(0, guests).filter(Boolean).length;
       if (filled < guests) out.push("an age range for everyone");
     }
+    /*
+      Refused here rather than by the server. The same test produces
+      `409 answers_required`, so predicting it saves a traveller on island
+      signal a round trip and a scroll back up a form they thought was done.
+      Only when the body will actually carry `answers`: with nothing sent,
+      nothing is required, and a blocker would be a button dead for no reason.
+    */
+    if (enforceAnswers && unansweredRequired(questions, answers).length > 0) {
+      out.push("the operator's questions");
+    }
     return out;
-  }, [name, whatsapp, policyAccepted, safety, declaredClear, ageBands, guests]);
+  }, [
+    name,
+    whatsapp,
+    policyAccepted,
+    safety,
+    declaredClear,
+    ageBands,
+    guests,
+    enforceAnswers,
+    questions,
+    answers,
+  ]);
 
   const declaredCondition = declaredClear === false;
   const tooYoung =
@@ -208,6 +254,22 @@ function CheckoutFields({
             },
           }
         : {}),
+      /*
+        SENT WHENEVER THE LISTING ASKS ANYTHING, EVEN AS AN EMPTY LIST.
+
+        That is what turns required questions on. Omitted, the booking is made
+        and every question reads as not answered yet on the operator's
+        manifest - which is the right outcome only when this form could not
+        ask them properly, and `enforceAnswers` is what says so.
+
+        It is part of the body, so it is inside the idempotency fingerprint
+        with nothing here arranging it. Changing an answer mints a new key,
+        which is correct: replaying the old one would hand back a reservation
+        carrying the answer the traveller just corrected.
+      */
+      ...(enforceAnswers && questions.length > 0
+        ? { answers: toBookingAnswers(questions, answers) }
+        : {}),
     });
 
     // The token goes in the FRAGMENT, immediately, and is never put in a path
@@ -221,6 +283,12 @@ function CheckoutFields({
   }
 
   const failure = create.error ? describeError(create.error) : null;
+  /*
+    The questions a `409 answers_required` named, marked in place. The panel
+    below says what happened; this says WHICH, which is the part a traveller
+    can act on without reading the form again from the top.
+  */
+  const flaggedQuestions = answersRequiredIds(create.error);
   const capacityError =
     create.error instanceof YuvoyError &&
     create.error.code === "capacity_unavailable"
@@ -294,6 +362,19 @@ function CheckoutFields({
                 return next;
               })
             }
+          />
+        ) : null}
+
+        {questions.length > 0 ? (
+          <QuestionFields
+            questions={questions}
+            draft={answers}
+            onChange={(id, value) =>
+              setAnswers((prev) => ({ ...prev, [id]: value }))
+            }
+            flagged={flaggedQuestions}
+            legend={`What ${experience.operator.name} asks`}
+            intro="The operator asks these, and they go on their manifest with your booking."
           />
         ) : null}
 

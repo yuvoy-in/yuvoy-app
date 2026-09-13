@@ -7,6 +7,8 @@ import {
 } from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
 
+type Experience = components["schemas"]["Experience"];
+
 /**
  * The two shapes `POST /reservations/{id}/payment-order` can answer with,
  * typed FROM the contract so the mock cannot drift from it.
@@ -89,6 +91,16 @@ interface MockReservation {
   /** Committed in cash, awaiting the operator recording the money. */
   cashBooked?: boolean;
   /**
+   * The listing's own questions, as answered by this party - yuvoy-app#46.
+   *
+   * Keyed by question id, and carried on the RESERVATION rather than derived
+   * at read time: an answer belongs to the party that gave it, and the
+   * listing's questions can change under a booking that was made before.
+   */
+  answers?: Record<string, string>;
+  /** The slug whose questions this party was asked. */
+  slug?: string;
+  /**
    * Whether the operator has recorded taking the cash — `payment.collected`.
    *
    * Reachable with `?__scenario=cash-collected`, so the state a traveller sees
@@ -107,6 +119,107 @@ const idempotent = new Map<
   string,
   { fingerprint: string; body: Record<string, unknown> }
 >();
+
+type MockQuestion = NonNullable<Experience["questions"]>[number];
+
+/**
+ * What the server would actually record from a sent `answers` list.
+ *
+ * Everything that "does not fit" is dropped silently, because that is what the
+ * contract says happens: "an answer that does not fit is not recorded and
+ * never refuses the checkout on its own; it leaves its question unanswered".
+ * A mock that accepted anything would hide a client sending a `choice` value
+ * that is not one of the options - which is exactly the silent loss the
+ * controls in `question-fields.tsx` are shaped to prevent.
+ *
+ * Case is ignored on `yes_no` and `choice`, as `POST /bookings/answers` says.
+ */
+function recordAnswers(
+  questions: readonly MockQuestion[],
+  sent: readonly unknown[],
+): Record<string, string> {
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  const out: Record<string, string> = {};
+  for (const entry of sent) {
+    if (!entry || typeof entry !== "object") continue;
+    const { questionId, answer } = entry as {
+      questionId?: unknown;
+      answer?: unknown;
+    };
+    if (typeof questionId !== "string" || typeof answer !== "string") continue;
+    const question = byId.get(questionId);
+    if (!question) continue;
+    if (answer.length > 300) continue;
+    if (question.answerType === "yes_no") {
+      const lower = answer.toLowerCase();
+      if (lower !== "yes" && lower !== "no") continue;
+      out[questionId] = lower;
+      continue;
+    }
+    if (question.answerType === "choice") {
+      const match = (question.options ?? []).find(
+        (o) => o.toLowerCase() === answer.toLowerCase(),
+      );
+      if (!match) continue;
+      out[questionId] = match;
+      continue;
+    }
+    out[questionId] = answer;
+  }
+  return out;
+}
+
+/**
+ * Every question this party was asked, as the status page shows them.
+ *
+ * The listing's current questions first, in its order, then anything this
+ * party answered that it no longer asks, with `current: false`.
+ */
+function partyQuestions(record: MockReservation) {
+  const questions = record.slug
+    ? (EXPERIENCE_DETAIL[record.slug]?.questions ?? [])
+    : [];
+  const answers = record.answers ?? {};
+  const current = questions.map((q) => ({
+    questionId: q.id,
+    text: q.text,
+    answerType: q.answerType,
+    ...(q.options ? { options: q.options } : {}),
+    required: q.required,
+    current: true,
+    answered: answers[q.id] !== undefined,
+    ...(answers[q.id] !== undefined
+      ? { answer: answers[q.id], answeredAt: new Date(mockNow()).toISOString() }
+      : {}),
+  }));
+  const known = new Set(questions.map((q) => q.id));
+  const retired = Object.entries(answers)
+    .filter(([id]) => !known.has(id))
+    .map(([id, answer]) => ({
+      questionId: id,
+      text: "A question this trip no longer asks.",
+      answerType: "short_text" as const,
+      required: false,
+      current: false,
+      answered: true,
+      answer,
+      answeredAt: new Date(mockNow()).toISOString(),
+    }));
+  return [...current, ...retired];
+}
+
+/** The departure every mocked booking is on. */
+const SLOT_STARTS_AT = "2026-08-22T01:30:00Z";
+
+/** Answers are shut once the booking is no longer going ahead. */
+const ANSWERS_SHUT_STATES = [
+  "cancelled",
+  "declined",
+  "expired",
+  "released",
+  "no_show",
+  "completed",
+];
 
 function reference(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -128,6 +241,7 @@ export const bookingHandlers = [
       contact: { name: string; whatsapp: string; email?: string };
       screening?: { declaredClear?: boolean; ageBands?: string[] };
       attribution?: Record<string, unknown>;
+      answers?: unknown;
     };
 
     if (!key) {
@@ -238,6 +352,39 @@ export const bookingHandlers = [
       }
     }
 
+    /*
+      THE LISTING'S OWN QUESTIONS - yuvoy-app#46 §3.
+
+      The gate is the PRESENCE of `answers`, not its contents: "send it, even
+      as an empty list, and required questions are enforced", and "`null`, or
+      a value that is not a list, counts as not sent". A body without it is
+      never refused over a question, which is the path the Ask pop-up takes.
+
+      An answer that does not fit is dropped rather than refused - a question
+      the listing no longer asks, a choice outside its options, a value its
+      type does not take. It then counts as unanswered, which is what can
+      produce the 409 even on a body that did send something for it.
+    */
+    const questions = slug ? (EXPERIENCE_DETAIL[slug]?.questions ?? []) : [];
+    const sentAnswers = Array.isArray(body.answers) ? body.answers : null;
+    const recorded = sentAnswers ? recordAnswers(questions, sentAnswers) : {};
+
+    if (sentAnswers) {
+      const missing = questions.filter(
+        (q) => q.required && recorded[q.id] === undefined,
+      );
+      if (missing.length > 0) {
+        return envelope(
+          "answers_required",
+          "Some questions this trip asks need an answer before you can book.",
+          409,
+          {
+            questions: missing.map((q) => ({ questionId: q.id, text: q.text })),
+          },
+        );
+      }
+    }
+
     const slot = slug
       ? availabilityFor(slug).find((s) => s.id === body.slotId)
       : undefined;
@@ -262,6 +409,8 @@ export const bookingHandlers = [
       reference: reference(),
       polls: 0,
       paid: false,
+      answers: recorded,
+      slug,
     };
     reservations.set(id, record);
     byToken.set(token, id);
@@ -530,7 +679,7 @@ export const bookingHandlers = [
           operator: "Sample Dive Operator",
         },
         slot: {
-          startsAt: "2026-08-22T01:30:00Z",
+          startsAt: SLOT_STARTS_AT,
           timezone: "Asia/Kolkata",
         },
         price: { totalPaise: 450000 * record.guests, currency: "INR" },
@@ -548,6 +697,31 @@ export const bookingHandlers = [
                 collected: Boolean(record.cashCollected),
                 amountPaise: 450000 * record.guests,
               },
+            }
+          : {}),
+        /*
+          THE LISTING'S OWN QUESTIONS - yuvoy-app#46 §4.
+
+          Absent when the listing asks nothing and nothing was answered, which
+          is the commoner case and the one the panel must not render for.
+
+          `answersOpen` is TOLD, never inferred: true while the booking is
+          going ahead and its departure has not left. The mock computes it
+          here so a client that derived it from `state` would visibly disagree.
+        */
+        ...(partyQuestions(record).length > 0
+          ? {
+              questions: partyQuestions(record),
+              /*
+                The same instant this response reports as `slot.startsAt`, so
+                the mock cannot contradict itself, and `?__scenario=
+                answers-closed` for the morning after: the form must be gone
+                and a stale submit must answer `409 answers_closed`.
+              */
+              answersOpen:
+                scenario !== "answers-closed" &&
+                !ANSWERS_SHUT_STATES.includes(state) &&
+                new Date(SLOT_STARTS_AT).getTime() > mockNow(),
             }
           : {}),
         ...(scenario === "operator-updates"
@@ -619,6 +793,81 @@ export const bookingHandlers = [
       { headers: mockHeaders(rid()) },
     );
   }),
+  /* ------------------------------------------------- the listing's questions */
+
+  /*
+    yuvoy-app#46 §4. Answers given from the booking link, after checkout.
+
+    ALL OR NOTHING, which is the behaviour a client can get wrong invisibly:
+    "if one answer does not fit its question, nothing is saved". A mock that
+    saved the good ones would let a screen ship that reports success over a
+    partial write.
+  */
+  http.post(url("/bookings/answers"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    const auth = request.headers.get("authorization") ?? "";
+    const token = auth.replace(/^Bearer\s+/i, "");
+    const id = byToken.get(token);
+    const record = id ? reservations.get(id) : undefined;
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const body = (await request.json()) as { answers?: unknown };
+    const sent = Array.isArray(body.answers) ? body.answers : [];
+    if (sent.length < 1 || sent.length > 10) {
+      return envelope(
+        "invalid_input",
+        "some of these answers need fixing",
+        400,
+        {
+          answers: "1 to 10 answers",
+        },
+      );
+    }
+
+    const state = record.released
+      ? "released"
+      : record.cashBooked
+        ? "confirmed"
+        : record.state === "pending_request"
+          ? "awaiting_operator"
+          : "holding";
+    if (
+      scenario === "answers-closed" ||
+      ANSWERS_SHUT_STATES.includes(state) ||
+      new Date(SLOT_STARTS_AT).getTime() <= mockNow()
+    ) {
+      return envelope(
+        "answers_closed",
+        "This booking is no longer taking answers, because its departure has left or it is no longer going ahead.",
+        409,
+      );
+    }
+
+    const questions = record.slug
+      ? (EXPERIENCE_DETAIL[record.slug]?.questions ?? [])
+      : [];
+    const accepted = recordAnswers(questions, sent);
+    // All or nothing: one that did not fit means nothing is saved.
+    if (Object.keys(accepted).length !== sent.length) {
+      return envelope(
+        "invalid_input",
+        "some of these answers need fixing",
+        400,
+        {
+          "answers[0].answer": "does not fit this question",
+        },
+      );
+    }
+
+    // Each answer REPLACES; questions left out keep what they had.
+    record.answers = { ...(record.answers ?? {}), ...accepted };
+    return HttpResponse.json(
+      { questions: partyQuestions(record) },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
   /* ------------------------------------------------ cancel / share / review */
 
   http.get(url("/bookings/cancellation-quote"), async ({ request }) => {

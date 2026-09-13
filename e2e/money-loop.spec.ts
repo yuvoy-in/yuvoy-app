@@ -365,3 +365,70 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   expect(body).not.toMatch(/paid_pending_ops|unpaid|pending payment/i);
   expect(body).not.toMatch(/pay Yuvoy|amount due/i);
 });
+
+test("a required question stops a booking, and answering it books", async ({
+  page,
+}) => {
+  /*
+    THE LISTING'S OWN QUESTIONS — yuvoy-app#46.
+
+    The issue's own "how to tell it works": a listing with a required `yes_no`
+    refuses a checkout that does not answer it, answering it books, and the
+    booking page shows what was answered and what was skipped.
+
+    The dive is the fixture that asks them, and it also carries the safety
+    screener — which is the point. They are different gates with different
+    refusals behind them, and a form that conflated them would pass one test
+    and fail a traveller.
+  */
+  await page.goto("/e/try-dive-nemo-reef");
+  await page.waitForLoadState("networkidle");
+
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
+
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page
+    .getByRole("radio", { name: /nobody in my party has any/i })
+    .check();
+  await page.getByLabel("Your age range").selectOption("18_plus");
+
+  // Blocked, and it names the operator's questions rather than only going grey.
+  await expect(
+    page.getByRole("button", { name: /Hold these seats/i }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(/Still needed:.*the operator's questions/i),
+  ).toBeVisible();
+
+  // The choice question is a select over the listing's own options, so an
+  // answer the server would silently drop cannot be produced here at all.
+  await page
+    .getByLabel("Which agency certified you? (optional)")
+    .selectOption("SSI");
+
+  await page.getByRole("radio", { name: "Yes" }).check();
+  const hold = page.getByRole("button", { name: /Hold these seats/i });
+  await expect(hold).toBeEnabled();
+  await hold.click();
+
+  await expect(page).toHaveURL(/\/booking#t=/);
+
+  // And the booking page carries what was answered, and what was not.
+  await expect(page.getByText("What the operator asked")).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Yes" }).first()).toBeChecked();
+
+  // The optional one was skipped, so it is still answerable from here.
+  const hotel = page.getByLabel(
+    "Which hotel should we collect you from? (optional)",
+  );
+  await expect(hotel).toBeVisible();
+  await expect(hotel).toHaveValue("");
+
+  await hotel.fill("Sea View, Havelock");
+  await page.getByRole("button", { name: /Save answers/i }).click();
+  await expect(page.getByText(/Saved\./)).toBeVisible();
+  await expect(hotel).toHaveValue("Sea View, Havelock");
+});
