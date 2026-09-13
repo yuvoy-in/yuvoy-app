@@ -20,6 +20,7 @@ import { openHostedCheckout } from "@/lib/booking/payment-handoff";
 import { YuvoyError, isCheckoutDeadEnd } from "@/lib/api/errors";
 import { CancelSheet } from "./cancel-sheet";
 import { BookingQuestions } from "./booking-questions";
+import { MessageThread } from "./message-thread";
 import { ShareButton } from "./share-button";
 import {
   amountToBring,
@@ -439,6 +440,30 @@ function StatusBody({
           token={token}
           questions={status.questions}
           answersOpen={status.answersOpen ?? false}
+        />
+      ) : null}
+
+      {/*
+        THE CONVERSATION WITH THE BUSINESS - yuvoy-app#47.
+
+        Under the operator's one-way notes and the questions, because this is
+        the same conversation getting more specific: what they told everybody,
+        what they asked this party, and what these two can say to each other.
+
+        Rendered for any link with a token, INCLUDING one whose hold or
+        request never became a booking: that answers "an empty, complete
+        conversation with `canWrite: false` and `closedReason: not_booked`,
+        not an error", and saying "messages open once the booking is made" is
+        more useful than a panel that is simply absent.
+
+        Absent on an offline snapshot, like every other action here, because
+        there is no token to open it with.
+      */}
+      {token ? (
+        <MessageThread
+          token={token}
+          operatorName={status.experience.operator}
+          bookingState={status.state}
         />
       ) : null}
 
