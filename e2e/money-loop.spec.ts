@@ -432,3 +432,98 @@ test("a required question stops a booking, and answering it books", async ({
   await expect(page.getByText(/Saved\./)).toBeVisible();
   await expect(hotel).toHaveValue("Sea View, Havelock");
 });
+
+test("the conversation refuses a phone number and takes a date", async ({
+  page,
+}) => {
+  /*
+    THE CONVERSATION WITH THE BUSINESS — yuvoy-app#47.
+
+    Two of the issue's own checks, and they are the pair that matters: the
+    contact-detail rule has to bite, and it has to bite ONLY on contact
+    details. "see you on 14.09.2026" is seven digits written close together and
+    must still send, because a rule that swallowed dates would make the feature
+    useless on the one subject travellers write about.
+
+    Nothing here re-implements that rule. The server owns it, the app renders
+    the sentence it answers with, and this walks both sides.
+  */
+  await page.goto("/e/mangrove-kayak-at-dawn");
+  await page.waitForLoadState("networkidle");
+
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await expect(page).toHaveURL(/\/booking#t=/);
+
+  // A hold is not a booking, so there is nobody to write to yet — and that is
+  // a state with a sentence, not an error.
+  await expect(
+    page.getByText(/Messages open once the booking is made/),
+  ).toBeVisible();
+  await expect(page.getByLabel("Write to the operator")).toHaveCount(0);
+
+  // Book it, which is what opens the conversation.
+  await page.getByRole("button", { name: /^Pay /i }).click();
+  await page.getByRole("button", { name: /Book now, pay .* cash/i }).click();
+  await expect(page.getByText("You are going")).toBeVisible();
+
+  const box = page.getByLabel("Write to the operator");
+  await expect(box).toBeVisible();
+
+  // A phone number is refused, and nothing lands in the thread.
+  await box.fill("call me on 98765 43210");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(
+    page.getByText(/looks like it has a phone number/),
+  ).toBeVisible();
+  // Nothing was stored, so nothing appears in the thread ...
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "call me on 98765 43210" }),
+  ).toHaveCount(0);
+  // ... and the draft is KEPT, so the fix is an edit rather than a retype.
+  await expect(box).toHaveValue("call me on 98765 43210");
+
+  // A date written like a date is not a phone number.
+  await box.fill("see you on 14.09.2026");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "see you on 14.09.2026" }),
+  ).toBeVisible();
+  // And the refusal is gone with it.
+  await expect(page.getByText(/looks like it has a phone number/)).toHaveCount(
+    0,
+  );
+});
+
+test("a message whose text was removed reads as removed, never as blank", async ({
+  page,
+}) => {
+  /*
+    "The message stays, with `textRemovedAt` in place of `text`. Show it as a
+    message whose text was removed, never as an empty one." A blank bubble
+    reads as something the app lost.
+  */
+  await page.setExtraHTTPHeaders({ "x-yuvoy-scenario": "text-removed" });
+
+  await page.goto("/e/mangrove-kayak-at-dawn");
+  await page.waitForLoadState("networkidle");
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await expect(page).toHaveURL(/\/booking#t=/);
+
+  await expect(
+    page.getByText("The text of this message was removed."),
+  ).toBeVisible();
+  // Still a message: it keeps who wrote it.
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "The text of this message" }),
+  ).toContainText("Sample Dive Operator");
+});

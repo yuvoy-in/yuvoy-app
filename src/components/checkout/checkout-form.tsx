@@ -144,7 +144,15 @@ function CheckoutFields({
     `choice` with no options would be a permanently dead Book button, which is
     yuvoy-app#28 all over again.
   */
-  const questions = experience.questions ?? [];
+  /*
+    Memoised because `?? []` mints a new array every render, and this feeds the
+    `blockers` memo below - so without it the memo's dependency changes on
+    every render and the memo never memoises anything.
+  */
+  const questions = useMemo(
+    () => experience.questions ?? [],
+    [experience.questions],
+  );
   const enforceAnswers = canEnforceAnswers(questions);
 
   const total = slot.price

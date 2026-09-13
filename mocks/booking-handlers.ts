@@ -100,6 +100,10 @@ interface MockReservation {
   answers?: Record<string, string>;
   /** The slug whose questions this party was asked. */
   slug?: string;
+  /** Messages written from this link - yuvoy-app#47. */
+  messages?: BookingMessage[];
+  /** The traveller's read marker: the last message id they were shown. */
+  readUpTo?: string;
   /**
    * Whether the operator has recorded taking the cash — `payment.collected`.
    *
@@ -206,6 +210,114 @@ function partyQuestions(record: MockReservation) {
       answeredAt: new Date(mockNow()).toISOString(),
     }));
   return [...current, ...retired];
+}
+
+type BookingMessage = components["schemas"]["BookingMessage"];
+
+/**
+ * The conversation on a booking.
+ *
+ * Seeded with enough from the business to exercise every shape the panel has
+ * to draw, and ids are ordered strings so "newer than the marker" is a string
+ * comparison rather than a date parse.
+ *
+ * `?__scenario=long-thread` seeds 60, which is past the 50 a page holds, so
+ * "See earlier messages" and the cursor are reachable by hand.
+ * `?__scenario=text-removed` seeds one carrying `textRemovedAt` in place of
+ * `text` - the case that must render as a message whose text was removed and
+ * never as a blank bubble.
+ */
+function conversation(
+  record: MockReservation,
+  scenario: string,
+): BookingMessage[] {
+  const from = record.slug ? "Sample Dive Operator" : "Sample Dive Operator";
+  const seeded: BookingMessage[] = [];
+  const count = scenario === "long-thread" ? 60 : 2;
+  for (let i = 0; i < count; i++) {
+    seeded.push({
+      id: `msg_${String(i).padStart(4, "0")}_s`,
+      from: "operator",
+      senderName: from,
+      text: `Message ${i + 1} from the boat.`,
+      sentAt: new Date(mockNow() - (count - i) * 60_000).toISOString(),
+    });
+  }
+  if (scenario === "text-removed") {
+    seeded.push({
+      id: "msg_9998_s",
+      from: "operator",
+      senderName: from,
+      // Exactly one of `text` and `textRemovedAt`, never both, never neither.
+      textRemovedAt: "2026-11-20T00:00:00Z",
+      sentAt: new Date(mockNow() - 30_000).toISOString(),
+    });
+  }
+  return [...seeded, ...(record.messages ?? [])];
+}
+
+/** Why writing is shut, or `undefined` while it is open. */
+function closedReasonFor(
+  record: MockReservation,
+  scenario: string,
+): "not_booked" | "cancelled" | "declined" | "window_closed" | undefined {
+  if (scenario === "messages-window-closed") return "window_closed";
+  if (scenario === "cancelled") return "cancelled";
+  if (scenario === "declined") return "declined";
+  if (record.released) return "cancelled";
+  /*
+    A link whose hold or request never became a booking. It answers an empty,
+    complete conversation with `canWrite: false`, "not an error" - which is
+    the case a client is most likely to have treated as a failure.
+  */
+  if (!record.cashBooked && !record.paid) return "not_booked";
+  return undefined;
+}
+
+function closedSentence(reason: string): string {
+  switch (reason) {
+    case "not_booked":
+      return "There is no booking behind this link yet, so there is nobody to write to. Messages open once the booking is made.";
+    case "cancelled":
+      return "This booking was cancelled, so no more messages can be sent. The conversation can still be read.";
+    case "declined":
+      return "This booking was declined, so no more messages can be sent. The conversation can still be read.";
+    default:
+      return "Messages close seven days after a trip ends, and this one has closed. The conversation can still be read.";
+  }
+}
+
+/**
+ * The server's D-051 rules, mirrored closely enough to be worth testing
+ * against. The APP does not re-implement these; this is the other side.
+ */
+function contactDetailIn(text: string): "phone" | "email" | "link" | null {
+  if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(text))
+    return "email";
+  if (/(^|\s)(https?:\/\/|www\.)/i.test(text)) return "link";
+  if (/\b[a-z0-9-]+\.(com|in|net|org|io|co|me)\b/i.test(text)) return "link";
+  /*
+    Seven or more digits counted through the separators between them, EXCEPT a
+    date written like 14.09.2026 or 2026-09-14. Dates are struck out first, so
+    "see you on 14.09.2026" sends and "call me on 98765 43210" does not.
+  */
+  const withoutDates = text
+    .replace(/\b\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}\b/g, " ")
+    .replace(/\b\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}\b/g, " ");
+  for (const run of withoutDates.match(/[\d\s().\-]+/g) ?? []) {
+    if (run.replace(/\D/g, "").length >= 7) return "phone";
+  }
+  return null;
+}
+
+/** The reservation a status token opens, or `undefined`. */
+function recordFor(request: Request): MockReservation | undefined {
+  const token = (request.headers.get("authorization") ?? "").replace(
+    /^Bearer\s+/i,
+    "",
+  );
+  const id = byToken.get(token);
+  return id ? reservations.get(id) : undefined;
 }
 
 /** The departure every mocked booking is on. */
@@ -793,6 +905,149 @@ export const bookingHandlers = [
       { headers: mockHeaders(rid()) },
     );
   }),
+  /* ------------------------------------------ the conversation (#47) */
+
+  http.get(url("/bookings/messages"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    const record = recordFor(request);
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const all = conversation(record, scenario);
+    const query = new URL(request.url).searchParams;
+    const cursor = query.get("cursor");
+    const raw = Number(query.get("limit"));
+    // "None, or a value that is not a whole number above zero, gets 50."
+    const limit = Number.isInteger(raw) && raw > 0 ? Math.min(raw, 200) : 50;
+
+    /*
+      The cursor is an INDEX from the end, opaque to the client. A cursor this
+      conversation did not issue is a 400, which is what makes a client that
+      constructs one fail loudly rather than silently re-paging.
+    */
+    let end = all.length;
+    if (cursor !== null) {
+      const parsed = /^cur_(\d+)$/.exec(cursor);
+      if (!parsed || Number(parsed[1]) > all.length) {
+        return envelope(
+          "invalid_input",
+          "That is not a cursor we issued.",
+          400,
+        );
+      }
+      end = Number(parsed[1]);
+    }
+    const start = Math.max(0, end - limit);
+    const page = all.slice(start, end);
+
+    const closed = closedReasonFor(record, scenario);
+    return HttpResponse.json(
+      {
+        // Oldest first WITHIN the page; the first page is the most recent.
+        messages: page,
+        complete: start === 0,
+        ...(start > 0 ? { nextCursor: `cur_${start}` } : {}),
+        unreadCount: page.filter(
+          (m) => m.from === "operator" && m.id > (record.readUpTo ?? ""),
+        ).length,
+        canWrite: !closed,
+        ...(closed ? { closedReason: closed } : {}),
+        ...(closed ? {} : { writableUntil: "2026-08-29T01:30:00Z" }),
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.post(url("/bookings/messages"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    const record = recordFor(request);
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const { text } = (await request.json()) as { text?: unknown };
+    if (typeof text !== "string" || text.trim().length === 0) {
+      return envelope("invalid_input", "Write something before sending.", 400, {
+        text: "required",
+      });
+    }
+    if (text.length > 1000) {
+      return envelope(
+        "invalid_input",
+        `A message can be up to 1000 characters, and this one is ${text.length}. Shorten it and send it again.`,
+        400,
+        { text: "too long" },
+      );
+    }
+
+    /*
+      D-018, and the one rule a client must NOT re-implement: the sentences
+      below are the server's and the app renders them. A phone number is seven
+      or more digits counted THROUGH the spaces, dashes, brackets and dots
+      between them, except a date written like 14.09.2026.
+    */
+    const contact = contactDetailIn(text);
+    if (contact) {
+      const kind =
+        contact === "phone"
+          ? "a phone number, from seven or more digits written close together"
+          : contact === "email"
+            ? "an email address"
+            : "a link";
+      return envelope(
+        "invalid_input",
+        `Messages cannot include phone numbers, email addresses or links. This one looks like it has ${kind}. Take it out and send the message again.`,
+        400,
+        { text: "contact details", contactDetail: contact },
+      );
+    }
+
+    const closed = closedReasonFor(record, scenario);
+    if (closed) {
+      return envelope("messages_closed", closedSentence(closed), 409, {
+        reason: closed,
+      });
+    }
+
+    const message = {
+      id: `msg_${String(record.messages?.length ?? 0).padStart(4, "0")}_w`,
+      from: "traveller" as const,
+      senderName: record.contactName,
+      text: text.trim(),
+      sentAt: new Date(mockNow()).toISOString(),
+    };
+    record.messages = [...(record.messages ?? []), message];
+    return HttpResponse.json(message, {
+      status: 201,
+      headers: mockHeaders(rid()),
+    });
+  }),
+
+  http.post(url("/bookings/messages/read"), async ({ request }) => {
+    const record = recordFor(request);
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const { upTo } = (await request.json()) as { upTo?: unknown };
+    const all = conversation(record, scenarioOf(request));
+    if (typeof upTo !== "string" || !all.some((m) => m.id === upTo)) {
+      return envelope(
+        "not_found",
+        "No such message in this conversation.",
+        404,
+      );
+    }
+    // "A marker never moves back: naming an older message changes nothing."
+    if (!record.readUpTo || upTo > record.readUpTo) record.readUpTo = upTo;
+    return HttpResponse.json(
+      {
+        unreadCount: all.filter(
+          (m) => m.from === "operator" && m.id > (record.readUpTo ?? ""),
+        ).length,
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
   /* ------------------------------------------------- the listing's questions */
 
   /*

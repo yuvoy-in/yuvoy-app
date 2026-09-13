@@ -308,6 +308,21 @@ export function describeError(
           body: "Its departure has left, or the booking is no longer going ahead. Nothing you just wrote was saved. If it still matters, send it to us and we will pass it on.",
           canRetry: false,
         };
+      /*
+        THE CONVERSATION WITH THE BUSINESS - yuvoy-app#47.
+
+        `messages_closed` reaches the thread, which renders the reason from
+        `details.reason` in a sentence of its own. This is what is read
+        anywhere that panel is not, and it never offers a retry: the
+        conversation does not reopen.
+      */
+      case "messages_closed":
+        return {
+          ...base,
+          title: "This conversation is closed",
+          body: "No more messages can be sent on this booking. Everything already written can still be read. If something still needs sorting, send it to us and we will pass it on.",
+          canRetry: false,
+        };
       case "not_found":
         return {
           ...base,
