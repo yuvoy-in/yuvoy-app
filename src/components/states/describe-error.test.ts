@@ -28,13 +28,29 @@ describe("describeError — a dead link", () => {
 });
 
 describe("describeError — the refusals that name a next step", () => {
-  it("says when requests reopen, in the market's clock", () => {
-    // 00:30Z is 06:00 IST.
-    const d = describeError(
-      err("request_window_closed", 409, { opensAt: "2026-08-22T00:30:00Z" }),
-    );
-    expect(d.body).toContain("from 06:00");
-    expect(d.canRetry).toBe(false);
+  it("still names a next step for the two retired refusals", () => {
+    /*
+      `request_window_closed` and `request_quota_exhausted` are no longer
+      returned: since yuvoy-api#170 the API takes every request, at any hour
+      and however many are already waiting. Both are kept in `Error.code` on
+      purpose, so exhaustive handling in a deployed client still type-checks.
+
+      This used to assert the reopening hour, in the market's clock, off
+      `opensAt`. That copy is gone rather than left to be rendered wrongly: a
+      pinned contract says what the API WILL send, so the branches stay — but
+      what they say has to be true if they ever fire, and "they are not taking
+      them at this hour" is now a false explanation.
+    */
+    for (const code of ["request_window_closed", "request_quota_exhausted"]) {
+      const d = describeError(
+        err(code, 409, { opensAt: "2026-08-22T00:30:00Z" }),
+      );
+      expect(d.title, code).toBe("That request did not go through");
+      // No claim about an hour, and none about the operator's queue.
+      expect(d.body, code).not.toMatch(/hour|morning|06:00|too many/i);
+      // Retryable now, because the reason it was refused no longer exists.
+      expect(d.canRetry, code).toBe(true);
+    }
   });
 
   it("does not offer a retry that cannot succeed", () => {

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
@@ -12,11 +11,11 @@ import {
   ChevronRightIcon,
   ClockIcon,
   MapPinIcon,
-  PlayIcon,
   ZapIcon,
 } from "@/components/ui/icons";
 import { ShareLink } from "@/components/ui/share-link";
 import { BookingLayer } from "./booking-layer";
+import { Gallery } from "./gallery";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -40,13 +39,27 @@ type Experience = components["schemas"]["Experience"];
  */
 export function ExperienceDetail({ experience }: { experience: Experience }) {
   const price = formatFromPrice(experience.fromPrice);
-  const hero = experience.gallery[0] ?? experience.heroMedia;
   const instant = experience.bookingMode === "allotment";
   const duration = formatDuration(experience.durationMinutes);
-  // Everything past the hero. A listing with six clips used to show one still
-  // and nothing else — "Multiple clips plus stills" is the prototype's brief
-  // for T3, and the array was already on the response.
-  const more = experience.gallery.slice(1);
+  /*
+    Everything there is to look at, in one gallery — yuvoy-app#32.
+
+    It was `gallery[0] ?? heroMedia` at the top and `gallery.slice(1)` in a
+    strip of 160px thumbnails further down called "More from the water", which
+    were not links to anything. So a listing with six clips showed one where it
+    mattered and five below the fold. The owner asked for "a proper gallery:
+    swipe between them and a full-screen view".
+
+    `heroMedia` is the fallback for a listing whose `gallery` is empty, not an
+    extra frame beside it: the contract makes the hero one OF the gallery, so
+    adding both would repeat the first picture.
+  */
+  const frames =
+    experience.gallery.length > 0
+      ? experience.gallery
+      : experience.heroMedia
+        ? [experience.heroMedia]
+        : [];
   const map = mapLink(experience.meetingPoint);
   // See the "Where you meet" section for why these are trimmed rather than
   // read straight off the response.
@@ -60,19 +73,8 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       stageLabel="Experience"
       width="lg"
       hero={
-        hero ? (
-          // 4:5 rather than 9:16 — this is a page to read, not a feed.
-          <div className="bg-abyss relative aspect-4/5 w-full sm:aspect-video">
-            <Image
-              src={hero.posterUrl}
-              alt={hero.alt ?? experience.title}
-              fill
-              sizes="(min-width: 1024px) 768px, 100vw"
-              className="object-cover"
-              priority
-              unoptimized={hero.posterUrl.startsWith("data:")}
-            />
-          </div>
+        frames.length > 0 ? (
+          <Gallery items={frames} title={experience.title} />
         ) : undefined
       }
       heroActions={
@@ -84,8 +86,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       }
     >
       <BookingLayer
-        slug={experience.slug}
-        bookingMode={experience.bookingMode}
+        experience={experience}
         /*
           ABSENT MEANS BOOKABLE, and that is not defensive habit — it is a
           production regression this line already caused once.
@@ -241,41 +242,42 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
               tone="alert"
             />
 
-            {more.length ? (
-              <section className="mt-8" aria-label="More from this experience">
-                <h2 className="label text-forest/75">More from the water</h2>
-                <ul className="mt-3 flex gap-3 overflow-x-auto pb-1">
-                  {more.map((m) => (
-                    <li
-                      key={m.id}
-                      className="rounded-tile bg-abyss relative aspect-4/5 w-40 shrink-0 overflow-hidden"
-                    >
-                      <Image
-                        src={m.posterUrl}
-                        alt={m.alt ?? ""}
-                        fill
-                        sizes="160px"
-                        className="object-cover"
-                        unoptimized={m.posterUrl.startsWith("data:")}
-                      />
-                      {m.kind === "video" ? (
-                        <span className="label bg-abyss/70 text-cream absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px]">
-                          <PlayIcon className="size-3" />
-                          Clip
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
+            {/*
+              The operator, and only what a record backs.
 
-            {/* The operator, and only what a record backs. */}
+              "Who runs this" became "Operator" and gained their logo, on the
+              owner's walk (yuvoy-app#32). The heading was a sentence answering
+              a question nobody had asked; the mark is what a traveller
+              recognises, and it is the one thing on this row that is theirs.
+            */}
             <section className="mt-8">
-              <h2 className="label text-forest/75">Who runs this</h2>
+              <h2 className="label text-forest/75">Operator</h2>
               <Panel className="mt-3">
                 <div className="flex items-center justify-between gap-3">
-                  <OperatorName operator={experience.operator} />
+                  <div className="flex min-w-0 items-center gap-3">
+                    {/*
+                      `logoUrl` is absent when they have not set one, so there
+                      is no placeholder branch and no broken-image state to
+                      design around — the name simply stands alone, as it did
+                      before.
+
+                      A plain `<img>`: a small mark beside a name, not the LCP
+                      element, loaded straight from Cloudflare Images, which is
+                      the host the CSP's `img-src` names for it.
+                    */}
+                    {experience.operator.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={experience.operator.logoUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="rounded-tile bg-cream-deep border-cream-line size-10 shrink-0 border object-contain"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : null}
+                    <OperatorName operator={experience.operator} />
+                  </div>
                   {experience.operator.verified ? (
                     <Chip tone="accent" size="sm">
                       Verified

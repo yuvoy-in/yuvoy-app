@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 /**
  * The money loop, end to end.
@@ -15,6 +15,64 @@ import { test, expect } from "@playwright/test";
  * can degrade; this cannot.
  */
 
+/**
+ * Picks the first departure that can be picked, through the date pop-up.
+ *
+ * Every day in the window used to be stacked on the listing, so a test could
+ * click a slot row directly. yuvoy-app#32 made it a pop-up showing one day at
+ * a time — the owner called the old list an endless scroll — so choosing is
+ * now: open, walk the day chips, take the first row that is not disabled.
+ *
+ * Walking the chips rather than trusting the first is deliberate: a day whose
+ * only departure is past its cutoff is still OFFERED, because hiding it would
+ * tell a traveller the day does not exist.
+ */
+async function chooseDeparture(page: Page) {
+  await page.getByRole("button", { name: /Choose a departure|Change/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Pick a day" });
+  await expect(sheet).toBeVisible();
+
+  const group = sheet.getByRole("group", { name: "Which day" });
+  // The chips arrive with the availability read, so counting before they do
+  // gives zero and walks straight past every day to the throw below.
+  await expect(group.getByRole("button").first()).toBeVisible();
+
+  const chips = group.getByRole("button");
+  for (let i = 0; i < (await chips.count()); i++) {
+    await chips.nth(i).click();
+
+    /*
+      Wait for the chip to BE the chosen one before reading the rows under it.
+
+      Two races, and the second is the one that survived a first fix. A day
+      chip re-renders the list below it, so `count()` straight after the click
+      is a snapshot that can catch nothing at all — or, worse, the OUTGOING
+      day's rows, in which case the helper reads the wrong day's departure,
+      finds it disabled, and moves on having silently skipped a day that had
+      seats. It threw "no selectable departure" on listings with several,
+      about one full run in three, and moved between specs — which is what a
+      race looks like when the contended resource is the render.
+
+      React commits the pressed chip and its rows together, so waiting on
+      `aria-pressed` ties the two: once it is true, the rows are this day's.
+    */
+    await expect(chips.nth(i)).toHaveAttribute("aria-pressed", "true");
+
+    const rows = sheet.getByRole("button", { name: /^\d\d:\d\d/ });
+    // A chip exists only because that day has departures, so this cannot hang
+    // on a legitimately empty day.
+    await expect.poll(() => rows.count()).toBeGreaterThan(0);
+
+    const first = rows.first();
+    if (await first.isEnabled()) {
+      await first.click();
+      await expect(sheet).toBeHidden();
+      return;
+    }
+  }
+  throw new Error("no selectable departure in any day of the fixture");
+}
+
 test("a traveller can go from the feed to a held booking", async ({ page }) => {
   await page.goto("/");
 
@@ -29,12 +87,8 @@ test("a traveller can go from the feed to a held booking", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("₹0")).toHaveCount(0);
 
-  // Pick the first open departure.
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
-  await page.getByRole("link", { name: /continue|ask the operator/i }).click();
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
 
   await expect(page).toHaveURL(/\/book\?slot=/);
 
@@ -134,12 +188,18 @@ test("a closed departure is shown disabled, never hidden", async ({ page }) => {
   await page.goto("/e/try-dive-nemo-reef");
   await page.waitForLoadState("networkidle");
 
-  // Hiding it makes the traveller think the day does not exist.
-  // The `label` utility uppercases, so an accessible name is uppercase too.
-  // Case-sensitive selectors here pass locally and fail the moment a class
-  // changes, which is the worst kind of test.
-  const closed = page.getByText("Booking for this departure has closed.");
-  await expect(closed).toBeVisible();
+  /*
+    Inside the date pop-up since yuvoy-app#32. The rule is unchanged and is the
+    reason the pop-up offers every day rather than only the ones with seats:
+    hiding a closed departure makes the traveller think the day does not exist.
+  */
+  await page.getByRole("button", { name: /Choose a departure/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Pick a day" });
+  await expect(sheet).toBeVisible();
+
+  await expect(
+    sheet.getByText("Booking for this departure has closed."),
+  ).toBeVisible();
 });
 
 test("a paused kill switch reads as deliberate, not as a crash", async ({
@@ -159,10 +219,7 @@ test("the health check blocks a dive booking until it is answered", async ({
   await page.goto("/e/try-dive-nemo-reef");
   await page.waitForLoadState("networkidle");
 
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
+  await chooseDeparture(page);
   await page.getByRole("link", { name: /continue/i }).click();
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
@@ -201,10 +258,7 @@ test("a listing with no cancellation terms says so, and offers no dead button", 
   await page.goto("/e/mangrove-kayak-at-dawn");
   await page.waitForLoadState("networkidle");
 
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
+  await chooseDeparture(page);
   await page.getByRole("link", { name: /continue|ask the operator/i }).click();
   await expect(page).toHaveURL(/\/book\?slot=/);
 
@@ -245,10 +299,7 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   await page.goto("/e/mangrove-kayak-at-dawn");
   await page.waitForLoadState("networkidle");
 
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
+  await chooseDeparture(page);
   await page.getByRole("link", { name: /continue|ask the operator/i }).click();
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");

@@ -1125,17 +1125,26 @@ export function cancellationReason(code?: string): string | null {
 }
 
 /**
- * How long the operator has left to answer a request.
+ * When the operator has to answer by — yuvoy-app#32.
  *
- * The same machinery as `HoldCountdown` and deliberately not the same copy:
- * a hold is the traveller's clock — pay before it runs out — and this is
- * somebody else's. Nothing is required of the person reading it, so it is
- * `raised` rather than `alert` at every point on the clock, and there is no
- * urgent state. A request lapsing costs them nothing; they were never charged.
+ * ## It used to tick, and the API made that absurd
  *
- * The deadline is stated in the MARKET's zone, like every other time on this
- * screen, and against the server's clock via the offset each response teaches
- * us — a phone an hour fast used to show a live hold as already expired.
+ * `requestExpiresAt` was a short answer clock: a request lapsed in about two
+ * hours, so a live countdown beside it was the right shape. yuvoy-api#170
+ * changed it to the departure's booking CUTOFF, which is routinely days away
+ * — "so show it as a date and time rather than a countdown".
+ *
+ * The countdown was `formatCountdown`, which is `m:ss`. Three days out it
+ * rendered "4320:00" and decremented once a second: a number nobody can read
+ * as a duration, on a screen whose whole job is to stop somebody worrying.
+ *
+ * So the deadline is a date and a time, said once, with no interval and no
+ * re-render. Which is also the honest shape: the traveller is waiting on a
+ * person, not on a clock, and a second-by-second display implies a precision
+ * the answer does not have.
+ *
+ * Still `role="timer"` with `aria-live="off"`: it is a deadline, and it must
+ * not be announced.
  */
 function AnswerBy({
   expiresAt,
@@ -1144,17 +1153,6 @@ function AnswerBy({
   expiresAt: string;
   timezone: string;
 }) {
-  const [left, setLeft] = useState(() => msUntil(expiresAt, clockOffsetMs()));
-
-  useEffect(() => {
-    const t = setInterval(
-      () => setLeft(msUntil(expiresAt, clockOffsetMs())),
-      1000,
-    );
-    return () => clearInterval(t);
-  }, [expiresAt]);
-
-  const when = new Date(expiresAt);
   const deadline = new Intl.DateTimeFormat("en-IN", {
     timeZone: timezone,
     weekday: "long",
@@ -1163,16 +1161,15 @@ function AnswerBy({
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(when);
+  }).format(new Date(expiresAt));
 
   return (
     <Panel className="mt-6" role="timer" aria-live="off">
       <p className="label text-forest/75">The operator has until</p>
       <p className="mt-1 text-lg font-bold">{deadline}</p>
       <p className="text-forest/70 mt-2 text-sm">
-        {left > 0
-          ? `${formatCountdown(left)} left to answer. Nothing has been charged, and you can withdraw the ask at any time.`
-          : "That has passed. If they do not answer, the request lapses on its own and nothing is charged."}
+        Nothing has been charged, and you can withdraw the ask at any time. If
+        they do not answer by then, the request lapses on its own.
       </p>
     </Panel>
   );
