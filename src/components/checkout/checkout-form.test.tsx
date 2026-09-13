@@ -268,3 +268,205 @@ describe("CheckoutForm — the money rules", () => {
     ).toBeInTheDocument();
   });
 });
+
+/* ------------------------------------- the listing's own questions (#46) */
+
+describe("CheckoutForm — what the operator asks", () => {
+  /** The 201 the dive checkout expects, so the flow reaches the router. */
+  function held() {
+    return HttpResponse.json(
+      {
+        reservationId: "res_q",
+        state: "active",
+        guests: 1,
+        holdExpiresAt: new Date(Date.now() + 600_000).toISOString(),
+        requestExpiresAt: null,
+        statusToken: "tok_q",
+      },
+      { status: 201 },
+    );
+  }
+
+  /** Everything the dive needs apart from the operator's own questions. */
+  async function fillDive(user: ReturnType<typeof userEvent.setup>) {
+    await fillContact(user);
+    await user.click(
+      screen.getByRole("radio", { name: /nobody in my party has any/i }),
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Your age range"),
+      "18_plus",
+    );
+  }
+
+  it("draws a control per answerType, and none a wrong answer fits through", () => {
+    renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
+
+    // choice -> a select over the listing's own options, never free text.
+    const agency = screen.getByLabelText(
+      "Which agency certified you? (optional)",
+    );
+    expect(agency.tagName).toBe("SELECT");
+    expect(
+      Array.from(agency.querySelectorAll("option")).map((o) => o.textContent),
+    ).toEqual(["Choose one", "PADI", "SSI", "NAUI", "Not certified yet"]);
+
+    // yes_no -> two radios, with NO default. A default is an answer nobody
+    // gave, recorded against the traveller's name on the manifest.
+    const yes = screen.getByRole("radio", { name: "Yes" });
+    const no = screen.getByRole("radio", { name: "No" });
+    expect(yes).not.toBeChecked();
+    expect(no).not.toBeChecked();
+
+    // short_text -> capped where the API caps it, on the input.
+    expect(
+      screen.getByLabelText(
+        "Which hotel should we collect you from? (optional)",
+      ),
+    ).toHaveAttribute("maxlength", "300");
+  });
+
+  it("refuses locally rather than spending a round trip on a 409 it can predict", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
+    await fillDive(user);
+
+    expect(
+      screen.getByRole("button", { name: /hold these seats/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/Still needed:.*the operator's questions/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Yes" }));
+    expect(
+      screen.getByRole("button", { name: /hold these seats/i }),
+    ).toBeEnabled();
+  });
+
+  it("sends answers, which is what makes a required question count", async () => {
+    let sent: { answers?: unknown } | null = null;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        sent = (await request.json()) as { answers?: unknown };
+        return held();
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
+    await fillDive(user);
+    await user.click(screen.getByRole("radio", { name: "Yes" }));
+    await user.selectOptions(
+      screen.getByLabelText("Which agency certified you? (optional)"),
+      "SSI",
+    );
+    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    // The listing's order, and the untouched optional one left out rather than
+    // sent blank: an empty answer "does not fit" and would be dropped anyway.
+    expect(sent!.answers).toEqual([
+      { questionId: "q_cert_agency", answer: "SSI" },
+      { questionId: "q_dived_before", answer: "yes" },
+    ]);
+  });
+
+  it("sends no answers key at all for a listing that asks nothing", async () => {
+    let sent: Record<string, unknown> | null = null;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return held();
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+    await fillContact(user);
+    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    // Omitted, not empty. A listing with no questions books exactly as before.
+    expect(sent!).not.toHaveProperty("answers");
+  });
+
+  it("points at each question a 409 named, rather than only saying something is wrong", async () => {
+    server.use(
+      http.post(`${BASE}/reservations`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "answers_required",
+              message: "raw",
+              details: {
+                questions: [
+                  {
+                    questionId: "q_dived_before",
+                    text: "Has everyone in your party dived before?",
+                  },
+                ],
+              },
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
+    await fillDive(user);
+    await user.click(screen.getByRole("radio", { name: "Yes" }));
+    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+
+    // The panel says what happened ...
+    expect(
+      await screen.findByText("Some questions need an answer first"),
+    ).toBeInTheDocument();
+    // ... and the question itself says which, which is the actionable half.
+    expect(screen.getByText("This one needs an answer.")).toBeInTheDocument();
+    // Never the generic fallback: without `answers_required` in ERROR_CODES
+    // this reads "Something went wrong" with a retry that cannot work.
+    expect(document.body.textContent).not.toMatch(/Something went wrong/);
+  });
+
+  /*
+    A `choice` question an operator saved with no options. Nothing can answer
+    it, so if it were required and the body still sent `answers`, every
+    checkout would be refused with a 409 the traveller cannot clear: the
+    yuvoy-app#28 defect again, in a new field.
+  */
+  it("stops enforcing answers rather than shipping a dead button", async () => {
+    let sent: Record<string, unknown> | null = null;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return held();
+      }),
+    );
+
+    const broken = {
+      ...kayak,
+      questions: [
+        {
+          id: "q_broken",
+          text: "Pick one",
+          answerType: "choice" as const,
+          required: true,
+        },
+      ],
+    };
+
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={broken} slot={kayakSlot} />);
+    await fillContact(user);
+
+    const submit = screen.getByRole("button", { name: /hold these seats/i });
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(sent!).not.toHaveProperty("answers");
+  });
+});

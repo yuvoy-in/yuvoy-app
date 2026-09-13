@@ -19,6 +19,7 @@ import {
 import { openHostedCheckout } from "@/lib/booking/payment-handoff";
 import { YuvoyError, isCheckoutDeadEnd } from "@/lib/api/errors";
 import { CancelSheet } from "./cancel-sheet";
+import { BookingQuestions } from "./booking-questions";
 import { ShareButton } from "./share-button";
 import {
   amountToBring,
@@ -418,6 +419,26 @@ function StatusBody({
         <OperatorUpdates
           updates={status.operatorUpdates}
           timezone={status.slot.timezone}
+        />
+      ) : null}
+
+      {/*
+        WHAT THE OPERATOR ASKED - yuvoy-app#46 §4.
+
+        Under the operator's own notes, because both are the business talking
+        to this traveller and this is the half they can answer. Needs the
+        network, so it is absent on an offline snapshot like every other
+        action on this screen.
+
+        `answersOpen` is read as told: `?? false` rather than inferred from
+        the state and the departure, because the contract sends it precisely
+        so "a form is never offered that would be refused".
+      */}
+      {token && status.questions?.length ? (
+        <BookingQuestions
+          token={token}
+          questions={status.questions}
+          answersOpen={status.answersOpen ?? false}
         />
       ) : null}
 

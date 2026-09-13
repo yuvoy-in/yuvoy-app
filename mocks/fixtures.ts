@@ -495,6 +495,46 @@ export const EXPERIENCE_DETAIL: Record<string, Experience> = Object.fromEntries(
       policyTier: "weather",
       cancellationPolicy:
         "Full refund if the sea calls it off, or move to another day at no cost.",
+      /*
+        THE LISTING'S OWN QUESTIONS - yuvoy-app#46.
+
+        On the dive, which is where an operator really would ask them, and one
+        of each `answerType` so all three controls are exercised by anything
+        that opens this listing. The required one is a `yes_no`, which is the
+        issue's own "how to tell it works": checking out without answering it
+        must be refused, and answering it must book.
+
+        Deliberately NOT on every listing. A checkout with no questions at all
+        is the commoner path and has to keep rendering exactly as it did.
+
+        These are never about health - that is `safety.screener` above, which
+        is a different gate with a different refusal behind it.
+      */
+      ...(e.slug === "try-dive-nemo-reef"
+        ? {
+            questions: [
+              {
+                id: "q_cert_agency",
+                text: "Which agency certified you?",
+                answerType: "choice" as const,
+                options: ["PADI", "SSI", "NAUI", "Not certified yet"],
+                required: false,
+              },
+              {
+                id: "q_dived_before",
+                text: "Has everyone in your party dived before?",
+                answerType: "yes_no" as const,
+                required: true,
+              },
+              {
+                id: "q_pickup",
+                text: "Which hotel should we collect you from?",
+                answerType: "short_text" as const,
+                required: false,
+              },
+            ],
+          }
+        : {}),
       // Only the dive asks a health question. The others must render a booking
       // form with no screener at all, which is the more common path.
       ...(e.slug === "try-dive-nemo-reef"
