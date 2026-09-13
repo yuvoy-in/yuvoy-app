@@ -90,6 +90,8 @@ export const FOCUSED_ROUTE_PREFIXES = [
   */
   "/o/*/listings",
   "/o/*/r/",
+  // A search result, playing. `/search` itself is a tab root and keeps the bar.
+  "/search/r/",
 ] as const;
 
 export function isFocusedRoute(pathname: string | null | undefined): boolean {

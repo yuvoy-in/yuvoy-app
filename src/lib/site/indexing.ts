@@ -91,6 +91,8 @@ export const PRIVATE_ROUTES = [
     the middle, as `/e/*​/book` already does.
   */
   "/o/*/r/",
+  /* A search result, playing — yuvoy-app#37. Same reasons again. */
+  "/search/r/",
 ] as const;
 
 /**
