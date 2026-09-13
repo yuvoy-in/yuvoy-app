@@ -23,6 +23,15 @@ describe("focused routes", () => {
     ["/trips", false],
     ["/account", false],
     ["/guides", false],
+    // yuvoy-app#33. The profile itself is a destination and keeps the bar;
+    // what they run and one of their reels are steps inside it.
+    ["/o/hc-diving-skl", false],
+    ["/o/hc-diving-skl/listings", true],
+    ["/o/hc-diving-skl/r/med_dive", true],
+    // The wildcard matches ONE segment, so a deeper path that merely starts
+    // the same way is not swallowed.
+    ["/o/listings", false],
+    ["/o", false],
   ])("%s → focused: %s", (pathname, focused) => {
     expect(isFocusedRoute(pathname)).toBe(focused);
   });
@@ -39,11 +48,13 @@ describe("focused routes", () => {
 
   it("lists prefixes that a tab root cannot match by accident", () => {
     // `/trip/` must never swallow `/trips`, and `/guides/` must never swallow
-    // the hub — each prefix is checked against every root.
-    for (const prefix of FOCUSED_ROUTE_PREFIXES) {
-      for (const item of NAV) {
-        expect(item.href.startsWith(prefix)).toBe(false);
-      }
+    // the hub — each prefix is checked against every root, through the
+    // predicate itself rather than through `startsWith`, which stopped being
+    // the whole rule when the wildcard arrived.
+    for (const item of NAV) {
+      expect(isFocusedRoute(item.href)).toBe(false);
     }
+    // And the list is genuinely non-empty, so the loop above is not vacuous.
+    expect(FOCUSED_ROUTE_PREFIXES.length).toBeGreaterThan(4);
   });
 });

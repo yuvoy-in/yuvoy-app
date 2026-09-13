@@ -66,10 +66,19 @@ describe("palette", () => {
       "src/components/feed/",
       "src/components/experience/experience-detail.tsx",
       "src/components/search/search-screen.tsx",
-      // The operator page's poster grounds — the listing cards' thumbnails and
-      // the reel grid's tiles. Same use as the two above it: a ground standing
-      // in for media on a sheet, never a surface.
+      /*
+        The operator page's poster grounds — the profile's logo tile and photo
+        grid, and a listing card's thumbnail. Same use as the two above: a
+        ground standing in for media on a sheet, never a surface.
+
+        Listed FILE BY FILE, not as `src/components/operator/`. The directory
+        prefix would be one character shorter and would sign a blank cheque for
+        every screen added to it — and two were added in the same change that
+        split `listing-card.tsx` out of the screen (yuvoy-app#33), neither of
+        which had been reviewed for this rule.
+      */
       "src/components/operator/operator-screen.tsx",
+      "src/components/operator/listing-card.tsx",
       "src/app/globals.css",
     ];
 

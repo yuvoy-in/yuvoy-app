@@ -84,6 +84,13 @@ export const PRIVATE_ROUTES = [
     URL about the same experience splits whatever authority it earns.
   */
   "/r/",
+  /*
+    A business's reel, playing — yuvoy-app#33. The same two reasons as `/r/`,
+    one route deeper: the address dies with the clip, and `/o/{slug}` is the
+    indexable page about the same business. Wildcarded because the slug sits in
+    the middle, as `/e/*​/book` already does.
+  */
+  "/o/*/r/",
 ] as const;
 
 /**

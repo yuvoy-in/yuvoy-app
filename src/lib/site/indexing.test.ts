@@ -14,8 +14,9 @@ async function load(allow: string) {
   vi.resetModules();
   vi.stubEnv("NEXT_PUBLIC_ALLOW_INDEXING", allow);
   const indexing = await import("./indexing");
+  const inventory = await import("./inventory");
   const robots = (await import("@/app/robots")).default;
-  return { indexing, robots: robots() };
+  return { indexing, inventory, robots: robots() };
 }
 
 afterEach(() => vi.unstubAllEnvs());
@@ -62,5 +63,41 @@ describe("the indexing switch", () => {
     expect(rule.disallow).toEqual(
       expect.arrayContaining(["/booking", "/trip/", "/trips", "/account"]),
     );
+  });
+
+  /**
+   * The two reel routes, and the one page that is not one — yuvoy-app#33, #36.
+   *
+   * Pinned here rather than in an e2e, and that is the point: before launch the
+   * whole app carries a site-wide `noindex, nofollow`, so a rendered page
+   * cannot show the difference between "private for its own reasons" and "the
+   * site is not live yet". The distinction only exists in these two lists, and
+   * only becomes visible on the day `INDEXABLE` flips — which is the worst
+   * possible day to discover a page was in the wrong one.
+   */
+  it("keeps both reel routes private, for reasons that outlive the launch flip", async () => {
+    const { robots, indexing } = await load("true");
+    const rule = Array.isArray(robots.rules) ? robots.rules[0] : robots.rules;
+
+    /*
+      A reel's address dies when its listing pauses or sells out for the
+      season, so an indexed one becomes a 404 on a normal Tuesday. And the
+      listing or the business is the page that should win the same search.
+    */
+    expect(rule.disallow).toEqual(expect.arrayContaining(["/r/", "/o/*/r/"]));
+    expect(indexing.PRIVATE_ROUTES).toEqual(
+      expect.arrayContaining(["/r/", "/o/*/r/"]),
+    );
+  });
+
+  it("keeps what a business runs indexable, because the content moved there", async () => {
+    const { indexing, inventory } = await load("true");
+
+    // The listings came OFF the profile, so this is where that content lives
+    // and there is no duplicate for it to compete with.
+    expect(inventory.INDEXABLE_DYNAMIC_ROUTES).toContain("/o/[slug]/listings");
+    for (const priv of indexing.PRIVATE_ROUTES) {
+      expect("/o/hc-diving-skl/listings".startsWith(priv)).toBe(false);
+    }
   });
 });
