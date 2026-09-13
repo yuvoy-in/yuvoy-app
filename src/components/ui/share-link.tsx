@@ -2,29 +2,44 @@
 
 import { useEffect, useState } from "react";
 import { shareUrl } from "@/lib/share";
-import { IconButton } from "@/components/ui/icon-button";
-import { ShareIcon } from "@/components/ui/icons";
+import { IconButton } from "./icon-button";
+import { ShareIcon } from "./icons";
 import { cn } from "@/lib/cn";
 
 /**
- * The share disc on a feed card and over a detail hero.
+ * The share disc — over a reel, and over a detail hero.
  *
- * Shares the listing's public address — the page a crawler may index, never
- * a booking or a token. The address is read from the window at the moment of
- * the tap, so a preview host shares itself and production shares itself,
- * with nothing baked in at build time.
+ * Shares a PUBLIC address, never a booking or a token. The origin is read from
+ * the window at the moment of the tap, so a preview host shares itself and
+ * production shares itself, with nothing baked in at build time.
  *
  * The outcome is said next to the disc and announced to a screen reader:
  * "Link copied" where there was no share sheet, and where even the clipboard
  * refused, the honest fallback rather than a silent tap.
+ *
+ * ## Why it takes a path rather than a slug
+ *
+ * It used to be `ShareExperience` and build `/e/{slug}` itself, which made
+ * "share" mean "share the listing" everywhere it appeared. On a reel that is
+ * the wrong thing to send: somebody sharing a clip means the clip, and the
+ * person opening it should land on the clip rather than on a page about it
+ * (yuvoy-app#36). The reel card now passes `/r/{media.id}` and the detail page
+ * passes `/e/{slug}`, so the component no longer decides what a share is
+ * about — the surface does, and there is one implementation of the sheet, the
+ * clipboard fallback and the notice.
  */
-export function ShareExperience({
-  slug,
+export function ShareLink({
+  path,
   title,
+  label,
   variant = "chrome",
 }: {
-  slug: string;
+  /** Root-relative, e.g. `/e/dawn-kayak` or `/r/9acb347f`. */
+  path: string;
+  /** What the share sheet offers as the subject. */
   title: string;
+  /** The button's accessible name. Says what is being shared. */
+  label: string;
   variant?: "chrome" | "onDark";
 }) {
   const [notice, setNotice] = useState<"copied" | "unavailable" | null>(null);
@@ -36,7 +51,7 @@ export function ShareExperience({
   }, [notice]);
 
   async function share() {
-    const url = `${window.location.origin}/e/${slug}`;
+    const url = `${window.location.origin}${path}`;
     const outcome = await shareUrl({ title, url });
     setNotice(
       outcome === "copied"
@@ -49,11 +64,7 @@ export function ShareExperience({
 
   return (
     <div className="relative">
-      <IconButton
-        label="Share this experience"
-        variant={variant}
-        onClick={() => void share()}
-      >
+      <IconButton label={label} variant={variant} onClick={() => void share()}>
         <ShareIcon />
       </IconButton>
       <span

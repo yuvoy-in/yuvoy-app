@@ -390,6 +390,29 @@ export const handlers = [
     );
   }),
 
+  /*
+    One reel, by its own media id — yuvoy-app#36, api#173.
+
+    Declared BEFORE `/reels` would be a problem in a router that matched
+    loosely; MSW matches the whole path, so `/reels/:id` and `/reels` cannot
+    collide. It is placed after them for reading order only.
+
+    A reel the feed would not show and one that never existed answer the same
+    404, exactly as the contract says, so nothing here can tell them apart
+    either. `LONG_REEL_FEED` is deliberately NOT searched: it is a scenario
+    fixture for paging, and a share link minted from it would resolve against
+    the real feed's ids in a way production never would.
+  */
+  http.get(url("/reels/:id"), async ({ request, params }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+
+    const reel = REELS.find((r) => r.media.id === String(params.id));
+    if (!reel) return envelope("not_found", "No such reel.", 404);
+
+    return HttpResponse.json(reel, { headers: mockHeaders(requestId()) });
+  }),
+
   http.get(url("/experiences/:slug"), async ({ request, params }) => {
     const failed = await commonFailure(request);
     if (failed) return failed;

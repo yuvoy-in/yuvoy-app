@@ -15,7 +15,7 @@ import {
   PlayIcon,
   ZapIcon,
 } from "@/components/ui/icons";
-import { ShareExperience } from "./share-experience";
+import { ShareLink } from "@/components/ui/share-link";
 import { BookingLayer } from "./booking-layer";
 
 type Experience = components["schemas"]["Experience"];
@@ -76,7 +76,11 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
         ) : undefined
       }
       heroActions={
-        <ShareExperience slug={experience.slug} title={experience.title} />
+        <ShareLink
+          path={`/e/${experience.slug}`}
+          title={experience.title}
+          label="Share this experience"
+        />
       }
     >
       <BookingLayer

@@ -456,128 +456,30 @@
 /* ------------------------------------------------------- the feed's chrome */
 
 /**
- * The feed retracts its chrome as a traveller moves DOWN the reels and puts it
- * back the moment they move UP one.
+ * The feed used to retract its chrome as a traveller moved DOWN the reels and
+ * put it back the moment they moved UP one: the masthead lifted and dissolved,
+ * the floating tab bar dropped out of the window, and the caption took back
+ * the room it had been leaving for that bar. Three layers driven by one
+ * `data-chrome` attribute, plus the bar's own `data-retracted` because it
+ * lives in the shell and could not be a descendant.
  *
- * Three layers move together and they are driven by ONE attribute on the
- * feed's root — `data-chrome="shown" | "hidden"`, written by `Feed` from the
- * store: the masthead lifts and dissolves, the floating tab bar drops out of
- * the window, and the room the caption was leaving for that bar is given back
- * to the caption. Two of those deciding for themselves is how a caption ends
- * up half a bar's height out of step with the bar it is clearing.
+ * The owner ruled against it on 13 September (yuvoy-app#36): the tab bar stays
+ * visible on every reel, and the room comes from cutting the reel's overlay
+ * back to the picture instead.
  *
- * The tab bar is the exception to "one attribute": it lives in the SHELL, not
- * in the feed, so it cannot be a descendant of this root. It carries the same
- * state on its own `data-retracted` and shares the timing below.
+ * So all of it is gone — `--feed-lift`, `.feed-stage`, the masthead fade, the
+ * caption transform, the tail's animated padding and `.tabbar-slide`. Deleted
+ * rather than neutralised: a variable that is always the same value, and a
+ * transition on a property nothing changes, are the two things somebody
+ * re-wires six months later without finding this comment.
  *
- * ## The geometry, once
- *
- * The bar's object is 68px tall — a 56px pill (44px targets in a `p-1.5`
- * shell) standing on `tabbar-foot`'s 12px. `tabbar-clearance` leaves 92px for
- * it, which is that 68px plus 24px of air. With the bar gone a caption still
- * wants a foot, and 32px is it — so the caption's own padding is 32px and
- * `--feed-lift` is the 60px difference it rises by when the bar is there.
- * Both numbers are here rather than in two components, because they are one
- * number seen from two ends.
- *
- * ## Why transform on the caption and padding on the tail
- *
- * The caption is `position: absolute` against the card, so lifting it is a
- * translate — no layout, no reflow of twelve cards a frame, and the block
- * cannot change size while it moves. The tail is IN FLOW at the end of the
- * scroller and its padding is what gives it height, so there the padding is
- * the honest property to animate; there is exactly one of it.
+ * What replaces the arithmetic is the utility that always described it.
+ * `--feed-lift` was 60px, the caption's own foot was 32px, and the sum is the
+ * 92px `tabbar-clearance` already leaves for the bar on every other screen —
+ * one number seen from two ends, now seen from one. The caption and the tail
+ * wear that utility directly.
  */
 @layer components {
-  .feed-stage {
-    --feed-lift: 0rem;
-  }
-
-  .feed-stage[data-chrome="shown"] {
-    --feed-lift: 3.75rem; /* 60px — see the geometry above */
-  }
-
-  /**
-   * ## The budget: 250ms and `--ease-interaction`, not the cinematic curve
-   *
-   * This is chrome ANSWERING A GESTURE, not a composition arriving, so §3 of
-   * the design system puts it in the interaction budget — the same ruling the
-   * marketing site's sliding header already sits under, for the same reason.
-   * The cinematic curve is for entrances on first paint; half a second of it
-   * on something a traveller triggers with every swipe reads as lag, and by
-   * the third reel it reads as the app being slow.
-   *
-   * `--ease-interaction` is a hard ease-out: almost all of the distance is
-   * covered in the first third and the rest is settle, which is what lets a
-   * quarter of a second feel unhurried rather than abrupt.
-   *
-   * Reduced motion is handled globally in the base layer. Nothing below
-   * branches on it, and nothing below should.
-   */
-
-  /**
-   * The masthead: it lifts a little and dissolves, rather than sliding its
-   * whole height out. A wordmark that travels 132px to leave reads as a
-   * banner being dismissed; one that rises 24px and fades reads as the
-   * picture taking the screen, which is what it is.
-   *
-   * Opacity leads and transform follows, so the mark is gone before it has
-   * finished moving and never crosses the frame as a ghost.
-   */
-  .feed-masthead {
-    transition:
-      opacity 180ms var(--ease-interaction),
-      transform 250ms var(--ease-interaction);
-  }
-
-  .feed-stage[data-chrome="hidden"] .feed-masthead {
-    opacity: 0;
-    transform: translate3d(0, -1.5rem, 0);
-  }
-
-  /** A card's caption, and the foot it keeps when nothing floats over it. */
-  .feed-caption {
-    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
-    transform: translate3d(0, calc(-1 * var(--feed-lift, 0px)), 0);
-    transition: transform 250ms var(--ease-interaction);
-  }
-
-  /** The end of the scroller, which pays for the bar in height. */
-  .feed-tail {
-    padding-bottom: calc(
-      2rem + var(--feed-lift, 0px) + env(safe-area-inset-bottom, 0px)
-    );
-    transition: padding-bottom 250ms var(--ease-interaction);
-  }
-
-  /**
-   * The floating tab bar's own half of the same movement.
-   *
-   * `100%` is the bar's whole 68px object; the extra rem is margin against a
-   * sub-pixel window height and against the pill's own hairline ring, so
-   * nothing peeks along the bottom edge on a 2.75x screen.
-   *
-   * It is translated, never hidden, and that is deliberate: a keyboard
-   * traveller tabbing out of the feed lands on the first destination in this
-   * bar, and `:focus-within` brings the whole thing back before they can
-   * arrive at something they cannot see. Hiding it — `visibility`, `inert`,
-   * `display: none` — would take the app's navigation away from exactly the
-   * people who cannot swipe a reel back to fetch it. It must stay after the
-   * retracted rule: the two have equal specificity and source order is what
-   * decides.
-   */
-  .tabbar-slide {
-    transition: transform 250ms var(--ease-interaction);
-  }
-
-  .tabbar-slide[data-retracted="true"] {
-    transform: translate3d(0, calc(100% + 1rem), 0);
-  }
-
-  .tabbar-slide:focus-within {
-    transform: none;
-  }
-
   /**
    * A reel card's gesture contract.
    *
@@ -594,18 +496,6 @@
    */
   .feed-card {
     touch-action: pan-y pinch-zoom;
-  }
-
-  /**
-   * Above `lg` the rail replaces the bar, nothing floats over the well, and
-   * every reel keeps the same foot. Matched on the attribute so it outranks
-   * the `shown` rule whatever the order; the masthead and the bar are both
-   * `lg:hidden` already, so only the geometry needs saying.
-   */
-  @media (min-width: 64rem) {
-    .feed-stage[data-chrome] {
-      --feed-lift: 0rem;
-    }
   }
 }
 

@@ -39,6 +39,16 @@ export const CACHE = {
   catalogIndex: { staleTime: 60 * 60_000, gcTime: 24 * 60 * 60_000 },
 
   search: { staleTime: 30_000, gcTime: 5 * 60_000 },
+
+  /**
+   * One reel, opened by its own link.
+   *
+   * The same minute as the feed, and for the same reason: a reel is not a
+   * promise about a seat, and the listing beside it carries no availability
+   * this screen acts on. It is fetched once on arrival and then the feed pages
+   * in underneath it.
+   */
+  getReel: { staleTime: 60_000, gcTime: 30 * 60_000 },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -55,6 +65,8 @@ export const qk = {
    * cursor.
    */
   reels: (pageSize: number) => ["listReels", pageSize] as const,
+  /** One reel by its own id — a shared link (yuvoy-app#36). */
+  reel: (id: string) => ["getReel", id] as const,
   experience: (slug: string) => ["getExperience", slug] as const,
   /** A business and its whole first paint — yuvoy-app#30. */
   operator: (slug: string) => ["getOperator", slug] as const,

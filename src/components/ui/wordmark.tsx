@@ -26,32 +26,55 @@ import { cn } from "@/lib/cn";
  * `h-9` is 36px of art. The art's ~3.6:1 ratio sets the width from there.
  */
 
-/* The cropped art box the generator emits (1247x347, ~3.6:1) — not the
-   delivered 1600x500 canvas, a third of whose height is empty margin. */
-const LOCKUP = { width: 1247, height: 347 } as const;
+/*
+  The cropped art boxes the generators emit — not the delivered 1600x500
+  canvas, a third of whose height is empty margin.
 
-/** Keyed by the colour of the MARK, not of the surface behind it. */
+  `lockup` is the full horizontal mark (1247x347, ~3.6:1).
+
+  `compact` is the ensō and the YUVOY caps with the tagline removed and the
+  caps re-centred against the mark (~4:1), from
+  `scripts/generate-feed-lockup.mjs`. It exists for the reels feed: the tagline
+  is baked into the delivered file, and a reel is the one surface where the
+  product is the picture and the chrome has to get out of its way
+  (yuvoy-app#36). Both are generated and neither is hand-edited.
+*/
+const ART = {
+  lockup: { width: 1247, height: 347 },
+  compact: { width: 1007, height: 253 },
+} as const;
+
+/** Keyed by the variant, then by the colour of the MARK, not of the surface. */
 const SRC = {
-  cream: "/brand/yuvoy-lockup-on-dark.svg",
-  forest: "/brand/yuvoy-lockup-on-light.svg",
+  lockup: {
+    cream: "/brand/yuvoy-lockup-on-dark.svg",
+    forest: "/brand/yuvoy-lockup-on-light.svg",
+  },
+  compact: {
+    cream: "/brand/yuvoy-mark-compact-on-dark.svg",
+    forest: "/brand/yuvoy-mark-compact-on-light.svg",
+  },
 } as const;
 
 export function Wordmark({
   tone = "cream",
+  variant = "lockup",
   className,
   priority = false,
 }: {
   /** The colour of the MARK, chosen to contrast with the surface behind it. */
   tone?: "cream" | "forest";
+  /** `compact` drops the "Experience more." tagline. See `ART`. */
+  variant?: "lockup" | "compact";
   className?: string;
   priority?: boolean;
 }) {
   return (
     <Image
-      src={SRC[tone]}
+      src={SRC[variant][tone]}
       alt="Yuvoy"
-      width={LOCKUP.width}
-      height={LOCKUP.height}
+      width={ART[variant].width}
+      height={ART[variant].height}
       unoptimized
       priority={priority}
       className={cn("h-9 w-auto", className)}

@@ -53,6 +53,67 @@ describe("OperatorScreen", () => {
     ).toBeInTheDocument();
   });
 
+  /*
+    The two truthfulness rules the feed card used to carry.
+
+    They were asserted on `Feed` because the reel card printed a price and a
+    next date. yuvoy-app#36 took both off the reel, and a listing card here is
+    now the only place in the app that renders either — so the tests moved
+    with the behaviour rather than being deleted with the component. Deleting
+    them would have left `ListingCard` free to print ₹0 with nothing failing.
+  */
+  it("never renders a placeholder price when none is contracted", async () => {
+    /*
+      `fromPrice` is absent until a real contracted price exists. ₹0 would be a
+      fabricated claim — the exact class of thing this project removed an
+      entire site for publishing (rulebook §10).
+    */
+    const profile = operatorProfileFor(SLUG);
+    server.use(
+      http.get(`${BASE}/operators/${SLUG}`, () =>
+        HttpResponse.json({
+          ...profile,
+          listings: profile.listings.map((l) => ({
+            ...l,
+            experience: { ...l.experience, fromPrice: undefined },
+          })),
+        }),
+      ),
+    );
+
+    renderWithQuery(<OperatorScreen slug={SLUG} />);
+    expect(
+      (await screen.findAllByText("Price on request")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("₹0")).not.toBeInTheDocument();
+  });
+
+  it("says so when nothing is bookable in 90 days, rather than staying silent", async () => {
+    /*
+      `nextAvailable` absent means "we checked and there is nothing", not "we
+      did not check". Saying so is what stops the tap that ends in an empty
+      date picker, which is the tap that loses the traveller.
+    */
+    const profile = operatorProfileFor(SLUG);
+    server.use(
+      http.get(`${BASE}/operators/${SLUG}`, () =>
+        HttpResponse.json({
+          ...profile,
+          listings: profile.listings.map((l) => ({
+            ...l,
+            bookable: true,
+            experience: { ...l.experience, nextAvailable: undefined },
+          })),
+        }),
+      ),
+    );
+
+    renderWithQuery(<OperatorScreen slug={SLUG} />);
+    expect(
+      (await screen.findAllByText("No dates in the next 90 days")).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("shows a listing that cannot be booked, and says so", async () => {
     /*
       "`bookable: false` on a listing card means show it and say it cannot be

@@ -1,24 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, screen, waitFor, cleanup } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { act, screen, within, cleanup } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { Feed } from "./feed";
 import { TabBar } from "@/components/chrome/tab-bar";
 import { useFeedStore } from "@/lib/feed/store";
-import { server } from "../../../mocks/server";
 
 /**
- * The chrome retracts with the feed, and comes back with everything else.
+ * The reel is the product, and the overlay gets out of its way — yuvoy-app#36.
  *
- * The RULE — down hides, up restores — is proved on the store, where it is
- * arithmetic. What is proved here is the part that can silently rot: that the
- * feed publishes the state, that the shell's bar reads it, and above all that
- * NOTHING outside a scrolling feed can inherit it. The store is a module and
- * outlives every component in the app; a `true` left behind by a feed is a
- * phone with no navigation on it.
+ * The owner walked the feed on an iPhone on 13 September: "I'm unable to see
+ * reel fully, it is covered by lot of things." What was over every clip was
+ * the operator's name, a Verified tag, the activity type, the next departure,
+ * the price and its unit, an instant-or-request chip and a full-width call to
+ * action — plus a wordmark carrying "Experience more." across the top, and a
+ * tab bar that slid away as soon as anybody scrolled.
+ *
+ * Each removal is asserted BY NAME rather than by counting what is left. A
+ * count passes for the wrong reason the moment somebody adds one thing and
+ * removes another, and these were removed for a reason a count does not carry.
  */
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({
@@ -26,12 +26,9 @@ vi.mock("next/navigation", () => ({
   usePathname: () => nav.pathname,
 }));
 
-/** Moves the feed as the IntersectionObserver would, without jsdom layout. */
+/** Moves the strip as the IntersectionObserver would, without jsdom layout. */
 const scrollTo = (index: number) =>
   act(() => useFeedStore.getState().setActiveIndex(index));
-
-const chromeState = (container: HTMLElement) =>
-  container.querySelector("[data-chrome]")?.getAttribute("data-chrome");
 
 beforeEach(() => {
   nav.pathname = "/";
@@ -39,192 +36,164 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("the feed's masthead", () => {
-  it("carries the mark and nothing else", async () => {
+/** Renders the feed and hands back the first reel's card. */
+async function firstCard() {
+  renderWithQuery(<Feed />);
+  const cards = await screen.findAllByRole("article");
+  return cards[0];
+}
+
+describe("what is left on a reel", () => {
+  it("keeps the name, and tapping it opens the listing", async () => {
     /*
-      There used to be a Search disc up here, with Search also sitting in the
-      floating bar two inches below it — two controls for one screen on the
-      smallest surface in the product. The one that went is the one that was
-      competing with the picture.
+      The `<h2>` was plain text with the real route on a button below it. A
+      traveller who taps the title of the thing they are watching means to open
+      it, and did nothing.
+    */
+    const card = await firstCard();
+    const heading = within(card).getByRole("heading", { level: 2 });
+    const link = within(heading).getByRole("link");
+    expect(link).toHaveAttribute("href", "/e/try-dive-nemo-reef");
+  });
+
+  it("keeps an arrow to the listing, above sound and share", async () => {
+    const card = await firstCard();
+    const rail = within(card).getByLabelText(/^Open /);
+    expect(rail).toHaveAttribute("href", "/e/try-dive-nemo-reef");
+
+    /*
+      The ORDER is the ask, in the issue's own words: "a right-arrow button
+      above sound and share". Asserted through document position rather than by
+      reading classes, because a flex column's order is what a thumb meets.
+    */
+    const share = within(card).getByLabelText(/^Share/);
+    expect(
+      rail.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shares the REEL rather than the listing", async () => {
+    /*
+      Somebody sharing a clip means the clip. Share used to build `/e/{slug}`,
+      so a reel passed to a friend arrived as a page about the listing; it now
+      builds `/r/{media.id}`, backed by `GET /reels/{id}` (api#173).
+    */
+    const card = await firstCard();
+    expect(within(card).getByLabelText("Share this reel")).toBeTruthy();
+    expect(within(card).queryByLabelText("Share this experience")).toBeNull();
+  });
+
+  it("draws no mute disc while there is nothing to play", async () => {
+    /*
+      Unchanged behaviour, pinned here because the rail was rebuilt around it.
+      The player reports whether a clip can play at all; jsdom cannot play one,
+      so this is the poster-only case, and a dead mute control on a still image
+      is a button that lies. The arrow and share are drawn regardless, because
+      both work on a poster.
+    */
+    const card = await firstCard();
+    expect(within(card).queryByLabelText(/^(Unmute|Mute)$/)).toBeNull();
+    expect(within(card).getByLabelText(/^Open /)).toBeTruthy();
+  });
+});
+
+describe("what a reel no longer carries", () => {
+  it("does not name the operator or claim they are verified", async () => {
+    const card = await firstCard();
+    expect(within(card).queryByText("Verified")).toBeNull();
+    expect(within(card).queryByText(/Reef Divers|HC Diving/)).toBeNull();
+  });
+
+  it("does not print the activity type, the date or the seats", async () => {
+    const card = await firstCard();
+    expect(within(card).queryByText(/Scuba diving/)).toBeNull();
+    expect(within(card).queryByText(/^Next /)).toBeNull();
+    expect(within(card).queryByText(/No dates in the next 90 days/)).toBeNull();
+  });
+
+  it("does not print a price", async () => {
+    // A price on the card was a second copy of a number the listing owns, and
+    // the thing most likely to be read as a promise about a seat.
+    const card = await firstCard();
+    expect(within(card).queryByText(/₹/)).toBeNull();
+    expect(within(card).queryByText(/Price on request/)).toBeNull();
+  });
+
+  it("does not carry the instant-or-request chip", async () => {
+    const card = await firstCard();
+    expect(within(card).queryByText("Instant book")).toBeNull();
+    expect(within(card).queryByText("Ask the operator")).toBeNull();
+  });
+
+  it("does not carry a full-width call to action, only the arrow", async () => {
+    const card = await firstCard();
+    expect(within(card).queryByText("See dates")).toBeNull();
+    expect(within(card).queryByText("Have a look")).toBeNull();
+  });
+});
+
+describe("the masthead", () => {
+  it("shows the mark without the tagline", async () => {
+    /*
+      "Experience more." is BAKED INTO the delivered lockup SVG, so this is a
+      different file rather than a different class — see
+      scripts/generate-feed-lockup.mjs. Asserted on the source, because jsdom
+      cannot see inside an SVG and the whole point is which drawing is used.
     */
     const { container } = renderWithQuery(<Feed />);
     await screen.findAllByRole("article");
-
-    const masthead = container.querySelector(".feed-masthead");
-    expect(masthead).not.toBeNull();
-    expect(masthead!.querySelectorAll("a")).toHaveLength(0);
-    expect(masthead!.querySelectorAll("button")).toHaveLength(0);
+    const mark = container.querySelector("img[alt='Yuvoy']");
+    expect(mark).not.toBeNull();
+    expect(mark!.getAttribute("src")).toContain("mark-compact");
+    expect(mark!.getAttribute("src")).not.toContain("lockup-on-dark");
   });
 
-  it("centres the mark", async () => {
+  it("puts it top left, not centred", async () => {
+    // jsdom has no layout, so the claim is checked where it is made.
     const { container } = renderWithQuery(<Feed />);
     await screen.findAllByRole("article");
-
-    // jsdom has no layout, so the claim is checked where it is made. The mark
-    // is the masthead's only child, so centring the row centres the mark.
-    const masthead = container.querySelector(".feed-masthead")!;
-    expect(masthead.className).toContain("justify-center");
-    expect(masthead.className).not.toContain("justify-between");
+    const masthead = container.querySelector(".feed-scrim-top")!;
+    expect(masthead.className).not.toContain("justify-center");
   });
 
   it("does not swallow taps meant for the reel behind it", async () => {
-    // With nothing to press, the whole strip goes back to being feed. It was
-    // not: the disc's own hit area sat on top of the clip.
     const { container } = renderWithQuery(<Feed />);
     await screen.findAllByRole("article");
-    expect(container.querySelector(".feed-masthead")!.className).toContain(
+    expect(container.querySelector(".feed-scrim-top")!.className).toContain(
       "pointer-events-none",
     );
   });
 });
 
-describe("the feed publishes its chrome state", () => {
-  it("starts with the chrome out, on the first reel", async () => {
-    const { container } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-    expect(chromeState(container)).toBe("shown");
-  });
-
-  it("retracts when the traveller moves down a reel", async () => {
-    const { container } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-    scrollTo(1);
-    expect(chromeState(container)).toBe("hidden");
-  });
-
-  it("puts it back when they move up one", async () => {
-    const { container } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-    scrollTo(3);
-    expect(chromeState(container)).toBe("hidden");
-    scrollTo(2);
-    expect(chromeState(container)).toBe("shown");
-  });
-
-  it("arrives at the top of the feed however the last visit ended", async () => {
-    /*
-      The store is a module. A traveller nine reels down who opens an
-      experience and comes back gets a NEW scroller at scrollTop 0 — and would
-      otherwise get the old index with it, so the first reel would render with
-      no bar under a feed that had not moved.
-    */
-    scrollTo(9);
-    const { container } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-    expect(chromeState(container)).toBe("shown");
-    expect(useFeedStore.getState().activeIndex).toBe(0);
-  });
-
-  it("hands the chrome back when it unmounts", async () => {
-    const { unmount } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-    scrollTo(4);
-    expect(useFeedStore.getState().chromeRetracted).toBe(true);
-
-    unmount();
-    expect(useFeedStore.getState().chromeRetracted).toBe(false);
-  });
-
-  it("hands it back when the feed empties under the traveller", async () => {
-    /*
-      The case that makes this a defect rather than a theory. A refetch comes
-      back with nothing — an operator pulled the last listing, a kill switch
-      went on — the cards vanish, the empty state appears, and there is no
-      scroller left that could ever report a card again. Without this the bar
-      stays off the bottom of the window for good.
-    */
-    const { client } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-    scrollTo(4);
-    expect(useFeedStore.getState().chromeRetracted).toBe(true);
-
-    // A real refetch against a server that now has nothing — not a rerender,
-    // which would hand back the cards already in the cache and prove nothing.
-    server.use(
-      http.get(`${BASE}/reels`, () =>
-        HttpResponse.json({ items: [], complete: true }),
-      ),
-    );
-    await act(async () => {
-      await client.refetchQueries();
-    });
-    await screen.findByText(/Nothing bookable here yet/);
-
-    expect(useFeedStore.getState().chromeRetracted).toBe(false);
-  });
-});
-
-describe("the caption and the tail move with the chrome", () => {
-  it("gives the caption a foot that follows the bar, not a fixed one", async () => {
-    /*
-      `tabbar-clearance` is 92px whatever is happening — right when the bar is
-      there and 60px of dead space when it is not. The caption's own class
-      carries both numbers and interpolates between them, which is the whole
-      of "the layout changes with the bar".
-    */
-    const { container } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-
-    const captions = container.querySelectorAll(".feed-caption");
-    expect(captions.length).toBeGreaterThan(1);
-    for (const caption of captions) {
-      expect(caption.className).not.toContain("tabbar-clearance");
-    }
-  });
-
-  it("gives the tail one too, so the end of the feed closes up", async () => {
-    const { container } = renderWithQuery(<Feed />);
-    await screen.findAllByRole("article");
-
-    const tail = container.querySelector(".feed-tail");
-    expect(tail).not.toBeNull();
-    expect(tail!.className).not.toContain("tabbar-clearance");
-  });
-});
-
-describe("the shell's tab bar", () => {
-  it("is in place on the feed's first reel", () => {
+describe("the tab bar stays on every reel", () => {
+  it("is in place on the first reel", () => {
     const { container } = renderWithQuery(<TabBar />);
-    expect(container.querySelector("nav")?.getAttribute("data-retracted")).toBe(
-      "false",
-    );
-  });
-
-  it("retracts when the feed says so", async () => {
-    const { container } = renderWithQuery(<TabBar />);
-    scrollTo(2);
-    await waitFor(() =>
-      expect(
-        container.querySelector("nav")?.getAttribute("data-retracted"),
-      ).toBe("true"),
-    );
-  });
-
-  it("keeps its four destinations while it is out of the way", async () => {
-    // Translated, never unmounted and never hidden. A keyboard traveller tabs
-    // straight to it and `:focus-within` brings it back — which cannot work if
-    // the links are not in the document.
-    const { container } = renderWithQuery(<TabBar />);
-    scrollTo(2);
-    await waitFor(() =>
-      expect(
-        container.querySelector("nav")?.getAttribute("data-retracted"),
-      ).toBe("true"),
-    );
+    expect(container.querySelector("nav")).not.toBeNull();
     expect(screen.getAllByRole("link")).toHaveLength(4);
   });
 
-  it("never retracts on a screen that is not the feed", () => {
+  it("is still in place nine reels down", () => {
     /*
-      The guard that matters. `chromeRetracted` is module state, so without a
-      route check a value the feed left behind would take the navigation off
-      Search, Trips and Account as well.
+      The behaviour the owner asked for, and the one this issue changed. The
+      bar used to translate off the bottom of the window on any downward move;
+      it now does not move at all, so there is nothing to wait for.
     */
-    act(() => useFeedStore.getState().setActiveIndex(5));
-    nav.pathname = "/search";
     const { container } = renderWithQuery(<TabBar />);
-    expect(container.querySelector("nav")?.getAttribute("data-retracted")).toBe(
-      "false",
+    scrollTo(9);
+    expect(container.querySelector("nav")).not.toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(4);
+  });
+
+  it("carries no retract attribute at all", () => {
+    // Removed rather than pinned to "false". A flag nothing writes is a flag
+    // somebody re-wires.
+    const { container } = renderWithQuery(<TabBar />);
+    scrollTo(3);
+    expect(container.querySelector("nav")!.hasAttribute("data-retracted")).toBe(
+      false,
+    );
+    expect(container.querySelector("nav")!.className).not.toContain(
+      "tabbar-slide",
     );
   });
 
@@ -234,5 +203,23 @@ describe("the shell's tab bar", () => {
     nav.pathname = "/e/try-dive-nemo-reef";
     const { container } = renderWithQuery(<TabBar />);
     expect(container.querySelector("nav")).toBeNull();
+  });
+});
+
+describe("the caption leaves room for the bar", () => {
+  it("clears it on every reel, with the same number every screen uses", async () => {
+    /*
+      The bar no longer retracts, so the caption no longer animates out of its
+      way and back. `--feed-lift` was 60px and the caption's own foot was 32px;
+      the sum is the 92px `tabbar-clearance` already leaves everywhere else.
+      One number, seen from one end now instead of two.
+    */
+    const { container } = renderWithQuery(<Feed />);
+    await screen.findAllByRole("article");
+
+    const captions = container.querySelectorAll(".tabbar-clearance");
+    expect(captions.length).toBeGreaterThan(1);
+    expect(container.querySelector(".feed-caption")).toBeNull();
+    expect(container.querySelector("[data-chrome]")).toBeNull();
   });
 });
