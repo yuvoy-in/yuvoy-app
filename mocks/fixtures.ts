@@ -561,6 +561,12 @@ export function availabilityFor(slug: string): Slot[] {
       // No remainingSeats, no count in the display: a request promises an
       // answer, never a seat.
       remainingDisplay: "Ask the operator",
+      // The third day is granted out: the operator has already promised the
+      // whole departure, so no further request could be accepted. This is the
+      // ONLY signal a request-mode picker gets — seat counts stay withheld —
+      // and it exists in the fixture so the greyed-out state is exercised in
+      // request mode and not only in allotment.
+      soldOut: d === 3,
       availability: {
         asOf: isoAt(0, "06:00"),
         stale: false,
@@ -583,6 +589,7 @@ export function availabilityFor(slug: string): Slot[] {
       maxPartySize: 6,
       price,
       remainingSeats: 4,
+      soldOut: false,
       remainingDisplay: "4 seats left",
       availability: {
         asOf: isoAt(0, "06:00"),
@@ -604,6 +611,9 @@ export function availabilityFor(slug: string): Slot[] {
       price,
       remainingSeats: 0,
       remainingDisplay: "Full",
+      // The same fact `remainingDisplay` states as "Full". A picker greys out
+      // on this, never on the count.
+      soldOut: true,
       availability: {
         asOf: isoAt(0, "06:00"),
         stale: false,
@@ -626,6 +636,7 @@ export function availabilityFor(slug: string): Slot[] {
       // Six or more reads "Available" — a counter that ticks 23, 21, 22 as
       // holds expire teaches the traveller the number is noise.
       remainingDisplay: "Available",
+      soldOut: false,
       availability: {
         asOf: isoAt(0, "06:00"),
         stale: false,
@@ -646,6 +657,7 @@ export function availabilityFor(slug: string): Slot[] {
       price,
       // Stale: the count is withheld entirely and the display reads Available.
       remainingDisplay: "Available",
+      soldOut: false,
       availability: {
         asOf: isoAt(-2, "08:00"),
         stale: true,
@@ -667,6 +679,10 @@ export function availabilityFor(slug: string): Slot[] {
       maxPartySize: 6,
       price,
       remainingDisplay: "Booking closed",
+      // Seats remain; it is the cutoff that closed it. The contract is
+      // explicit that `soldOut` says nothing about `status`, so a picker must
+      // disable on BOTH and this fixture is the case that proves it.
+      soldOut: false,
       availability: {
         asOf: isoAt(0, "06:00"),
         stale: false,

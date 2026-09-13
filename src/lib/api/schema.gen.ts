@@ -155,6 +155,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/vocabulary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the filter chips may offer
+         * @description The words for `category`, `activityType` and `destinationKey` on `/search` and `/reels`: every category, the activity types, and the destinations that are open. No session. Build chips from this rather than from a hardcoded list, which disagrees with us the day a destination opens.
+         *
+         *     **The active vocabulary, not the populated one.** A value with no published listing behind it today is still offered; filtering by it answers an empty page. Narrowing to populated values would make a chip vanish when its only listing pauses for a week and reappear when it comes back.
+         *
+         *     `marketKey` narrows destinations and activity types to one market. Without it, destinations are those of every open market and activity types are the whole list. A well-formed market we do not have, or have not opened, answers categories and two empty lists rather than an error; a malformed one is a `400`.
+         *
+         *     Edge-cacheable: nothing here moves with a booking.
+         */
+        get: operations["getPublicVocabulary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scans": {
         parameters: {
             query?: never;
@@ -197,8 +223,42 @@ export interface paths {
          *     **Paged, and it says whether it ended.** Pass `nextCursor` back to continue; its absence, with `complete: true`, is the end. Do not infer the end from a short page — a page that happens to come back exactly full would stop the scroll early, and an infinite scroll that has silently stopped looks identical to one with nothing more to show, so nobody reports it.
          *
          *     The cursor resumes inside the rotation rather than at a timestamp, which is why a client must not attempt to page this ordering itself: restart the rotation and one business's second reel arrives before another's first, and the ordering stops being blind to which operator.
+         *
+         *     **Filters.** `q`, `destinationKey`, `category`, `activityType` and `bookableOn` narrow the feed with the same meaning and the same validation as `GET /search`: an unknown `category` is a `400`, an unknown `activityType` is an empty page, and a `q` with nothing searchable in it (only punctuation, or only exclusions) is an empty page rather than the words being ignored. Omit all of them and this is the unfiltered feed, unchanged.
+         *
+         *     Filters **narrow, they never rank**. The order is still the rotation, counted within the filtered set, so under "scuba at Havelock" every business's first matching reel still comes before anybody's second. There is no relevance ordering here; that is what `/search` is for.
+         *
+         *     **A cursor belongs to the filters it was minted under.** Sending it with any different filter set is a `400`, because the rotation is counted within the filters and the same position means a different card under different ones. When the chips change, drop the cursor and start from the first page. The same words typed with different case or spacing are the same filter set. Unfiltered cursors are unchanged from before filters existed.
+         *
+         *     The order is stable between requests, so a grid can open a reel and swipe on through the same sequence by paging with the same filters. As with the unfiltered feed, a listing published, withdrawn or sold out (under `bookableOn`) between two pages can move later cards by a place.
          */
         get: operations["listReels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One reel, by its own link
+         * @description A shared reel opens the reel, not the listing it belongs to.
+         *
+         *     `id` is the `media.id` every feed card already carries, so a client builds the link from data it has. The response is the same item the feed returns, `{ media, experience }`, so the card renders with the same component.
+         *
+         *     **Only reels the feed would show.** The same visibility rule as `GET /reels`: the clip is published and ready, the provider has made it public, and its listing can be sold today. Anything else is a `404`, and a reel that was hidden and one that never existed are deliberately the same answer, as for a draft listing. A malformed id is also a `404`: it is usually a link that was cut short.
+         *
+         *     This returns the reel alone. To swipe on from it, page `GET /reels` as usual.
+         */
+        get: operations["getReel"];
         put?: never;
         post?: never;
         delete?: never;
@@ -279,6 +339,8 @@ export interface paths {
          * @description Checkout. Unauthenticated by design — the traveller is a stranger with a phone, and a login wall here is the largest drop-off available in the flow.
          *
          *     Two behaviours, decided by the slot's `bookingMode`. An `allotment` slot holds seats immediately and returns `state: active` with a `holdExpiresAt`. A `request` slot creates `state: pending_request` with a `requestExpiresAt` and holds no seat at all — Yuvoy has no inventory on it until the operator accepts.
+         *
+         *     A request is taken at any hour and however many are already waiting on the departure. It stays open until the operator answers or booking for the departure closes, so `requestExpiresAt` is the departure's booking cutoff, not a short answer clock. Capacity is checked when the operator accepts, not here.
          *
          *     `Idempotency-Key` is required. A retry with the same key returns the original response, unchanged, with `201` and `Idempotent-Replay: true` — the status code is part of the stored response, so a client that retried after a dropped connection cannot tell its request was a repeat. The same key with a *different* body is refused: replaying it would hand back a reservation the caller never asked for.
          *
@@ -491,11 +553,77 @@ export interface paths {
          *     A traveller who never signs in loses nothing — none of this appears in the checkout path, and the founding claim is that a stranger pays in about a minute with no account.
          *
          *     The phone comes from the verified token and is never a parameter. A `?phone=` here would let anyone read a stranger's itinerary by typing their number, which on a small island is a disclosure about where somebody will be and when.
+         *
+         *     Since 2026-09-13 the credential is a `travellerSession` from `verifyTravellerSignIn`. A recovery token (`verifyBookingRecovery`) is still accepted. Requests still waiting on the operator are listed, with `state: pending_request` and no `reference` yet. Unpaid holds are not.
          */
         get: operations["listMyBookings"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sign-in/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a sign-in code to any number
+         * @description Signing in, for any number, whether or not it has ever booked. Unlike `requestBookingRecovery` there is no booking for the answer to reveal, so it says plainly that a code was sent.
+         *
+         *     There is no channel that delivers a traveller code yet (yuvoy-api#68); until there is, only the demo numbers receive one.
+         */
+        post: operations["requestTravellerSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sign-in/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a sign-in code for a session
+         * @description Returns a session that lasts 30 days. **Revokes nothing**: every booking link saved on this phone, and any other phone this traveller is signed in on, keeps working. That is the difference from `verifyBookingRecovery`, which exists for a lost link and rotates it.
+         *
+         *     Wrong, expired, used and over-attempted codes all answer `401` with one message.
+         */
+        post: operations["verifyTravellerSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out on this phone
+         * @description Ends this session only. `204` whatever the token was, including one already ended.
+         */
+        delete: operations["signOutTraveller"];
         options?: never;
         head?: never;
         patch?: never;
@@ -857,6 +985,16 @@ export interface components {
              */
             remainingDisplay?: string;
             availability?: components["schemas"]["SlotAvailability"];
+            /**
+             * @description True when nobody more can book, or ask for, this departure. **Grey the departure out in a date picker on this field**, in both booking modes, rather than deriving it from `remainingSeats` or `remainingDisplay`.
+             *
+             *     Allotment: no seat is left after holds and bookings, the same fact `remainingDisplay` states as `Full`. It stays true on a stale slot, for the same reason `Full` does.
+             *
+             *     Request: the operator has already granted the departure's full capacity, so no further request could be accepted. Only the boolean is published. Request mode withholds seat counts on purpose, and this field does not change that.
+             *
+             *     It says nothing about `status` or `bookingCutoffAt`. A departure that is `closed`, `cancelled` or past its cutoff is unbookable too and should be shown disabled on those fields, with `soldOut` possibly false.
+             */
+            soldOut: boolean;
         };
         SlotAvailability: {
             /**
@@ -1034,9 +1172,27 @@ export interface components {
              */
             payAtCounter?: {
                 available: boolean;
-                /** @description Path to POST to, relative to the API base. */
+                /** @description Path to POST to, relative to the API base — the same path as `POST /reservations/{id}/cash-booking`, so it carries no `/v1` of its own. */
                 confirmAt: string;
             };
+        };
+        /** @description One reel and the listing it sells: the item `GET /reels` pages, and what `GET /reels/{id}` returns. */
+        ReelItem: {
+            media: components["schemas"]["Media"];
+            experience: components["schemas"]["ExperienceSummary"];
+        };
+        VocabularyTerm: {
+            /** @description What to send. */
+            key: string;
+            /** @description What to show. */
+            label: string;
+        };
+        ActivityTypeTerm: {
+            /** @example scuba */
+            key: string;
+            /** @example Scuba diving */
+            label: string;
+            category: components["schemas"]["Category"];
         };
         ReelPage: {
             items: {
@@ -1099,6 +1255,8 @@ export interface components {
              *
              *     `verifying` means money may have moved and the outcome is not yet settled. **Never render it as failure** — "if money left your account it is safe" is the only honest copy for that window. It is also what the server says when a booking exists but is not yet visible: claiming a confirmed seat we cannot prove is the one thing this endpoint must never do.
              *
+             *     A **cash** booking reads `confirmed` as soon as it is made, never `verifying`: the seat was taken against a live hold and is the traveller's, and no money has moved to wait on. What they still owe the operator is in `payment` (D-034).
+             *
              *     `declined` means money was taken and the seat could not be delivered; a full refund is already recorded and `refund` carries where it is.
              * @enum {string}
              */
@@ -1142,7 +1300,7 @@ export interface components {
             };
             /**
              * Format: date-time
-             * @description When an unanswered request lapses — "answer by". The creation response carried this and the status page could not show it, so a traveller waiting had no idea how long for. Absent once the booking is final.
+             * @description When an unanswered request lapses — "answer by". Since 2026-09-13 this is the departure's booking cutoff, which can be days away, so show it as a date and time rather than a countdown. The creation response carried this and the status page could not show it, so a traveller waiting had no idea how long for. Absent once the booking is final.
              */
             requestExpiresAt?: string;
             /**
@@ -1158,6 +1316,19 @@ export interface components {
                 /** Format: date-time */
                 sentAt?: string;
             }[];
+            /**
+             * @description Present only for a booking paid in cash at the counter: what the traveller still owes the operator, and whether it has been taken. A card booking carries no `payment`.
+             *
+             *     Render it beside `confirmed` — the seat is booked, and this is what to bring on the day (D-034).
+             */
+            payment?: {
+                /** @enum {string} */
+                method: "cash";
+                /** @description `true` once the operator has recorded taking the cash. */
+                collected: boolean;
+                /** @description What to bring, from the price frozen at checkout — the same number as `price.totalPaise`. */
+                amountPaise: number;
+            };
             /** @description Present only when a refund exists, so the happy path carries no alarming vocabulary. Answers the only question a declined or cancelled traveller has: where is my money. */
             refund?: {
                 amountPaise?: number;
@@ -1472,7 +1643,7 @@ export interface operations {
                 /**
                  * @description What the thing actually is — `scuba`, not `adventure`. Matched exactly.
                  *
-                 *     **An unknown value is an empty page, not a `400`** — the opposite of `category`, and deliberately. This set grows by `INSERT`, so today's unknown value is tomorrow's real one and refusing it would make the API stale between deploys. Read the current set from the operator vocabulary endpoint rather than hardcoding it.
+                 *     **An unknown value is an empty page, not a `400`** — the opposite of `category`, and deliberately. This set grows by `INSERT`, so today's unknown value is tomorrow's real one and refusing it would make the API stale between deploys. Read the current set from `GET /catalog/vocabulary` rather than hardcoding it.
                  */
                 activityType?: string;
                 /** @description Only what can actually be booked that day, in the market's timezone. */
@@ -1618,6 +1789,37 @@ export interface operations {
             503: components["responses"]["CatalogUnavailable"];
         };
     };
+    getPublicVocabulary: {
+        parameters: {
+            query?: {
+                marketKey?: components["schemas"]["MarketKey"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The vocabulary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Every category, in the order chips should show them. */
+                        categories: components["schemas"]["VocabularyTerm"][];
+                        /** @description Each with the category it belongs to, so chips can be narrowed to the chosen category. Not an enum anywhere in this contract: the set grows by INSERT. */
+                        activityTypes: components["schemas"]["ActivityTypeTerm"][];
+                        /** @description Open destinations, ordered by market and then as supply wants them shown. `key` is `<market>/<destination>`. */
+                        destinations: components["schemas"]["VocabularyTerm"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            503: components["responses"]["CatalogUnavailable"];
+        };
+    };
     recordScan: {
         parameters: {
             query?: never;
@@ -1674,8 +1876,17 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                /** @description From a previous response's `nextCursor`. Opaque; do not construct one. */
+                /** @description From a previous response's `nextCursor`, sent with exactly the same filters as that request. Opaque; do not construct one. */
                 cursor?: string;
+                /** @description Free text, as on `/search`. Narrows; does not reorder. */
+                q?: string;
+                destinationKey?: components["schemas"]["DestinationKey"];
+                /** @description As on `/search`. **An unknown value is a `400`.** */
+                category?: components["schemas"]["Category"];
+                /** @description As on `/search`. Matched exactly; an unknown value is an empty page, not a `400`. The current set is in `GET /catalog/vocabulary`. */
+                activityType?: string;
+                /** @description Only reels of listings that can actually be booked that day, in the market's timezone. */
+                bookableOn?: string;
             };
             header?: never;
             path?: never;
@@ -1702,6 +1913,31 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    getReel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The feed card's `media.id`. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reel, with the listing it sells. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReelItem"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["CatalogUnavailable"];
         };
     };
     listExperiences: {
@@ -1810,7 +2046,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
-            /** @description Could not proceed, and the code says why: `capacity_unavailable`, `request_quota_exhausted`, `request_window_closed` (carries `opensAt`), `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`. */
+            /** @description Could not proceed, and the code says why: `capacity_unavailable`, `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`. `request_quota_exhausted` and `request_window_closed` are no longer returned (since 2026-09-13): every request is taken. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1876,7 +2112,7 @@ export interface operations {
                         /** @description Where to finish instead. While no card processor is live this is the ONLY way a booking can be completed, so a client that renders `message` and stops leaves the traveller unable to book at all. */
                         payAtCounter?: {
                             available: boolean;
-                            /** @description Path to POST to, relative to the API base. */
+                            /** @description Path to POST to, relative to the API base — the same path as `POST /reservations/{id}/cash-booking`, so it carries no `/v1` of its own. */
                             confirmAt: string;
                         };
                     };
@@ -2135,25 +2371,123 @@ export interface operations {
                 content: {
                     "application/json": {
                         bookings: {
+                            /** @description Empty for a request the operator has not answered yet. */
                             reference: string;
+                            /** @description Always present. What the app matches against the trips saved on the phone when there is no reference yet. */
+                            reservationId: string;
                             experience: string;
                             operator: string;
                             /** Format: date */
                             localDate: string;
                             /** @example 06:30 */
                             localTime: string;
+                            /** @description The booking's state, or for a request with no booking yet `pending_request` (waiting on the operator) or `declined` (the operator said no; see `reasonCode`). */
                             state: string;
                             guests: number;
                             meetingPoint?: string;
-                            statusToken?: string;
+                            /** @description A booking link for this trip, minted for this response, so a trip booked on another phone opens here. Opens this booking only; it can never list the number's other trips. Issuing it revokes nothing. */
+                            statusToken: string;
                             /** Format: date-time */
                             cancelledAt?: string | null;
+                            /**
+                             * @description Why the operator declined. Present only when `state` is `declined`.
+                             * @enum {string}
+                             */
+                            reasonCode?: "no_capacity" | "weather" | "not_operating" | "party_too_large" | "unsafe_for_party" | "other";
                         }[];
                     };
                 };
             };
             401: components["responses"]["Unauthorized"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    requestTravellerSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description E.164, e.g. +919000000000 */
+                    phone: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A code was recorded for the number. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sent: boolean;
+                        message: string;
+                        /** @description **Development only**, as on `requestBookingRecovery`. Never present in production. */
+                        devCode?: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    verifyTravellerSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Send as an `Authorization: Bearer` header to `/me/bookings`. */
+                        sessionToken: string;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    signOutTraveller: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
     shareBooking: {

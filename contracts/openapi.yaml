@@ -197,8 +197,8 @@ paths:
             **An unknown value is an empty page, not a `400`** — the opposite of
             `category`, and deliberately. This set grows by `INSERT`, so today's
             unknown value is tomorrow's real one and refusing it would make the
-            API stale between deploys. Read the current set from the operator
-            vocabulary endpoint rather than hardcoding it.
+            API stale between deploys. Read the current set from
+            `GET /catalog/vocabulary` rather than hardcoding it.
           schema: { type: string, maxLength: 60 }
         - name: bookableOn
           in: query
@@ -403,6 +403,67 @@ paths:
                             query per URL.
         "503": { $ref: "#/components/responses/CatalogUnavailable" }
 
+  /catalog/vocabulary:
+    get:
+      tags: [catalog]
+      summary: What the filter chips may offer
+      operationId: getPublicVocabulary
+      description: >-
+        The words for `category`, `activityType` and `destinationKey` on
+        `/search` and `/reels`: every category, the activity types, and the
+        destinations that are open. No session. Build chips from this rather
+        than from a hardcoded list, which disagrees with us the day a
+        destination opens.
+
+
+        **The active vocabulary, not the populated one.** A value with no
+        published listing behind it today is still offered; filtering by it
+        answers an empty page. Narrowing to populated values would make a chip
+        vanish when its only listing pauses for a week and reappear when it
+        comes back.
+
+
+        `marketKey` narrows destinations and activity types to one market.
+        Without it, destinations are those of every open market and activity
+        types are the whole list. A well-formed market we do not have, or have
+        not opened, answers categories and two empty lists rather than an
+        error; a malformed one is a `400`.
+
+
+        Edge-cacheable: nothing here moves with a booking.
+      parameters:
+        - name: marketKey
+          in: query
+          schema: { $ref: "#/components/schemas/MarketKey" }
+      responses:
+        "200":
+          description: The vocabulary.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories, activityTypes, destinations]
+                properties:
+                  categories:
+                    type: array
+                    description: Every category, in the order chips should show them.
+                    items: { $ref: "#/components/schemas/VocabularyTerm" }
+                  activityTypes:
+                    type: array
+                    description: >-
+                      Each with the category it belongs to, so chips can be
+                      narrowed to the chosen category. Not an enum anywhere in
+                      this contract: the set grows by INSERT.
+                    items: { $ref: "#/components/schemas/ActivityTypeTerm" }
+                  destinations:
+                    type: array
+                    description: >-
+                      Open destinations, ordered by market and then as supply
+                      wants them shown. `key` is `<market>/<destination>`.
+                    items: { $ref: "#/components/schemas/VocabularyTerm" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/CatalogUnavailable" }
+
   /scans:
     post:
       tags: [scans]
@@ -525,6 +586,36 @@ paths:
         is why a client must not attempt to page this ordering itself: restart
         the rotation and one business's second reel arrives before another's
         first, and the ordering stops being blind to which operator.
+
+
+        **Filters.** `q`, `destinationKey`, `category`, `activityType` and
+        `bookableOn` narrow the feed with the same meaning and the same
+        validation as `GET /search`: an unknown `category` is a `400`, an
+        unknown `activityType` is an empty page, and a `q` with nothing
+        searchable in it (only punctuation, or only exclusions) is an empty
+        page rather than the words being ignored. Omit all of them and this is
+        the unfiltered feed, unchanged.
+
+
+        Filters **narrow, they never rank**. The order is still the rotation,
+        counted within the filtered set, so under "scuba at Havelock" every
+        business's first matching reel still comes before anybody's second.
+        There is no relevance ordering here; that is what `/search` is for.
+
+
+        **A cursor belongs to the filters it was minted under.** Sending it
+        with any different filter set is a `400`, because the rotation is
+        counted within the filters and the same position means a different
+        card under different ones. When the chips change, drop the cursor and
+        start from the first page. The same words typed with different case or
+        spacing are the same filter set. Unfiltered cursors are unchanged from
+        before filters existed.
+
+
+        The order is stable between requests, so a grid can open a reel and
+        swipe on through the same sequence by paging with the same filters.
+        As with the unfiltered feed, a listing published, withdrawn or sold out
+        (under `bookableOn`) between two pages can move later cards by a place.
       operationId: listReels
       parameters:
         - name: limit
@@ -532,8 +623,33 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 60, default: 30 }
         - name: cursor
           in: query
-          description: From a previous response's `nextCursor`. Opaque; do not construct one.
+          description: >-
+            From a previous response's `nextCursor`, sent with exactly the same
+            filters as that request. Opaque; do not construct one.
           schema: { type: string }
+        - name: q
+          in: query
+          description: Free text, as on `/search`. Narrows; does not reorder.
+          schema: { type: string, maxLength: 120 }
+        - name: destinationKey
+          in: query
+          schema: { $ref: "#/components/schemas/DestinationKey" }
+        - name: category
+          in: query
+          description: As on `/search`. **An unknown value is a `400`.**
+          schema: { $ref: "#/components/schemas/Category" }
+        - name: activityType
+          in: query
+          description: >-
+            As on `/search`. Matched exactly; an unknown value is an empty page,
+            not a `400`. The current set is in `GET /catalog/vocabulary`.
+          schema: { type: string, maxLength: 60 }
+        - name: bookableOn
+          in: query
+          schema: { type: string, format: date }
+          description: >-
+            Only reels of listings that can actually be booked that day, in the
+            market's timezone.
       responses:
         "200":
           description: Reels, each with the listing it sells.
@@ -560,6 +676,46 @@ paths:
                     type: string
                     description: Absent when there is nothing after this page.
         "400": { $ref: "#/components/responses/BadRequest" }
+
+  /reels/{id}:
+    get:
+      tags: [catalog]
+      summary: One reel, by its own link
+      description: >
+        A shared reel opens the reel, not the listing it belongs to.
+
+
+        `id` is the `media.id` every feed card already carries, so a client
+        builds the link from data it has. The response is the same item the
+        feed returns, `{ media, experience }`, so the card renders with the
+        same component.
+
+
+        **Only reels the feed would show.** The same visibility rule as
+        `GET /reels`: the clip is published and ready, the provider has made it
+        public, and its listing can be sold today. Anything else is a `404`,
+        and a reel that was hidden and one that never existed are
+        deliberately the same answer, as for a draft listing. A malformed id is
+        also a `404`: it is usually a link that was cut short.
+
+
+        This returns the reel alone. To swipe on from it, page `GET /reels`
+        as usual.
+      operationId: getReel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The feed card's `media.id`.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The reel, with the listing it sells.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReelItem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/CatalogUnavailable" }
 
   /experiences:
     get:
@@ -672,6 +828,13 @@ paths:
         it until the operator accepts.
 
 
+        A request is taken at any hour and however many are already waiting on
+        the departure. It stays open until the operator answers or booking for
+        the departure closes, so `requestExpiresAt` is the departure's booking
+        cutoff, not a short answer clock. Capacity is checked when the operator
+        accepts, not here.
+
+
         `Idempotency-Key` is required. A retry with the same key returns the
         original response, unchanged, with `201` and `Idempotent-Replay: true` —
         the status code is part of the stored response, so a client that retried
@@ -706,9 +869,9 @@ paths:
         "409":
           description: >
             Could not proceed, and the code says why: `capacity_unavailable`,
-            `request_quota_exhausted`, `request_window_closed` (carries
-            `opensAt`), `cutoff_passed`, `idempotency_key_reuse`,
-            `idempotency_in_progress`.
+            `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`.
+            `request_quota_exhausted` and `request_window_closed` are no longer
+            returned (since 2026-09-13): every request is taken.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -789,7 +952,10 @@ paths:
                       available: { type: boolean }
                       confirmAt:
                         type: string
-                        description: Path to POST to, relative to the API base.
+                        description: >-
+                          Path to POST to, relative to the API base — the same
+                          path as `POST /reservations/{id}/cash-booking`, so it
+                          carries no `/v1` of its own.
         "201":
           description: The order to pay against.
           content:
@@ -1115,7 +1281,13 @@ paths:
         `?phone=` here would let anyone read a stranger's itinerary by typing
         their number, which on a small island is a disclosure about where
         somebody will be and when.
-      security: [{ statusToken: [] }]
+
+
+        Since 2026-09-13 the credential is a `travellerSession` from
+        `verifyTravellerSignIn`. A recovery token (`verifyBookingRecovery`) is
+        still accepted. Requests still waiting on the operator are listed, with
+        `state: pending_request` and no `reference` yet. Unpaid holds are not.
+      security: [{ travellerSession: [] }, { statusToken: [] }]
       responses:
         "200":
           description: >-
@@ -1132,20 +1304,138 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [reference, experience, operator, localDate, localTime, state, guests]
+                      required: [reference, reservationId, experience, operator, localDate, localTime, state, guests, statusToken]
                       properties:
-                        reference: { type: string }
+                        reference:
+                          type: string
+                          description: Empty for a request the operator has not answered yet.
+                        reservationId:
+                          type: string
+                          description: >-
+                            Always present. What the app matches against the
+                            trips saved on the phone when there is no reference
+                            yet.
                         experience: { type: string }
                         operator: { type: string }
                         localDate: { type: string, format: date }
                         localTime: { type: string, example: "06:30" }
-                        state: { type: string }
+                        state:
+                          type: string
+                          description: >-
+                            The booking's state, or for a request with no booking
+                            yet `pending_request` (waiting on the operator) or
+                            `declined` (the operator said no; see `reasonCode`).
                         guests: { type: integer }
                         meetingPoint: { type: string }
-                        statusToken: { type: string }
+                        statusToken:
+                          type: string
+                          description: >-
+                            A booking link for this trip, minted for this
+                            response, so a trip booked on another phone opens
+                            here. Opens this booking only; it can never list the
+                            number's other trips. Issuing it revokes nothing.
                         cancelledAt: { type: [string, "null"], format: date-time }
+                        reasonCode:
+                          type: string
+                          enum: [no_capacity, weather, not_operating, party_too_large, unsafe_for_party, other]
+                          description: Why the operator declined. Present only when `state` is `declined`.
         "401": { $ref: "#/components/responses/Unauthorized" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /me/sign-in/request:
+    post:
+      tags: [me]
+      summary: Send a sign-in code to any number
+      operationId: requestTravellerSignIn
+      description: >-
+        Signing in, for any number, whether or not it has ever booked. Unlike
+        `requestBookingRecovery` there is no booking for the answer to reveal,
+        so it says plainly that a code was sent.
+
+
+        There is no channel that delivers a traveller code yet (yuvoy-api#68);
+        until there is, only the demo numbers receive one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, description: "E.164, e.g. +919000000000" }
+      responses:
+        "202":
+          description: A code was recorded for the number.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent, message]
+                properties:
+                  sent: { type: boolean }
+                  message: { type: string }
+                  devCode:
+                    type: string
+                    description: >-
+                      **Development only**, as on `requestBookingRecovery`.
+                      Never present in production.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /me/sign-in/verify:
+    post:
+      tags: [me]
+      summary: Exchange a sign-in code for a session
+      operationId: verifyTravellerSignIn
+      description: >-
+        Returns a session that lasts 30 days. **Revokes nothing**: every booking
+        link saved on this phone, and any other phone this traveller is signed
+        in on, keeps working. That is the difference from
+        `verifyBookingRecovery`, which exists for a lost link and rotates it.
+
+
+        Wrong, expired, used and over-attempted codes all answer `401` with one
+        message.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string }
+      responses:
+        "200":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessionToken, expiresAt]
+                properties:
+                  sessionToken:
+                    type: string
+                    description: "Send as an `Authorization: Bearer` header to `/me/bookings`."
+                  expiresAt: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /me/session:
+    delete:
+      tags: [me]
+      summary: Sign out on this phone
+      operationId: signOutTraveller
+      description: >-
+        Ends this session only. `204` whatever the token was, including one
+        already ended.
+      security: [{ travellerSession: [] }]
+      responses:
+        "204": { description: Signed out. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 
   /bookings/share:
     post:
@@ -1372,6 +1662,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    travellerSession:
+      type: http
+      scheme: bearer
+      description: >-
+        The opaque token `verifyTravellerSignIn` returns. Proves a code reached
+        a phone number; not tied to any booking.
     statusToken:
       type: http
       scheme: bearer
@@ -1477,6 +1773,9 @@ components:
         # cannot proceed, because "unavailable" alone leaves them with no next
         # step — and one of these is not the traveller's fault at all.
         - capacity_unavailable
+        # Retired 2026-09-13 and no longer returned: every request is taken, at
+        # any hour. Kept in the enum so a deployed client's exhaustive handling
+        # still type-checks.
         - request_quota_exhausted
         - request_window_closed
         - grant_ceiling_exceeded
@@ -1867,7 +2166,7 @@ components:
     Slot:
       type: object
       required:
-        [id, startsAt, endsAt, marketTimezone, localDate, localStartTime, bookingCutoffAt, status, bookingMode]
+        [id, startsAt, endsAt, marketTimezone, localDate, localStartTime, bookingCutoffAt, status, bookingMode, soldOut]
       properties:
         id: { type: string }
         startsAt: { type: string, format: date-time }
@@ -1918,6 +2217,30 @@ components:
 
             For request mode: wording that promises an answer, never a seat.
         availability: { $ref: "#/components/schemas/SlotAvailability" }
+        soldOut:
+          type: boolean
+          description: >-
+            True when nobody more can book, or ask for, this departure. **Grey
+            the departure out in a date picker on this field**, in both booking
+            modes, rather than deriving it from `remainingSeats` or
+            `remainingDisplay`.
+
+
+            Allotment: no seat is left after holds and bookings, the same fact
+            `remainingDisplay` states as `Full`. It stays true on a stale slot,
+            for the same reason `Full` does.
+
+
+            Request: the operator has already granted the departure's full
+            capacity, so no further request could be accepted. Only the boolean
+            is published. Request mode withholds seat counts on purpose, and
+            this field does not change that.
+
+
+            It says nothing about `status` or `bookingCutoffAt`. A departure
+            that is `closed`, `cancelled` or past its cutoff is unbookable too
+            and should be shown disabled on those fields, with `soldOut` possibly
+            false.
 
     SlotAvailability:
       type: object
@@ -2260,7 +2583,35 @@ components:
             available: { type: boolean }
             confirmAt:
               type: string
-              description: Path to POST to, relative to the API base.
+              description: >-
+                Path to POST to, relative to the API base — the same path as
+                `POST /reservations/{id}/cash-booking`, so it carries no `/v1` of
+                its own.
+
+    ReelItem:
+      type: object
+      description: >-
+        One reel and the listing it sells: the item `GET /reels` pages, and
+        what `GET /reels/{id}` returns.
+      required: [media, experience]
+      properties:
+        media: { $ref: "#/components/schemas/Media" }
+        experience: { $ref: "#/components/schemas/ExperienceSummary" }
+
+    VocabularyTerm:
+      type: object
+      required: [key, label]
+      properties:
+        key: { type: string, description: What to send. }
+        label: { type: string, description: What to show. }
+
+    ActivityTypeTerm:
+      type: object
+      required: [key, label, category]
+      properties:
+        key: { type: string, examples: ["scuba"] }
+        label: { type: string, examples: ["Scuba diving"] }
+        category: { $ref: "#/components/schemas/Category" }
 
     ReelPage:
       type: object
@@ -2426,6 +2777,12 @@ components:
             this endpoint must never do.
 
 
+            A **cash** booking reads `confirmed` as soon as it is made, never
+            `verifying`: the seat was taken against a live hold and is the
+            traveller's, and no money has moved to wait on. What they still owe
+            the operator is in `payment` (D-034).
+
+
             `declined` means money was taken and the seat could not be
             delivered; a full refund is already recorded and `refund` carries
             where it is.
@@ -2499,7 +2856,9 @@ components:
           type: string
           format: date-time
           description: >-
-            When an unanswered request lapses — "answer by". The creation
+            When an unanswered request lapses — "answer by". Since 2026-09-13
+            this is the departure's booking cutoff, which can be days away, so
+            show it as a date and time rather than a countdown. The creation
             response carried this and the status page could not show it, so a
             traveller waiting had no idea how long for. Absent once the booking
             is final.
@@ -2523,6 +2882,29 @@ components:
               detail: { type: string }
               note: { type: string }
               sentAt: { type: string, format: date-time }
+        payment:
+          type: object
+          required: [method, collected, amountPaise]
+          description: >-
+            Present only for a booking paid in cash at the counter: what the
+            traveller still owes the operator, and whether it has been taken. A
+            card booking carries no `payment`.
+
+
+            Render it beside `confirmed` — the seat is booked, and this is what to
+            bring on the day (D-034).
+          properties:
+            method:
+              type: string
+              enum: [cash]
+            collected:
+              type: boolean
+              description: "`true` once the operator has recorded taking the cash."
+            amountPaise:
+              type: integer
+              description: >-
+                What to bring, from the price frozen at checkout — the same
+                number as `price.totalPaise`.
         refund:
           type: [object, "null"]
           description: >-

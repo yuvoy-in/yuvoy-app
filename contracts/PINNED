@@ -117,6 +117,85 @@ repo=yuvoy-in/yuvoy-api
 # issue. And every field above is consumed as OPTIONAL regardless of what
 # `required:` says — a pinned contract states what an API WILL send, never what
 # it does send today (yuvoy-api#126).
-ref=79ce45afd3fb78ed35e8b590c278d46eb463fd2c
+# ---
+#
+# 13 Sep 2026. Forward from 79ce45afd3fb to d4e03a39ea29, across seven API
+# merges (#164, #166, #167, #168, #170, #171, #172, #173). Additive to every
+# path this app already calls; the two removals are 409 codes the API has
+# stopped RETURNING and deliberately kept in the enum, so nothing narrows.
+#
+# This bump is a PREREQUISITE, not a feature: the owner walked the app on
+# 13 Sep and filed yuvoy-app#32 and #34 through #38, and five of those read
+# fields that arrive here. It is pinned in its own change so that the screen
+# work that follows shows only screen changes, and so a regression in the
+# generated client is bisectable to one commit.
+#
+# New, and each one is consumed by a named issue:
+#   - `GET /catalog/vocabulary` + `VocabularyTerm` + `ActivityTypeTerm`
+#     (app#37). The filter chips stop being derived from a 50-item page of
+#     `/experiences` and come from the API's own word list. Note the contract's
+#     own warning: it publishes the ACTIVE vocabulary, not the populated one,
+#     so a chip may legitimately return an empty page.
+#   - `GET /reels/{id}` + `ReelItem` (app#36). A shared reel opens the reel.
+#     A hidden reel and one that never existed are the same 404 on purpose, so
+#     the client must not tell them apart either.
+#   - `GET /reels` gains `q`, `destinationKey`, `category`, `activityType`,
+#     `bookableOn` (app#37). **The cursor belongs to the filter set it was
+#     minted under** — replaying one under different filters is a 400, not a
+#     silent re-page. Any client here that keeps a cursor across a chip change
+#     is a bug the contract will punish, so the filters are part of the query
+#     key and the cursor is dropped with them.
+#   - `POST /me/sign-in/request`, `POST /me/sign-in/verify`,
+#     `DELETE /me/session` + the `travellerSession` scheme (app#34). This is a
+#     SECOND credential beside `statusToken`, not a replacement: recovery still
+#     exists for a lost link, where rotating it is the point.
+#   - `/me/bookings` now accepts `travellerSession`, and each row gains
+#     `reservationId` and a required `statusToken`, plus `reasonCode` and the
+#     `pending_request` / `declined` states (app#34). A row for a request the
+#     operator has not answered carries an EMPTY `reference`, so anything
+#     keyed by reference must key by `reservationId` instead.
+#   - `Slot.soldOut`, now required (app#32). The date picker greys out on this
+#     and never on `remainingSeats` or `remainingDisplay` — it is the only
+#     signal request mode publishes, where seat counts stay withheld. It says
+#     nothing about `status` or `bookingCutoffAt`; a closed departure can carry
+#     `soldOut: false` and must still be disabled. The fixtures now cover both.
+#   - `BookingStatus.payment` (app#29). What a cash booking still owes the
+#     operator, beside `confirmed`.
+#
+# Behaviour that changed under paths already called, which is the dangerous
+# half of this bump:
+#   - **A cash booking now reads `confirmed`, not `verifying`** (D-034,
+#     api#168). `GET /bookings/status` no longer projects `paid_pending_ops`
+#     at all; it answers `confirmed` + `final: true` + `payment`. The app's
+#     `paid_pending_ops` narrowing therefore stops being reachable through
+#     this endpoint. It is NOT deleted here: `GET /me/bookings` still carries
+#     the raw state, and a client that had narrowed it correctly should not
+#     un-narrow it on a projection change.
+#   - **`requestExpiresAt` is the departure's booking cutoff**, often days
+#     away, not a two-hour answer clock (api#170). A countdown rendered
+#     against it is now wrong by days. Fixed under app#32, not here.
+#   - **`request_window_closed` and `request_quota_exhausted` are retired**
+#     and never returned. Kept in the `Error.code` enum so exhaustive handling
+#     in a deployed client still type-checks, which is the right call and the
+#     reason nothing breaks. The panel that renders them goes under app#32.
+#   - **`payAtCounter.confirmAt` lost its `/v1` prefix.** It was
+#     `/v1/reservations/<id>/cash-booking`, which doubled `/v1` against the API
+#     base; it is now relative to the base. This app never used it as a request
+#     target — it posts to the typed path and reads `confirmAt` only as the
+#     signal that the option exists — so nothing changes here, and Hima
+#     confirmed on app#29 that the typed path is the one to keep.
+#
+# Consumed in THIS change: nothing. The contract, the generated client and the
+# fixtures move together; `soldOut` on six fixture slots is the only source
+# edit, and it is what the typechecker demanded. Every field above lands with
+# the issue that reads it.
+#
+# `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
+# which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
+# issue. And every field above is consumed as OPTIONAL regardless of what
+# `required:` says — a pinned contract states what an API WILL send, never what
+# it does send today (yuvoy-api#126).
+
+ref=d4e03a39ea298bdf8e6169f943edad951d4bfe78
 branch=master
-pinned_on=2026-09-11
+pinned_on=2026-09-13
