@@ -32,6 +32,37 @@ describe("OperatorScreen", () => {
     expect(screen.getByText("reels")).toBeInTheDocument();
   });
 
+  it("sends What they run to its own page, rather than listing it here", async () => {
+    /*
+      yuvoy-app#33. It was a stack of full listing rows between the story and
+      the reels, which on a business with eight listings pushed their footage
+      below two screens of rows — on a page whose whole argument is the
+      footage. The count is on the door so the tap is informed.
+    */
+    renderWithQuery(<OperatorScreen slug={SLUG} />);
+    const door = await screen.findByRole("link", { name: /What they run/ });
+    expect(door).toHaveAttribute("href", `/o/${SLUG}/listings`);
+
+    // The rows themselves are gone from the profile.
+    const profile = operatorProfileFor(SLUG);
+    for (const { experience } of profile.listings) {
+      expect(screen.queryByText(experience.title)).toBeNull();
+    }
+  });
+
+  it("plays a reel in place rather than opening its listing", async () => {
+    /*
+      A poster does not promise the listing. Somebody tapping a clip means the
+      clip, and swiping from there moves through this business's reels only.
+    */
+    renderWithQuery(<OperatorScreen slug={SLUG} />);
+    const tiles = await screen.findAllByRole("link", { name: /^Play / });
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const tile of tiles) {
+      expect(tile.getAttribute("href")).toMatch(new RegExp(`^/o/${SLUG}/r/`));
+    }
+  });
+
   it("invents no rating and no follower count", async () => {
     /*
       "Reviews do not exist until real completed bookings produce them, and a
@@ -51,26 +82,6 @@ describe("OperatorScreen", () => {
     expect(
       await screen.findByLabelText(/Credentials verified by Yuvoy/i),
     ).toBeInTheDocument();
-  });
-
-  it("shows a listing that cannot be booked, and says so", async () => {
-    /*
-      "`bookable: false` on a listing card means show it and say it cannot be
-      booked, not hide it. Somebody followed a link looking for a specific
-      thing they saw; an emptier page with no explanation is worse than a card
-      marked 'Not available right now'."
-    */
-    renderWithQuery(<OperatorScreen slug={SLUG} />);
-
-    const cards = await screen.findAllByRole("link", { name: /./ });
-    expect(cards.length).toBeGreaterThan(0);
-    expect(screen.getByText("Not available right now")).toBeInTheDocument();
-
-    // Every listing is on the page, including the one that is off.
-    const profile = operatorProfileFor(SLUG);
-    for (const { experience } of profile.listings) {
-      expect(screen.getByText(experience.title)).toBeInTheDocument();
-    }
   });
 
   it("renders a paused business rather than an error", async () => {

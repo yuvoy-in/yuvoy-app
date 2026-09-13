@@ -155,6 +155,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/vocabulary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the filter chips may offer
+         * @description The words for `category`, `activityType` and `destinationKey` on `/search` and `/reels`: every category, the activity types, and the destinations that are open. No session. Build chips from this rather than from a hardcoded list, which disagrees with us the day a destination opens.
+         *
+         *     **The active vocabulary, not the populated one.** A value with no published listing behind it today is still offered; filtering by it answers an empty page. Narrowing to populated values would make a chip vanish when its only listing pauses for a week and reappear when it comes back.
+         *
+         *     `marketKey` narrows destinations and activity types to one market. Without it, destinations are those of every open market and activity types are the whole list. A well-formed market we do not have, or have not opened, answers categories and two empty lists rather than an error; a malformed one is a `400`.
+         *
+         *     Edge-cacheable: nothing here moves with a booking.
+         */
+        get: operations["getPublicVocabulary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scans": {
         parameters: {
             query?: never;
@@ -197,8 +223,42 @@ export interface paths {
          *     **Paged, and it says whether it ended.** Pass `nextCursor` back to continue; its absence, with `complete: true`, is the end. Do not infer the end from a short page — a page that happens to come back exactly full would stop the scroll early, and an infinite scroll that has silently stopped looks identical to one with nothing more to show, so nobody reports it.
          *
          *     The cursor resumes inside the rotation rather than at a timestamp, which is why a client must not attempt to page this ordering itself: restart the rotation and one business's second reel arrives before another's first, and the ordering stops being blind to which operator.
+         *
+         *     **Filters.** `q`, `destinationKey`, `category`, `activityType` and `bookableOn` narrow the feed with the same meaning and the same validation as `GET /search`: an unknown `category` is a `400`, an unknown `activityType` is an empty page, and a `q` with nothing searchable in it (only punctuation, or only exclusions) is an empty page rather than the words being ignored. Omit all of them and this is the unfiltered feed, unchanged.
+         *
+         *     Filters **narrow, they never rank**. The order is still the rotation, counted within the filtered set, so under "scuba at Havelock" every business's first matching reel still comes before anybody's second. There is no relevance ordering here; that is what `/search` is for.
+         *
+         *     **A cursor belongs to the filters it was minted under.** Sending it with any different filter set is a `400`, because the rotation is counted within the filters and the same position means a different card under different ones. When the chips change, drop the cursor and start from the first page. The same words typed with different case or spacing are the same filter set. Unfiltered cursors are unchanged from before filters existed.
+         *
+         *     The order is stable between requests, so a grid can open a reel and swipe on through the same sequence by paging with the same filters. As with the unfiltered feed, a listing published, withdrawn or sold out (under `bookableOn`) between two pages can move later cards by a place.
          */
         get: operations["listReels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reels/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One reel, by its own link
+         * @description A shared reel opens the reel, not the listing it belongs to.
+         *
+         *     `id` is the `media.id` every feed card already carries, so a client builds the link from data it has. The response is the same item the feed returns, `{ media, experience }`, so the card renders with the same component.
+         *
+         *     **Only reels the feed would show.** The same visibility rule as `GET /reels`: the clip is published and ready, the provider has made it public, and its listing can be sold today. Anything else is a `404`, and a reel that was hidden and one that never existed are deliberately the same answer, as for a draft listing. A malformed id is also a `404`: it is usually a link that was cut short.
+         *
+         *     This returns the reel alone. To swipe on from it, page `GET /reels` as usual.
+         */
+        get: operations["getReel"];
         put?: never;
         post?: never;
         delete?: never;
@@ -279,6 +339,8 @@ export interface paths {
          * @description Checkout. Unauthenticated by design — the traveller is a stranger with a phone, and a login wall here is the largest drop-off available in the flow.
          *
          *     Two behaviours, decided by the slot's `bookingMode`. An `allotment` slot holds seats immediately and returns `state: active` with a `holdExpiresAt`. A `request` slot creates `state: pending_request` with a `requestExpiresAt` and holds no seat at all — Yuvoy has no inventory on it until the operator accepts.
+         *
+         *     A request is taken at any hour and however many are already waiting on the departure. It stays open until the operator answers or booking for the departure closes, so `requestExpiresAt` is the departure's booking cutoff, not a short answer clock. Capacity is checked when the operator accepts, not here.
          *
          *     `Idempotency-Key` is required. A retry with the same key returns the original response, unchanged, with `201` and `Idempotent-Replay: true` — the status code is part of the stored response, so a client that retried after a dropped connection cannot tell its request was a repeat. The same key with a *different* body is refused: replaying it would hand back a reservation the caller never asked for.
          *
@@ -468,7 +530,9 @@ export interface paths {
          *
          *     `expectedRefundPaise` is required and must equal what the quote just showed. Not a confirmation checkbox — a checkbox records that somebody tapped, this records **what they were told**. Between reading a quote and pressing the button a traveller can cross a tier boundary; the 24-hour line falls in the middle of the night and people do sit on this decision. If the figure has moved, this answers `409 refund_quote_moved` and the client re-quotes, rather than cancelling at a worse number than the traveller agreed to.
          *
-         *     **Only full-refund and no-refund tiers are self-service.** A partial refund answers `409 refund_requires_finance` and nothing is destroyed — because cancelling is irreversible and the seat returns to sale immediately, so self-serving a partial refund would take the trip away now and leave the money in an approval queue for days. Routing the traveller to a person BEFORE anything is lost is the kinder order. `selfService` on the quote tells the client whether to show the button at all.
+         *     **A partial refund of money paid online is not self-service.** It answers `409 refund_requires_finance` and nothing is destroyed, because cancelling is irreversible and the seat returns to sale immediately, so self-serving a partial refund would take the trip away now and leave the money in an approval queue for days. Routing the traveller to a person BEFORE anything is lost is the kinder order. A partial tier with nothing to refund, which is where a booking with nothing paid online lands, needs nobody and cancels here with `refundPaise` 0. `selfService` on the quote tells the client whether to show the button at all.
+         *
+         *     **A departure that moved after this booking was made** cancels with everything paid online refunded, whatever the tier, recorded as `OPERATOR_MOVED_IT` (D-032.3). The quote says so first, in `note`.
          */
         post: operations["commitCancellation"];
         delete?: never;
@@ -491,11 +555,83 @@ export interface paths {
          *     A traveller who never signs in loses nothing — none of this appears in the checkout path, and the founding claim is that a stranger pays in about a minute with no account.
          *
          *     The phone comes from the verified token and is never a parameter. A `?phone=` here would let anyone read a stranger's itinerary by typing their number, which on a small island is a disclosure about where somebody will be and when.
+         *
+         *     Since 2026-09-13 the credential is a `travellerSession` from `verifyTravellerSignIn`. A recovery token (`verifyBookingRecovery`) is still accepted. Requests still waiting on the operator are listed, with `state: pending_request` and no `reference` yet. Unpaid holds are not.
+         *
+         *     **Tabs** (since 2026-09-13). `cancelled` is decided first and wins over the date: a trip whose `state` is `cancelled` (by the traveller, the operator or us, including a departure called off for weather) or `declined` (a booking or a request the operator refused). A `no_show` is **not** cancelled: the boat went, so it is a past trip. Of the rest, `upcoming` is a departure still ahead, including a request nobody has answered yet, and `past` is a departure that has left. The three tabs never overlap and together they are the whole list.
+         *
+         *     **Paging.** A request with none of `tab`, `from`, `to`, `limit` or `cursor` returns every trip in one page with `nextCursor: null`, which is what apps deployed before paging existed rely on. Any one of them opts in to paging, and `limit` then defaults to 20. Pass `nextCursor` back as `cursor` with the same `tab`, `from` and `to`; a cursor from a different query is refused with `invalid_input`. A cursor also fixes the moment "upcoming" and "past" are split at, so a trip departing while somebody scrolls is never shown twice or skipped.
+         *
+         *     Each returned row carries a freshly minted `statusToken`, so asking for a page rather than the whole history also mints fewer links.
          */
         get: operations["listMyBookings"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sign-in/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a sign-in code to any number
+         * @description Signing in, for any number, whether or not it has ever booked. Unlike `requestBookingRecovery` there is no booking for the answer to reveal, so it says plainly that a code was sent.
+         *
+         *     There is no channel that delivers a traveller code yet (yuvoy-api#68); until there is, only the demo numbers receive one.
+         */
+        post: operations["requestTravellerSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sign-in/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a sign-in code for a session
+         * @description Returns a session that lasts 30 days. **Revokes nothing**: every booking link saved on this phone, and any other phone this traveller is signed in on, keeps working. That is the difference from `verifyBookingRecovery`, which exists for a lost link and rotates it.
+         *
+         *     Wrong, expired, used and over-attempted codes all answer `401` with one message.
+         */
+        post: operations["verifyTravellerSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Sign out on this phone
+         * @description Ends this session only. `204` whatever the token was, including one already ended.
+         */
+        delete: operations["signOutTraveller"];
         options?: never;
         head?: never;
         patch?: never;
@@ -565,8 +701,36 @@ export interface paths {
          *     One per booking, enforced by a unique constraint rather than a check: a booking is a trip somebody took, and a second review of it is an edit.
          *
          *     **Nothing written here is published to anybody yet.** The catalog carries no rating and no review count, and that ABSENCE is what enforces the no-fabricated-claims rule — not a promise to be careful. Collecting from day one is what makes the numbers real on the day there is something worth showing.
+         *
+         *     A review is taken for 30 days after the departure's scheduled end. Each refusal has its own code, all `409`: `not_reviewable_yet` (the trip has not been marked completed), `already_reviewed` (one per trip), and `review_window_closed` (more than 30 days after the trip). `canReview` on `listMyBookings` and `review.canReview` on `getBookingStatus` say in advance whether this will be accepted.
          */
         post: operations["leaveReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer the questions the listing asks
+         * @description The traveller answering the operator's questions on this listing, after checkout, from the booking link. `GET /bookings/status` carries the questions, what this party has answered, and `answersOpen`.
+         *
+         *     Each answer replaces this party's earlier answer to the same question, whether that was given at checkout or here. Questions left out keep what they had. All or nothing: if one answer does not fit its question, nothing is saved, and `details` names each problem, keyed like `answers[0].answer`.
+         *
+         *     `yes_no` takes `yes` or `no`, and `choice` takes one of the question's `options`, both ignoring case. `short_text` takes up to 300 characters. Unknown fields are refused.
+         *
+         *     Answers are taken while the booking is going ahead and until its departure leaves; after that this answers `409 answers_closed`. These questions never ask about health, which is the screener at checkout.
+         */
+        post: operations["answerBookingQuestions"];
         delete?: never;
         options?: never;
         head?: never;
@@ -585,6 +749,8 @@ export interface paths {
          * @description A read that changes nothing. A traveller deciding whether to cancel should see the number **first** — showing it only afterwards is how people end up feeling tricked by a policy they did agree to.
          *
          *     Priced from the policy snapshot frozen at checkout, never from the live listing. `selfService` tells the client whether to render a cancel button at all: a partial refund is an amount somebody has to stand behind, and offering a button that then fails is worse than not offering one.
+         *
+         *     **A departure that moved after this booking was made refunds in full** (D-032.3). If the operator moved the departure while this booking, or the hold it was made from, was on it, the quote is everything paid online whatever tier the snapshot holds, until the departure leaves, and `note` says why. A booking made after the move chose the new time and gets the usual tiers.
          *
          *     A valid token whose booking does not exist yet answers `200` with `cancellable: false` and a reason — the token's validity and the booking's existence are different questions.
          */
@@ -625,6 +791,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bookings/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The conversation with the business
+         * @description The conversation on this booking between the traveller and the business running the trip (D6). The booking link's token opens it, exactly as it opens `getBookingStatus`, and no booking id is taken: the token is the booking, so a link opens its own conversation and no other.
+         *
+         *     **The most recent messages first, a page at a time, oldest first within a page.** Draw a page top to bottom. To load what came before it, pass `nextCursor` back as `cursor`; it is absent when the conversation begins on this page. A message that arrives while somebody scrolls is after the first page and never inside a later one, so fetch the first page again to see new messages.
+         *
+         *     Fetching marks nothing read. Mark what was shown with `markBookingMessagesRead`, so a page left polling in a pocket does not clear `unreadCount`.
+         *
+         *     A link whose hold or request never became a booking answers an empty, complete conversation with `canWrite` false and `closedReason` `not_booked`, not an error.
+         *
+         *     A message's text is removed a set time after the trip ends (90 days unless the service is configured otherwise). The message stays, with who wrote it and when, and carries `textRemovedAt` in place of `text`. Show it as a message whose text was removed, never as an empty one.
+         */
+        get: operations["getBookingMessages"];
+        put?: never;
+        /**
+         * Write to the business
+         * @description Adds a message to this booking's conversation and queues a notice for the business: every active person there, once for this message, on WhatsApp or email as this service can send. The notice names the trip and the booking reference and never carries the text, which is read in the conversation.
+         *
+         *     The text is trimmed, keeps its line breaks, and is at most 1000 characters, counted as characters rather than bytes.
+         *
+         *     **A message with a phone number, an email address or a link in it is refused** `400 invalid_input`, with `details.text` `contact details` and `details.contactDetail` saying which: `phone`, `email` or `link`. Nothing is stored, and the refusal names the kind without repeating any of the text. A phone number is seven or more digits written close together, counted through the spaces, dashes, brackets and dots between them, except the digits of a date written like 14.09.2026 or 2026-09-14. A link starts `http://`, `https://` or `www.`, or is a word ending `.com`, `.in`, `.net`, `.org`, `.io`, `.co` or `.me`, so a full stop typed with no space before one of those words reads as a link too. An email address is a name, an `@` and a domain with a dot in it.
+         *
+         *     Writing stops when the booking is cancelled or declined, and a set time after the trip ends (seven days unless the service is configured otherwise). After that the conversation can still be read, and a message is refused `409 messages_closed` with `details.reason` saying which.
+         */
+        post: operations["sendBookingMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/messages/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark the conversation read up to a message
+         * @description Moves the traveller's read marker to a message they were shown, and so to everything before it, and answers what is still unread. Named by the message rather than "all of it, now", so a message that arrived after the page was drawn stays unread. A marker never moves back: naming an older message changes nothing.
+         */
+        post: operations["markBookingMessagesRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -643,7 +867,7 @@ export interface components {
          * @description A closed set, so a client can branch on the machine-readable code and never on the message. Codes are added by contract change, never invented at the call site.
          * @enum {string}
          */
-        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "payload_too_large" | "unclassified_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "invalid_reason_code" | "refund_quote_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable" | "unavailable";
+        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "payload_too_large" | "unclassified_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "answers_closed" | "answers_required" | "not_reviewable_yet" | "already_reviewed" | "review_window_closed" | "invalid_reason_code" | "refund_quote_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable" | "unavailable" | "messages_closed";
         Money: {
             /**
              * @description Amount in the currency's minor unit (paise for INR)
@@ -742,7 +966,7 @@ export interface components {
             /**
              * @description **The listing's unit price, in the unit `pricingUnit` names.** Absent until a real contracted price exists; there is no placeholder price anywhere in this API.
              *
-             *     The name implies a floor across variants and that is not what it is: it is a single number, and for a `per_group` charter "from ₹4,000" is wrong twice — it is not a minimum, and it is not per person. The field is not renamed because three generated clients carry the name. If it is ever renamed, the right name is `price`.
+             *     The name implies a floor across variants and that is not what it is: it is a single number, and for a `per_group` charter "from ₹4,000" is wrong twice — it is not a minimum, and it is not per person. The field is not renamed because generated clients carry the name. If it is ever renamed, the right name is `price`.
              */
             fromPrice?: components["schemas"]["Money"];
             /**
@@ -806,6 +1030,8 @@ export interface components {
             meetingPoint: components["schemas"]["MeetingPoint"];
             gallery: components["schemas"]["Media"][];
             safety?: components["schemas"]["SafetyRequirements"];
+            /** @description What the operator asks every traveller on this listing, in the order to ask it. Absent when the listing asks nothing. Send the answers with the reservation as `answers`, or from the booking link afterwards with `POST /bookings/answers`. A checkout that sends `answers` must answer every question with `required: true`; one that sends none is never refused over a question. Never about health, which is `safety.screener`. */
+            questions?: components["schemas"]["ListingQuestion"][];
         };
         MeetingPoint: {
             text: string;
@@ -857,6 +1083,16 @@ export interface components {
              */
             remainingDisplay?: string;
             availability?: components["schemas"]["SlotAvailability"];
+            /**
+             * @description True when nobody more can book, or ask for, this departure. **Grey the departure out in a date picker on this field**, in both booking modes, rather than deriving it from `remainingSeats` or `remainingDisplay`.
+             *
+             *     Allotment: no seat is left after holds and bookings, the same fact `remainingDisplay` states as `Full`. It stays true on a stale slot, for the same reason `Full` does.
+             *
+             *     Request: the operator has already granted the departure's full capacity, so no further request could be accepted. Only the boolean is published. Request mode withholds seat counts on purpose, and this field does not change that.
+             *
+             *     It says nothing about `status` or `bookingCutoffAt`. A departure that is `closed`, `cancelled` or past its cutoff is unbookable too and should be shown disabled on those fields, with `soldOut` possibly false.
+             */
+            soldOut: boolean;
         };
         SlotAvailability: {
             /**
@@ -907,6 +1143,18 @@ export interface components {
             expectTotalPaise?: number;
             attribution?: components["schemas"]["Attribution"];
             screening?: components["schemas"]["Screening"];
+            /**
+             * @description Answers to the questions this listing asks (`questions` on the experience).
+             *
+             *     **Optional.** Omit it and nothing about questions is checked, the listing's required ones included: the booking reads each question as not answered yet, to be answered with `POST /bookings/answers`.
+             *
+             *     **Send it, even as an empty list, and required questions are enforced.** The checkout is refused `409 answers_required` when a question the listing asks now with `required: true` has no answer here that fits, and `details.questions` names each one. `null`, or a value that is not a list, counts as not sent.
+             *
+             *     An answer that does not fit is not recorded, and never refuses the checkout on its own: it only leaves its question unanswered. Not fitting means a question the listing no longer asks, a choice that is not one of its options, an answer its question's type does not take, or an item that is not an object with a string `questionId` and a string `answer`. See what was recorded on `GET /bookings/status`, and answer the rest with `POST /bookings/answers`.
+             *
+             *     A retry that replays an existing reservation records nothing new; answer from the booking link instead.
+             */
+            answers?: components["schemas"]["BookingAnswer"][];
         };
         /**
          * @description What this listing asks before it will take money. Carried here rather than behind a second call, because it decides how the booking form renders and a round trip on that screen costs bookings.
@@ -927,6 +1175,50 @@ export interface components {
                 /** @description The single statement the lead traveller ticks, covering the whole party — which is what the copy tells them they are doing. */
                 affirmation: string;
             };
+        };
+        /** @description One question the operator asks every traveller on a listing. Its `text`, `answerType` and `options` never change once it exists: a reworded question comes with a new `id`. Never about health, which the screener asks. */
+        ListingQuestion: {
+            /** @description What an answer names in `questionId`. */
+            id: string;
+            /** @description The question, to show as it is. */
+            text: string;
+            /**
+             * @description How to ask it. `short_text` takes up to 300 characters, `choice` takes exactly one of `options`, and `yes_no` takes `yes` or `no`.
+             * @enum {string}
+             */
+            answerType: "short_text" | "choice" | "yes_no";
+            /** @description The choices, in the order to show them. Present only on a `choice` question. */
+            options?: string[];
+            /** @description The operator needs an answer. Show it as needed. A checkout that sends `answers` is refused `409 answers_required` until this question has an answer that fits; a checkout that sends no `answers` is not, and the traveller can answer from the booking link afterwards. */
+            required: boolean;
+        };
+        /** @description One question as it stands for this party: the words they were asked, and their answer if they gave one. Every question the listing asks now comes first, in the listing's order, answered or not. After them comes any question this party answered that the listing no longer asks, with `current: false`, so an earlier answer stays readable with its words. */
+        PartyQuestion: {
+            questionId: string;
+            /** @description The words this party was asked. They never change once a question exists, so on an answered question these are the words answered. */
+            text: string;
+            /** @enum {string} */
+            answerType: "short_text" | "choice" | "yes_no";
+            /** @description Present only on a `choice` question. */
+            options?: string[];
+            required: boolean;
+            /** @description `false` when the listing no longer asks this question. Only an answered question appears with `current: false`, and it cannot be answered again. */
+            current: boolean;
+            /** @description `false` means not answered yet. */
+            answered: boolean;
+            /** @description Present when answered: `yes` or `no`, one of `options` as the listing wrote it, or the traveller's own words. */
+            answer?: string;
+            /** Format: date-time */
+            answeredAt?: string;
+        };
+        BookingAnswer: {
+            /** @description The `id` of one of the listing's `questions`. */
+            questionId: string;
+            /** @description `yes` or `no` for a `yes_no` question, one of `options` for a `choice` question, and up to 300 characters for `short_text`. */
+            answer: string;
+        };
+        BookingAnswersInput: {
+            answers: components["schemas"]["BookingAnswer"][];
         };
         /**
          * @description The two safety gates, both enforced when the reservation is created rather than checked at the jetty. Read `safety` on the experience detail to know whether this listing asks for either.
@@ -972,7 +1264,7 @@ export interface components {
         };
         ReservationContact: {
             name: string;
-            /** @description E.164 */
+            /** @description E.164, e.g. +919000000000 */
             whatsapp: string;
             /** @description Optional. */
             email?: string;
@@ -1034,9 +1326,27 @@ export interface components {
              */
             payAtCounter?: {
                 available: boolean;
-                /** @description Path to POST to, relative to the API base. */
+                /** @description Path to POST to, relative to the API base — the same path as `POST /reservations/{id}/cash-booking`, so it carries no `/v1` of its own. */
                 confirmAt: string;
             };
+        };
+        /** @description One reel and the listing it sells: the item `GET /reels` pages, and what `GET /reels/{id}` returns. */
+        ReelItem: {
+            media: components["schemas"]["Media"];
+            experience: components["schemas"]["ExperienceSummary"];
+        };
+        VocabularyTerm: {
+            /** @description What to send. */
+            key: string;
+            /** @description What to show. */
+            label: string;
+        };
+        ActivityTypeTerm: {
+            /** @example scuba */
+            key: string;
+            /** @example Scuba diving */
+            label: string;
+            category: components["schemas"]["Category"];
         };
         ReelPage: {
             items: {
@@ -1099,6 +1409,8 @@ export interface components {
              *
              *     `verifying` means money may have moved and the outcome is not yet settled. **Never render it as failure** — "if money left your account it is safe" is the only honest copy for that window. It is also what the server says when a booking exists but is not yet visible: claiming a confirmed seat we cannot prove is the one thing this endpoint must never do.
              *
+             *     A **cash** booking reads `confirmed` as soon as it is made, never `verifying`: the seat was taken against a live hold and is the traveller's, and no money has moved to wait on. What they still owe the operator is in `payment` (D-034).
+             *
              *     `declined` means money was taken and the seat could not be delivered; a full refund is already recorded and `refund` carries where it is.
              * @enum {string}
              */
@@ -1117,6 +1429,13 @@ export interface components {
                 slug: string;
                 title: string;
                 operator: string;
+                /** @description The business, for linking to its page. */
+                operatorSlug: string;
+                /**
+                 * Format: uri
+                 * @description The listing's headline picture, resolved as the catalog resolves `heroMedia`. `null` when the listing has none; always sent.
+                 */
+                heroImageUrl: string | null;
             };
             slot: {
                 /** Format: date-time */
@@ -1142,7 +1461,7 @@ export interface components {
             };
             /**
              * Format: date-time
-             * @description When an unanswered request lapses — "answer by". The creation response carried this and the status page could not show it, so a traveller waiting had no idea how long for. Absent once the booking is final.
+             * @description When an unanswered request lapses — "answer by". Since 2026-09-13 this is the departure's booking cutoff, which can be days away, so show it as a date and time rather than a countdown. The creation response carried this and the status page could not show it, so a traveller waiting had no idea how long for. Absent once the booking is final.
              */
             requestExpiresAt?: string;
             /**
@@ -1151,13 +1470,41 @@ export interface components {
              *     This is where a relay note lands. Free text an operator writes is shown HERE and never sent to a phone, so a traveller who is told "see your booking page" has somewhere to look.
              */
             operatorUpdates?: {
-                /** @enum {string} */
+                /**
+                 * @description What sort of update this is.
+                 * @enum {string}
+                 */
+                kind: "time_change" | "meeting_point_change" | "weather_watch" | "bring_item" | "note";
+                /** @description Who sent it: the business's display name. An update about somebody's morning that appears from nobody is not reassuring. */
+                from: string;
+                /**
+                 * @deprecated
+                 * @description Never emitted. This document named the field `intent` while the server has always sent `kind`; read `kind`.
+                 * @enum {string}
+                 */
                 intent?: "time_change" | "meeting_point_change" | "weather_watch" | "bring_item" | "note";
                 detail?: string;
                 note?: string;
                 /** Format: date-time */
-                sentAt?: string;
+                sentAt: string;
             }[];
+            /**
+             * @description Present only for a booking paid in cash at the counter: what the traveller still owes the operator, and whether it has been taken. A card booking carries no `payment`.
+             *
+             *     Render it beside `confirmed` — the seat is booked, and this is what to bring on the day (D-034).
+             */
+            payment?: {
+                /** @enum {string} */
+                method: "cash";
+                /** @description `true` once the operator has recorded taking the cash. */
+                collected: boolean;
+                /** @description What to bring, from the price frozen at checkout — the same number as `price.totalPaise`. */
+                amountPaise: number;
+            };
+            /** @description The questions this listing asks and what this party answered. Absent when the listing asks nothing and nothing was answered. A question with `answered: false` is not answered yet; answer it with `POST /bookings/answers` while `answersOpen` is `true`. */
+            questions?: components["schemas"]["PartyQuestion"][];
+            /** @description Present with `questions`. `true` while `POST /bookings/answers` will take an answer: the booking is going ahead and its departure has not left. Told rather than inferred, so a form is never offered that would be refused. */
+            answersOpen?: boolean;
             /** @description Present only when a refund exists, so the happy path carries no alarming vocabulary. Answers the only question a declined or cancelled traveller has: where is my money. */
             refund?: {
                 amountPaise?: number;
@@ -1166,6 +1513,67 @@ export interface components {
                 /** @description Ready-to-render copy for the current refund state. */
                 message?: string;
             } | null;
+            /** @description Whether to offer "how did it go". Always sent. `canReview` is true for a `completed` trip with no review that ended no more than 30 days ago, which is exactly when `leaveReview` accepts one. */
+            review: {
+                reviewed: boolean;
+                canReview: boolean;
+                /** @description The stars given. Present only once reviewed. */
+                rating?: number;
+            };
+        };
+        BookingMessage: {
+            /** @description Send it as `upTo` to mark this message and everything before it read. */
+            id: string;
+            /**
+             * @description `traveller` is the person holding this link; `operator` is the business.
+             * @enum {string}
+             */
+            from: "traveller" | "operator";
+            /** @description The name to show beside it: the name given at checkout on the traveller's messages, and the business's name on the business's. */
+            senderName: string;
+            /** @description What was written, trimmed, with its line breaks. Every message carries exactly one of `text` and `textRemovedAt`, and a message that was just sent always carries `text`. */
+            text?: string;
+            /**
+             * Format: date-time
+             * @description When the text was removed, a set time after the trip ended. Present only in place of `text`. Show the message as one whose text was removed, never as an empty message.
+             */
+            textRemovedAt?: string;
+            /** Format: date-time */
+            sentAt: string;
+        };
+        BookingMessageThread: {
+            /** @description Oldest first within the page. The first page is the most recent messages. */
+            messages: components["schemas"]["BookingMessage"][];
+            /** @description `true` when the conversation begins on this page. `false` always comes with a `nextCursor` for the messages before it. */
+            complete: boolean;
+            /** @description Absent when nothing came before this page. */
+            nextCursor?: string;
+            /** @description Messages from the business the traveller has not marked read. */
+            unreadCount: number;
+            /** @description Whether a message can be sent now. */
+            canWrite: boolean;
+            /**
+             * @description Present only when `canWrite` is `false`. `not_booked`: the link's hold or request never became a booking. `cancelled` and `declined`: the booking ended, and nothing reopens it. `window_closed`: the trip ended longer ago than messages stay open.
+             * @enum {string}
+             */
+            closedReason?: "not_booked" | "cancelled" | "declined" | "window_closed";
+            /**
+             * Format: date-time
+             * @description When writing stops on its own, a set time after the trip ends. Present while the conversation is open and once that time has passed. Absent when there is no booking, or it was cancelled or declined.
+             */
+            writableUntil?: string;
+        };
+        BookingMessageInput: {
+            /** @description The message. Trimmed, with its line breaks kept. */
+            text: string;
+        };
+        BookingMessageReadInput: {
+            /** @description The `id` of the last message that was shown. */
+            upTo: string;
+        };
+        BookingMessageReadReceipt: {
+            /** @description Messages from the business still unread after this. */
+            unreadCount: number;
         };
         BookingInput: {
             slotId: string;
@@ -1472,7 +1880,7 @@ export interface operations {
                 /**
                  * @description What the thing actually is — `scuba`, not `adventure`. Matched exactly.
                  *
-                 *     **An unknown value is an empty page, not a `400`** — the opposite of `category`, and deliberately. This set grows by `INSERT`, so today's unknown value is tomorrow's real one and refusing it would make the API stale between deploys. Read the current set from the operator vocabulary endpoint rather than hardcoding it.
+                 *     **An unknown value is an empty page, not a `400`** — the opposite of `category`, and deliberately. This set grows by `INSERT`, so today's unknown value is tomorrow's real one and refusing it would make the API stale between deploys. Read the current set from `GET /catalog/vocabulary` rather than hardcoding it.
                  */
                 activityType?: string;
                 /** @description Only what can actually be booked that day, in the market's timezone. */
@@ -1618,6 +2026,37 @@ export interface operations {
             503: components["responses"]["CatalogUnavailable"];
         };
     };
+    getPublicVocabulary: {
+        parameters: {
+            query?: {
+                marketKey?: components["schemas"]["MarketKey"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The vocabulary. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Every category, in the order chips should show them. */
+                        categories: components["schemas"]["VocabularyTerm"][];
+                        /** @description Each with the category it belongs to, so chips can be narrowed to the chosen category. Not an enum anywhere in this contract: the set grows by INSERT. */
+                        activityTypes: components["schemas"]["ActivityTypeTerm"][];
+                        /** @description Open destinations, ordered by market and then as supply wants them shown. `key` is `<market>/<destination>`. */
+                        destinations: components["schemas"]["VocabularyTerm"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            503: components["responses"]["CatalogUnavailable"];
+        };
+    };
     recordScan: {
         parameters: {
             query?: never;
@@ -1674,8 +2113,17 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                /** @description From a previous response's `nextCursor`. Opaque; do not construct one. */
+                /** @description From a previous response's `nextCursor`, sent with exactly the same filters as that request. Opaque; do not construct one. */
                 cursor?: string;
+                /** @description Free text, as on `/search`. Narrows; does not reorder. */
+                q?: string;
+                destinationKey?: components["schemas"]["DestinationKey"];
+                /** @description As on `/search`. **An unknown value is a `400`.** */
+                category?: components["schemas"]["Category"];
+                /** @description As on `/search`. Matched exactly; an unknown value is an empty page, not a `400`. The current set is in `GET /catalog/vocabulary`. */
+                activityType?: string;
+                /** @description Only reels of listings that can actually be booked that day, in the market's timezone. */
+                bookableOn?: string;
             };
             header?: never;
             path?: never;
@@ -1702,6 +2150,31 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    getReel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The feed card's `media.id`. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reel, with the listing it sells. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReelItem"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["CatalogUnavailable"];
         };
     };
     listExperiences: {
@@ -1810,7 +2283,11 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
-            /** @description Could not proceed, and the code says why: `capacity_unavailable`, `request_quota_exhausted`, `request_window_closed` (carries `opensAt`), `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`. */
+            /**
+             * @description Could not proceed, and the code says why: `capacity_unavailable`, `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`. `request_quota_exhausted` and `request_window_closed` are no longer returned (since 2026-09-13): every request is taken.
+             *
+             *     `answers_required`: the body sent `answers`, even an empty list, and a question the listing asks now with `required: true` has no answer in it that fits. `details.questions` names each such question as an object with `questionId` and `text`, in the listing's order. Nothing was held, and the same `Idempotency-Key` can be sent again with the answers. A body without `answers` is never refused this way.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1841,7 +2318,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Released */
+            /** @description Released, or already was. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -1876,7 +2353,7 @@ export interface operations {
                         /** @description Where to finish instead. While no card processor is live this is the ONLY way a booking can be completed, so a client that renders `message` and stops leaves the traveller unable to book at all. */
                         payAtCounter?: {
                             available: boolean;
-                            /** @description Path to POST to, relative to the API base. */
+                            /** @description Path to POST to, relative to the API base — the same path as `POST /reservations/{id}/cash-booking`, so it carries no `/v1` of its own. */
                             confirmAt: string;
                         };
                     };
@@ -2099,13 +2576,14 @@ export interface operations {
                         refundPaise: number;
                         refundTier?: string;
                         seatsReleased?: number;
+                        /** @description A phrase about the money. When nothing comes back it says why: nothing was paid online for the booking, or no refund is due under its cancellation policy. */
                         refundNote?: string;
                     };
                 };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            /** @description `refund_quote_moved` — re-quote and show the new figure. `refund_requires_finance` — a partial refund; route them to support. `conflict` — not in a cancellable state. */
+            /** @description `refund_quote_moved` — re-quote and show the new figure. `refund_requires_finance`: a partial refund of money paid online; route them to support. `conflict` — not in a cancellable state. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2120,6 +2598,181 @@ export interface operations {
     };
     listMyBookings: {
         parameters: {
+            query?: {
+                /** @description `upcoming`, `past` or `cancelled`, as defined above. Omitted means every trip. */
+                tab?: "upcoming" | "past" | "cancelled";
+                /** @description The first trip date to include, `YYYY-MM-DD`, inclusive. Compared with the trip's own date in its market's timezone. */
+                from?: string;
+                /** @description The last trip date to include, `YYYY-MM-DD`, inclusive. Not before `from`. */
+                to?: string;
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trips still to come first, soonest first; then past ones, most recent first. Somebody opening this on the morning of a dive wants the dive, not the thing they did in March. The `upcoming` tab is soonest first, and the `past` and `cancelled` tabs are most recent trip date first. (Before 2026-09-13 past trips came back oldest first, contrary to this description.) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Pass back as `cursor` for the next page. `null` when there is nothing more, and always `null` on an unpaged request. */
+                        nextCursor: string | null;
+                        bookings: {
+                            /** @description Empty for a request the operator has not answered yet. */
+                            reference: string;
+                            /** @description Always present. What the app matches against the trips saved on the phone when there is no reference yet. */
+                            reservationId: string;
+                            experience: string;
+                            operator: string;
+                            /** Format: date */
+                            localDate: string;
+                            /** @example 06:30 */
+                            localTime: string;
+                            /** @description The booking's state, or for a request with no booking yet `pending_request` (waiting on the operator) or `declined` (the operator said no; see `reasonCode`). */
+                            state: string;
+                            guests: number;
+                            meetingPoint?: string;
+                            /** @description A booking link for this trip, minted for this response, so a trip booked on another phone opens here. Opens this booking only; it can never list the number's other trips. Issuing it revokes nothing. */
+                            statusToken: string;
+                            /** Format: date-time */
+                            cancelledAt?: string | null;
+                            /**
+                             * @description Why the operator declined. Present only when `state` is `declined`.
+                             * @enum {string}
+                             */
+                            reasonCode?: "no_capacity" | "weather" | "not_operating" | "party_too_large" | "unsafe_for_party" | "other";
+                            /** @description The listing this trip was booked from, for linking back to it. */
+                            experienceSlug: string;
+                            /** @description The business, for linking to its page. */
+                            operatorSlug: string;
+                            /**
+                             * Format: uri
+                             * @description The listing's headline picture, resolved exactly as the catalog resolves `heroMedia`: a photograph from the image host or a video's poster. `null` when the listing has none; always sent.
+                             */
+                            heroImageUrl: string | null;
+                            /** @description The place's display name, for example `Havelock`. */
+                            destination: string;
+                            /**
+                             * Format: date-time
+                             * @description The departure as an instant, in UTC. `localDate` and `localTime` are the same moment already rendered in the market's zone.
+                             */
+                            startsAt: string;
+                            /** @description IANA zone of the market, for rendering local time. */
+                            timezone: string;
+                            /**
+                             * Format: date-time
+                             * @description When the traveller asked for it: the reservation, so a request and a paid booking both have one.
+                             */
+                            createdAt: string;
+                            /** @description The total agreed at checkout, from the frozen price snapshot. The same number `getBookingStatus` reports. */
+                            price: {
+                                totalPaise: number;
+                                currency: string;
+                            };
+                            /** @description How the booking is being paid. Present once a booking exists; absent on a request nobody has answered. `online` is paid and collected. `cash` is paid to the operator on the day, and `collected` turns true when they record taking it. */
+                            payment?: {
+                                /** @enum {string} */
+                                method: "online" | "cash";
+                                collected: boolean;
+                                /** @description The same number as `price.totalPaise`. */
+                                amountPaise: number;
+                            };
+                            /** @description Present only when a refund exists: the latest refund's state and the sum on its way back, as `getBookingStatus` reports it. */
+                            refund?: {
+                                amountPaise: number;
+                                /** @enum {string} */
+                                state: "requested" | "pending" | "failed" | "processed" | "reversed" | "abandoned";
+                            };
+                            /** @description A review has been left for this trip. */
+                            reviewed: boolean;
+                            /** @description Offer "leave a review": the trip is `completed`, has no review yet, and ended no more than 30 days ago. When true, `leaveReview` with this row's `statusToken` will accept one. */
+                            canReview: boolean;
+                        }[];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    requestTravellerSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description E.164, e.g. +919000000000 */
+                    phone: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A code was recorded for the number. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        sent: boolean;
+                        message: string;
+                        /** @description **Development only**, as on `requestBookingRecovery`. Never present in production. */
+                        devCode?: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    verifyTravellerSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    phone: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Signed in. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Send as an `Authorization: Bearer` header to `/me/bookings`. */
+                        sessionToken: string;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    signOutTraveller: {
+        parameters: {
             query?: never;
             header?: never;
             path?: never;
@@ -2127,33 +2780,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Trips still to come first, soonest first; then past ones, most recent first. Somebody opening this on the morning of a dive wants the dive, not the thing they did in March. */
-            200: {
+            /** @description Signed out. */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": {
-                        bookings: {
-                            reference: string;
-                            experience: string;
-                            operator: string;
-                            /** Format: date */
-                            localDate: string;
-                            /** @example 06:30 */
-                            localTime: string;
-                            state: string;
-                            guests: number;
-                            meetingPoint?: string;
-                            statusToken?: string;
-                            /** Format: date-time */
-                            cancelledAt?: string | null;
-                        }[];
-                    };
-                };
+                content?: never;
             };
             401: components["responses"]["Unauthorized"];
-            503: components["responses"]["ServiceUnavailable"];
         };
     };
     shareBooking: {
@@ -2233,6 +2867,8 @@ export interface operations {
                     rating: number;
                     /** @description Optional. Plenty of people tap five stars and nothing else, and a required comment box turns a two-second act into an abandoned one. */
                     comment?: string;
+                    /** @description Optional. What was good, from a closed list. Repeats are dropped and the order is kept. A value outside the list, or more than six entries, is refused with `invalid_input`. Stored with the review and never editable afterwards. */
+                    tags?: ("guide" | "safety" | "value" | "organisation" | "punctuality" | "equipment")[];
                 };
             };
         };
@@ -2246,7 +2882,45 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            /** @description The trip has not happened, or was already reviewed. */
+            /** @description Refused, and `error.code` says why: `not_reviewable_yet`, `already_reviewed` or `review_window_closed`. Before 2026-09-13 all three were `conflict`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    answerBookingQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingAnswersInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. Every question and answer for this party, as the status page shows them. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        questions: components["schemas"]["PartyQuestion"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `answers_closed`: the departure has left, or the booking is no longer going ahead. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2276,7 +2950,7 @@ export interface operations {
                     "application/json": {
                         bookingReference?: string;
                         cancellable: boolean;
-                        /** @description False for partial refunds — those need a person. */
+                        /** @description False when the refund is part of what was paid online: that needs a person. A partial tier with nothing to refund is self-service. */
                         selfService: boolean;
                         capturedPaise?: number;
                         refundPaise?: number;
@@ -2284,6 +2958,7 @@ export interface operations {
                         hoursBeforeStart?: number;
                         /** @description Present when not cancellable. */
                         reason?: string;
+                        /** @description A sentence to show beside the figure, when there is one: a partial refund of money paid online, which needs a person, or a departure the operator moved after this booking was made, which refunds everything paid online. */
                         note?: string;
                     };
                 };
@@ -2310,6 +2985,115 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getBookingMessages: {
+        parameters: {
+            query?: {
+                /** @description Messages per page. None, or a value that is not a whole number above zero, gets 50. More than 200 gets 200. */
+                limit?: number;
+                /** @description A previous page's `nextCursor`, for the messages before that page. Opaque, so do not construct one. A cursor this conversation did not issue is a `400`. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the conversation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingMessageThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    sendBookingMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingMessageInput"];
+            };
+        };
+        responses: {
+            /** @description Written, and the business's notice is queued. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingMessage"];
+                };
+            };
+            /** @description `invalid_input`, with `details.text` saying why: `required` (nothing written, or a body that is not JSON), `too long` (over 1000 characters), `unprintable` (characters no screen can show), or `contact details`, with `details.contactDetail` `phone`, `email` or `link`. Nothing was stored. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `messages_closed`: the conversation can be read and not written in. `details.reason` is `not_booked`, `cancelled`, `declined` or `window_closed`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    markBookingMessagesRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingMessageReadInput"];
+            };
+        };
+        responses: {
+            /** @description What is still unread. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingMessageReadReceipt"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description That message is not in this booking's conversation. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
 }

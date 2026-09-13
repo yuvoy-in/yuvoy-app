@@ -469,6 +469,74 @@ describe("a dead link", () => {
   });
 });
 
+/* ---------------------------------------- what the operator asked (#46) */
+
+describe("the listing's own questions", () => {
+  const questions = [
+    {
+      questionId: "q_dived",
+      text: "Has everyone dived before?",
+      answerType: "yes_no",
+      required: true,
+      current: true,
+      answered: false,
+    },
+  ];
+
+  it("renders the panel when the booking carries questions", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ questions, answersOpen: true })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText("What the operator asked"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Has everyone dived before?")).toBeInTheDocument();
+  });
+
+  /*
+    The commoner case by far, and the one a new panel must not intrude on.
+    `questions` is "absent when the listing asks nothing and nothing was
+    answered", so its absence is the whole test.
+  */
+  it("draws nothing at all for a booking that was asked nothing", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("You are going");
+    expect(
+      screen.queryByText("What the operator asked"),
+    ).not.toBeInTheDocument();
+  });
+
+  /*
+    `answersOpen` is read as TOLD. A booking whose questions arrive without it
+    must not be offered a form: the contract sends it "so a form is never
+    offered that would be refused", and inferring it from `state` and
+    `slot.startsAt` would be two clocks disagreeing across a timezone.
+  */
+  it("offers no form when answersOpen is absent", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ questions })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("What the operator asked");
+    expect(
+      screen.queryByRole("button", { name: /save answers/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 /* ------------------------------------------ what the operator said */
 
 describe("operator updates", () => {
@@ -477,15 +545,24 @@ describe("operator updates", () => {
       http.get(`${BASE}/bookings/status`, () =>
         HttpResponse.json(
           statusBody({
+            /*
+              `kind`, which is what the server sends. This test fed `intent`
+              and asserted the labels, so it passed while the deployed screen
+              read a field the API "never emitted" and labelled every update
+              "A note". Feeding the shape the server actually sends is the
+              whole value of the assertion.
+            */
             operatorUpdates: [
               {
-                intent: "meeting_point_change",
+                kind: "meeting_point_change",
+                from: "Sample Dive Operator",
                 detail: "Jetty 2, not Jetty 1",
                 note: "The usual spot is under repair this week.",
                 sentAt: "2026-08-21T10:15:00Z",
               },
               {
-                intent: "bring_item",
+                kind: "bring_item",
+                from: "Sample Dive Operator",
                 detail: "A towel",
                 sentAt: "2026-08-21T10:16:00Z",
               },
@@ -507,6 +584,36 @@ describe("operator updates", () => {
     expect(screen.getByText("Bring: A towel")).toBeInTheDocument();
     // Sent 10:15Z = 15:45 IST, in the market's zone.
     expect(screen.getByText(/15:45/)).toBeInTheDocument();
+  });
+
+  /*
+    The deprecated name, honoured second.
+
+    `intent` is declared and never emitted. It costs one `??` to keep reading
+    it, and this is what says so out loud — so that deleting the fallback is a
+    decision somebody makes rather than a line somebody tidies away.
+  */
+  it("still labels an update that arrives under the deprecated intent", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            operatorUpdates: [
+              {
+                intent: "time_change",
+                detail: "06:30, not 07:00",
+                sentAt: "2026-08-21T10:15:00Z",
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText("Time changed: 06:30, not 07:00"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -665,10 +772,77 @@ describe("BookingScreen — the day's facts", () => {
       expect(document.body.textContent).not.toMatch(
         /if the sea called it off/i,
       );
-      // The refund fact beside it is true whatever the reason was, and stays.
+      // The rebooking rule is true whatever the reason was, and stays.
       expect(
-        screen.getByText(/refund has already started/i),
+        screen.getByText(/Rebooking is a fresh booking/i),
       ).toBeInTheDocument();
+    });
+
+    /*
+      yuvoy-app#48 §2. D28 made a booking paid in cash cancellable from the
+      sheet with `refundPaise` 0, and `STATE_COPY.cancelled` opened "Your
+      refund has already started." — a promise of money to somebody from whom
+      none was ever taken. This test used to assert that sentence was present
+      on a body carrying no `refund` at all, which is how it survived.
+    */
+    it("promises no refund on a cancelled booking that has none", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("TRAVELLER_REQUEST")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText("This trip was called off");
+      expect(document.body.textContent).not.toMatch(
+        /refund has already started/i,
+      );
+    });
+
+    /*
+      The other direction, and the reason the sentence is dropped rather than
+      inverted: when a refund DOES exist the traveller must still be told. It
+      comes from the server's own refund state now, not from static copy that
+      cannot know.
+    */
+    it("still shows the refund when there is one", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json({
+            ...cancelled("OPERATOR_CANCELLED"),
+            refund: { state: "pending", amountPaise: 900000 },
+          }),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      expect(await screen.findByText("Your refund")).toBeInTheDocument();
+      expect(screen.getByText("Refund started")).toBeInTheDocument();
+    });
+
+    /*
+      yuvoy-app#48 §1. `OPERATOR_MOVED_IT` is what the server records when a
+      full refund was granted because the departure moved. Unmapped, it fell
+      to "The operator or we called it off." — which names the wrong actor for
+      a cancellation the traveller pressed, and hides the fact that explains
+      the money.
+    */
+    it("names a moved departure rather than blaming the traveller's own tap", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cancelled("OPERATOR_MOVED_IT")),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      expect(
+        await screen.findByText(
+          "The operator moved this departure after you booked.",
+        ),
+      ).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(
+        /The operator or we called it off/i,
+      );
     });
 
     it("treats the two names for a traveller cancellation as one event", async () => {
@@ -1009,9 +1183,15 @@ describe("finishing a booking in cash", () => {
   it("reads a cash booking as BOOKED, never as pending payment", async () => {
     /*
       `paid_pending_ops` is not in `BookingStatus.state`'s enum — the contract
-      declares it only on `CashBooking` — and the API returns it here. The
-      screen dereferenced its state map unguarded, so this state took the whole
-      page to the error boundary for somebody who had just committed money.
+      declares it only on `CashBooking` — and the API used to return it here.
+      The screen dereferenced its state map unguarded, so this state took the
+      whole page to the error boundary for somebody who had just committed
+      money.
+
+      Kept as a REGRESSION test even though D-034 stopped this endpoint sending
+      it. The projection can move again, `/me/bookings` still carries the raw
+      value, and the guard being exercised is "an undeclared state does not
+      crash the page", which is true of every state and not only this one.
 
       "Both should read as booked to the traveller — the difference is our
       bookkeeping, not their standing."
@@ -1031,6 +1211,93 @@ describe("finishing a booking in cash", () => {
     expect(
       screen.queryByText(/unpaid|pending payment/i),
     ).not.toBeInTheDocument();
+  });
+
+  /**
+   * What a cash booking still owes, after D-034 — yuvoy-app#29.
+   *
+   * `GET /bookings/status` now answers `confirmed` for a cash booking from the
+   * moment it is made, and puts what is owed in `payment`. The app keyed on
+   * `state === "paid_pending_ops"`, which is not in the enum and simply
+   * stopped matching — so the screen said **"Paid ₹9,000"** to somebody who
+   * had not handed over a rupee, and dropped the standing "Bring ₹9,000 in
+   * cash" line that exists for the traveller reloading on the morning of the
+   * trip.
+   *
+   * Nothing failed to compile and no test failed. These four are the ones that
+   * would have.
+   */
+  describe("a cash booking that is confirmed but not collected", () => {
+    const cashStatus = (collected: boolean) =>
+      statusBody({
+        state: "confirmed",
+        final: true,
+        payment: { method: "cash", collected, amountPaise: 900000 },
+      });
+
+    it("says what to bring, and does not call it paid", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cashStatus(false)),
+        ),
+      );
+      renderWithQuery(<BookingScreen />);
+
+      expect(
+        await screen.findByText(/Bring ₹9,000 in cash/),
+      ).toBeInTheDocument();
+      expect(screen.getByText("To pay on the day")).toBeInTheDocument();
+      expect(screen.queryByText("Paid")).not.toBeInTheDocument();
+    });
+
+    it("keeps the wording the issue rules out", async () => {
+      // Never "pay Yuvoy", never "amount due", never "unpaid" or "pending
+      // payment": the money never reaches us and the seat is confirmed.
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cashStatus(false)),
+        ),
+      );
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText(/Bring ₹9,000 in cash/);
+
+      expect(
+        screen.queryByText(/pay Yuvoy|amount due|unpaid|pending payment/i),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText(/Pay the operator/i)).toBeInTheDocument();
+    });
+
+    it("stops saying it once the operator records taking the cash", async () => {
+      /*
+        The half that keying on the object's mere presence would get wrong,
+        pointing the other way: "Bring ₹9,000 in cash" left on the screen of
+        somebody who has already paid is the same class of untruth.
+      */
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(cashStatus(true)),
+        ),
+      );
+      renderWithQuery(<BookingScreen />);
+
+      expect(await screen.findByText("Paid")).toBeInTheDocument();
+      expect(screen.queryByText(/Bring ₹/)).not.toBeInTheDocument();
+      expect(screen.queryByText("To pay on the day")).not.toBeInTheDocument();
+    });
+
+    it("leaves a CARD booking alone, which carries no payment at all", async () => {
+      // The distinction the screen now reads. A card booking is `confirmed`
+      // too, and has genuinely been paid.
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(statusBody({ state: "confirmed", final: true })),
+        ),
+      );
+      renderWithQuery(<BookingScreen />);
+
+      expect(await screen.findByText("Paid")).toBeInTheDocument();
+      expect(screen.queryByText(/Bring ₹/)).not.toBeInTheDocument();
+    });
   });
 
   it("does not crash on a state this build has never heard of", async () => {

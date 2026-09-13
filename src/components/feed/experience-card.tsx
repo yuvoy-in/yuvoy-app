@@ -4,34 +4,39 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
-import { formatFromPrice } from "@/lib/format/money";
 import { useFeedStore } from "@/lib/feed/store";
 import { useSwipeToOpen } from "@/lib/feed/use-swipe-to-open";
-import { ButtonArrow, ButtonLink } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
-import { IconButton } from "@/components/ui/icon-button";
+import { IconButton, IconLink } from "@/components/ui/icon-button";
 import {
-  CheckIcon,
+  ArrowRightIcon,
   VolumeIcon,
   VolumeOffIcon,
-  ZapIcon,
 } from "@/components/ui/icons";
-import { ShareExperience } from "@/components/experience/share-experience";
+import { ShareLink } from "@/components/ui/share-link";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 type Media = components["schemas"]["Media"];
 
 /**
- * One experience, one card, full-bleed 9:16.
+ * One reel, full-bleed 9:16, in the vertical scroller.
  *
- * Everything that decides whether somebody taps is on the card: the price, the
- * operator, whether it is instant or a request, and whether there is a date at
- * all. Nothing is behind a tap-to-reveal — the feed's job is to let a traveller
- * skip what is not for them without paying a round trip to find out.
+ * ## The overlay is the reel's name and three controls, and nothing else
  *
- * The caption's ORDER is load-bearing for contrast (see `feed-scrim`): the
- * accent chip sits in the bottom band, beside the price, where the scrim is
- * nearly closed; the operator line above the title is cream, never accent.
+ * It used to carry everything that might decide a tap — the operator, a
+ * Verified tag, the activity type, the next departure, the price and its unit,
+ * an instant-or-request chip and a full-width call to action — on the stated
+ * reasoning that a traveller should be able to skip what is not for them
+ * without paying a round trip. The owner walked it on a phone on 13 September
+ * and the reasoning did not survive contact: "I'm unable to see reel fully, it
+ * is covered by lot of things" (yuvoy-app#36).
+ *
+ * So the reel is the product and the overlay gets out of its way. Everything
+ * removed is one tap away behind the arrow, and the arrow, the title and a
+ * right-to-left swipe are three routes to the same listing.
+ *
+ * `feed-scrim` still sizes against the brightest pixel a clip can show rather
+ * than the average, because video moves and a frame that is dark when the
+ * poster loads can be white surf two seconds later.
  */
 export function ExperienceCard({
   experience,
@@ -70,12 +75,10 @@ export function ExperienceCard({
    */
   total: number;
 }) {
-  const price = formatFromPrice(experience.fromPrice);
-  const instant = experience.bookingMode === "allotment";
   /*
-    Built ONCE, and handed to both ways in. The button and the swipe are two
-    routes to one screen; two string literals a hundred lines apart are how
-    they quietly stop agreeing.
+    Built ONCE, and handed to all three ways in. The arrow, the title and the
+    swipe are three routes to one screen; three string literals a hundred lines
+    apart are how they quietly stop agreeing.
   */
   const href = `/e/${experience.slug}`;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -167,136 +170,64 @@ export function ExperienceCard({
         />
 
         {/*
-        The caption keeps its OWN foot — 32px — and rises by `--feed-lift`
-        while the floating bar is out, so the space the bar was occupying
-        comes back to the card the moment the bar leaves. See `.feed-caption`
-        in globals.css for the two numbers and why they live in one place.
-      */}
-        <div className="feed-caption absolute inset-x-0 bottom-0 px-5">
+          The overlay, cut back to the picture — yuvoy-app#36.
+
+          The owner's words on their own phone: "I'm unable to see reel fully,
+          it is covered by lot of things." What was here was the operator's
+          name, a Verified tag, the activity type, the next departure, the
+          price and its unit, an instant-or-request chip, and a full-width
+          call to action. Nine things over a video, each defensible on its own
+          and collectively a card with a clip behind it.
+
+          What is left is the reel, its name, and three controls. Everything
+          removed is one tap away on the listing, which is what the arrow is
+          for; nothing is hidden behind a tap-to-reveal, because a reel is a
+          decision about whether to look closer and the overlay was answering
+          a question nobody had asked yet.
+
+          The foot is `tabbar-clearance`: the bar no longer retracts, so the
+          caption clears it on every reel rather than moving out of its way and
+          back. One number, the same one every other screen leaves.
+        */}
+        <div className="tabbar-clearance absolute inset-x-0 bottom-0 px-5">
           <div className="flex items-end gap-4">
-            <div className="min-w-0 flex-1">
-              {/* Operator, and what we can honestly say about them. */}
-              <div className="flex flex-wrap items-center gap-2">
-                {experience.operator.slug ? (
-                  /*
-                    The business's own page — yuvoy-app#30, the last arrow in
-                    reel → listing → operator. By `slug`, never `id`: the id is
-                    ours, and the slug is what a traveller can read.
+            {/*
+              The name, and a way in. The `<h2>` used to be plain text with the
+              real route on a button below it; a traveller who taps the title
+              of the thing they are watching means to open it, and did nothing.
 
-                    `tap-target` because a label-sized link is a 16px target,
-                    under SC 2.5.8. A swipe that starts on the name is still a
-                    swipe: the article's click-capture swallows the click that
-                    follows, as it does for every control on the card.
-
-                    `prefetch={false}` because `/o/[slug]` revalidates rather
-                    than rendering per request, so Next would prefetch the
-                    WHOLE page — profile, listings, a screen of reels — for
-                    every card that scrolls into view, on a jetty connection,
-                    for a tap most travellers never make. "See dates" keeps its
-                    prefetch: that is the tap the card exists for.
-
-                    The name alone when `slug` is absent. The contract marks it
-                    required, and a pinned contract still says what the API
-                    WILL send, never what the deployed one does.
-                  */
-                  <Link
-                    href={`/o/${experience.operator.slug}`}
-                    prefetch={false}
-                    className="label text-cream/70 hover:text-cream tap-target ease-interaction transition-colors duration-200"
-                  >
-                    {experience.operator.name}
-                  </Link>
-                ) : (
-                  <span className="label text-cream/70">
-                    {experience.operator.name}
-                  </span>
-                )}
-                {experience.operator.verified ? (
-                  <Chip surface="dark" size="sm">
-                    <CheckIcon className="size-3.5" />
-                    Verified
-                  </Chip>
-                ) : null}
-              </div>
-
-              <h2 className="font-display text-cream tracking-display mt-2 text-[2rem] leading-[1.05]">
+              `line-clamp-3` because a title is operator-written and unbounded,
+              and a five-line headline over a reel is the same complaint this
+              issue is about. It clamps rather than truncating to one line, so
+              a long name is still readable.
+            */}
+            <h2 className="min-w-0 flex-1">
+              <Link
+                href={href}
+                className="font-display text-cream tracking-display ease-interaction line-clamp-3 text-[2rem] leading-[1.05] transition-opacity duration-200 hover:opacity-80"
+              >
                 {experience.title}
-              </h2>
+              </Link>
+            </h2>
 
-              {/*
-              WHAT the thing is — yuvoy-app#20 §2.
+            {/*
+              The rail. Arrow above sound and share, as asked.
 
-              The card gave a traveller the operator, the title, the next date
-              and the price, and never said what they would actually be doing.
-              On a feed where every card is a video of blue water, "Scuba
-              diving" is the difference between a scroll and a tap.
-
-              The twelve categories cannot carry this: they are market-agnostic
-              by design, so in the Andamans every water sport is `adventure`.
-              `activityType` is the curated taxonomy underneath, and the LABEL
-              is rendered rather than the key.
-
-              Optional, and absent on a listing nobody has classified yet — so
-              nothing is rendered rather than a placeholder or a prettified key.
+              The arrow is `paper` — the system's solid cream disc — while the
+              other two are translucent. With the call to action gone this is
+              the only way forward on the card, and a rail of three identical
+              discs would say the way out of the feed is worth exactly as much
+              as muting it. It carries the same href as the swipe and the
+              title, built once above.
             */}
-              {experience.activityTypeLabel ? (
-                <p className="label text-cream/70 mt-2">
-                  {experience.activityTypeLabel}
-                </p>
-              ) : null}
-
-              {/*
-              `nextAvailable` absent means nothing is bookable in 90 days — NOT
-              "we did not check". Saying so here is what stops the tap that ends
-              in "no dates", which is the tap that loses the traveller.
-            */}
-              <p className="text-cream/70 mt-2 text-xs">
-                {experience.nextAvailable
-                  ? nextAvailableLabel(
-                      experience.nextAvailable,
-                      experience.seatsOnNextDisplay,
-                    )
-                  : "No dates in the next 90 days"}
-              </p>
-
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                {/*
-                `fromPrice` is absent until a real contracted price exists. Never
-                render ₹0 — that would be a fabricated claim, and this project
-                removed a whole site for doing exactly that.
-              */}
-                {price ? (
-                  <p className="text-cream text-lg font-bold">
-                    {price}
-                    {/*
-                    The server's phrase, verbatim — yuvoy-app#20 §1. See the
-                    detail page for why this is not derived from `pricingUnit`.
-                    Omitted rather than guessed when absent: no phrase at all is
-                    a smaller error than the wrong one.
-                  */}
-                    {experience.pricingUnitLabel ? (
-                      <span className="text-cream/70 ml-1.5 text-xs font-normal">
-                        {experience.pricingUnitLabel}
-                      </span>
-                    ) : null}
-                  </p>
-                ) : (
-                  <p className="text-cream/70 text-sm">Price on request</p>
-                )}
-
-                <Chip
-                  surface="dark"
-                  tone={instant ? "accent" : "neutral"}
-                  size="sm"
-                >
-                  {instant ? <ZapIcon className="size-3.5" /> : null}
-                  {instant ? "Instant book" : "Ask the operator"}
-                </Chip>
-              </div>
-            </div>
-
-            {/* The action rail. Only controls that do something are drawn. */}
             <div className="flex shrink-0 flex-col gap-3">
+              <IconLink
+                href={href}
+                label={`Open ${experience.title}`}
+                variant="paper"
+              >
+                <ArrowRightIcon />
+              </IconLink>
               {playable ? (
                 <IconButton
                   label={muted ? "Unmute" : "Mute"}
@@ -306,57 +237,22 @@ export function ExperienceCard({
                   {muted ? <VolumeOffIcon /> : <VolumeIcon />}
                 </IconButton>
               ) : null}
-              <ShareExperience
-                slug={experience.slug}
+              {/*
+                The REEL, not the listing — yuvoy-app#36. Somebody sharing a
+                clip means the clip. A card with no clip has nothing to share
+                but the listing, and says so in its own label rather than
+                sending a `/r/` address for a reel that does not exist.
+              */}
+              <ShareLink
+                path={media ? `/r/${media.id}` : href}
                 title={experience.title}
+                label={media ? "Share this reel" : "Share this experience"}
                 variant="onDark"
               />
             </div>
           </div>
-
-          <ButtonLink
-            href={href}
-            variant="paper"
-            size="lg"
-            block
-            className="mt-5"
-          >
-            {experience.nextAvailable ? "See dates" : "Have a look"}
-            <ButtonArrow />
-          </ButtonLink>
         </div>
       </div>
     </article>
   );
-}
-
-/**
- * The next departure, and what the server says about its seats.
- *
- * ## `seatsOnNextDisplay` is rendered verbatim, and the threshold is gone
- *
- * This function used to take `seatsOnNext` (an integer) and print "N seats
- * left" below a threshold of five that it kept ITSELF — a second copy of a
- * rule the server owns. "The moment the threshold moves — or counts start
- * being suppressed — the card and the slot row disagree about the same
- * departure."
- *
- * So the server now decides the sentence and the card prints it. Absent means
- * **say nothing about availability**, not "derive one from `seatsOnNext`":
- * both live listings are `request` mode today and the field correctly does not
- * appear on either, because a request-mode departure holds nothing until an
- * operator says yes and a seat count there is a promise Yuvoy cannot keep.
- *
- * yuvoy-api#92 — the field existed only inside `BookingMode`'s description
- * until 6 September, which is why the threshold survived this long.
- */
-function nextAvailableLabel(date: string, seatsSentence?: string): string {
-  const when = new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: "Asia/Kolkata",
-  }).format(new Date(`${date}T00:00:00+05:30`));
-
-  return seatsSentence ? `Next ${when} · ${seatsSentence}` : `Next ${when}`;
 }

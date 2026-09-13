@@ -171,14 +171,28 @@ export function describeError(
           body: "It may be wrong, expired, or already used. Ask for a new one. We answer the same way whatever was wrong with it.",
           canRetry: false,
         };
+      /*
+        RETIRED, and kept only as a fallback — yuvoy-app#32, yuvoy-api#170.
+
+        The API takes every request now, at any hour and however many are
+        already waiting on a departure; `request_window_closed` and
+        `request_quota_exhausted` "are no longer returned (since 2026-09-13)".
+        They stay in the `Error.code` enum on purpose, so exhaustive handling
+        in a deployed client still type-checks.
+
+        The panel that rendered this on the listing is gone. These two entries
+        are not: a pinned contract says what the API WILL send, and this map is
+        the last thing between an unknown code and a traveller reading a raw
+        token. The copy is trimmed to what is still true — nothing was sent,
+        and nothing is held — with the "not at this hour" reasoning removed,
+        because it is no longer the reason and would be a false explanation.
+      */
       case "request_window_closed":
         return {
           ...base,
-          title: "The operator is not taking requests right now",
-          body: error.opensAt
-            ? `Requests are answered by a person, and they take them from ${marketClock(error.opensAt)}. Nothing was sent, and the seats are not held. Ask again then.`
-            : "Requests are answered by a person, and they are not taking them at this hour. Nothing was sent. Ask again in the morning.",
-          canRetry: false,
+          title: "That request did not go through",
+          body: "Nothing was sent and no seats are held. Try again, or pick another departure.",
+          canRetry: true,
         };
       case "cutoff_passed":
         return {
@@ -194,12 +208,14 @@ export function describeError(
           body: "The hold has ended, or the request was not accepted. Nothing was charged. Pick a departure again to start over.",
           canRetry: false,
         };
+      // Retired with `request_window_closed` above, and kept for the same
+      // reason: a code the API no longer sends is still a code it declares.
       case "request_quota_exhausted":
         return {
           ...base,
-          title: "This operator has too many requests open",
-          body: "Not your doing. They can only hold so many unanswered requests at once. Nothing was sent. Try another day, or another operator, and this one may be free again later.",
-          canRetry: false,
+          title: "That request did not go through",
+          body: "Nothing was sent and no seats are held. Try again, or pick another departure.",
+          canRetry: true,
         };
       case "grant_ceiling_exceeded":
         return {
@@ -268,6 +284,44 @@ export function describeError(
           title: "One moment",
           body: "That was a lot of requests at once. Give it a few seconds.",
           canRetry: true,
+        };
+      /*
+        THE LISTING'S OWN QUESTIONS - yuvoy-app#46.
+
+        `answers_required` reaches a screen that can do better than this panel:
+        the checkout form marks each named question and scrolls to it. This
+        copy is what is read BESIDE that, and what is read anywhere the form
+        is not, so it says the true thing and never offers a retry - the same
+        body sent again is refused identically.
+      */
+      case "answers_required":
+        return {
+          ...base,
+          title: "Some questions need an answer first",
+          body: "This trip asks a few questions of its own, and at least one of them has to be answered before it can be booked. Nothing was held and nothing was charged.",
+          canRetry: false,
+        };
+      case "answers_closed":
+        return {
+          ...base,
+          title: "This booking is no longer taking answers",
+          body: "Its departure has left, or the booking is no longer going ahead. Nothing you just wrote was saved. If it still matters, send it to us and we will pass it on.",
+          canRetry: false,
+        };
+      /*
+        THE CONVERSATION WITH THE BUSINESS - yuvoy-app#47.
+
+        `messages_closed` reaches the thread, which renders the reason from
+        `details.reason` in a sentence of its own. This is what is read
+        anywhere that panel is not, and it never offers a retry: the
+        conversation does not reopen.
+      */
+      case "messages_closed":
+        return {
+          ...base,
+          title: "This conversation is closed",
+          body: "No more messages can be sent on this booking. Everything already written can still be read. If something still needs sorting, send it to us and we will pass it on.",
+          canRetry: false,
         };
       case "not_found":
         return {
@@ -412,26 +466,6 @@ export function FailurePanel({
       ) : null}
     </Panel>
   );
-}
-
-/**
- * A wall-clock time in the MARKET's zone, for copy like "from 06:00".
- *
- * The request window is the operator's hours, so it is their clock that is
- * meant — a traveller reading this on a phone still set to Berlin should see
- * the Andaman morning, not their own.
- */
-function marketClock(iso: string, timeZone = "Asia/Kolkata"): string {
-  try {
-    return new Intl.DateTimeFormat("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone,
-    }).format(new Date(iso));
-  } catch {
-    return "the morning";
-  }
 }
 
 /* ---------------------------------------------------------------- offline */

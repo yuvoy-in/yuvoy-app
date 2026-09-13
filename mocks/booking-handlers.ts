@@ -7,6 +7,8 @@ import {
 } from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
 
+type Experience = components["schemas"]["Experience"];
+
 /**
  * The two shapes `POST /reservations/{id}/payment-order` can answer with,
  * typed FROM the contract so the mock cannot drift from it.
@@ -88,6 +90,30 @@ interface MockReservation {
   cashBookingReference?: string;
   /** Committed in cash, awaiting the operator recording the money. */
   cashBooked?: boolean;
+  /**
+   * The listing's own questions, as answered by this party - yuvoy-app#46.
+   *
+   * Keyed by question id, and carried on the RESERVATION rather than derived
+   * at read time: an answer belongs to the party that gave it, and the
+   * listing's questions can change under a booking that was made before.
+   */
+  answers?: Record<string, string>;
+  /** The slug whose questions this party was asked. */
+  slug?: string;
+  /** Messages written from this link - yuvoy-app#47. */
+  messages?: BookingMessage[];
+  /** The traveller's read marker: the last message id they were shown. */
+  readUpTo?: string;
+  /**
+   * Whether the operator has recorded taking the cash — `payment.collected`.
+   *
+   * Reachable with `?__scenario=cash-collected`, so the state a traveller sees
+   * on the morning AFTER handing the money over is testable. Without it the
+   * "Bring ₹X in cash" line could only ever be proven to appear, never to go
+   * away, which is half the behaviour and the half that would leave the line
+   * on the screen of somebody who has already paid.
+   */
+  cashCollected?: boolean;
 }
 
 const reservations = new Map<string, MockReservation>();
@@ -97,6 +123,215 @@ const idempotent = new Map<
   string,
   { fingerprint: string; body: Record<string, unknown> }
 >();
+
+type MockQuestion = NonNullable<Experience["questions"]>[number];
+
+/**
+ * What the server would actually record from a sent `answers` list.
+ *
+ * Everything that "does not fit" is dropped silently, because that is what the
+ * contract says happens: "an answer that does not fit is not recorded and
+ * never refuses the checkout on its own; it leaves its question unanswered".
+ * A mock that accepted anything would hide a client sending a `choice` value
+ * that is not one of the options - which is exactly the silent loss the
+ * controls in `question-fields.tsx` are shaped to prevent.
+ *
+ * Case is ignored on `yes_no` and `choice`, as `POST /bookings/answers` says.
+ */
+function recordAnswers(
+  questions: readonly MockQuestion[],
+  sent: readonly unknown[],
+): Record<string, string> {
+  const byId = new Map(questions.map((q) => [q.id, q]));
+  const out: Record<string, string> = {};
+  for (const entry of sent) {
+    if (!entry || typeof entry !== "object") continue;
+    const { questionId, answer } = entry as {
+      questionId?: unknown;
+      answer?: unknown;
+    };
+    if (typeof questionId !== "string" || typeof answer !== "string") continue;
+    const question = byId.get(questionId);
+    if (!question) continue;
+    if (answer.length > 300) continue;
+    if (question.answerType === "yes_no") {
+      const lower = answer.toLowerCase();
+      if (lower !== "yes" && lower !== "no") continue;
+      out[questionId] = lower;
+      continue;
+    }
+    if (question.answerType === "choice") {
+      const match = (question.options ?? []).find(
+        (o) => o.toLowerCase() === answer.toLowerCase(),
+      );
+      if (!match) continue;
+      out[questionId] = match;
+      continue;
+    }
+    out[questionId] = answer;
+  }
+  return out;
+}
+
+/**
+ * Every question this party was asked, as the status page shows them.
+ *
+ * The listing's current questions first, in its order, then anything this
+ * party answered that it no longer asks, with `current: false`.
+ */
+function partyQuestions(record: MockReservation) {
+  const questions = record.slug
+    ? (EXPERIENCE_DETAIL[record.slug]?.questions ?? [])
+    : [];
+  const answers = record.answers ?? {};
+  const current = questions.map((q) => ({
+    questionId: q.id,
+    text: q.text,
+    answerType: q.answerType,
+    ...(q.options ? { options: q.options } : {}),
+    required: q.required,
+    current: true,
+    answered: answers[q.id] !== undefined,
+    ...(answers[q.id] !== undefined
+      ? { answer: answers[q.id], answeredAt: new Date(mockNow()).toISOString() }
+      : {}),
+  }));
+  const known = new Set(questions.map((q) => q.id));
+  const retired = Object.entries(answers)
+    .filter(([id]) => !known.has(id))
+    .map(([id, answer]) => ({
+      questionId: id,
+      text: "A question this trip no longer asks.",
+      answerType: "short_text" as const,
+      required: false,
+      current: false,
+      answered: true,
+      answer,
+      answeredAt: new Date(mockNow()).toISOString(),
+    }));
+  return [...current, ...retired];
+}
+
+type BookingMessage = components["schemas"]["BookingMessage"];
+
+/**
+ * The conversation on a booking.
+ *
+ * Seeded with enough from the business to exercise every shape the panel has
+ * to draw, and ids are ordered strings so "newer than the marker" is a string
+ * comparison rather than a date parse.
+ *
+ * `?__scenario=long-thread` seeds 60, which is past the 50 a page holds, so
+ * "See earlier messages" and the cursor are reachable by hand.
+ * `?__scenario=text-removed` seeds one carrying `textRemovedAt` in place of
+ * `text` - the case that must render as a message whose text was removed and
+ * never as a blank bubble.
+ */
+function conversation(
+  record: MockReservation,
+  scenario: string,
+): BookingMessage[] {
+  const from = record.slug ? "Sample Dive Operator" : "Sample Dive Operator";
+  const seeded: BookingMessage[] = [];
+  const count = scenario === "long-thread" ? 60 : 2;
+  for (let i = 0; i < count; i++) {
+    seeded.push({
+      id: `msg_${String(i).padStart(4, "0")}_s`,
+      from: "operator",
+      senderName: from,
+      text: `Message ${i + 1} from the boat.`,
+      sentAt: new Date(mockNow() - (count - i) * 60_000).toISOString(),
+    });
+  }
+  if (scenario === "text-removed") {
+    seeded.push({
+      id: "msg_9998_s",
+      from: "operator",
+      senderName: from,
+      // Exactly one of `text` and `textRemovedAt`, never both, never neither.
+      textRemovedAt: "2026-11-20T00:00:00Z",
+      sentAt: new Date(mockNow() - 30_000).toISOString(),
+    });
+  }
+  return [...seeded, ...(record.messages ?? [])];
+}
+
+/** Why writing is shut, or `undefined` while it is open. */
+function closedReasonFor(
+  record: MockReservation,
+  scenario: string,
+): "not_booked" | "cancelled" | "declined" | "window_closed" | undefined {
+  if (scenario === "messages-window-closed") return "window_closed";
+  if (scenario === "cancelled") return "cancelled";
+  if (scenario === "declined") return "declined";
+  if (record.released) return "cancelled";
+  /*
+    A link whose hold or request never became a booking. It answers an empty,
+    complete conversation with `canWrite: false`, "not an error" - which is
+    the case a client is most likely to have treated as a failure.
+  */
+  if (!record.cashBooked && !record.paid) return "not_booked";
+  return undefined;
+}
+
+function closedSentence(reason: string): string {
+  switch (reason) {
+    case "not_booked":
+      return "There is no booking behind this link yet, so there is nobody to write to. Messages open once the booking is made.";
+    case "cancelled":
+      return "This booking was cancelled, so no more messages can be sent. The conversation can still be read.";
+    case "declined":
+      return "This booking was declined, so no more messages can be sent. The conversation can still be read.";
+    default:
+      return "Messages close seven days after a trip ends, and this one has closed. The conversation can still be read.";
+  }
+}
+
+/**
+ * The server's D-051 rules, mirrored closely enough to be worth testing
+ * against. The APP does not re-implement these; this is the other side.
+ */
+function contactDetailIn(text: string): "phone" | "email" | "link" | null {
+  if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(text))
+    return "email";
+  if (/(^|\s)(https?:\/\/|www\.)/i.test(text)) return "link";
+  if (/\b[a-z0-9-]+\.(com|in|net|org|io|co|me)\b/i.test(text)) return "link";
+  /*
+    Seven or more digits counted through the separators between them, EXCEPT a
+    date written like 14.09.2026 or 2026-09-14. Dates are struck out first, so
+    "see you on 14.09.2026" sends and "call me on 98765 43210" does not.
+  */
+  const withoutDates = text
+    .replace(/\b\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}\b/g, " ")
+    .replace(/\b\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}\b/g, " ");
+  for (const run of withoutDates.match(/[\d\s().\-]+/g) ?? []) {
+    if (run.replace(/\D/g, "").length >= 7) return "phone";
+  }
+  return null;
+}
+
+/** The reservation a status token opens, or `undefined`. */
+function recordFor(request: Request): MockReservation | undefined {
+  const token = (request.headers.get("authorization") ?? "").replace(
+    /^Bearer\s+/i,
+    "",
+  );
+  const id = byToken.get(token);
+  return id ? reservations.get(id) : undefined;
+}
+
+/** The departure every mocked booking is on. */
+const SLOT_STARTS_AT = "2026-08-22T01:30:00Z";
+
+/** Answers are shut once the booking is no longer going ahead. */
+const ANSWERS_SHUT_STATES = [
+  "cancelled",
+  "declined",
+  "expired",
+  "released",
+  "no_show",
+  "completed",
+];
 
 function reference(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -118,6 +353,7 @@ export const bookingHandlers = [
       contact: { name: string; whatsapp: string; email?: string };
       screening?: { declaredClear?: boolean; ageBands?: string[] };
       attribution?: Record<string, unknown>;
+      answers?: unknown;
     };
 
     if (!key) {
@@ -228,6 +464,39 @@ export const bookingHandlers = [
       }
     }
 
+    /*
+      THE LISTING'S OWN QUESTIONS - yuvoy-app#46 §3.
+
+      The gate is the PRESENCE of `answers`, not its contents: "send it, even
+      as an empty list, and required questions are enforced", and "`null`, or
+      a value that is not a list, counts as not sent". A body without it is
+      never refused over a question, which is the path the Ask pop-up takes.
+
+      An answer that does not fit is dropped rather than refused - a question
+      the listing no longer asks, a choice outside its options, a value its
+      type does not take. It then counts as unanswered, which is what can
+      produce the 409 even on a body that did send something for it.
+    */
+    const questions = slug ? (EXPERIENCE_DETAIL[slug]?.questions ?? []) : [];
+    const sentAnswers = Array.isArray(body.answers) ? body.answers : null;
+    const recorded = sentAnswers ? recordAnswers(questions, sentAnswers) : {};
+
+    if (sentAnswers) {
+      const missing = questions.filter(
+        (q) => q.required && recorded[q.id] === undefined,
+      );
+      if (missing.length > 0) {
+        return envelope(
+          "answers_required",
+          "Some questions this trip asks need an answer before you can book.",
+          409,
+          {
+            questions: missing.map((q) => ({ questionId: q.id, text: q.text })),
+          },
+        );
+      }
+    }
+
     const slot = slug
       ? availabilityFor(slug).find((s) => s.id === body.slotId)
       : undefined;
@@ -252,6 +521,8 @@ export const bookingHandlers = [
       reference: reference(),
       polls: 0,
       paid: false,
+      answers: recorded,
+      slug,
     };
     reservations.set(id, record);
     byToken.set(token, id);
@@ -472,16 +743,25 @@ export const bookingHandlers = [
     if (scenario === "cancelled") state = "cancelled";
     if (scenario === "expired") state = "expired";
     /*
-      COMMITTED IN CASH — yuvoy-app#29.
+      COMMITTED IN CASH — yuvoy-app#29, and the projection changed under us.
 
-      `paid_pending_ops` until the operator records taking the money. It is
-      NOT in `BookingStatus.state`'s enum — the traveller contract declares it
-      only on `CashBooking` — and the API returns it here, so the mock returns
-      it here too. That is what caught the screen dereferencing its state map
-      unguarded: an undeclared state took the whole booking page to the error
-      boundary, for somebody who had just committed. Raised on yuvoy-app#29.
+      This used to answer `paid_pending_ops`, which is what the API returned
+      and which is NOT in `BookingStatus.state`'s enum. That mock is what
+      caught the screen dereferencing its state map unguarded — an undeclared
+      state took the whole booking page to the error boundary, for somebody who
+      had just committed money.
+
+      Owner decision D-034 (yuvoy-api#168, live since 12 Sep) changed it: a
+      cash booking reads `confirmed` from the moment it is made, because the
+      seat was taken against a live hold and no money is in flight to wait on.
+      What is still owed moved to `payment`, below.
+
+      `GET /me/bookings` is unchanged and still carries the raw
+      `paid_pending_ops` — two endpoints, two shapes, and the mock has to keep
+      them apart or the trips list is tested against a state it will never see.
     */
-    if (record.cashBooked) state = "paid_pending_ops";
+    if (record.cashBooked) state = "confirmed";
+    if (scenario === "cash-collected") record.cashCollected = true;
     if (record.released) state = "released";
 
     const final = [
@@ -511,21 +791,73 @@ export const bookingHandlers = [
           operator: "Sample Dive Operator",
         },
         slot: {
-          startsAt: "2026-08-22T01:30:00Z",
+          startsAt: SLOT_STARTS_AT,
           timezone: "Asia/Kolkata",
         },
         price: { totalPaise: 450000 * record.guests, currency: "INR" },
+        /*
+          Present ONLY for a cash booking — D-034. `collected` flips when the
+          operator records taking the money, and `cashCollected` is what the
+          operator-side mock sets. A card booking carries no `payment` at all,
+          which is the distinction the booking screen now reads instead of the
+          state it used to.
+        */
+        ...(record.cashBooked
+          ? {
+              payment: {
+                method: "cash" as const,
+                collected: Boolean(record.cashCollected),
+                amountPaise: 450000 * record.guests,
+              },
+            }
+          : {}),
+        /*
+          THE LISTING'S OWN QUESTIONS - yuvoy-app#46 §4.
+
+          Absent when the listing asks nothing and nothing was answered, which
+          is the commoner case and the one the panel must not render for.
+
+          `answersOpen` is TOLD, never inferred: true while the booking is
+          going ahead and its departure has not left. The mock computes it
+          here so a client that derived it from `state` would visibly disagree.
+        */
+        ...(partyQuestions(record).length > 0
+          ? {
+              questions: partyQuestions(record),
+              /*
+                The same instant this response reports as `slot.startsAt`, so
+                the mock cannot contradict itself, and `?__scenario=
+                answers-closed` for the morning after: the form must be gone
+                and a stale submit must answer `409 answers_closed`.
+              */
+              answersOpen:
+                scenario !== "answers-closed" &&
+                !ANSWERS_SHUT_STATES.includes(state) &&
+                new Date(SLOT_STARTS_AT).getTime() > mockNow(),
+            }
+          : {}),
         ...(scenario === "operator-updates"
           ? {
+              /*
+                `kind` and `from`, which is what the server sends.
+
+                This mock sent `intent`, a name that only ever existed in the
+                document — "Never emitted ... the server has always sent
+                `kind`". So the screen read `intent`, found it, and every test
+                passed while the real API mislabelled every update as "A note".
+                Sending what the server sends is what makes the panel testable.
+              */
               operatorUpdates: [
                 {
-                  intent: "meeting_point_change",
+                  kind: "meeting_point_change",
+                  from: "Sample Dive Operator",
                   detail: "Jetty 2, not Jetty 1",
                   note: "The usual spot is under repair this week.",
                   sentAt: "2026-08-21T10:15:00Z",
                 },
                 {
-                  intent: "bring_item",
+                  kind: "bring_item",
+                  from: "Sample Dive Operator",
                   detail: "A towel and a dry change of clothes",
                   sentAt: "2026-08-21T10:16:00Z",
                 },
@@ -573,6 +905,224 @@ export const bookingHandlers = [
       { headers: mockHeaders(rid()) },
     );
   }),
+  /* ------------------------------------------ the conversation (#47) */
+
+  http.get(url("/bookings/messages"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    const record = recordFor(request);
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const all = conversation(record, scenario);
+    const query = new URL(request.url).searchParams;
+    const cursor = query.get("cursor");
+    const raw = Number(query.get("limit"));
+    // "None, or a value that is not a whole number above zero, gets 50."
+    const limit = Number.isInteger(raw) && raw > 0 ? Math.min(raw, 200) : 50;
+
+    /*
+      The cursor is an INDEX from the end, opaque to the client. A cursor this
+      conversation did not issue is a 400, which is what makes a client that
+      constructs one fail loudly rather than silently re-paging.
+    */
+    let end = all.length;
+    if (cursor !== null) {
+      const parsed = /^cur_(\d+)$/.exec(cursor);
+      if (!parsed || Number(parsed[1]) > all.length) {
+        return envelope(
+          "invalid_input",
+          "That is not a cursor we issued.",
+          400,
+        );
+      }
+      end = Number(parsed[1]);
+    }
+    const start = Math.max(0, end - limit);
+    const page = all.slice(start, end);
+
+    const closed = closedReasonFor(record, scenario);
+    return HttpResponse.json(
+      {
+        // Oldest first WITHIN the page; the first page is the most recent.
+        messages: page,
+        complete: start === 0,
+        ...(start > 0 ? { nextCursor: `cur_${start}` } : {}),
+        unreadCount: page.filter(
+          (m) => m.from === "operator" && m.id > (record.readUpTo ?? ""),
+        ).length,
+        canWrite: !closed,
+        ...(closed ? { closedReason: closed } : {}),
+        ...(closed ? {} : { writableUntil: "2026-08-29T01:30:00Z" }),
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.post(url("/bookings/messages"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    const record = recordFor(request);
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const { text } = (await request.json()) as { text?: unknown };
+    if (typeof text !== "string" || text.trim().length === 0) {
+      return envelope("invalid_input", "Write something before sending.", 400, {
+        text: "required",
+      });
+    }
+    if (text.length > 1000) {
+      return envelope(
+        "invalid_input",
+        `A message can be up to 1000 characters, and this one is ${text.length}. Shorten it and send it again.`,
+        400,
+        { text: "too long" },
+      );
+    }
+
+    /*
+      D-018, and the one rule a client must NOT re-implement: the sentences
+      below are the server's and the app renders them. A phone number is seven
+      or more digits counted THROUGH the spaces, dashes, brackets and dots
+      between them, except a date written like 14.09.2026.
+    */
+    const contact = contactDetailIn(text);
+    if (contact) {
+      const kind =
+        contact === "phone"
+          ? "a phone number, from seven or more digits written close together"
+          : contact === "email"
+            ? "an email address"
+            : "a link";
+      return envelope(
+        "invalid_input",
+        `Messages cannot include phone numbers, email addresses or links. This one looks like it has ${kind}. Take it out and send the message again.`,
+        400,
+        { text: "contact details", contactDetail: contact },
+      );
+    }
+
+    const closed = closedReasonFor(record, scenario);
+    if (closed) {
+      return envelope("messages_closed", closedSentence(closed), 409, {
+        reason: closed,
+      });
+    }
+
+    const message = {
+      id: `msg_${String(record.messages?.length ?? 0).padStart(4, "0")}_w`,
+      from: "traveller" as const,
+      senderName: record.contactName,
+      text: text.trim(),
+      sentAt: new Date(mockNow()).toISOString(),
+    };
+    record.messages = [...(record.messages ?? []), message];
+    return HttpResponse.json(message, {
+      status: 201,
+      headers: mockHeaders(rid()),
+    });
+  }),
+
+  http.post(url("/bookings/messages/read"), async ({ request }) => {
+    const record = recordFor(request);
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const { upTo } = (await request.json()) as { upTo?: unknown };
+    const all = conversation(record, scenarioOf(request));
+    if (typeof upTo !== "string" || !all.some((m) => m.id === upTo)) {
+      return envelope(
+        "not_found",
+        "No such message in this conversation.",
+        404,
+      );
+    }
+    // "A marker never moves back: naming an older message changes nothing."
+    if (!record.readUpTo || upTo > record.readUpTo) record.readUpTo = upTo;
+    return HttpResponse.json(
+      {
+        unreadCount: all.filter(
+          (m) => m.from === "operator" && m.id > (record.readUpTo ?? ""),
+        ).length,
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  /* ------------------------------------------------- the listing's questions */
+
+  /*
+    yuvoy-app#46 §4. Answers given from the booking link, after checkout.
+
+    ALL OR NOTHING, which is the behaviour a client can get wrong invisibly:
+    "if one answer does not fit its question, nothing is saved". A mock that
+    saved the good ones would let a screen ship that reports success over a
+    partial write.
+  */
+  http.post(url("/bookings/answers"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    const auth = request.headers.get("authorization") ?? "";
+    const token = auth.replace(/^Bearer\s+/i, "");
+    const id = byToken.get(token);
+    const record = id ? reservations.get(id) : undefined;
+    if (!record)
+      return envelope("unauthorized", "That link is not valid.", 401);
+
+    const body = (await request.json()) as { answers?: unknown };
+    const sent = Array.isArray(body.answers) ? body.answers : [];
+    if (sent.length < 1 || sent.length > 10) {
+      return envelope(
+        "invalid_input",
+        "some of these answers need fixing",
+        400,
+        {
+          answers: "1 to 10 answers",
+        },
+      );
+    }
+
+    const state = record.released
+      ? "released"
+      : record.cashBooked
+        ? "confirmed"
+        : record.state === "pending_request"
+          ? "awaiting_operator"
+          : "holding";
+    if (
+      scenario === "answers-closed" ||
+      ANSWERS_SHUT_STATES.includes(state) ||
+      new Date(SLOT_STARTS_AT).getTime() <= mockNow()
+    ) {
+      return envelope(
+        "answers_closed",
+        "This booking is no longer taking answers, because its departure has left or it is no longer going ahead.",
+        409,
+      );
+    }
+
+    const questions = record.slug
+      ? (EXPERIENCE_DETAIL[record.slug]?.questions ?? [])
+      : [];
+    const accepted = recordAnswers(questions, sent);
+    // All or nothing: one that did not fit means nothing is saved.
+    if (Object.keys(accepted).length !== sent.length) {
+      return envelope(
+        "invalid_input",
+        "some of these answers need fixing",
+        400,
+        {
+          "answers[0].answer": "does not fit this question",
+        },
+      );
+    }
+
+    // Each answer REPLACES; questions left out keep what they had.
+    record.answers = { ...(record.answers ?? {}), ...accepted };
+    return HttpResponse.json(
+      { questions: partyQuestions(record) },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
   /* ------------------------------------------------ cancel / share / review */
 
   http.get(url("/bookings/cancellation-quote"), async ({ request }) => {
@@ -589,6 +1139,46 @@ export const bookingHandlers = [
         refundTier: "half",
         hoursBeforeStart: 20,
         note: "Under 24 hours, so this one is half back and a person checks it.",
+      });
+    }
+    /*
+      A DEPARTURE THE OPERATOR MOVED — D-032.3, yuvoy-app#48 §1.
+
+      Everything paid online comes back whatever tier the snapshot holds, so
+      this is self-service AND carries a `note`. That pairing is the whole
+      point of the fix: the sheet used to show `note` only when `selfService`
+      was false, so this quote rendered "You get everything back." with no
+      explanation at all.
+    */
+    if (scenario === "operator-moved") {
+      return HttpResponse.json({
+        bookingReference: "YV-4K2M9P7Q",
+        cancellable: true,
+        selfService: true,
+        capturedPaise: 900000,
+        refundPaise: 900000,
+        refundTier: "half",
+        hoursBeforeStart: 20,
+        note: "The operator moved this departure after you booked, so you get everything back whatever the usual policy says.",
+      });
+    }
+    /*
+      A CASH BOOKING IN THE 24-TO-48-HOUR TIER — D28, yuvoy-app#48 §2.
+
+      A partial tier with nothing to refund "needs nobody", so this quotes
+      `selfService: true` where it used to send the traveller to WhatsApp.
+      Both figures are 0, which is what used to print "You get everything
+      back." above ₹0.
+    */
+    if (scenario === "cash-nothing-to-refund") {
+      return HttpResponse.json({
+        bookingReference: "YV-4K2M9P7Q",
+        cancellable: true,
+        selfService: true,
+        capturedPaise: 0,
+        refundPaise: 0,
+        refundTier: "half",
+        hoursBeforeStart: 30,
       });
     }
     if (scenario === "not-cancellable") {
@@ -614,8 +1204,16 @@ export const bookingHandlers = [
     const scenario = scenarioOf(request);
     const body = (await request.json()) as { expectedRefundPaise: number };
 
-    // The quote moved between quoting and committing.
-    if (scenario === "quote-moved" || body.expectedRefundPaise !== 900000) {
+    /*
+      The quote moved between quoting and committing.
+
+      `0` is a legitimate echo now, not only `900000`: a partial tier with
+      nothing to refund cancels from here (D28), and treating its `0` as a
+      moved quote would make the one path yuvoy-app#48 §2 opens impossible to
+      exercise. The scenario switch stays the way to force a real re-quote.
+    */
+    const quoted = scenario === "cash-nothing-to-refund" ? 0 : 900000;
+    if (scenario === "quote-moved" || body.expectedRefundPaise !== quoted) {
       return envelope(
         "refund_quote_moved",
         "The refund changed while you were deciding.",
@@ -627,8 +1225,18 @@ export const bookingHandlers = [
       bookingReference: "YV-4K2M9P7Q",
       state: "cancelled",
       refundPaise: body.expectedRefundPaise,
-      refundTier: "full",
+      refundTier: quoted === 0 ? "half" : "full",
       seatsReleased: 2,
+      /*
+        "Says why" when nothing comes back. Present only then, so a full
+        refund is not narrated at somebody who can see the figure.
+      */
+      ...(quoted === 0
+        ? {
+            refundNote:
+              "Nothing was paid online for this booking, so there is nothing to refund.",
+          }
+        : {}),
     });
   }),
 
@@ -675,33 +1283,164 @@ export const bookingHandlers = [
     There are deliberately NO /auth/otp/* handlers.
 
     That endpoint pair was deleted upstream on 2026-08-20 ("the second sign-in
-    is deleted"). Signing in is now the same OTP that recovers a booking, and
-    /me/bookings is authenticated by the status token recovery returns.
+    is deleted"). A mock for an endpoint the contract no longer has is worse
+    than no mock: it is how somebody rebuilds a deleted feature against a shape
+    that only exists on their laptop.
 
-    A mock for an endpoint the contract no longer has is worse than no mock: it
-    is how somebody rebuilds a deleted feature against a shape that only exists
-    on their laptop.
+    `/me/sign-in/*` below is a DIFFERENT thing and is current (yuvoy-api#172):
+    a session over a phone number, which any number can get whether or not it
+    has ever booked, and which revokes nothing.
   */
+
+  http.post(url("/me/sign-in/request"), async ({ request }) => {
+    const body = (await request.json()) as { phone?: string };
+    const phone = body.phone?.trim() ?? "";
+
+    // E.164 or nothing. The real API is strict here and the screen has a
+    // branch for it, so the mock has to be able to reach that branch.
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+      return envelope("invalid_input", "That is not a phone number.", 400);
+    }
+    // Reachable with `?__scenario=otp-rate-limited`, so the 429 copy is
+    // testable without sending six codes.
+    if (scenarioOf(request) === "otp-rate-limited") {
+      return envelope("rate_limited", "Too many codes for that number.", 429);
+    }
+
+    /*
+      202 and a plain answer. Unlike recovery, this one has nothing to reveal:
+      "there is no booking for the answer to reveal, so it says plainly that a
+      code was sent."
+    */
+    return HttpResponse.json(
+      {
+        sent: true,
+        message: "A code is on its way to that number.",
+        devCode: DEV_SIGN_IN_CODE,
+      },
+      { status: 202, headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.post(url("/me/sign-in/verify"), async ({ request }) => {
+    const body = (await request.json()) as { phone?: string; code?: string };
+    const phone = body.phone?.trim() ?? "";
+    const code = body.code?.trim() ?? "";
+
+    if (!phone) {
+      return envelope("invalid_input", "That is not a phone number.", 400);
+    }
+    /*
+      "Wrong, expired, used and over-attempted codes all answer 401 with one
+      message." One answer, deliberately: telling them apart would say whether
+      a code had been issued for a number.
+    */
+    if (code !== DEV_SIGN_IN_CODE) {
+      return envelope("unauthorized", "That code did not work.", 401);
+    }
+
+    return HttpResponse.json(
+      {
+        sessionToken: `sess_${phone.replace(/\D/g, "")}`,
+        expiresAt: new Date(mockNow() + 30 * 24 * 60 * 60_000).toISOString(),
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.delete(url("/me/session"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    /*
+      204 whatever the token was, including one already ended — so there is no
+      server-side session to forget here. The mock deliberately keeps none: the
+      real API's session is a token the client holds, and inventing a
+      server-side record would let a test pass on state production does not
+      have.
+    */
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.get(url("/me/bookings"), async ({ request }) => {
     if (!request.headers.get("authorization")) {
       return envelope("unauthorized", "Sign in first.", 401);
     }
+    // Reachable with `?__scenario=session-expired`, so the Trips tab's
+    // "sign in again" branch is testable.
+    if (scenarioOf(request) === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+
+    /*
+      Every trip on the number, including ones this device has never seen —
+      which is the whole point of signing in, and what a mock returning only
+      this device's reservations could never exercise.
+
+      `ANOTHER_PHONES_TRIP` is booked on another phone. It carries a real
+      reference and a token of its own, so merging it in has something to
+      claim onto the device.
+
+      `WAITING_REQUEST` is the state yuvoy-api#172 added: `pending_request`
+      with an EMPTY reference. It is here because a list that never contains
+      one cannot prove that matching falls back to `reservationId` — and
+      without that fallback every waiting request appears twice.
+    */
+    const own = [...reservations.values()].map((r) => ({
+      reference: r.state === "pending_request" ? "" : r.reference,
+      reservationId: r.reservationId,
+      experience: "Try-dive at Nemo Reef",
+      operator: "Sample Dive Operator",
+      localDate: "2026-08-22",
+      localTime: "07:00",
+      state: r.state === "pending_request" ? "pending_request" : "confirmed",
+      guests: r.guests,
+      meetingPoint: "Jetty 2, Havelock",
+      statusToken: r.token,
+    }));
+
     return HttpResponse.json({
-      bookings: [...reservations.values()].map((r) => ({
-        reference: r.reference,
-        experience: "Try-dive at Nemo Reef",
-        operator: "Sample Dive Operator",
-        localDate: "2026-08-22",
-        localTime: "07:00",
-        state: "confirmed",
-        guests: r.guests,
-        meetingPoint: "Jetty 2, Havelock",
-        statusToken: r.token,
-      })),
+      bookings: [...own, ANOTHER_PHONES_TRIP, WAITING_REQUEST],
     });
   }),
 ];
+
+/**
+ * The code every demo number accepts.
+ *
+ * "There is no channel that delivers a traveller code yet (yuvoy-api#68);
+ * until there is, only the demo numbers receive one." The real API returns it
+ * as `devCode` in development, which is exactly what this mock does.
+ */
+const DEV_SIGN_IN_CODE = "123456";
+
+/** A trip on this number that this device has never seen. */
+const ANOTHER_PHONES_TRIP = {
+  reference: "YV-OTHERPH",
+  reservationId: "res_other_phone",
+  experience: "Snorkel trip to Elephant Beach",
+  operator: "Sample Boat Operator",
+  localDate: "2026-08-24",
+  localTime: "09:00",
+  state: "confirmed",
+  guests: 2,
+  meetingPoint: "Jetty 2, Havelock",
+  statusToken: "tok_other_phone",
+};
+
+/** A request the operator has not answered: no reference, only an id. */
+const WAITING_REQUEST = {
+  reference: "",
+  reservationId: "res_waiting_request",
+  experience: "Mangrove kayak at dawn",
+  operator: "Sample New Operator",
+  localDate: "2026-08-26",
+  localTime: "06:30",
+  state: "pending_request",
+  guests: 1,
+  meetingPoint: "Mangrove jetty",
+  statusToken: "tok_waiting_request",
+};
 
 /** Test-only: forget every reservation between cases. */
 export function __resetBookingMocks(): void {

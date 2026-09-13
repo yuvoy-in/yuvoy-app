@@ -1,91 +1,73 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { createApiClient } from "@/lib/api/client";
+import { YuvoyError } from "@/lib/api/errors";
 import {
-  getTravellerSession,
-  saveTravellerSession,
-  clearTravellerSession,
-} from "@/lib/auth/traveller-session";
-import { rememberBooking } from "@/lib/booking/token-store";
-import { isDeadToken } from "@/lib/api/errors";
+  useTravellerSession,
+  useRequestSignInCode,
+  useVerifySignInCode,
+} from "@/lib/auth/use-traveller";
 import { Field } from "@/components/ui/field";
-import { Button } from "@/components/ui/button";
+import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { StateChip } from "@/components/booking/state-chip";
 import { Screen } from "@/components/chrome/screen";
 import { LegalLinks } from "@/components/site/legal-links";
-import {
-  describeError,
-  FailurePanel,
-  Skeleton,
-  LoadingState,
-} from "@/components/states";
+import { Skeleton, LoadingState } from "@/components/states";
 
 /**
- * T5 and T11 — and there is deliberately no account to create.
+ * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
  *
- * The contract is explicit: "This is the whole of traveller accounts. There is
- * no signup, no password and no new secret: signing in is the same OTP that
- * already recovers a booking, and this is what it unlocks."
+ * ## What was wrong, in the owner's words: "That code did not work"
  *
- * So this screen does not offer a sign-up, and says so as its heading. A login
- * prompt in front of a stranger with a phone is the largest drop-off available
- * in this product, and none of this appears in the checkout path.
+ * This screen ran on booking RECOVERY, because until 12 September that was the
+ * only OTP there was. Two consequences, both of which the owner hit:
+ *
+ *   - Recovery refuses a correct code for a number that has never booked. It
+ *     is a recovery endpoint and there is nothing to recover. So a first-time
+ *     traveller typed the right code and was told it was wrong.
+ *   - Every successful recovery revokes the booking links already saved on the
+ *     phone. So signing in to SEE your trips took away the ones you had.
+ *
+ * `/me/sign-in/*` fixes both: any number, 30 days, and it revokes nothing.
+ * Recovery stays at `/trips/recover`, where rotating the link is the point.
+ *
+ * There is still no account to create, and this screen still says so as its
+ * heading. A login prompt in front of a stranger with a phone is the largest
+ * drop-off available in this product, and none of it appears in checkout.
  */
 export function AccountScreen() {
-  const [token, setToken] = useState<string | null | undefined>(undefined);
-  const [phone, setPhone] = useState("");
+  const { token, signIn, signOut } = useTravellerSession();
+  const [phone, setPhone] = useState(DEFAULT_DIAL_CODE);
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [devCode, setDevCode] = useState<string | undefined>();
-  /** The sign-in's token died server-side; the form is back, and says why. */
-  const [expired, setExpired] = useState(false);
+  const [resent, setResent] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getTravellerSession().then((s) => {
-      if (!cancelled) setToken(s?.token ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const request = useRequestSignInCode();
+  const verify = useVerifySignInCode();
 
-  const request = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const client = createApiClient();
-      const { data, error } = await client.POST("/bookings/recovery/request", {
-        body: { phone: phone.trim() },
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      setSent(true);
-      setDevCode(data?.devCode);
-    },
-  });
+  const phoneGiven = phone.replace(/\D/g, "").length > 4;
 
-  const verify = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const client = createApiClient();
-      const { data, error } = await client.POST("/bookings/recovery/verify", {
-        body: { phone: phone.trim(), code: code.trim() },
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: async (data) => {
-      if (!data?.statusToken) return;
-      await saveTravellerSession(data.statusToken);
-      setToken(data.statusToken);
-    },
-  });
+  async function askForCode(again = false) {
+    verify.reset();
+    setCode("");
+    const answer = await request.mutateAsync(phone).catch(() => null);
+    if (!answer) return;
+    setSent(true);
+    setDevCode(answer.devCode);
+    setResent(again);
+  }
+
+  async function submitCode() {
+    const session = await verify.mutateAsync({ phone, code }).catch(() => null);
+    if (session?.sessionToken) {
+      await signIn(session);
+      setSent(false);
+      setCode("");
+    }
+  }
 
   if (token === undefined) {
     return (
@@ -96,81 +78,37 @@ export function AccountScreen() {
         {/*
           Here too, because this is the branch that PRERENDERS — `/account` is
           a static route and this shell is what the HTML contains. A policy
-          link that only exists after hydration is one a crawler, a reader
-          with JavaScript off, and anybody reading the source cannot find.
+          link that only exists after hydration is one a crawler, a reader with
+          JavaScript off, and anybody reading the source cannot find.
         */}
         <LegalLinks className="mt-10 text-xs" />
       </Screen>
     );
   }
 
-  if (token) {
-    return (
-      <SignedIn
-        token={token}
-        onSignOut={async () => {
-          await clearTravellerSession();
-          setToken(null);
-          setSent(false);
-          setCode("");
-        }}
-        onExpired={async () => {
-          // The token behind "signed in" is a status token, and it expires
-          // like any other. Back to the form, with the reason — not a generic
-          // failure over a list that can never load.
-          await clearTravellerSession();
-          setToken(null);
-          setSent(false);
-          setCode("");
-          setExpired(true);
-        }}
-      />
-    );
-  }
+  if (token) return <SignedIn onSignOut={signOut} />;
 
-  const failure = verify.error
-    ? describeError(verify.error)
-    : request.error
-      ? describeError(request.error)
-      : null;
+  const failure = signInFailure(verify.error ?? request.error, sent);
 
   return (
     <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        There is no account to make
+        {sent ? "Check your WhatsApp" : "There is no account to make"}
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
-        Booking never needs one. If you want every trip on your number in one
-        place, including ones booked on another phone, we send a code to that
-        number. That is the whole of it: no password, no sign-up.
+        {sent
+          ? `We sent a six-digit code to ${phone}. It is good for a few minutes.`
+          : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password, no sign-up, and the trips already on this phone stay exactly where they are."}
       </p>
-
-      {expired ? (
-        <Panel role="status" className="mt-4 px-4 py-3 text-xs">
-          Your sign-in has expired. They do, after a while. Send a new code and
-          every trip on your number is back.
-        </Panel>
-      ) : null}
 
       <form
         className="mt-8 space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
-          if (sent) verify.mutate();
-          else request.mutate();
+          if (sent) void submitCode();
+          else void askForCode();
         }}
       >
-        <Field
-          label="WhatsApp number"
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          disabled={sent}
-          autoComplete="tel"
-          placeholder="+91…"
-          required
-        />
-
         {sent ? (
           <Field
             label="The code we sent"
@@ -180,194 +118,222 @@ export function AccountScreen() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="font-mono"
+            error={failure?.field === "code" ? failure.body : undefined}
             hint={
               devCode ? `Development build: the code is ${devCode}.` : undefined
             }
+            autoFocus
             required
           />
-        ) : null}
+        ) : (
+          <PhoneField
+            label="Your WhatsApp number"
+            value={phone}
+            onChange={setPhone}
+            error={failure?.field === "phone" ? failure.body : undefined}
+            hint="The number you book with. Any number works, whether or not it has booked before."
+            required
+          />
+        )}
 
         <Button
           type="submit"
           size="lg"
           block
-          disabled={request.isPending || verify.isPending}
+          disabled={
+            request.isPending ||
+            verify.isPending ||
+            (sent ? code.trim().length === 0 : !phoneGiven)
+          }
         >
-          {request.isPending || verify.isPending
-            ? "Working…"
-            : sent
-              ? "Show me my trips"
-              : "Send me a code"}
+          {request.isPending
+            ? "Sending a code…"
+            : verify.isPending
+              ? "Signing you in…"
+              : sent
+                ? "Show me my trips"
+                : "Send me a code"}
         </Button>
       </form>
 
-      {sent && !failure ? (
-        <p className="text-forest/70 mt-4 text-xs" role="status">
-          If that number has booked with us, a code is on its way. We answer the
-          same way for every number, so this is not a way to check whether
-          somebody has booked.
-        </p>
-      ) : null}
+      {/*
+        THE TWO WAYS OUT, as buttons rather than small print — yuvoy-app#34.
 
-      {failure ? <FailurePanel failure={failure} className="mt-6" /> : null}
-
+        "The owner took a while to find both." They were two underlined words
+        inside a sentence of 12px grey text, and the number field was simply
+        disabled once a code had been sent, so a wrong number had no visible
+        way back at all.
+      */}
       {sent ? (
-        <p className="text-forest/70 mt-4 text-xs">
-          No code yet?{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setCode("");
-              verify.reset();
-              request.mutate();
-            }}
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button
+            variant="outline"
             disabled={request.isPending}
-            className="text-terra-deep tap-target underline disabled:opacity-40"
+            onClick={() => void askForCode(true)}
           >
-            Send another one
-          </button>
-          {" · "}
-          <button
-            type="button"
+            {request.isPending ? "Sending…" : "Send another code"}
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => {
               setSent(false);
               setCode("");
               setDevCode(undefined);
+              setResent(false);
               request.reset();
               verify.reset();
             }}
-            className="text-terra-deep tap-target underline"
           >
-            Use a different number
-          </button>
+            Change number
+          </Button>
+        </div>
+      ) : null}
+
+      {resent && !failure ? (
+        <p role="status" className="text-forest/70 mt-4 text-xs">
+          A new code is on its way. The older one stops working.
         </p>
       ) : null}
 
+      {/*
+        The failure, said as a product rather than a stub. `signInFailure` is
+        what turns a code into a sentence; a message attached to the FIELD it
+        concerns is rendered on the field instead of here, so it is beside the
+        thing to change rather than below the button.
+      */}
+      {failure && !failure.field ? (
+        <Panel role="alert" className="mt-6">
+          <p className="text-sm font-bold">{failure.title}</p>
+          <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
+          {failure.action ? <div className="mt-4">{failure.action}</div> : null}
+        </Panel>
+      ) : null}
+
       <p className="text-forest/70 mt-8 text-xs">
-        Booked on this device?{" "}
-        <Link href="/trips" className="text-terra-deep tap-target underline">
-          Those are already under Trips
+        Lost the link to a booking?{" "}
+        <Link
+          href="/trips/recover"
+          className="text-terra-deep tap-target underline"
+        >
+          Get a new one sent
         </Link>
-        , no code needed.
+        .
       </p>
 
       {/*
-        On BOTH branches of this screen — yuvoy-app#15.
-
-        It was on the signed-in one only, and almost nobody is signed in: this
-        product has no account to make, so the signed-out form is what a
-        traveller meets here. Reading the deployed page is what showed it —
-        `/account` prerenders to its loading shell, and the links were nowhere
-        in the HTML.
+        On BOTH branches of this screen — yuvoy-app#15. It was on the signed-in
+        one only, and almost nobody is signed in: this product has no account
+        to make, so the signed-out form is what a traveller meets here.
       */}
       <LegalLinks className="border-cream-line mt-10 border-t pt-6 text-xs" />
     </Screen>
   );
 }
 
-/** T11 — every trip this phone number has booked, wherever it was booked. */
-function SignedIn({
-  token,
-  onSignOut,
-  onExpired,
-}: {
-  token: string;
-  onSignOut: () => void | Promise<void>;
-  onExpired: () => void | Promise<void>;
-}) {
-  const bookings = useQuery({
-    queryKey: ["listMyBookings", token],
-    queryFn: async ({ signal }) => {
-      const client = createApiClient();
-      const { data, error } = await client.GET("/me/bookings", {
-        headers: { Authorization: `Bearer ${token}` },
-        signal,
-      });
-      if (error) throw error;
-      return data;
-    },
-    retry: false,
-  });
+/**
+ * What went wrong, as something a person can act on.
+ *
+ * The owner's words about what was here: "just basic AI generated, make it
+ * proper. Say what happened, what to do next and where, with the field it
+ * concerns."
+ *
+ * So each branch answers three things — what happened, what to do, and which
+ * field to do it in — and `field` is what puts the sentence beside the input
+ * rather than in a panel below the button.
+ *
+ * The generic `describeError` is deliberately not used here. It is written for
+ * a booking that may have taken money, and its vocabulary ("this link no
+ * longer opens anything") is wrong for somebody who has typed six digits.
+ */
+function signInFailure(
+  error: unknown,
+  sent: boolean,
+): {
+  title: string;
+  body: string;
+  /** Renders on that field instead of in a panel. */
+  field?: "phone" | "code";
+  action?: React.ReactNode;
+} | null {
+  if (!error) return null;
 
-  // A booking made on another device is claimed onto this one by keeping its
-  // token: the list gives us the trips, the token gives us the access. Under
-  // the booking's reference — the same key a checkout-made record is re-keyed
-  // to — so a trip already on this device is updated, not listed twice.
-  useEffect(() => {
-    for (const b of bookings.data?.bookings ?? []) {
-      if (b.statusToken) {
-        void rememberBooking({ reference: b.reference, token: b.statusToken });
-      }
-    }
-  }, [bookings.data]);
+  const code = error instanceof YuvoyError ? error.code : null;
+  const status = error instanceof YuvoyError ? error.status : null;
 
-  // The list's own token died. Hand the screen back to the form.
-  useEffect(() => {
-    if (bookings.isError && isDeadToken(bookings.error)) void onExpired();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings.isError, bookings.error]);
+  if (status === 429) {
+    return {
+      title: "Too many tries",
+      body: "We have stopped sending codes to this number for a few minutes. Nothing is wrong with your account. Wait a moment and ask for another.",
+    };
+  }
 
+  if (status === 401) {
+    /*
+      "Wrong, expired, used and over-attempted codes all answer 401 with one
+      message." So this cannot say WHICH, and must not guess — but it can say
+      the three things that are true of all four, and offer the way out.
+    */
+    return {
+      title: "That code did not work",
+      body: "It may be wrong, it may have expired, or it may already have been used. Ask for a new one and try again.",
+      field: "code",
+    };
+  }
+
+  if (status === 400 || code === "invalid_input") {
+    return sent
+      ? {
+          title: "That does not look like the code",
+          body: "It is six digits, from the message we sent.",
+          field: "code",
+        }
+      : {
+          title: "That number did not go through",
+          body: "Check the country code and the digits. An Indian mobile is ten digits after +91.",
+          field: "phone",
+        };
+  }
+
+  /*
+    Everything else: the network, or us. Not the traveller's fault and not
+    their problem to diagnose, so it says so and offers the one thing that
+    still works with no session at all.
+  */
+  return {
+    title: "We could not reach us",
+    body: "That is our side or the island signal, not your number. Try again in a moment.",
+    action: (
+      <ButtonLink href="/trips" variant="outline" size="sm">
+        See the trips on this phone
+      </ButtonLink>
+    ),
+  };
+}
+
+/** Signed in. The trips themselves live on the Trips tab now — see #34. */
+function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
   return (
     <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        Every trip on your number
+        You are signed in
       </h1>
+      {/*
+        The list moved to Trips — yuvoy-app#34.
 
-      {bookings.isPending ? (
-        <Skeleton className="mt-6 h-24 w-full" />
-      ) : bookings.isError ? (
-        <FailurePanel
-          failure={describeError(bookings.error, { tokenBearing: true })}
-          className="mt-6"
-        >
-          <p className="text-forest/70 mt-3 text-sm">
-            The ones on this device are still under{" "}
-            <Link href="/trips" className="text-terra-deep underline">
-              Trips
-            </Link>
-            .
-          </p>
-        </FailurePanel>
-      ) : bookings.data.bookings.length === 0 ? (
-        <p className="text-forest/70 mt-6 text-sm">
-          Nothing booked on this number yet.
-        </p>
-      ) : (
-        <ul className="mt-6 space-y-3">
-          {bookings.data.bookings.map((b) => (
-            <li key={b.reference}>
-              <Panel>
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-bold">{b.experience}</p>
-                  {/*
-                    The SHARED chip — yuvoy-app#26. This rendered the wire
-                    value, so a traveller waiting on an operator read
-                    `awaiting_operator` and somebody who missed the boat read
-                    `no_show`. Trips had the full map two directories away and
-                    this screen bypassed it; there is now one map.
-                  */}
-                  <StateChip state={b.state} />
-                </div>
-                <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
-                  {b.reference}
-                </p>
-                <p className="text-forest/70 mt-2 text-sm">
-                  {b.localTime} on {b.localDate} · {b.guests} guest
-                  {b.guests === 1 ? "" : "s"}
-                </p>
-                {/* Trimmed for the reason `experience-detail` gives — an
-                    empty meeting point reaches this list as "" or as spaces,
-                    never as an absent key (yuvoy-app#25). */}
-                {b.meetingPoint?.trim() ? (
-                  <p className="text-forest/70 mt-1 text-xs">
-                    {b.meetingPoint.trim()}
-                  </p>
-                ) : null}
-              </Panel>
-            </li>
-          ))}
-        </ul>
-      )}
+        This screen used to render every trip on the number, beside a Trips tab
+        rendering every trip on the device. Two lists of overlapping bookings,
+        in two places, with different cards. They are one list now, on the tab
+        whose name says so, and this screen is what it always claimed to be:
+        the account.
+      */}
+      <p className="text-forest/70 mt-3 text-sm">
+        Every trip on your number is under Trips, including ones booked on
+        another phone. The ones saved on this device are in the same list.
+      </p>
+
+      <ButtonLink href="/trips" size="lg" className="mt-6">
+        Go to my trips
+      </ButtonLink>
 
       <Button
         variant="outline"
@@ -375,19 +341,18 @@ function SignedIn({
         onClick={() => void onSignOut()}
         className="mt-10"
       >
-        Forget this number on this device
+        Sign out on this device
       </Button>
 
       <p className="text-forest/70 mt-4 text-xs">
-        This leaves the bookings saved on this device alone. They stay under
-        Trips.
+        This signs out this device only. It leaves the bookings saved here
+        alone, and they stay under Trips.
       </p>
 
       {/*
         The standing place for the policy — yuvoy-app#15. The consent banner
         carries it at the moment of asking and then never appears again; this
-        is where somebody comes looking for it a week later, on the tab that
-        already holds everything about them rather than about a trip.
+        is where somebody comes looking for it a week later.
       */}
       <LegalLinks className="border-cream-line mt-10 border-t pt-6 text-xs" />
     </Screen>

@@ -57,7 +57,8 @@ test("the experience page is in the HTML, not only the RSC payload", async ({
   const visible = body.replace(/<script[\s\S]*?<\/script>/g, "");
 
   expect(visible).toContain("Try-dive at Nemo Reef");
-  expect(visible).toContain("Who runs this");
+  // "Who runs this" until yuvoy-app#32 renamed the row to "Operator".
+  expect(visible).toContain("Operator");
   // The price is the claim most worth having in the HTML.
   expect(visible).toMatch(/₹4,500/);
 });

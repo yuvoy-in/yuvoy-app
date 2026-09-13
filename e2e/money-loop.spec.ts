@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 /**
  * The money loop, end to end.
@@ -15,6 +15,64 @@ import { test, expect } from "@playwright/test";
  * can degrade; this cannot.
  */
 
+/**
+ * Picks the first departure that can be picked, through the date pop-up.
+ *
+ * Every day in the window used to be stacked on the listing, so a test could
+ * click a slot row directly. yuvoy-app#32 made it a pop-up showing one day at
+ * a time — the owner called the old list an endless scroll — so choosing is
+ * now: open, walk the day chips, take the first row that is not disabled.
+ *
+ * Walking the chips rather than trusting the first is deliberate: a day whose
+ * only departure is past its cutoff is still OFFERED, because hiding it would
+ * tell a traveller the day does not exist.
+ */
+async function chooseDeparture(page: Page) {
+  await page.getByRole("button", { name: /Choose a departure|Change/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Pick a day" });
+  await expect(sheet).toBeVisible();
+
+  const group = sheet.getByRole("group", { name: "Which day" });
+  // The chips arrive with the availability read, so counting before they do
+  // gives zero and walks straight past every day to the throw below.
+  await expect(group.getByRole("button").first()).toBeVisible();
+
+  const chips = group.getByRole("button");
+  for (let i = 0; i < (await chips.count()); i++) {
+    await chips.nth(i).click();
+
+    /*
+      Wait for the chip to BE the chosen one before reading the rows under it.
+
+      Two races, and the second is the one that survived a first fix. A day
+      chip re-renders the list below it, so `count()` straight after the click
+      is a snapshot that can catch nothing at all — or, worse, the OUTGOING
+      day's rows, in which case the helper reads the wrong day's departure,
+      finds it disabled, and moves on having silently skipped a day that had
+      seats. It threw "no selectable departure" on listings with several,
+      about one full run in three, and moved between specs — which is what a
+      race looks like when the contended resource is the render.
+
+      React commits the pressed chip and its rows together, so waiting on
+      `aria-pressed` ties the two: once it is true, the rows are this day's.
+    */
+    await expect(chips.nth(i)).toHaveAttribute("aria-pressed", "true");
+
+    const rows = sheet.getByRole("button", { name: /^\d\d:\d\d/ });
+    // A chip exists only because that day has departures, so this cannot hang
+    // on a legitimately empty day.
+    await expect.poll(() => rows.count()).toBeGreaterThan(0);
+
+    const first = rows.first();
+    if (await first.isEnabled()) {
+      await first.click();
+      await expect(sheet).toBeHidden();
+      return;
+    }
+  }
+  throw new Error("no selectable departure in any day of the fixture");
+}
+
 test("a traveller can go from the feed to a held booking", async ({ page }) => {
   await page.goto("/");
 
@@ -29,12 +87,8 @@ test("a traveller can go from the feed to a held booking", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("₹0")).toHaveCount(0);
 
-  // Pick the first open departure.
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
-  await page.getByRole("link", { name: /continue|ask the operator/i }).click();
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
 
   await expect(page).toHaveURL(/\/book\?slot=/);
 
@@ -134,12 +188,18 @@ test("a closed departure is shown disabled, never hidden", async ({ page }) => {
   await page.goto("/e/try-dive-nemo-reef");
   await page.waitForLoadState("networkidle");
 
-  // Hiding it makes the traveller think the day does not exist.
-  // The `label` utility uppercases, so an accessible name is uppercase too.
-  // Case-sensitive selectors here pass locally and fail the moment a class
-  // changes, which is the worst kind of test.
-  const closed = page.getByText("Booking for this departure has closed.");
-  await expect(closed).toBeVisible();
+  /*
+    Inside the date pop-up since yuvoy-app#32. The rule is unchanged and is the
+    reason the pop-up offers every day rather than only the ones with seats:
+    hiding a closed departure makes the traveller think the day does not exist.
+  */
+  await page.getByRole("button", { name: /Choose a departure/ }).click();
+  const sheet = page.getByRole("dialog", { name: "Pick a day" });
+  await expect(sheet).toBeVisible();
+
+  await expect(
+    sheet.getByText("Booking for this departure has closed."),
+  ).toBeVisible();
 });
 
 test("a paused kill switch reads as deliberate, not as a crash", async ({
@@ -159,10 +219,7 @@ test("the health check blocks a dive booking until it is answered", async ({
   await page.goto("/e/try-dive-nemo-reef");
   await page.waitForLoadState("networkidle");
 
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
+  await chooseDeparture(page);
   await page.getByRole("link", { name: /continue/i }).click();
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
@@ -201,10 +258,7 @@ test("a listing with no cancellation terms says so, and offers no dead button", 
   await page.goto("/e/mangrove-kayak-at-dawn");
   await page.waitForLoadState("networkidle");
 
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
+  await chooseDeparture(page);
   await page.getByRole("link", { name: /continue|ask the operator/i }).click();
   await expect(page).toHaveURL(/\/book\?slot=/);
 
@@ -245,10 +299,7 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   await page.goto("/e/mangrove-kayak-at-dawn");
   await page.waitForLoadState("networkidle");
 
-  await page
-    .getByRole("button", { name: /seats left|available/i })
-    .first()
-    .click();
+  await chooseDeparture(page);
   await page.getByRole("link", { name: /continue|ask the operator/i }).click();
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
@@ -264,11 +315,32 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   await cash.click();
 
   /*
-    Booked. The reference is the thing they say out loud at a jetty, and the
-    amount is an instruction rather than a balance.
+    Booked, and this asserts the SETTLED screen rather than the moment.
+
+    The success panel is transient by design: the status refetches the instant
+    the booking lands, the pay area unmounts and the panel goes with it. So a
+    test racing it is a test that fails on a fast machine — and this one did,
+    intermittently, reported as a flake on #36.
+
+    It survived that long by accident. The panel's headline and the headline
+    for `paid_pending_ops` were the same words, so whichever won the race the
+    assertion passed. D-034 made a cash booking settle at `confirmed`, whose
+    headline is "You are going", and the accident stopped covering it.
+
+    The transient panel is worth testing and is tested — deterministically, in
+    `booking-screen.test.tsx`, where the refetch can be held. What belongs
+    here is the journey and what a traveller is left holding.
   */
-  await expect(page.getByText(/You.{1,3}re booked/)).toBeVisible();
-  await expect(page.getByText(/^YV-/)).toBeVisible();
+  await expect(page.getByText("You are going")).toBeVisible();
+
+  /*
+    `.first()` on the reference, and that is the other half of the same race:
+    it is in the success panel AND in the details below, so an unqualified
+    locator resolved to one element or two depending on which won and failed
+    strict mode. The claim is that the reference is on the page, not that it
+    is there exactly once.
+  */
+  await expect(page.getByText(/^YV-/).first()).toBeVisible();
   await expect(page.getByText(/Bring ₹.* in cash/)).toBeVisible();
   // Said more than once by design — in the state line and beside the amount —
   // so this asserts it is said at all rather than exactly where.
@@ -283,8 +355,175 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   /*
     And never our internal word for it. `paid_pending_ops` means "committed,
     ops have not confirmed"; the traveller-facing word is booked.
+
+    D-034 stopped `GET /bookings/status` returning that state at all — it
+    answers `confirmed` with a `payment` object now — but the assertion stays:
+    it is about a class of word reaching a traveller, and `/me/bookings` still
+    carries the raw value one screen away.
   */
   const body = (await page.locator("body").textContent()) ?? "";
   expect(body).not.toMatch(/paid_pending_ops|unpaid|pending payment/i);
   expect(body).not.toMatch(/pay Yuvoy|amount due/i);
+});
+
+test("a required question stops a booking, and answering it books", async ({
+  page,
+}) => {
+  /*
+    THE LISTING'S OWN QUESTIONS — yuvoy-app#46.
+
+    The issue's own "how to tell it works": a listing with a required `yes_no`
+    refuses a checkout that does not answer it, answering it books, and the
+    booking page shows what was answered and what was skipped.
+
+    The dive is the fixture that asks them, and it also carries the safety
+    screener — which is the point. They are different gates with different
+    refusals behind them, and a form that conflated them would pass one test
+    and fail a traveller.
+  */
+  await page.goto("/e/try-dive-nemo-reef");
+  await page.waitForLoadState("networkidle");
+
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
+
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page
+    .getByRole("radio", { name: /nobody in my party has any/i })
+    .check();
+  await page.getByLabel("Your age range").selectOption("18_plus");
+
+  // Blocked, and it names the operator's questions rather than only going grey.
+  await expect(
+    page.getByRole("button", { name: /Hold these seats/i }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(/Still needed:.*the operator's questions/i),
+  ).toBeVisible();
+
+  // The choice question is a select over the listing's own options, so an
+  // answer the server would silently drop cannot be produced here at all.
+  await page
+    .getByLabel("Which agency certified you? (optional)")
+    .selectOption("SSI");
+
+  await page.getByRole("radio", { name: "Yes" }).check();
+  const hold = page.getByRole("button", { name: /Hold these seats/i });
+  await expect(hold).toBeEnabled();
+  await hold.click();
+
+  await expect(page).toHaveURL(/\/booking#t=/);
+
+  // And the booking page carries what was answered, and what was not.
+  await expect(page.getByText("What the operator asked")).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Yes" }).first()).toBeChecked();
+
+  // The optional one was skipped, so it is still answerable from here.
+  const hotel = page.getByLabel(
+    "Which hotel should we collect you from? (optional)",
+  );
+  await expect(hotel).toBeVisible();
+  await expect(hotel).toHaveValue("");
+
+  await hotel.fill("Sea View, Havelock");
+  await page.getByRole("button", { name: /Save answers/i }).click();
+  await expect(page.getByText(/Saved\./)).toBeVisible();
+  await expect(hotel).toHaveValue("Sea View, Havelock");
+});
+
+test("the conversation refuses a phone number and takes a date", async ({
+  page,
+}) => {
+  /*
+    THE CONVERSATION WITH THE BUSINESS — yuvoy-app#47.
+
+    Two of the issue's own checks, and they are the pair that matters: the
+    contact-detail rule has to bite, and it has to bite ONLY on contact
+    details. "see you on 14.09.2026" is seven digits written close together and
+    must still send, because a rule that swallowed dates would make the feature
+    useless on the one subject travellers write about.
+
+    Nothing here re-implements that rule. The server owns it, the app renders
+    the sentence it answers with, and this walks both sides.
+  */
+  await page.goto("/e/mangrove-kayak-at-dawn");
+  await page.waitForLoadState("networkidle");
+
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await expect(page).toHaveURL(/\/booking#t=/);
+
+  // A hold is not a booking, so there is nobody to write to yet — and that is
+  // a state with a sentence, not an error.
+  await expect(
+    page.getByText(/Messages open once the booking is made/),
+  ).toBeVisible();
+  await expect(page.getByLabel("Write to the operator")).toHaveCount(0);
+
+  // Book it, which is what opens the conversation.
+  await page.getByRole("button", { name: /^Pay /i }).click();
+  await page.getByRole("button", { name: /Book now, pay .* cash/i }).click();
+  await expect(page.getByText("You are going")).toBeVisible();
+
+  const box = page.getByLabel("Write to the operator");
+  await expect(box).toBeVisible();
+
+  // A phone number is refused, and nothing lands in the thread.
+  await box.fill("call me on 98765 43210");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(
+    page.getByText(/looks like it has a phone number/),
+  ).toBeVisible();
+  // Nothing was stored, so nothing appears in the thread ...
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "call me on 98765 43210" }),
+  ).toHaveCount(0);
+  // ... and the draft is KEPT, so the fix is an edit rather than a retype.
+  await expect(box).toHaveValue("call me on 98765 43210");
+
+  // A date written like a date is not a phone number.
+  await box.fill("see you on 14.09.2026");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "see you on 14.09.2026" }),
+  ).toBeVisible();
+  // And the refusal is gone with it.
+  await expect(page.getByText(/looks like it has a phone number/)).toHaveCount(
+    0,
+  );
+});
+
+test("a message whose text was removed reads as removed, never as blank", async ({
+  page,
+}) => {
+  /*
+    "The message stays, with `textRemovedAt` in place of `text`. Show it as a
+    message whose text was removed, never as an empty one." A blank bubble
+    reads as something the app lost.
+  */
+  await page.setExtraHTTPHeaders({ "x-yuvoy-scenario": "text-removed" });
+
+  await page.goto("/e/mangrove-kayak-at-dawn");
+  await page.waitForLoadState("networkidle");
+  await chooseDeparture(page);
+  await page.getByRole("link", { name: /continue/i }).click();
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await expect(page).toHaveURL(/\/booking#t=/);
+
+  await expect(
+    page.getByText("The text of this message was removed."),
+  ).toBeVisible();
+  // Still a message: it keeps who wrote it.
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "The text of this message" }),
+  ).toContainText("Sample Dive Operator");
 });

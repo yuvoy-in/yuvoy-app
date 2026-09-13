@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  cleanup,
+  within,
+} from "@testing-library/react";
 import { ExperienceCard } from "./experience-card";
 import { EXPERIENCES } from "../../../mocks/fixtures";
 
@@ -85,14 +91,29 @@ describe("swiping a reel", () => {
     expect(push).toHaveBeenCalledWith(href);
   });
 
-  it("sends the traveller exactly where the button would have", () => {
-    // The button and the gesture are two routes to one screen. If they ever
-    // disagree the card is lying about one of them, so the destination is
-    // read off the rendered link rather than restated here.
+  it("sends the traveller exactly where the arrow would have", () => {
+    /*
+      The arrow and the gesture are two routes to one screen — three with the
+      title. If they ever disagree the card is lying about one of them, so the
+      destination is read off the rendered link rather than restated here.
+
+      It used to be read off the "See dates" button. yuvoy-app#36 removed that
+      button and put an arrow in the rail above sound and share; the property
+      is unchanged and only the control it is read from moved.
+    */
     const article = renderCard();
-    const link = screen.getByRole("link", { name: /See dates|Have a look/ });
+    const link = screen.getByLabelText(/^Open /);
     drag(article, { x: 300, y: 400 }, { x: 180, y: 400 });
     expect(push).toHaveBeenCalledWith(link.getAttribute("href"));
+  });
+
+  it("agrees with the title, which is the third way in", () => {
+    renderCard();
+    const arrow = screen.getByLabelText(/^Open /);
+    const title = within(screen.getByRole("heading", { level: 2 })).getByRole(
+      "link",
+    );
+    expect(title.getAttribute("href")).toBe(arrow.getAttribute("href"));
   });
 
   it("follows the finger while the drag is happening", () => {
@@ -270,49 +291,36 @@ describe("the click that follows a swipe", () => {
   });
 });
 
-describe("the operator's name — yuvoy-app#30", () => {
-  it("leads to the business's own page, by slug", () => {
-    renderCard();
-    expect(
-      screen.getByRole("link", { name: experience.operator.name }),
-    ).toHaveAttribute("href", `/o/${experience.operator.slug}`);
-  });
-
-  it("does not open that page when a swipe starts on it", () => {
+describe("the reel no longer names the operator — yuvoy-app#36", () => {
+  it("carries no link to the business's page", () => {
     /*
-      The name sits in the caption, exactly where a thumb lands to swipe. The
-      gesture is decided on the article, so a drag that begins on the link is
-      still a swipe — and the click it leaves on the link must not open the
-      operator page on top of the experience the swipe just opened.
+      The name and its Verified tag were the first two of nine things over the
+      clip, and the owner's complaint on 13 September was the pile rather than
+      any one of them. The business is still one tap away: the listing's
+      "Operator" row opens `/o/{slug}`, which is the route that page was built
+      for (yuvoy-app#30) and is unchanged.
     */
     renderCard();
-    const link = screen.getByRole("link", { name: experience.operator.name });
-    drag(link, { x: 300, y: 400 }, { x: 180, y: 400 });
-    expect(push).toHaveBeenCalledWith(href);
-    expect(fireEvent.click(link)).toBe(false);
-  });
-
-  it("names the business without a link when the API sends no slug", () => {
-    render(
-      <ExperienceCard
-        experience={{
-          ...experience,
-          operator: {
-            ...experience.operator,
-            slug: undefined,
-          } as unknown as typeof experience.operator,
-        }}
-        index={0}
-        total={3}
-        active
-        mounted={false}
-        muted
-        autoplayAllowed={false}
-      />,
-    );
-    expect(screen.getByText(experience.operator.name)).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: experience.operator.name }),
     ).toBeNull();
+    expect(screen.queryByText(experience.operator.name)).toBeNull();
+  });
+
+  it("still swallows the click a swipe leaves on a control in the caption", () => {
+    /*
+      The property the operator link used to prove, moved to the control that
+      replaced it. The title sits in the caption, exactly where a thumb lands
+      to swipe; the gesture is decided on the article, so a drag beginning on
+      the title is still a swipe — and the click it leaves behind must not
+      then follow the link a second time.
+    */
+    renderCard();
+    const title = within(screen.getByRole("heading", { level: 2 })).getByRole(
+      "link",
+    );
+    drag(title, { x: 300, y: 400 }, { x: 180, y: 400 });
+    expect(push).toHaveBeenCalledWith(href);
+    expect(fireEvent.click(title)).toBe(false);
   });
 });

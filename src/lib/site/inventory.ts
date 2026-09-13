@@ -55,4 +55,15 @@ export const INDEXABLE_DYNAMIC_ROUTES = [
     day the catalog index carries operators.
   */
   "/o/[slug]",
+  /*
+    What a business runs — yuvoy-app#33. Indexable for the same reason the
+    profile is, and now more so: the listings moved OFF the profile onto this
+    page, so this is where that content lives and there is no duplicate to
+    compete with.
+
+    Not in the sitemap, for the same reason as `/o/[slug]` above and not a
+    separate decision: `GET /catalog/index` has no `operator` kind, so there is
+    nothing to build the URL list from. Both appear the day it does.
+  */
+  "/o/[slug]/listings",
 ] as const;

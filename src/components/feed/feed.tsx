@@ -1,29 +1,27 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useReels } from "@/lib/feed/use-reels";
 import { playableReels, feedTail, type ReelsPage } from "@/lib/feed/reels";
-import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
-import { ExperienceCard } from "./experience-card";
+import {
+  ReelFrame,
+  ReelStrip,
+  ReelMasthead,
+  REEL_WELL_CENTRED,
+} from "./reel-strip";
 import {
   EmptyState,
   ErrorState,
   LoadingState,
   Skeleton,
 } from "@/components/states";
-import { Wordmark } from "@/components/ui/wordmark";
-import { cn } from "@/lib/cn";
 
 /**
  * The reels feed — T2, the core of the product.
  *
- * Scroll snapping is CSS, not JS: a scroll handler that fights the browser's
- * own momentum is what makes a JS-driven feed feel heavy on a mid-range
- * Android. The only JS in the scroll path is one IntersectionObserver deciding
- * which card is active.
- *
- * All seven states are here. The offline and stale ones arrive with the
- * service worker; the other five are live.
+ * The data and the states live here; the scroller itself is `ReelStrip`, which
+ * three other surfaces share (a shared reel, search results, a business's own
+ * reels). What is left in this file is what is true of the FEED and of nothing
+ * else: `useReels`, the four states, and the masthead.
  *
  * The column is the phone's whole screen — the masthead and the tab bar float
  * over it — and on a desktop it is a rounded well set into the forest stage,
@@ -39,8 +37,7 @@ import { cn } from "@/lib/cn";
  * headline that would not fight the thing it sits on, which is why the page
  * had none at all. But "none at all" is a document with no top-level heading:
  * a screen reader user lands with nothing naming the page, and a crawler reads
- * the app's front door — the page that takes the ROOT DOMAIN at launch — as
- * having no subject.
+ * the app's front door as having no subject.
  *
  * Caught by the sitemap-driven audit rather than by looking, which is the
  * point of that suite: nothing about a missing h1 is visible on a screen.
@@ -52,73 +49,6 @@ import { cn } from "@/lib/cn";
  */
 function FeedHeading() {
   return <h1 className="sr-only">Experiences in the Andaman Islands</h1>;
-}
-
-/** The well's geometry, shared by every state so they never disagree. */
-const WELL =
-  "bg-abyss relative h-dvh w-full lg:h-[calc(100dvh-3rem)] lg:rounded-sheet lg:ring-1 lg:ring-cream/10";
-
-/**
- * How a message sits in the well, for the states that are one block of text.
- *
- * Both axes needed saying. `items-center` alone centres only the cross axis,
- * and the block sizes to its content (a `max-w-sm` body inside `px-6`, so
- * 432px), which left it flush against the left edge of a 480px well with 48px
- * of dead space beside it.
- *
- * `pb-17` is 68px: the bar's own 56px (44px targets in a `p-1.5` pill) plus
- * its 12px foot. The bar FLOATS over the well rather than sitting under it, so
- * centring against the well's full height put the message 34px below the
- * middle of the part a traveller can actually see. Cancelled from `lg` up,
- * where the rail takes over and nothing covers the well.
- */
-const WELL_CENTRED = "flex items-center justify-center pb-17 lg:pb-0";
-
-/** The well, for the states that do not scroll. */
-function FeedFrame({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className="container-feed relative lg:my-6">
-      <div className={cn(WELL, "lg:overflow-hidden", className)}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The masthead that floats over the feed on a phone: the mark, centred, and
- * nothing else. The rail carries the mark on a desktop.
- *
- * ## It used to carry Search, and that was one Search too many
- *
- * A disc in the top-right went to `/search`, while the floating bar two
- * inches below it carried the same destination as one of its four tabs. Two
- * controls for one screen, on the smallest surface in the product, and the
- * one on top was the one competing with the picture. It is gone, the mark
- * takes the centre, and Search is where the app has always said it is.
- *
- * ## Wholly inert, now that it is only a mark
- *
- * There is nothing to press here any more, so `pointer-events-none` runs the
- * full width and the entire top of a reel scrolls the feed — including the
- * strip the disc used to occupy, which did not.
- *
- * The block is 132px tall (16 above the mark, 36 of mark, 80 of tail) and
- * `feed-scrim-top` is measured against exactly that; changing the padding
- * without changing the gradient moves the mark into a lighter band.
- */
-function FeedMasthead() {
-  return (
-    <div className="feed-scrim-top feed-masthead pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-center px-4 pt-4 pb-20 lg:hidden">
-      <Wordmark tone="cream" className="h-9" priority />
-    </div>
-  );
 }
 
 export function Feed({
@@ -152,40 +82,6 @@ export function Feed({
     refetch,
   } = useReels(initialPage, initialFetchedAt);
 
-  const setActiveIndex = useFeedStore((s) => s.setActiveIndex);
-  const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
-  const activeIndex = useFeedStore((s) => s.activeIndex);
-  const muted = useFeedStore((s) => s.muted);
-  const autoplayAllowed = useFeedStore((s) => s.autoplayAllowed);
-  const shouldMount = useFeedStore((s) => s.shouldMount);
-  const chromeRetracted = useFeedStore((s) => s.chromeRetracted);
-  const resetFeed = useFeedStore((s) => s.resetFeed);
-
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // Decide once, on mount, whether video may autoplay at all.
-  useEffect(() => {
-    setAutoplayAllowed(detectAutoplayAllowed());
-  }, [setAutoplayAllowed]);
-
-  /**
-   * The retract belongs to a MOUNTED feed, and to nothing else.
-   *
-   * The store outlives this component — it is a module, not a context — so a
-   * traveller who reaches reel nine, opens an experience and comes back would
-   * otherwise return to a scroller sitting at the top with a tab bar still
-   * off the bottom of the window. Worse, the shell's bar reads the same flag
-   * on every route, so a stale `true` is an app-wide navigation outage.
-   *
-   * Reset on mount because the scroller is a new element at scrollTop 0, and
-   * on unmount because whatever comes next is not this feed.
-   */
-  useEffect(() => {
-    resetFeed();
-    return resetFeed;
-  }, [resetFeed]);
-
   /*
     The server's order, untouched. Reels are numbered within each business, so
     everyone's first reel precedes anybody's second — an ordering built so it
@@ -202,157 +98,19 @@ export function Feed({
   */
   const tail = feedTail(data?.pages);
 
-  /**
-   * How many reels this feed HAS, or `-1` for "nobody knows yet".
-   *
-   * `aria-setsize` is a claim, and paging made the obvious value a false one:
-   * `items.length` on a first page of twelve tells a screen reader user "1 of
-   * 12" about a feed with forty in it, and then silently renumbers everything
-   * when page two lands. `-1` is ARIA's own word for an unknown total and is
-   * the honest answer until the server says `complete`.
-   *
-   * `server_stopped` counts as unknown too: the server stopped without a
-   * cursor, which the contract is explicit is not the same as the feed having
-   * ended, so the count in hand is not the total either.
-   */
-  const setSize = tail === "complete" ? items.length : -1;
-
-  /**
-   * Whether there is a scrolling feed on screen at all.
-   *
-   * The other four states — loading, the load error, an empty feed, and the
-   * paused kill switch that renders as an empty one — draw no scroller, so
-   * nothing can ever report a new active card and the retract would sit
-   * wherever the last scroll left it. A background refetch that comes back
-   * empty while the traveller is nine reels down is the case that makes this
-   * a bug rather than a theory: the cards vanish, the message appears, and
-   * the tab bar stays off the bottom of the window with no gesture left that
-   * could bring it back.
-   */
-  const showsReels = !isPending && !isLoadingError && items.length > 0;
-  useEffect(() => {
-    if (!showsReels) resetFeed();
-  }, [showsReels, resetFeed]);
-
-  /**
-   * ONE observer for the whole feed, wired in an effect.
-   *
-   * Three attempts led here, and the first two are worth recording.
-   *
-   * A per-card ref that returned nothing leaked an IntersectionObserver per
-   * card per mount — React 19 runs a ref callback's returned cleanup on
-   * detach, and that return is the only thing releasing the observer.
-   *
-   * Returning the cleanup fixed the leak but not the churn: an inline ref
-   * arrow changes identity every render, so React re-attached every ref and
-   * rebuilt every observer — and this component re-renders on every scroll,
-   * because that is how activeIndex updates. Memoising the callbacks fixed
-   * that but required reading a ref during render, which is not allowed.
-   *
-   * One observer over the scroller's children sidesteps all of it: it is set
-   * up once per item count, torn down once, and the index travels on the DOM
-   * node as a data attribute rather than through a closure.
-   */
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const index = Number(
-            (entry.target as HTMLElement).dataset.feedIndex ?? "-1",
-          );
-          if (index >= 0) setActiveIndex(index);
-        }
-      },
-      { threshold: 0.6, root: scroller },
-    );
-
-    for (const card of scroller.querySelectorAll("[data-feed-index]")) {
-      observer.observe(card);
-    }
-
-    return () => observer.disconnect();
-    // Re-runs when the item count changes, which is when a page arrives.
-  }, [items.length, setActiveIndex]);
-
-  /**
-   * The decision to fetch, kept in a ref so the observer below never has to be
-   * rebuilt to see a fresh one.
-   *
-   * Assigned in an effect rather than during render — writing a ref during
-   * render is what React forbids, and the reason the active-card observer
-   * above ended up on its third design. The guard lives here rather than in
-   * the observer's dependency list, so a fetch starting and finishing does not
-   * tear an IntersectionObserver down and build another.
-   *
-   * **A failed page is deliberately NOT guarded out**, and that is what makes
-   * the retry work without a control. An IntersectionObserver reports CHANGES
-   * in intersection, so a sentinel that is already on screen and stays there
-   * cannot ask twice — the only thing that fires it again is the traveller
-   * scrolling away and back, which is a deliberate act and exactly the gesture
-   * somebody makes when a feed stops. The tail says so in words.
-   *
-   * That is also why there is no Try again button: `role="feed"` may not
-   * contain one. See the tail.
-   */
-  const loadMore = useRef<() => void>(() => {});
-  useEffect(() => {
-    loadMore.current = () => {
-      if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-    };
-  });
-
-  /**
-   * The infinite scroll — one observer on the tail, not on every card.
-   *
-   * `rootMargin: "200% 0px"` fires it two screens early, so on a snap scroller
-   * the next page is in flight while the traveller is still two cards away.
-   * The alternative — firing when the tail is actually visible — means the
-   * traveller reaches the end of the feed and waits there, which is precisely
-   * the moment a feed feels broken.
-   *
-   * **Rebuilt when a page arrives**, which is what `pageCount` is doing in the
-   * dependency list and is not a leftover. An IntersectionObserver reports
-   * CHANGES in intersection: if the tail is still on screen after page two
-   * lands — a short page, a tall phone — no further entry ever fires and the
-   * feed stalls one page in, with a sentinel sitting in view doing nothing. A
-   * fresh observer re-reports the current state immediately. It costs one
-   * observer per page, not one per scroll.
-   */
-  const pageCount = data?.pages.length ?? 0;
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || !hasNextPage) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) loadMore.current();
-      },
-      { root: scrollerRef.current, rootMargin: "200% 0px" },
-    );
-    observer.observe(sentinel);
-
-    return () => observer.disconnect();
-  }, [hasNextPage, pageCount]);
-
   /* ------------------------------------------------------------- loading */
   if (isPending) {
     return (
       <>
         <FeedHeading />
         <LoadingState label="Loading experiences">
-          <FeedFrame>
+          <ReelFrame>
             <Skeleton className="absolute inset-0 rounded-none" />
             <div className="tabbar-clearance absolute inset-x-0 bottom-0 space-y-3 px-5">
-              <Skeleton className="h-3 w-28 rounded-full" />
               <Skeleton className="h-9 w-4/5 rounded-full" />
               <Skeleton className="h-3 w-40 rounded-full" />
-              <Skeleton className="mt-5 h-13 w-full rounded-full" />
             </div>
-          </FeedFrame>
+          </ReelFrame>
         </LoadingState>
       </>
     );
@@ -363,13 +121,13 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <FeedFrame className={WELL_CENTRED}>
+        <ReelFrame className={REEL_WELL_CENTRED}>
           <ErrorState
             error={error}
             onRetry={() => void refetch()}
             tone="dark"
           />
-        </FeedFrame>
+        </ReelFrame>
       </>
     );
   }
@@ -379,13 +137,13 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <FeedFrame className={WELL_CENTRED}>
+        <ReelFrame className={REEL_WELL_CENTRED}>
           <EmptyState
             tone="dark"
             title="Nothing bookable here yet"
             body="No operator has put anything on sale for this filter. Try another destination, or come back closer to the season."
           />
-        </FeedFrame>
+        </ReelFrame>
       </>
     );
   }
@@ -394,101 +152,15 @@ export function Feed({
   return (
     <>
       <FeedHeading />
-      {/*
-        The one attribute the whole retract hangs on. The masthead, every
-        caption and the tail are all descendants of this node, so they cannot
-        disagree about which state they are in; the shell's tab bar is not,
-        and carries the same state from the store. See `.feed-stage` in
-        globals.css.
-      */}
-      <div
-        className="feed-stage container-feed relative lg:my-6"
-        data-chrome={chromeRetracted ? "hidden" : "shown"}
-      >
-        <FeedMasthead />
-        <div
-          ref={scrollerRef}
-          className={cn(
-            WELL,
-            "snap-y snap-mandatory overflow-y-auto overscroll-y-contain",
-          )}
-          // The feed is a list of experiences; announce it as one.
-          role="feed"
-        >
-          {/*
-            Keyed by the CLIP, not the listing. One listing may appear several
-            times in this feed with a different reel each — that is the whole
-            point of `/reels` — and keying by `experience.id` would give React
-            duplicate keys, unmount the wrong card on a refetch, and hand one
-            clip's player state to another.
-          */}
-          {items.map((reel, i) => (
-            <ExperienceCard
-              key={reel.media!.id}
-              experience={reel.experience!}
-              media={reel.media}
-              index={i}
-              total={setSize}
-              active={i === activeIndex}
-              mounted={shouldMount(i)}
-              muted={muted}
-              autoplayAllowed={autoplayAllowed}
-            />
-          ))}
-
-          {/*
-            The bottom of the feed, and the sentinel that fetches before a
-            traveller gets here.
-
-            The completeness claim is the server's, not ours. `complete` is
-            told; a short page is never read as an ending, because a page that
-            happens to come back exactly full would stop the scroll early and
-            a silently stopped scroll looks identical to one with nothing more
-            to show — so nobody reports it.
-
-            Four things can be true here and they read differently, which is
-            the point: more is coming, more failed to come, the feed ended, or
-            the server stopped without a cursor to follow.
-          */}
-          <div
-            ref={sentinelRef}
-            className="feed-tail flex snap-start items-center justify-center px-8 pt-12 text-center"
-          >
-            {isFetchNextPageError ? (
-              <p className="text-cream/60 text-xs">
-                More reels did not load: usually the island signal rather than
-                you. Scroll up and back down to try again.
-              </p>
-            ) : hasNextPage || isFetchingNextPage ? (
-              /*
-                Deliberately not a spinner and deliberately not "the end". The
-                sentinel fires two screens early, so a traveller reaching this
-                is already past where more should have arrived — and a spinner
-                that is usually gone before anybody sees it is a flicker at the
-                bottom of every scroll.
-              */
-              <p className="text-cream/60 text-xs">Loading more reels…</p>
-            ) : tail === "complete" ? (
-              <p className="text-cream/60 text-xs">
-                That is everything on sale right now.
-              </p>
-            ) : (
-              /*
-                `complete: false` with no `nextCursor` — the contract's own
-                third case, "a different thing from the feed having ended".
-                There is nothing to page to, so this cannot be a retry of the
-                next page; refetching the feed from the top is the only move
-                that exists, and the copy does not claim an ending it was not
-                told about.
-              */
-              <p className="text-cream/60 text-xs">
-                That is as far as we can load right now, not the end of what is
-                on sale. Reload to try again.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+      <ReelStrip
+        items={items}
+        tail={tail}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        isFetchNextPageError={isFetchNextPageError}
+        fetchNextPage={() => void fetchNextPage()}
+        chrome={<ReelMasthead />}
+      />
     </>
   );
 }

@@ -92,96 +92,59 @@ describe("detectAutoplayAllowed", () => {
 });
 
 /**
- * The chrome's retract rule, which is one line of `setActiveIndex` and the
- * whole of the feed's new behaviour.
+ * The active index, and the retract rule that used to ride on it.
  *
- * It is tested here rather than through the DOM because it is arithmetic on a
- * direction, and the alternative — synthesising an IntersectionObserver and
- * reading a `data-` attribute — proves the wiring rather than the rule. The
- * wiring has its own test in `feed-chrome.test.tsx`.
+ * `setActiveIndex` also set `chromeRetracted` from the DIRECTION of the move:
+ * down went immersive, up brought the app back. The owner ruled against it on
+ * 13 September (yuvoy-app#36) — "the tab bar must stay visible on every reel"
+ * — and the flag is gone rather than pinned to false.
+ *
+ * What survives is the part that was never about the chrome: the same index
+ * reported twice is not a move, and must not wake a subscriber.
  */
-describe("the feed's chrome", () => {
+describe("the reel strip's active card", () => {
   const state = () => useFeedStore.getState();
 
   beforeEach(() => state().resetFeed());
 
-  it("is out on the first reel, where a traveller arrives", () => {
+  it("starts on the first reel, where a traveller arrives", () => {
     expect(state().activeIndex).toBe(0);
-    expect(state().chromeRetracted).toBe(false);
   });
 
-  it("retracts as soon as the traveller moves down a reel", () => {
-    state().setActiveIndex(1);
-    expect(state().chromeRetracted).toBe(true);
-  });
-
-  it("stays retracted for as long as they keep going down", () => {
+  it("follows the card the observer reports, up or down", () => {
     for (const i of [1, 2, 3, 7]) state().setActiveIndex(i);
     expect(state().activeIndex).toBe(7);
-    expect(state().chromeRetracted).toBe(true);
-  });
-
-  it("comes back the moment they move UP one, not only at the top", () => {
-    /*
-      The rule that keeps navigation one swipe away from anywhere. "Visible on
-      the first reel only" was the other candidate and would leave a traveller
-      seven reels down with seven swipes between them and Search.
-    */
-    for (const i of [1, 2, 3, 7]) state().setActiveIndex(i);
     state().setActiveIndex(6);
-    expect(state().chromeRetracted).toBe(false);
     expect(state().activeIndex).toBe(6);
   });
 
-  it("is out again on the way back down from there", () => {
-    state().setActiveIndex(4);
-    state().setActiveIndex(3);
-    state().setActiveIndex(4);
-    expect(state().chromeRetracted).toBe(true);
-  });
-
-  it("is always out on the first reel, however it was reached", () => {
-    // A jump to the top is still an upward move, so the general rule already
-    // covers it — asserted anyway, because "the bar is there on reel one" is
-    // the promise a traveller actually experiences.
-    state().setActiveIndex(9);
-    state().setActiveIndex(0);
-    expect(state().chromeRetracted).toBe(false);
-  });
-
-  it("does not flicker when the observer re-reports the same card", () => {
+  it("hands the same object back for a re-report, so nothing re-renders", () => {
     /*
       An IntersectionObserver can report the active card more than once — a
       resize, a re-observe after a page lands, a threshold recrossed by a
-      rubber-band. A re-report is not a move, so it must not be read as a
-      direction; treating it as one would make the bar blink mid-reel.
+      rubber-band. zustand compares by identity, so a fresh object would wake
+      every subscriber on a callback that changed nothing.
+
+      This mattered more when the tab bar read this store and would blink; the
+      bar no longer does, and the guard stays because a snap scroller re-renders
+      on every card either way.
     */
-    state().setActiveIndex(3);
-    expect(state().chromeRetracted).toBe(true);
-    state().setActiveIndex(3);
-    expect(state().chromeRetracted).toBe(true);
-
-    state().setActiveIndex(2);
-    expect(state().chromeRetracted).toBe(false);
-    state().setActiveIndex(2);
-    expect(state().chromeRetracted).toBe(false);
-  });
-
-  it("hands the same object back for a re-report, so nothing re-renders", () => {
-    // The guard above is also a performance property: zustand compares by
-    // identity, and a fresh object would wake every subscriber — including the
-    // shell's tab bar — on an observer callback that changed nothing.
     state().setActiveIndex(2);
     const before = useFeedStore.getState();
     state().setActiveIndex(2);
     expect(useFeedStore.getState()).toBe(before);
   });
 
-  it("gives the chrome back on reset, wherever the feed had got to", () => {
+  it("goes back to the first card on reset, wherever the strip had got to", () => {
+    /*
+      A strip that unmounts leaves this behind — the store is a module, not a
+      context. A traveller nine reels into the feed who opens a business page
+      with four reels would arrive at index 9: out of range, nothing mounted by
+      the preload budget, and a black well until they scroll.
+    */
     state().setActiveIndex(11);
     state().resetFeed();
     expect(state().activeIndex).toBe(0);
-    expect(state().chromeRetracted).toBe(false);
   });
 
   it("leaves mute alone when it resets", () => {

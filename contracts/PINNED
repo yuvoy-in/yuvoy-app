@@ -117,6 +117,152 @@ repo=yuvoy-in/yuvoy-api
 # issue. And every field above is consumed as OPTIONAL regardless of what
 # `required:` says — a pinned contract states what an API WILL send, never what
 # it does send today (yuvoy-api#126).
-ref=79ce45afd3fb78ed35e8b590c278d46eb463fd2c
+# ---
+#
+# 13 Sep 2026. Forward from 79ce45afd3fb to d4e03a39ea29, across seven API
+# merges (#164, #166, #167, #168, #170, #171, #172, #173). Additive to every
+# path this app already calls; the two removals are 409 codes the API has
+# stopped RETURNING and deliberately kept in the enum, so nothing narrows.
+#
+# This bump is a PREREQUISITE, not a feature: the owner walked the app on
+# 13 Sep and filed yuvoy-app#32 and #34 through #38, and five of those read
+# fields that arrive here. It is pinned in its own change so that the screen
+# work that follows shows only screen changes, and so a regression in the
+# generated client is bisectable to one commit.
+#
+# New, and each one is consumed by a named issue:
+#   - `GET /catalog/vocabulary` + `VocabularyTerm` + `ActivityTypeTerm`
+#     (app#37). The filter chips stop being derived from a 50-item page of
+#     `/experiences` and come from the API's own word list. Note the contract's
+#     own warning: it publishes the ACTIVE vocabulary, not the populated one,
+#     so a chip may legitimately return an empty page.
+#   - `GET /reels/{id}` + `ReelItem` (app#36). A shared reel opens the reel.
+#     A hidden reel and one that never existed are the same 404 on purpose, so
+#     the client must not tell them apart either.
+#   - `GET /reels` gains `q`, `destinationKey`, `category`, `activityType`,
+#     `bookableOn` (app#37). **The cursor belongs to the filter set it was
+#     minted under** — replaying one under different filters is a 400, not a
+#     silent re-page. Any client here that keeps a cursor across a chip change
+#     is a bug the contract will punish, so the filters are part of the query
+#     key and the cursor is dropped with them.
+#   - `POST /me/sign-in/request`, `POST /me/sign-in/verify`,
+#     `DELETE /me/session` + the `travellerSession` scheme (app#34). This is a
+#     SECOND credential beside `statusToken`, not a replacement: recovery still
+#     exists for a lost link, where rotating it is the point.
+#   - `/me/bookings` now accepts `travellerSession`, and each row gains
+#     `reservationId` and a required `statusToken`, plus `reasonCode` and the
+#     `pending_request` / `declined` states (app#34). A row for a request the
+#     operator has not answered carries an EMPTY `reference`, so anything
+#     keyed by reference must key by `reservationId` instead.
+#   - `Slot.soldOut`, now required (app#32). The date picker greys out on this
+#     and never on `remainingSeats` or `remainingDisplay` — it is the only
+#     signal request mode publishes, where seat counts stay withheld. It says
+#     nothing about `status` or `bookingCutoffAt`; a closed departure can carry
+#     `soldOut: false` and must still be disabled. The fixtures now cover both.
+#   - `BookingStatus.payment` (app#29). What a cash booking still owes the
+#     operator, beside `confirmed`.
+#
+# Behaviour that changed under paths already called, which is the dangerous
+# half of this bump:
+#   - **A cash booking now reads `confirmed`, not `verifying`** (D-034,
+#     api#168). `GET /bookings/status` no longer projects `paid_pending_ops`
+#     at all; it answers `confirmed` + `final: true` + `payment`. The app's
+#     `paid_pending_ops` narrowing therefore stops being reachable through
+#     this endpoint. It is NOT deleted here: `GET /me/bookings` still carries
+#     the raw state, and a client that had narrowed it correctly should not
+#     un-narrow it on a projection change.
+#   - **`requestExpiresAt` is the departure's booking cutoff**, often days
+#     away, not a two-hour answer clock (api#170). A countdown rendered
+#     against it is now wrong by days. Fixed under app#32, not here.
+#   - **`request_window_closed` and `request_quota_exhausted` are retired**
+#     and never returned. Kept in the `Error.code` enum so exhaustive handling
+#     in a deployed client still type-checks, which is the right call and the
+#     reason nothing breaks. The panel that renders them goes under app#32.
+#   - **`payAtCounter.confirmAt` lost its `/v1` prefix.** It was
+#     `/v1/reservations/<id>/cash-booking`, which doubled `/v1` against the API
+#     base; it is now relative to the base. This app never used it as a request
+#     target — it posts to the typed path and reads `confirmAt` only as the
+#     signal that the option exists — so nothing changes here, and Hima
+#     confirmed on app#29 that the typed path is the one to keep.
+#
+# Consumed in THIS change: nothing. The contract, the generated client and the
+# fixtures move together; `soldOut` on six fixture slots is the only source
+# edit, and it is what the typechecker demanded. Every field above lands with
+# the issue that reads it.
+#
+# `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
+# which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
+# issue. And every field above is consumed as OPTIONAL regardless of what
+# `required:` says — a pinned contract states what an API WILL send, never what
+# it does send today (yuvoy-api#126).
+#
+# ---
+#
+# 13 Sep 2026, second bump today. Forward from d4e03a39ea29 to 4c9e49f2,
+# a large operator-side batch that also carries three traveller features.
+# Additive to every path this app already calls; nothing it reads narrows.
+#
+# The diff was read for removals before pinning, because that is the half that
+# breaks a deployed client. There are five, and all five are quoting or
+# rewording: `"204": { description: Released, or already was. }` gained quotes,
+# so did `whatsapp`'s example, and three prose blocks were rewritten in place.
+# Every `required:` change on a RESPONSE widens (`/me/bookings` gains
+# `nextCursor`, `BookingStatus` gains `review`, a row gains nine fields), which
+# a client reading them as optional cannot notice. No REQUEST gained a required
+# field except on the three paths that did not exist before.
+#
+# New, and each one is consumed by a named issue:
+#   - `questions` on `GET /experiences/{slug}` + `ListingQuestion`, `answers`
+#     on `POST /reservations` + `BookingAnswer`, `questions` / `answersOpen` on
+#     `GET /bookings/status` + `PartyQuestion`, and `POST /bookings/answers`
+#     (app#46). A business asks its own questions on a listing.
+#   - `GET /bookings/messages`, `POST /bookings/messages`,
+#     `POST /bookings/messages/read` + `BookingMessage`,
+#     `BookingMessageThread`, `BookingMessageInput`, `BookingMessageReadInput`
+#     and `BookingMessageReadReceipt` (app#47). The conversation between the
+#     traveller and the business running the trip.
+#   - `answers_required`, `answers_closed` and `messages_closed` join the
+#     `Error.code` enum. All three are added to `ERROR_CODES` under app#46 and
+#     app#47; without them `YuvoyError.code` reads `unknown_error` and
+#     `describeError` says "Something went wrong".
+#
+# Behaviour that changed under paths already called:
+#   - **`GET /bookings/cancellation-quote` refunds a moved departure in full**
+#     (D-032.3, app#48). If the operator moved the departure while this
+#     booking, or the hold it was made from, was on it, the quote is everything
+#     paid online whatever tier the snapshot holds, and `note` says why. The
+#     sheet showed `note` only when `selfService` was false, so the traveller
+#     read "You get everything back." without learning why. Fixed under app#48.
+#   - **A partial tier with nothing to refund is now self-service** (D28,
+#     app#48). A cash booking cancelled 24 to 48 hours ahead quotes
+#     `selfService: true` with `capturedPaise` and `refundPaise` both 0, where
+#     it used to route to a person. It reaches the sheet for the first time.
+#   - `cancellation.reasonCode` can now read `OPERATOR_MOVED_IT`. It is an open
+#     `type: string` with no enum, so this is not a typecheck failure and only
+#     `cancellationReason()` stands between it and the fallback sentence "The
+#     operator or we called it off." — which is about a booking the traveller
+#     cancelled. Mapped under app#48.
+#   - **`POST /bookings/review` splits `conflict` into `not_reviewable_yet`,
+#     `already_reviewed` and `review_window_closed`**, and `conflict` is no
+#     longer returned. `review-form.tsx:60` branches on `conflict` alone to
+#     render "Already recorded", so that branch is now dead and all three codes
+#     fall through to `describeError`'s default: "Something went wrong ... 
+#     trying again often fixes it", with a retry button that fails forever.
+#     NOT fixed here, and it is not caused here either — the API has been
+#     answering the new codes since 2026-09-13, so the deployed app already
+#     reads this way. Found while diffing this bump and raised as its own
+#     issue; these three codes are deliberately left out of `ERROR_CODES`
+#     so the fix lands with the branch that reads them.
+#
+# NOT consumed, and deliberately: the operator-side batch this bump is mostly
+# made of. `git grep` confirms this repo calls none of those paths.
+#
+# `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
+# which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
+# issue. And every field above is consumed as OPTIONAL regardless of what
+# `required:` says — a pinned contract states what an API WILL send, never what
+# it does send today (yuvoy-api#126).
+
+ref=4c9e49f2845152a8798573429410a50920013e94
 branch=master
-pinned_on=2026-09-11
+pinned_on=2026-09-13

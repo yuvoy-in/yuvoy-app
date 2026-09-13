@@ -197,8 +197,8 @@ paths:
             **An unknown value is an empty page, not a `400`** — the opposite of
             `category`, and deliberately. This set grows by `INSERT`, so today's
             unknown value is tomorrow's real one and refusing it would make the
-            API stale between deploys. Read the current set from the operator
-            vocabulary endpoint rather than hardcoding it.
+            API stale between deploys. Read the current set from
+            `GET /catalog/vocabulary` rather than hardcoding it.
           schema: { type: string, maxLength: 60 }
         - name: bookableOn
           in: query
@@ -403,6 +403,67 @@ paths:
                             query per URL.
         "503": { $ref: "#/components/responses/CatalogUnavailable" }
 
+  /catalog/vocabulary:
+    get:
+      tags: [catalog]
+      summary: What the filter chips may offer
+      operationId: getPublicVocabulary
+      description: >-
+        The words for `category`, `activityType` and `destinationKey` on
+        `/search` and `/reels`: every category, the activity types, and the
+        destinations that are open. No session. Build chips from this rather
+        than from a hardcoded list, which disagrees with us the day a
+        destination opens.
+
+
+        **The active vocabulary, not the populated one.** A value with no
+        published listing behind it today is still offered; filtering by it
+        answers an empty page. Narrowing to populated values would make a chip
+        vanish when its only listing pauses for a week and reappear when it
+        comes back.
+
+
+        `marketKey` narrows destinations and activity types to one market.
+        Without it, destinations are those of every open market and activity
+        types are the whole list. A well-formed market we do not have, or have
+        not opened, answers categories and two empty lists rather than an
+        error; a malformed one is a `400`.
+
+
+        Edge-cacheable: nothing here moves with a booking.
+      parameters:
+        - name: marketKey
+          in: query
+          schema: { $ref: "#/components/schemas/MarketKey" }
+      responses:
+        "200":
+          description: The vocabulary.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [categories, activityTypes, destinations]
+                properties:
+                  categories:
+                    type: array
+                    description: Every category, in the order chips should show them.
+                    items: { $ref: "#/components/schemas/VocabularyTerm" }
+                  activityTypes:
+                    type: array
+                    description: >-
+                      Each with the category it belongs to, so chips can be
+                      narrowed to the chosen category. Not an enum anywhere in
+                      this contract: the set grows by INSERT.
+                    items: { $ref: "#/components/schemas/ActivityTypeTerm" }
+                  destinations:
+                    type: array
+                    description: >-
+                      Open destinations, ordered by market and then as supply
+                      wants them shown. `key` is `<market>/<destination>`.
+                    items: { $ref: "#/components/schemas/VocabularyTerm" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/CatalogUnavailable" }
+
   /scans:
     post:
       tags: [scans]
@@ -525,6 +586,36 @@ paths:
         is why a client must not attempt to page this ordering itself: restart
         the rotation and one business's second reel arrives before another's
         first, and the ordering stops being blind to which operator.
+
+
+        **Filters.** `q`, `destinationKey`, `category`, `activityType` and
+        `bookableOn` narrow the feed with the same meaning and the same
+        validation as `GET /search`: an unknown `category` is a `400`, an
+        unknown `activityType` is an empty page, and a `q` with nothing
+        searchable in it (only punctuation, or only exclusions) is an empty
+        page rather than the words being ignored. Omit all of them and this is
+        the unfiltered feed, unchanged.
+
+
+        Filters **narrow, they never rank**. The order is still the rotation,
+        counted within the filtered set, so under "scuba at Havelock" every
+        business's first matching reel still comes before anybody's second.
+        There is no relevance ordering here; that is what `/search` is for.
+
+
+        **A cursor belongs to the filters it was minted under.** Sending it
+        with any different filter set is a `400`, because the rotation is
+        counted within the filters and the same position means a different
+        card under different ones. When the chips change, drop the cursor and
+        start from the first page. The same words typed with different case or
+        spacing are the same filter set. Unfiltered cursors are unchanged from
+        before filters existed.
+
+
+        The order is stable between requests, so a grid can open a reel and
+        swipe on through the same sequence by paging with the same filters.
+        As with the unfiltered feed, a listing published, withdrawn or sold out
+        (under `bookableOn`) between two pages can move later cards by a place.
       operationId: listReels
       parameters:
         - name: limit
@@ -532,8 +623,33 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 60, default: 30 }
         - name: cursor
           in: query
-          description: From a previous response's `nextCursor`. Opaque; do not construct one.
+          description: >-
+            From a previous response's `nextCursor`, sent with exactly the same
+            filters as that request. Opaque; do not construct one.
           schema: { type: string }
+        - name: q
+          in: query
+          description: Free text, as on `/search`. Narrows; does not reorder.
+          schema: { type: string, maxLength: 120 }
+        - name: destinationKey
+          in: query
+          schema: { $ref: "#/components/schemas/DestinationKey" }
+        - name: category
+          in: query
+          description: As on `/search`. **An unknown value is a `400`.**
+          schema: { $ref: "#/components/schemas/Category" }
+        - name: activityType
+          in: query
+          description: >-
+            As on `/search`. Matched exactly; an unknown value is an empty page,
+            not a `400`. The current set is in `GET /catalog/vocabulary`.
+          schema: { type: string, maxLength: 60 }
+        - name: bookableOn
+          in: query
+          schema: { type: string, format: date }
+          description: >-
+            Only reels of listings that can actually be booked that day, in the
+            market's timezone.
       responses:
         "200":
           description: Reels, each with the listing it sells.
@@ -560,6 +676,46 @@ paths:
                     type: string
                     description: Absent when there is nothing after this page.
         "400": { $ref: "#/components/responses/BadRequest" }
+
+  /reels/{id}:
+    get:
+      tags: [catalog]
+      summary: One reel, by its own link
+      description: >
+        A shared reel opens the reel, not the listing it belongs to.
+
+
+        `id` is the `media.id` every feed card already carries, so a client
+        builds the link from data it has. The response is the same item the
+        feed returns, `{ media, experience }`, so the card renders with the
+        same component.
+
+
+        **Only reels the feed would show.** The same visibility rule as
+        `GET /reels`: the clip is published and ready, the provider has made it
+        public, and its listing can be sold today. Anything else is a `404`,
+        and a reel that was hidden and one that never existed are
+        deliberately the same answer, as for a draft listing. A malformed id is
+        also a `404`: it is usually a link that was cut short.
+
+
+        This returns the reel alone. To swipe on from it, page `GET /reels`
+        as usual.
+      operationId: getReel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The feed card's `media.id`.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The reel, with the listing it sells.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReelItem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/CatalogUnavailable" }
 
   /experiences:
     get:
@@ -672,6 +828,13 @@ paths:
         it until the operator accepts.
 
 
+        A request is taken at any hour and however many are already waiting on
+        the departure. It stays open until the operator answers or booking for
+        the departure closes, so `requestExpiresAt` is the departure's booking
+        cutoff, not a short answer clock. Capacity is checked when the operator
+        accepts, not here.
+
+
         `Idempotency-Key` is required. A retry with the same key returns the
         original response, unchanged, with `201` and `Idempotent-Replay: true` —
         the status code is part of the stored response, so a client that retried
@@ -706,9 +869,17 @@ paths:
         "409":
           description: >
             Could not proceed, and the code says why: `capacity_unavailable`,
-            `request_quota_exhausted`, `request_window_closed` (carries
-            `opensAt`), `cutoff_passed`, `idempotency_key_reuse`,
-            `idempotency_in_progress`.
+            `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`.
+            `request_quota_exhausted` and `request_window_closed` are no longer
+            returned (since 2026-09-13): every request is taken.
+
+
+            `answers_required`: the body sent `answers`, even an empty list, and
+            a question the listing asks now with `required: true` has no answer
+            in it that fits. `details.questions` names each such question as an
+            object with `questionId` and `text`, in the listing's order. Nothing
+            was held, and the same `Idempotency-Key` can be sent again with the
+            answers. A body without `answers` is never refused this way.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -733,7 +904,7 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        "204": { description: Released, or already was. }
+        "204": { description: "Released, or already was." }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /reservations/{id}/payment-order:
@@ -789,7 +960,10 @@ paths:
                       available: { type: boolean }
                       confirmAt:
                         type: string
-                        description: Path to POST to, relative to the API base.
+                        description: >-
+                          Path to POST to, relative to the API base — the same
+                          path as `POST /reservations/{id}/cash-booking`, so it
+                          carries no `/v1` of its own.
         "201":
           description: The order to pay against.
           content:
@@ -1045,14 +1219,20 @@ paths:
         the traveller agreed to.
 
 
-        **Only full-refund and no-refund tiers are self-service.** A partial
-        refund answers `409 refund_requires_finance` and nothing is destroyed —
-        because cancelling is irreversible and the seat returns to sale
-        immediately, so self-serving a partial refund would take the trip away
-        now and leave the money in an approval queue for days. Routing the
-        traveller to a person BEFORE anything is lost is the kinder order.
-        `selfService` on the quote tells the client whether to show the button
-        at all.
+        **A partial refund of money paid online is not self-service.** It
+        answers `409 refund_requires_finance` and nothing is destroyed, because
+        cancelling is irreversible and the seat returns to sale immediately, so
+        self-serving a partial refund would take the trip away now and leave the
+        money in an approval queue for days. Routing the traveller to a person
+        BEFORE anything is lost is the kinder order. A partial tier with nothing
+        to refund, which is where a booking with nothing paid online lands,
+        needs nobody and cancels here with `refundPaise` 0. `selfService` on the
+        quote tells the client whether to show the button at all.
+
+
+        **A departure that moved after this booking was made** cancels with
+        everything paid online refunded, whatever the tier, recorded as
+        `OPERATOR_MOVED_IT` (D-032.3). The quote says so first, in `note`.
       security: [{ statusToken: [] }]
       requestBody:
         required: true
@@ -1080,13 +1260,18 @@ paths:
                   refundPaise: { type: integer }
                   refundTier: { type: string }
                   seatsReleased: { type: integer }
-                  refundNote: { type: string }
+                  refundNote:
+                    type: string
+                    description: >-
+                      A phrase about the money. When nothing comes back it says
+                      why: nothing was paid online for the booking, or no refund
+                      is due under its cancellation policy.
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "409":
           description: >-
             `refund_quote_moved` — re-quote and show the new figure.
-            `refund_requires_finance` — a partial refund; route them to support.
+            `refund_requires_finance`: a partial refund of money paid online; route them to support.
             `conflict` — not in a cancellable state.
           content:
             application/json:
@@ -1115,37 +1300,295 @@ paths:
         `?phone=` here would let anyone read a stranger's itinerary by typing
         their number, which on a small island is a disclosure about where
         somebody will be and when.
-      security: [{ statusToken: [] }]
+
+
+        Since 2026-09-13 the credential is a `travellerSession` from
+        `verifyTravellerSignIn`. A recovery token (`verifyBookingRecovery`) is
+        still accepted. Requests still waiting on the operator are listed, with
+        `state: pending_request` and no `reference` yet. Unpaid holds are not.
+
+
+        **Tabs** (since 2026-09-13). `cancelled` is decided first and wins over
+        the date: a trip whose `state` is `cancelled` (by the traveller, the
+        operator or us, including a departure called off for weather) or
+        `declined` (a booking or a request the operator refused). A `no_show`
+        is **not** cancelled: the boat went, so it is a past trip. Of the rest,
+        `upcoming` is a departure still ahead, including a request nobody has
+        answered yet, and `past` is a departure that has left. The three tabs
+        never overlap and together they are the whole list.
+
+
+        **Paging.** A request with none of `tab`, `from`, `to`, `limit` or
+        `cursor` returns every trip in one page with `nextCursor: null`, which
+        is what apps deployed before paging existed rely on. Any one of them
+        opts in to paging, and `limit` then defaults to 20. Pass `nextCursor`
+        back as `cursor` with the same `tab`, `from` and `to`; a cursor from
+        a different query is refused with `invalid_input`. A cursor also fixes
+        the moment "upcoming" and "past" are split at, so a trip departing
+        while somebody scrolls is never shown twice or skipped.
+
+
+        Each returned row carries a freshly minted `statusToken`, so asking for
+        a page rather than the whole history also mints fewer links.
+      security: [{ travellerSession: [] }, { statusToken: [] }]
+      parameters:
+        - name: tab
+          in: query
+          required: false
+          description: >-
+            `upcoming`, `past` or `cancelled`, as defined above. Omitted means
+            every trip.
+          schema: { type: string, enum: [upcoming, past, cancelled] }
+        - name: from
+          in: query
+          required: false
+          description: >-
+            The first trip date to include, `YYYY-MM-DD`, inclusive. Compared
+            with the trip's own date in its market's timezone.
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: false
+          description: The last trip date to include, `YYYY-MM-DD`, inclusive. Not before `from`.
+          schema: { type: string, format: date }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
           description: >-
             Trips still to come first, soonest first; then past ones, most
             recent first. Somebody opening this on the morning of a dive wants
-            the dive, not the thing they did in March.
+            the dive, not the thing they did in March. The `upcoming` tab is
+            soonest first, and the `past` and `cancelled` tabs are most recent
+            trip date first. (Before 2026-09-13 past trips came back oldest
+            first, contrary to this description.)
           content:
             application/json:
               schema:
                 type: object
-                required: [bookings]
+                required: [bookings, nextCursor]
                 properties:
+                  nextCursor:
+                    type: [string, "null"]
+                    description: >-
+                      Pass back as `cursor` for the next page. `null` when there
+                      is nothing more, and always `null` on an unpaged request.
                   bookings:
                     type: array
                     items:
                       type: object
-                      required: [reference, experience, operator, localDate, localTime, state, guests]
+                      required: [reference, reservationId, experience, operator, localDate, localTime, state, guests, statusToken, experienceSlug, operatorSlug, heroImageUrl, destination, startsAt, timezone, createdAt, price, reviewed, canReview]
                       properties:
-                        reference: { type: string }
+                        reference:
+                          type: string
+                          description: Empty for a request the operator has not answered yet.
+                        reservationId:
+                          type: string
+                          description: >-
+                            Always present. What the app matches against the
+                            trips saved on the phone when there is no reference
+                            yet.
                         experience: { type: string }
                         operator: { type: string }
                         localDate: { type: string, format: date }
                         localTime: { type: string, example: "06:30" }
-                        state: { type: string }
+                        state:
+                          type: string
+                          description: >-
+                            The booking's state, or for a request with no booking
+                            yet `pending_request` (waiting on the operator) or
+                            `declined` (the operator said no; see `reasonCode`).
                         guests: { type: integer }
                         meetingPoint: { type: string }
-                        statusToken: { type: string }
+                        statusToken:
+                          type: string
+                          description: >-
+                            A booking link for this trip, minted for this
+                            response, so a trip booked on another phone opens
+                            here. Opens this booking only; it can never list the
+                            number's other trips. Issuing it revokes nothing.
                         cancelledAt: { type: [string, "null"], format: date-time }
+                        reasonCode:
+                          type: string
+                          enum: [no_capacity, weather, not_operating, party_too_large, unsafe_for_party, other]
+                          description: Why the operator declined. Present only when `state` is `declined`.
+                        experienceSlug:
+                          type: string
+                          description: The listing this trip was booked from, for linking back to it.
+                        operatorSlug:
+                          type: string
+                          description: The business, for linking to its page.
+                        heroImageUrl:
+                          type: [string, "null"]
+                          format: uri
+                          description: >-
+                            The listing's headline picture, resolved exactly as
+                            the catalog resolves `heroMedia`: a photograph from
+                            the image host or a video's poster. `null` when the
+                            listing has none; always sent.
+                        destination:
+                          type: string
+                          description: The place's display name, for example `Havelock`.
+                        startsAt:
+                          type: string
+                          format: date-time
+                          description: >-
+                            The departure as an instant, in UTC. `localDate` and
+                            `localTime` are the same moment already rendered in
+                            the market's zone.
+                        timezone:
+                          type: string
+                          description: IANA zone of the market, for rendering local time.
+                        createdAt:
+                          type: string
+                          format: date-time
+                          description: >-
+                            When the traveller asked for it: the reservation, so
+                            a request and a paid booking both have one.
+                        price:
+                          type: object
+                          required: [totalPaise, currency]
+                          description: >-
+                            The total agreed at checkout, from the frozen price
+                            snapshot. The same number `getBookingStatus` reports.
+                          properties:
+                            totalPaise: { type: integer }
+                            currency: { type: string }
+                        payment:
+                          type: object
+                          required: [method, collected, amountPaise]
+                          description: >-
+                            How the booking is being paid. Present once a booking
+                            exists; absent on a request nobody has answered.
+                            `online` is paid and collected. `cash` is paid to the
+                            operator on the day, and `collected` turns true when
+                            they record taking it.
+                          properties:
+                            method: { type: string, enum: [online, cash] }
+                            collected: { type: boolean }
+                            amountPaise:
+                              type: integer
+                              description: The same number as `price.totalPaise`.
+                        refund:
+                          type: object
+                          required: [amountPaise, state]
+                          description: >-
+                            Present only when a refund exists: the latest
+                            refund's state and the sum on its way back, as
+                            `getBookingStatus` reports it.
+                          properties:
+                            amountPaise: { type: integer }
+                            state:
+                              type: string
+                              enum: [requested, pending, failed, processed, reversed, abandoned]
+                        reviewed:
+                          type: boolean
+                          description: A review has been left for this trip.
+                        canReview:
+                          type: boolean
+                          description: >-
+                            Offer "leave a review": the trip is `completed`, has
+                            no review yet, and ended no more than 30 days ago.
+                            When true, `leaveReview` with this row's
+                            `statusToken` will accept one.
+        "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /me/sign-in/request:
+    post:
+      tags: [me]
+      summary: Send a sign-in code to any number
+      operationId: requestTravellerSignIn
+      description: >-
+        Signing in, for any number, whether or not it has ever booked. Unlike
+        `requestBookingRecovery` there is no booking for the answer to reveal,
+        so it says plainly that a code was sent.
+
+
+        There is no channel that delivers a traveller code yet (yuvoy-api#68);
+        until there is, only the demo numbers receive one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, description: "E.164, e.g. +919000000000" }
+      responses:
+        "202":
+          description: A code was recorded for the number.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent, message]
+                properties:
+                  sent: { type: boolean }
+                  message: { type: string }
+                  devCode:
+                    type: string
+                    description: >-
+                      **Development only**, as on `requestBookingRecovery`.
+                      Never present in production.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /me/sign-in/verify:
+    post:
+      tags: [me]
+      summary: Exchange a sign-in code for a session
+      operationId: verifyTravellerSignIn
+      description: >-
+        Returns a session that lasts 30 days. **Revokes nothing**: every booking
+        link saved on this phone, and any other phone this traveller is signed
+        in on, keeps working. That is the difference from
+        `verifyBookingRecovery`, which exists for a lost link and rotates it.
+
+
+        Wrong, expired, used and over-attempted codes all answer `401` with one
+        message.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string }
+      responses:
+        "200":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessionToken, expiresAt]
+                properties:
+                  sessionToken:
+                    type: string
+                    description: "Send as an `Authorization: Bearer` header to `/me/bookings`."
+                  expiresAt: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /me/session:
+    delete:
+      tags: [me]
+      summary: Sign out on this phone
+      operationId: signOutTraveller
+      description: >-
+        Ends this session only. `204` whatever the token was, including one
+        already ended.
+      security: [{ travellerSession: [] }]
+      responses:
+        "204": { description: Signed out. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 
   /bookings/share:
     post:
@@ -1251,6 +1694,14 @@ paths:
         the no-fabricated-claims rule — not a promise to be careful. Collecting
         from day one is what makes the numbers real on the day there is
         something worth showing.
+
+
+        A review is taken for 30 days after the departure's scheduled end.
+        Each refusal has its own code, all `409`: `not_reviewable_yet` (the
+        trip has not been marked completed), `already_reviewed` (one per trip),
+        and `review_window_closed` (more than 30 days after the trip).
+        `canReview` on `listMyBookings` and `review.canReview` on
+        `getBookingStatus` say in advance whether this will be accepted.
       security: [{ statusToken: [] }]
       requestBody:
         required: true
@@ -1268,12 +1719,82 @@ paths:
                     Optional. Plenty of people tap five stars and nothing else,
                     and a required comment box turns a two-second act into an
                     abandoned one.
+                tags:
+                  type: array
+                  maxItems: 6
+                  description: >-
+                    Optional. What was good, from a closed list. Repeats are
+                    dropped and the order is kept. A value outside the list, or
+                    more than six entries, is refused with `invalid_input`.
+                    Stored with the review and never editable afterwards.
+                  items:
+                    type: string
+                    enum: [guide, safety, value, organisation, punctuality, equipment]
       responses:
         "204": { description: Recorded. }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "409":
-          description: The trip has not happened, or was already reviewed.
+          description: >-
+            Refused, and `error.code` says why: `not_reviewable_yet`,
+            `already_reviewed` or `review_window_closed`. Before 2026-09-13
+            all three were `conflict`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /bookings/answers:
+    post:
+      tags: [bookings]
+      summary: Answer the questions the listing asks
+      description: >
+        The traveller answering the operator's questions on this listing, after
+        checkout, from the booking link. `GET /bookings/status` carries the
+        questions, what this party has answered, and `answersOpen`.
+
+
+        Each answer replaces this party's earlier answer to the same question,
+        whether that was given at checkout or here. Questions left out keep what
+        they had. All or nothing: if one answer does not fit its question,
+        nothing is saved, and `details` names each problem, keyed like
+        `answers[0].answer`.
+
+
+        `yes_no` takes `yes` or `no`, and `choice` takes one of the question's
+        `options`, both ignoring case. `short_text` takes up to 300 characters.
+        Unknown fields are refused.
+
+
+        Answers are taken while the booking is going ahead and until its
+        departure leaves; after that this answers `409 answers_closed`. These
+        questions never ask about health, which is the screener at checkout.
+      operationId: answerBookingQuestions
+      security: [{ statusToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingAnswersInput" }
+      responses:
+        "200":
+          description: Saved. Every question and answer for this party, as the status page shows them.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [questions]
+                properties:
+                  questions:
+                    type: array
+                    items: { $ref: "#/components/schemas/PartyQuestion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: >-
+            `answers_closed`: the departure has left, or the booking is no longer
+            going ahead.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1296,6 +1817,14 @@ paths:
         one.
 
 
+        **A departure that moved after this booking was made refunds in full**
+        (D-032.3). If the operator moved the departure while this booking, or
+        the hold it was made from, was on it, the quote is everything paid
+        online whatever tier the snapshot holds, until the departure leaves, and
+        `note` says why. A booking made after the move chose the new time and
+        gets the usual tiers.
+
+
         A valid token whose booking does not exist yet answers `200` with
         `cancellable: false` and a reason — the token's validity and the
         booking's existence are different questions.
@@ -1315,13 +1844,22 @@ paths:
                   cancellable: { type: boolean }
                   selfService:
                     type: boolean
-                    description: False for partial refunds — those need a person.
+                    description: >-
+                      False when the refund is part of what was paid online:
+                      that needs a person. A partial tier with nothing to
+                      refund is self-service.
                   capturedPaise: { type: integer }
                   refundPaise: { type: integer }
                   refundTier: { type: string }
                   hoursBeforeStart: { type: integer }
                   reason: { type: string, description: Present when not cancellable. }
-                  note: { type: string }
+                  note:
+                    type: string
+                    description: >-
+                      A sentence to show beside the figure, when there is one: a
+                      partial refund of money paid online, which needs a person,
+                      or a departure the operator moved after this booking was
+                      made, which refunds everything paid online.
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /bookings/status:
@@ -1366,12 +1904,178 @@ paths:
               schema: { $ref: "#/components/schemas/BookingStatus" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /bookings/messages:
+    get:
+      tags: [bookings]
+      summary: The conversation with the business
+      description: >
+        The conversation on this booking between the traveller and the business
+        running the trip (D6). The booking link's token opens it, exactly as it
+        opens `getBookingStatus`, and no booking id is taken: the token is the
+        booking, so a link opens its own conversation and no other.
+
+
+        **The most recent messages first, a page at a time, oldest first within
+        a page.** Draw a page top to bottom. To load what came before it, pass
+        `nextCursor` back as `cursor`; it is absent when the conversation begins
+        on this page. A message that arrives while somebody scrolls is after the
+        first page and never inside a later one, so fetch the first page again
+        to see new messages.
+
+
+        Fetching marks nothing read. Mark what was shown with
+        `markBookingMessagesRead`, so a page left polling in a pocket does not
+        clear `unreadCount`.
+
+
+        A link whose hold or request never became a booking answers an empty,
+        complete conversation with `canWrite` false and `closedReason`
+        `not_booked`, not an error.
+
+
+        A message's text is removed a set time after the trip ends (90 days
+        unless the service is configured otherwise). The message stays, with who
+        wrote it and when, and carries `textRemovedAt` in place of `text`. Show
+        it as a message whose text was removed, never as an empty one.
+      operationId: getBookingMessages
+      security:
+        - statusToken: []
+      parameters:
+        - name: limit
+          in: query
+          description: >-
+            Messages per page. None, or a value that is not a whole number above
+            zero, gets 50. More than 200 gets 200.
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          description: >-
+            A previous page's `nextCursor`, for the messages before that page.
+            Opaque, so do not construct one. A cursor this conversation did not
+            issue is a `400`.
+          schema: { type: string }
+      responses:
+        "200":
+          description: One page of the conversation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingMessageThread" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+    post:
+      tags: [bookings]
+      summary: Write to the business
+      description: >
+        Adds a message to this booking's conversation and queues a notice for
+        the business: every active person there, once for this message, on
+        WhatsApp or email as this service can send. The notice names the trip
+        and the booking reference and never carries the text, which is read in
+        the conversation.
+
+
+        The text is trimmed, keeps its line breaks, and is at most 1000
+        characters, counted as characters rather than bytes.
+
+
+        **A message with a phone number, an email address or a link in it is
+        refused** `400 invalid_input`, with `details.text` `contact details` and
+        `details.contactDetail` saying which: `phone`, `email` or `link`.
+        Nothing is stored, and the refusal names the kind without repeating any
+        of the text. A phone number is seven or more digits written close
+        together, counted through the spaces, dashes, brackets and dots between
+        them, except the digits of a date written like 14.09.2026 or 2026-09-14.
+        A link starts `http://`, `https://` or `www.`, or is a word ending
+        `.com`, `.in`, `.net`, `.org`, `.io`, `.co` or `.me`, so a full stop
+        typed with no space before one of those words reads as a link too. An
+        email address is a name, an `@` and a domain with a dot in it.
+
+
+        Writing stops when the booking is cancelled or declined, and a set time
+        after the trip ends (seven days unless the service is configured
+        otherwise). After that the conversation can still be read, and a message
+        is refused `409 messages_closed` with `details.reason` saying which.
+      operationId: sendBookingMessage
+      security:
+        - statusToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingMessageInput" }
+      responses:
+        "201":
+          description: Written, and the business's notice is queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingMessage" }
+        "400":
+          description: >-
+            `invalid_input`, with `details.text` saying why: `required` (nothing
+            written, or a body that is not JSON), `too long` (over 1000
+            characters), `unprintable` (characters no screen can show), or
+            `contact details`, with `details.contactDetail` `phone`, `email` or
+            `link`. Nothing was stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: >-
+            `messages_closed`: the conversation can be read and not written in.
+            `details.reason` is `not_booked`, `cancelled`, `declined` or
+            `window_closed`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /bookings/messages/read:
+    post:
+      tags: [bookings]
+      summary: Mark the conversation read up to a message
+      description: >
+        Moves the traveller's read marker to a message they were shown, and so to
+        everything before it, and answers what is still unread. Named by the
+        message rather than "all of it, now", so a message that arrived after
+        the page was drawn stays unread. A marker never moves back: naming an
+        older message changes nothing.
+      operationId: markBookingMessagesRead
+      security:
+        - statusToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BookingMessageReadInput" }
+      responses:
+        "200":
+          description: What is still unread.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BookingMessageReadReceipt" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: That message is not in this booking's conversation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    travellerSession:
+      type: http
+      scheme: bearer
+      description: >-
+        The opaque token `verifyTravellerSignIn` returns. Proves a code reached
+        a phone number; not tied to any booking.
     statusToken:
       type: http
       scheme: bearer
@@ -1477,6 +2181,9 @@ components:
         # cannot proceed, because "unavailable" alone leaves them with no next
         # step — and one of these is not the traveller's fault at all.
         - capacity_unavailable
+        # Retired 2026-09-13 and no longer returned: every request is taken, at
+        # any hour. Kept in the enum so a deployed client's exhaustive handling
+        # still type-checks.
         - request_quota_exhausted
         - request_window_closed
         - grant_ceiling_exceeded
@@ -1499,6 +2206,17 @@ components:
         # Access to a booking without an account.
         - token_expired
         - reservation_not_payable
+        # The booking takes no more answers to its listing's questions: the
+        # departure has left, or the booking is no longer going ahead.
+        - answers_closed
+        # A checkout that sent answers left a question the listing requires
+        # without one. `details.questions` names each (D45).
+        - answers_required
+        # Why a review was refused, all 409. Each is a different screen: come
+        # back after the trip, thank you, or this has closed.
+        - not_reviewable_yet
+        - already_reviewed
+        - review_window_closed
         # Refused for saying it wrong rather than for lacking permission. Each
         # is a different next step for the caller: fix the code, echo the
         # confirmation back, pick a role that exists.
@@ -1525,6 +2243,11 @@ components:
         # under the bare spelling the handlers actually write rather than
         # renamed underneath a client.
         - unavailable
+        # A booking's conversation that can be read and not written in: no
+        # booking behind the link yet, a cancelled or declined booking, or a
+        # trip that ended longer ago than messages stay open. `details.reason`
+        # says which.
+        - messages_closed
 
     Money:
       type: object
@@ -1709,7 +2432,7 @@ components:
             The name implies a floor across variants and that is not what it is:
             it is a single number, and for a `per_group` charter "from ₹4,000"
             is wrong twice — it is not a minimum, and it is not per person. The
-            field is not renamed because three generated clients carry the name.
+            field is not renamed because generated clients carry the name.
             If it is ever renamed, the right name is `price`.
         pricingUnit:
           type: string
@@ -1835,6 +2558,17 @@ components:
               type: array
               items: { $ref: "#/components/schemas/Media" }
             safety: { $ref: "#/components/schemas/SafetyRequirements" }
+            questions:
+              type: array
+              description: >-
+                What the operator asks every traveller on this listing, in the
+                order to ask it. Absent when the listing asks nothing. Send the
+                answers with the reservation as `answers`, or from the booking
+                link afterwards with `POST /bookings/answers`. A checkout that
+                sends `answers` must answer every question with
+                `required: true`; one that sends none is never refused over a
+                question. Never about health, which is `safety.screener`.
+              items: { $ref: "#/components/schemas/ListingQuestion" }
 
     MeetingPoint:
       type: object
@@ -1867,7 +2601,7 @@ components:
     Slot:
       type: object
       required:
-        [id, startsAt, endsAt, marketTimezone, localDate, localStartTime, bookingCutoffAt, status, bookingMode]
+        [id, startsAt, endsAt, marketTimezone, localDate, localStartTime, bookingCutoffAt, status, bookingMode, soldOut]
       properties:
         id: { type: string }
         startsAt: { type: string, format: date-time }
@@ -1918,6 +2652,30 @@ components:
 
             For request mode: wording that promises an answer, never a seat.
         availability: { $ref: "#/components/schemas/SlotAvailability" }
+        soldOut:
+          type: boolean
+          description: >-
+            True when nobody more can book, or ask for, this departure. **Grey
+            the departure out in a date picker on this field**, in both booking
+            modes, rather than deriving it from `remainingSeats` or
+            `remainingDisplay`.
+
+
+            Allotment: no seat is left after holds and bookings, the same fact
+            `remainingDisplay` states as `Full`. It stays true on a stale slot,
+            for the same reason `Full` does.
+
+
+            Request: the operator has already granted the departure's full
+            capacity, so no further request could be accepted. Only the boolean
+            is published. Request mode withholds seat counts on purpose, and
+            this field does not change that.
+
+
+            It says nothing about `status` or `bookingCutoffAt`. A departure
+            that is `closed`, `cancelled` or past its cutoff is unbookable too
+            and should be shown disabled on those fields, with `soldOut` possibly
+            false.
 
     SlotAvailability:
       type: object
@@ -2012,6 +2770,38 @@ components:
             it.
         attribution: { $ref: "#/components/schemas/Attribution" }
         screening: { $ref: "#/components/schemas/Screening" }
+        answers:
+          type: array
+          description: >-
+            Answers to the questions this listing asks (`questions` on the
+            experience).
+
+
+            **Optional.** Omit it and nothing about questions is checked, the
+            listing's required ones included: the booking reads each question
+            as not answered yet, to be answered with `POST /bookings/answers`.
+
+
+            **Send it, even as an empty list, and required questions are
+            enforced.** The checkout is refused `409 answers_required` when a
+            question the listing asks now with `required: true` has no answer
+            here that fits, and `details.questions` names each one. `null`, or
+            a value that is not a list, counts as not sent.
+
+
+            An answer that does not fit is not recorded, and never refuses the
+            checkout on its own: it only leaves its question unanswered. Not
+            fitting means a question the listing no longer asks, a choice that
+            is not one of its options, an answer its question's type does not
+            take, or an item that is not an object with a string `questionId`
+            and a string `answer`. See what was recorded on
+            `GET /bookings/status`, and answer the rest with
+            `POST /bookings/answers`.
+
+
+            A retry that replays an existing reservation records nothing new;
+            answer from the booking link instead.
+          items: { $ref: "#/components/schemas/BookingAnswer" }
 
     SafetyRequirements:
       type: object
@@ -2056,6 +2846,107 @@ components:
               description: >-
                 The single statement the lead traveller ticks, covering the
                 whole party — which is what the copy tells them they are doing.
+
+    ListingQuestion:
+      type: object
+      additionalProperties: false
+      description: >-
+        One question the operator asks every traveller on a listing. Its `text`,
+        `answerType` and `options` never change once it exists: a reworded
+        question comes with a new `id`. Never about health, which the screener
+        asks.
+      required: [id, text, answerType, required]
+      properties:
+        id:
+          type: string
+          description: What an answer names in `questionId`.
+        text:
+          type: string
+          maxLength: 200
+          description: The question, to show as it is.
+        answerType:
+          type: string
+          enum: [short_text, choice, yes_no]
+          description: >-
+            How to ask it. `short_text` takes up to 300 characters, `choice`
+            takes exactly one of `options`, and `yes_no` takes `yes` or `no`.
+        options:
+          type: array
+          items: { type: string }
+          description: The choices, in the order to show them. Present only on a `choice` question.
+        required:
+          type: boolean
+          description: >-
+            The operator needs an answer. Show it as needed. A checkout that
+            sends `answers` is refused `409 answers_required` until this
+            question has an answer that fits; a checkout that sends no `answers`
+            is not, and the traveller can answer from the booking link
+            afterwards.
+
+    PartyQuestion:
+      type: object
+      additionalProperties: false
+      description: >-
+        One question as it stands for this party: the words they were asked, and
+        their answer if they gave one. Every question the listing asks now comes
+        first, in the listing's order, answered or not. After them comes any
+        question this party answered that the listing no longer asks, with
+        `current: false`, so an earlier answer stays readable with its words.
+      required: [questionId, text, answerType, required, current, answered]
+      properties:
+        questionId: { type: string }
+        text:
+          type: string
+          description: >-
+            The words this party was asked. They never change once a question
+            exists, so on an answered question these are the words answered.
+        answerType: { type: string, enum: [short_text, choice, yes_no] }
+        options:
+          type: array
+          items: { type: string }
+          description: Present only on a `choice` question.
+        required: { type: boolean }
+        current:
+          type: boolean
+          description: >-
+            `false` when the listing no longer asks this question. Only an
+            answered question appears with `current: false`, and it cannot be
+            answered again.
+        answered:
+          type: boolean
+          description: "`false` means not answered yet."
+        answer:
+          type: string
+          description: >-
+            Present when answered: `yes` or `no`, one of `options` as the
+            listing wrote it, or the traveller's own words.
+        answeredAt: { type: string, format: date-time }
+
+    BookingAnswer:
+      type: object
+      additionalProperties: false
+      required: [questionId, answer]
+      properties:
+        questionId:
+          type: string
+          description: The `id` of one of the listing's `questions`.
+        answer:
+          type: string
+          maxLength: 300
+          description: >-
+            `yes` or `no` for a `yes_no` question, one of `options` for a
+            `choice` question, and up to 300 characters for `short_text`.
+
+    BookingAnswersInput:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: "#/components/schemas/BookingAnswer" }
 
     Screening:
       type: object
@@ -2163,7 +3054,7 @@ components:
       required: [name, whatsapp]
       properties:
         name: { type: string, maxLength: 120 }
-        whatsapp: { type: string, description: E.164, e.g. +919000000000 }
+        whatsapp: { type: string, description: "E.164, e.g. +919000000000" }
         email: { type: string, description: Optional. }
         marketingConsent:
           type: boolean
@@ -2260,7 +3151,35 @@ components:
             available: { type: boolean }
             confirmAt:
               type: string
-              description: Path to POST to, relative to the API base.
+              description: >-
+                Path to POST to, relative to the API base — the same path as
+                `POST /reservations/{id}/cash-booking`, so it carries no `/v1` of
+                its own.
+
+    ReelItem:
+      type: object
+      description: >-
+        One reel and the listing it sells: the item `GET /reels` pages, and
+        what `GET /reels/{id}` returns.
+      required: [media, experience]
+      properties:
+        media: { $ref: "#/components/schemas/Media" }
+        experience: { $ref: "#/components/schemas/ExperienceSummary" }
+
+    VocabularyTerm:
+      type: object
+      required: [key, label]
+      properties:
+        key: { type: string, description: What to send. }
+        label: { type: string, description: What to show. }
+
+    ActivityTypeTerm:
+      type: object
+      required: [key, label, category]
+      properties:
+        key: { type: string, examples: ["scuba"] }
+        label: { type: string, examples: ["Scuba diving"] }
+        category: { $ref: "#/components/schemas/Category" }
 
     ReelPage:
       type: object
@@ -2397,7 +3316,7 @@ components:
 
     BookingStatus:
       type: object
-      required: [reservationId, state, final, guests, experience, slot, price]
+      required: [reservationId, state, final, guests, experience, slot, price, review]
       properties:
         reservationId: { type: string }
         state:
@@ -2426,6 +3345,12 @@ components:
             this endpoint must never do.
 
 
+            A **cash** booking reads `confirmed` as soon as it is made, never
+            `verifying`: the seat was taken against a live hold and is the
+            traveller's, and no money has moved to wait on. What they still owe
+            the operator is in `payment` (D-034).
+
+
             `declined` means money was taken and the seat could not be
             delivered; a full refund is already recorded and `refund` carries
             where it is.
@@ -2448,11 +3373,20 @@ components:
             person who supplied them, and "usually" is not an access rule.
         experience:
           type: object
-          required: [slug, title, operator]
+          required: [slug, title, operator, operatorSlug, heroImageUrl]
           properties:
             slug: { type: string }
             title: { type: string }
             operator: { type: string }
+            operatorSlug:
+              type: string
+              description: The business, for linking to its page.
+            heroImageUrl:
+              type: [string, "null"]
+              format: uri
+              description: >-
+                The listing's headline picture, resolved as the catalog resolves
+                `heroMedia`. `null` when the listing has none; always sent.
         slot:
           type: object
           required: [startsAt, timezone]
@@ -2499,7 +3433,9 @@ components:
           type: string
           format: date-time
           description: >-
-            When an unanswered request lapses — "answer by". The creation
+            When an unanswered request lapses — "answer by". Since 2026-09-13
+            this is the departure's booking cutoff, which can be days away, so
+            show it as a date and time rather than a countdown. The creation
             response carried this and the status page could not show it, so a
             traveller waiting had no idea how long for. Absent once the booking
             is final.
@@ -2516,13 +3452,65 @@ components:
             "see your booking page" has somewhere to look.
           items:
             type: object
+            required: [kind, from, sentAt]
             properties:
-              intent:
+              kind:
                 type: string
                 enum: [time_change, meeting_point_change, weather_watch, bring_item, note]
+                description: What sort of update this is.
+              from:
+                type: string
+                description: >-
+                  Who sent it: the business's display name. An update about
+                  somebody's morning that appears from nobody is not reassuring.
+              intent:
+                type: string
+                deprecated: true
+                enum: [time_change, meeting_point_change, weather_watch, bring_item, note]
+                description: >-
+                  Never emitted. This document named the field `intent` while
+                  the server has always sent `kind`; read `kind`.
               detail: { type: string }
               note: { type: string }
               sentAt: { type: string, format: date-time }
+        payment:
+          type: object
+          required: [method, collected, amountPaise]
+          description: >-
+            Present only for a booking paid in cash at the counter: what the
+            traveller still owes the operator, and whether it has been taken. A
+            card booking carries no `payment`.
+
+
+            Render it beside `confirmed` — the seat is booked, and this is what to
+            bring on the day (D-034).
+          properties:
+            method:
+              type: string
+              enum: [cash]
+            collected:
+              type: boolean
+              description: "`true` once the operator has recorded taking the cash."
+            amountPaise:
+              type: integer
+              description: >-
+                What to bring, from the price frozen at checkout — the same
+                number as `price.totalPaise`.
+        questions:
+          type: array
+          description: >-
+            The questions this listing asks and what this party answered. Absent
+            when the listing asks nothing and nothing was answered. A question
+            with `answered: false` is not answered yet; answer it with
+            `POST /bookings/answers` while `answersOpen` is `true`.
+          items: { $ref: "#/components/schemas/PartyQuestion" }
+        answersOpen:
+          type: boolean
+          description: >-
+            Present with `questions`. `true` while `POST /bookings/answers` will
+            take an answer: the booking is going ahead and its departure has not
+            left. Told rather than inferred, so a form is never offered that
+            would be refused.
         refund:
           type: [object, "null"]
           description: >-
@@ -2537,6 +3525,119 @@ components:
             message:
               type: string
               description: Ready-to-render copy for the current refund state.
+        review:
+          type: object
+          required: [reviewed, canReview]
+          description: >-
+            Whether to offer "how did it go". Always sent. `canReview` is true
+            for a `completed` trip with no review that ended no more than 30
+            days ago, which is exactly when `leaveReview` accepts one.
+          properties:
+            reviewed: { type: boolean }
+            canReview: { type: boolean }
+            rating:
+              type: integer
+              minimum: 1
+              maximum: 5
+              description: The stars given. Present only once reviewed.
+
+    BookingMessage:
+      type: object
+      required: [id, from, senderName, sentAt]
+      properties:
+        id:
+          type: string
+          description: Send it as `upTo` to mark this message and everything before it read.
+        from:
+          type: string
+          enum: [traveller, operator]
+          description: "`traveller` is the person holding this link; `operator` is the business."
+        senderName:
+          type: string
+          description: >-
+            The name to show beside it: the name given at checkout on the
+            traveller's messages, and the business's name on the business's.
+        text:
+          type: string
+          description: >-
+            What was written, trimmed, with its line breaks. Every message
+            carries exactly one of `text` and `textRemovedAt`, and a message
+            that was just sent always carries `text`.
+        textRemovedAt:
+          type: string
+          format: date-time
+          description: >-
+            When the text was removed, a set time after the trip ended. Present
+            only in place of `text`. Show the message as one whose text was
+            removed, never as an empty message.
+        sentAt: { type: string, format: date-time }
+
+    BookingMessageThread:
+      type: object
+      required: [messages, complete, unreadCount, canWrite]
+      properties:
+        messages:
+          type: array
+          description: >-
+            Oldest first within the page. The first page is the most recent
+            messages.
+          items: { $ref: "#/components/schemas/BookingMessage" }
+        complete:
+          type: boolean
+          description: >-
+            `true` when the conversation begins on this page. `false` always
+            comes with a `nextCursor` for the messages before it.
+        nextCursor:
+          type: string
+          description: Absent when nothing came before this page.
+        unreadCount:
+          type: integer
+          description: Messages from the business the traveller has not marked read.
+        canWrite:
+          type: boolean
+          description: Whether a message can be sent now.
+        closedReason:
+          type: string
+          enum: [not_booked, cancelled, declined, window_closed]
+          description: >-
+            Present only when `canWrite` is `false`. `not_booked`: the link's
+            hold or request never became a booking. `cancelled` and `declined`:
+            the booking ended, and nothing reopens it. `window_closed`: the trip
+            ended longer ago than messages stay open.
+        writableUntil:
+          type: string
+          format: date-time
+          description: >-
+            When writing stops on its own, a set time after the trip ends.
+            Present while the conversation is open and once that time has
+            passed. Absent when there is no booking, or it was cancelled or
+            declined.
+
+    BookingMessageInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: The message. Trimmed, with its line breaks kept.
+
+    BookingMessageReadInput:
+      type: object
+      required: [upTo]
+      properties:
+        upTo:
+          type: string
+          description: The `id` of the last message that was shown.
+
+    BookingMessageReadReceipt:
+      type: object
+      required: [unreadCount]
+      properties:
+        unreadCount:
+          type: integer
+          description: Messages from the business still unread after this.
 
     BookingInput:
       type: object

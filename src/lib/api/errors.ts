@@ -65,6 +65,18 @@ export const ERROR_CODES = [
   "confirmation_required",
   "invalid_reason_code",
   "invalid_role",
+  /*
+    The listing's own questions, and the conversation with the business
+    (yuvoy-app#46, #47).
+
+    Without these three `YuvoyError.code` falls to `unknown_error` and
+    `describeError` says "Something went wrong ... trying again often fixes
+    it" over three refusals that each have a true, actionable sentence behind
+    them and that trying again cannot fix.
+  */
+  "answers_required",
+  "answers_closed",
+  "messages_closed",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

@@ -65,11 +65,29 @@ describe("palette", () => {
     const ALLOWED = [
       "src/components/feed/",
       "src/components/experience/experience-detail.tsx",
+      /*
+        The listing's gallery and its full-screen view — yuvoy-app#32. The
+        strip's ground behind a poster that has not loaded, and the lightbox's
+        ground behind an `object-contain` frame. Both are the sanctioned media
+        usage: `forest` letterboxes in a visibly green frame and tints dark
+        underwater footage, which is the same reasoning §1 records for the
+        feed.
+      */
+      "src/components/experience/gallery.tsx",
       "src/components/search/search-screen.tsx",
-      // The operator page's poster grounds — the listing cards' thumbnails and
-      // the reel grid's tiles. Same use as the two above it: a ground standing
-      // in for media on a sheet, never a surface.
+      /*
+        The operator page's poster grounds — the profile's logo tile and photo
+        grid, and a listing card's thumbnail. Same use as the two above: a
+        ground standing in for media on a sheet, never a surface.
+
+        Listed FILE BY FILE, not as `src/components/operator/`. The directory
+        prefix would be one character shorter and would sign a blank cheque for
+        every screen added to it — and two were added in the same change that
+        split `listing-card.tsx` out of the screen (yuvoy-app#33), neither of
+        which had been reviewed for this rule.
+      */
       "src/components/operator/operator-screen.tsx",
+      "src/components/operator/listing-card.tsx",
       "src/app/globals.css",
     ];
 
@@ -391,69 +409,129 @@ describe("measured contrast", () => {
       }
     });
 
-    it("keeps the feed's chrome inside the interaction budget", () => {
+    it("keeps every transition inside its own budget", () => {
       /*
-        §3 of the design system splits motion in two, and this is the half
-        that is easy to get wrong: the retract ANSWERS A GESTURE, so it is
-        interaction feedback (≤250ms, `--ease-interaction`) and not an
-        entrance (~1100ms, `--ease-cinematic`).
+        §3 of the design system splits motion in two: interaction feedback
+        (≤250ms, `--ease-interaction`) and entrances (~1100ms,
+        `--ease-cinematic`). Getting the pairing wrong is easy and the symptom
+        is vague — the feed's retract shipped at 460ms of the cinematic curve,
+        a fifth of a second of lag on a movement a traveller triggered with
+        every swipe, and the marketing site's sliding header already had a
+        ruling against exactly that.
 
-        It shipped at 460ms of the cinematic curve first. That is a fifth of a
-        second of lag on a movement a traveller triggers with every swipe —
-        and the same mistake the marketing site's sliding header already had a
-        ruling against, which is what this test is here to remember.
+        ## This test was scoped to one CSS block, and that was the bug in it
 
-        Comments are stripped first: the block explains the budget it obeys,
-        and a scanner that read the explanation would fail the file for
-        documenting its own rule.
+        It read `@layer components` in globals.css, because that is where the
+        retract lived. yuvoy-app#36 deleted the retract and the assertion went
+        from "four transitions, all inside budget" to "zero transitions, all
+        inside budget" — which passes. A scoped check over an empty set is the
+        quietest way for a rule to stop being enforced, so the
+        `toBeGreaterThan` below is doing real work and is the only reason the
+        deletion was noticed at all.
+
+        It now reads where the rule can actually be broken: the Tailwind pairs
+        in component source, which is every transition in the app bar one, and
+        any `Nms var(--ease-…)` still written by hand in CSS.
       */
-      const chrome = /@layer components \{([\s\S]*?)\n\}/.exec(
-        read(join(SRC, "app/globals.css")),
-      );
-      expect(chrome, "the feed's chrome layer is gone").not.toBeNull();
+      const budget: [string, number, string][] = [];
 
-      const timings = [
-        ...chrome![1].matchAll(/(\d+)ms var\(--ease-([a-z]+)\)/g),
-      ];
-      expect(timings.length, "no transitions found to check").toBeGreaterThan(
-        3,
-      );
+      for (const file of FILES.filter((f) => f.endsWith(".tsx"))) {
+        const src = read(file);
+        // Each class-ish string literal, so a `duration-` is only ever paired
+        // with an ease in the SAME className.
+        for (const [literal] of src.matchAll(/"[^"\n]*"|`[^`\n]*`/g)) {
+          const ease = /\bease-(interaction|cinematic)\b/.exec(literal);
+          const ms = /\bduration-(\d+)\b/.exec(literal);
+          if (ease && ms) budget.push([rel(file), Number(ms[1]), ease[1]]);
+        }
+      }
 
-      for (const [whole, ms, ease] of timings) {
-        expect(Number(ms), whole).toBeLessThanOrEqual(250);
-        expect(ease, whole).toBe("interaction");
+      for (const [whole, ms, ease] of read(
+        join(SRC, "app/globals.css"),
+      ).matchAll(/(\d+)ms var\(--ease-([a-z]+)\)/g)) {
+        budget.push([whole, Number(ms), ease]);
+      }
+
+      expect(
+        budget.length,
+        "no transitions found to check — the scan is looking in the wrong place",
+      ).toBeGreaterThan(3);
+
+      for (const [where, ms, ease] of budget) {
+        if (ease === "interaction") {
+          expect(
+            ms,
+            `${where}: interaction motion over budget`,
+          ).toBeLessThanOrEqual(250);
+        } else if (ease === "cinematic") {
+          /*
+            An entrance. Anything this slow answering a gesture is the defect
+            above; anything this fast arriving on first paint is not an
+            entrance and should be on the interaction curve instead.
+          */
+          expect(
+            ms,
+            `${where}: cinematic motion too brief to be an entrance`,
+          ).toBeGreaterThan(250);
+        }
       }
     });
 
     it("keeps the wordmark legible over the same frame", () => {
-      // The mark occupies 12%–39% of the top scrim, which is 16px to 52px of
-      // the masthead's 132px block. The next test is what keeps that true.
+      /*
+        The mark occupies 13%–36% of the top scrim: 16px to 44px of the
+        masthead's 124px block. The next test is what keeps that true.
+
+        It was 12%–39% of a 132px block while the mark was the full lockup at
+        `h-9`. The compact mark is shorter, so the band moved UP the gradient,
+        which is the darker end — the worst case sampled here is now better
+        than the one it was written for, and the numbers are updated rather
+        than left flattering.
+      */
       const ramp = stops("feed-scrim-top");
-      expect(creamOverScrim(alphaAt(ramp, 12))).toBeGreaterThanOrEqual(7);
-      expect(creamOverScrim(alphaAt(ramp, 39))).toBeGreaterThanOrEqual(4.5);
+      expect(creamOverScrim(alphaAt(ramp, 13))).toBeGreaterThanOrEqual(7);
+      expect(creamOverScrim(alphaAt(ramp, 36))).toBeGreaterThanOrEqual(4.5);
     });
 
     it("pins the masthead's height to the gradient measured against it", () => {
       /*
         The one above is a claim about a POSITION in a gradient, and the
-        position is decided by the block's padding — 16px above the mark, 36px
-        of mark, 80px of tail. Change the padding without changing the stops
-        and the mark slides into a lighter band with every contrast test still
-        passing, which is the quietest possible way to break this.
+        position is decided by the block's own box: 16px above the mark, 28px
+        of mark, 80px of tail — 124px, and `feed-scrim-top`'s stops are
+        percentages of exactly that. Change any of the three without changing
+        the stops and the mark slides into a lighter band with every contrast
+        test still passing, which is the quietest possible way to break this.
+
+        All three are pinned here, on the ONE component both reel surfaces use
+        (yuvoy-app#36 — the feed and a shared reel had each begun to carry
+        their own copy of it).
+
+        `h-7`, not the lockup's `h-9`. The ensō is ~70% of the delivered
+        drawing's height and ~95% of the compact one, so keeping `h-9` would
+        have made the mark itself a third larger and pushed the block to 132px.
       */
-      const feed = readFileSync(join(SRC, "components/feed/feed.tsx"), "utf8");
-      const masthead = /className="feed-scrim-top feed-masthead[^"]*"/.exec(
-        feed,
+      const strip = readFileSync(
+        join(SRC, "components/feed/reel-strip.tsx"),
+        "utf8",
       );
+      const masthead = /className="feed-scrim-top[^"]*"/.exec(strip);
       expect(
         masthead,
         "the masthead no longer wears its own scrim",
       ).not.toBeNull();
       expect(masthead![0]).toContain("pt-4");
       expect(masthead![0]).toContain("pb-20");
-      expect(feed).toContain(
-        '<Wordmark tone="cream" className="h-9" priority />',
-      );
+
+      const marks = [...strip.matchAll(/<Wordmark ([^/]*)\/>/g)];
+      expect(marks.length, "no Wordmark in the masthead").toBeGreaterThan(0);
+      for (const [, props] of marks) {
+        expect(props, "the tagline is back over the reel").toContain(
+          'variant="compact"',
+        );
+        expect(props, "the mark's height decides the block's").toContain(
+          'className="h-7"',
+        );
+      }
     });
   });
 

@@ -172,6 +172,28 @@ const CATEGORIES: ReadonlySet<string> = new Set<
   "events",
 ]);
 
+/**
+ * The twelve categories the contract declares, for the 400 an unknown one gets.
+ *
+ * Typed off the schema rather than written out, so the day the enum grows this
+ * mock grows with it instead of refusing a value production accepts — which is
+ * the exact drift `pnpm contract:check` exists to prevent one layer up.
+ */
+const KNOWN_CATEGORIES = new Set<string>([
+  "adventure",
+  "nature_wildlife",
+  "food_drink",
+  "arts_creativity",
+  "learning",
+  "culture_heritage",
+  "wellness",
+  "entertainment",
+  "community",
+  "sports",
+  "local_life",
+  "events",
+] satisfies components["schemas"]["Category"][]);
+
 export const handlers = [
   /* ------------------------------------------------------------- catalog */
 
@@ -323,6 +345,55 @@ export const handlers = [
     );
   }),
 
+  /*
+    The filter chips' word list — yuvoy-app#37, api#173.
+
+    The ACTIVE vocabulary, not the populated one, which is what the contract
+    publishes and is the behaviour worth mocking: a value with no listing
+    behind it today is still offered, and filtering by it answers an empty
+    page. Deriving this from `EXPERIENCES` would quietly mock the OLD
+    behaviour — the derived chips this replaces — and the one state the new
+    screen has to handle well (a chip that finds nothing) would be unreachable.
+  */
+  http.get(url("/catalog/vocabulary"), async ({ request }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+
+    return HttpResponse.json(
+      {
+        categories: [
+          { key: "adventure", label: "Adventure" },
+          { key: "nature_wildlife", label: "Nature and wildlife" },
+          { key: "food_drink", label: "Food and drink" },
+          // Offered with nothing behind it, on purpose. See above.
+          { key: "wellness", label: "Wellness" },
+        ],
+        activityTypes: [
+          { key: "scuba", label: "Scuba diving", category: "adventure" },
+          { key: "snorkelling", label: "Snorkelling", category: "adventure" },
+          { key: "kayaking", label: "Kayaking", category: "adventure" },
+          {
+            key: "private_charter",
+            label: "Private charter",
+            category: "adventure",
+          },
+          {
+            key: "birdwatching",
+            label: "Birdwatching",
+            category: "nature_wildlife",
+          },
+          { key: "tasting", label: "Tasting", category: "food_drink" },
+        ],
+        destinations: [
+          { key: "andaman/havelock", label: "Havelock (Swaraj Dweep)" },
+          { key: "andaman/neil", label: "Neil (Shaheed Dweep)" },
+          { key: "andaman/port_blair", label: "Port Blair" },
+        ],
+      },
+      { headers: mockHeaders(requestId()) },
+    );
+  }),
+
   http.get(url("/reels"), async ({ request }) => {
     const failed = await commonFailure(request);
     if (failed) return failed;
@@ -343,12 +414,58 @@ export const handlers = [
     }
 
     const scenario = scenarioOf(request);
-    const all =
+    const unfiltered =
       scenario === "empty"
         ? []
         : scenario === "long-feed"
           ? LONG_REEL_FEED
           : REELS;
+
+    /*
+      Filters — yuvoy-app#37, api#173. They NARROW; they never reorder. The
+      rotation is counted within the filtered set, so the surviving order is
+      the source order, which is what slicing preserves.
+
+      An unknown `category` is a 400 and an unknown `activityType` is an empty
+      page. The asymmetry is the contract's and is deliberate on its side —
+      `category` is a closed enum, so an unknown value means the client and the
+      server disagree about a fixed vocabulary; `activityType` grows by INSERT,
+      so today's unknown is tomorrow's real one. Mocked faithfully because a
+      client that cannot tell them apart is the failure the contract is
+      guarding against.
+    */
+    const q = u.searchParams.get("q")?.trim().toLowerCase();
+    const destinationKey = u.searchParams.get("destinationKey");
+    const category = u.searchParams.get("category");
+    const activityType = u.searchParams.get("activityType");
+    const bookableOn = u.searchParams.get("bookableOn");
+
+    if (category && !KNOWN_CATEGORIES.has(category)) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "invalid_input",
+            message: `category is not one this API knows — got ${JSON.stringify(category)}.`,
+          },
+        },
+        { status: 400, headers: mockHeaders(requestId()) },
+      );
+    }
+
+    const all = unfiltered.filter((reel) => {
+      const e = reel.experience;
+      if (q) {
+        const hay = `${e.title} ${e.location ?? ""} ${e.activityTypeLabel ?? ""}`;
+        if (!hay.toLowerCase().includes(q)) return false;
+      }
+      if (destinationKey && e.destinationKey !== destinationKey) return false;
+      if (category && e.category !== category) return false;
+      if (activityType && e.activityType !== activityType) return false;
+      // Only reels of listings bookable that day. `nextAvailable` is the only
+      // date this fixture carries, so it stands in for the departure list.
+      if (bookableOn && e.nextAvailable !== bookableOn) return false;
+      return true;
+    });
 
     const rawCursor = u.searchParams.get("cursor");
     const start = rawCursor ? Number(atob(rawCursor)) : 0;
@@ -388,6 +505,29 @@ export const handlers = [
       },
       { headers: mockHeaders(requestId()) },
     );
+  }),
+
+  /*
+    One reel, by its own media id — yuvoy-app#36, api#173.
+
+    Declared BEFORE `/reels` would be a problem in a router that matched
+    loosely; MSW matches the whole path, so `/reels/:id` and `/reels` cannot
+    collide. It is placed after them for reading order only.
+
+    A reel the feed would not show and one that never existed answer the same
+    404, exactly as the contract says, so nothing here can tell them apart
+    either. `LONG_REEL_FEED` is deliberately NOT searched: it is a scenario
+    fixture for paging, and a share link minted from it would resolve against
+    the real feed's ids in a way production never would.
+  */
+  http.get(url("/reels/:id"), async ({ request, params }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+
+    const reel = REELS.find((r) => r.media.id === String(params.id));
+    if (!reel) return envelope("not_found", "No such reel.", 404);
+
+    return HttpResponse.json(reel, { headers: mockHeaders(requestId()) });
   }),
 
   http.get(url("/experiences/:slug"), async ({ request, params }) => {

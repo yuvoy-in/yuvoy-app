@@ -19,11 +19,14 @@ import {
 import { openHostedCheckout } from "@/lib/booking/payment-handoff";
 import { YuvoyError, isCheckoutDeadEnd } from "@/lib/api/errors";
 import { CancelSheet } from "./cancel-sheet";
+import { BookingQuestions } from "./booking-questions";
+import { MessageThread } from "./message-thread";
 import { ShareButton } from "./share-button";
 import {
   amountToBring,
   isBooked,
-  isCashDue,
+  cashOwed,
+  cashOwedPaise,
   readPayAtCounter,
   type CashBooking,
 } from "@/lib/booking/cash-booking";
@@ -148,6 +151,26 @@ function StatusBody({
   onChanged?: () => void;
 }) {
   const copy = stateCopy(status.state);
+  /*
+    A CANCELLED BOOKING THAT PAID NOTHING ONLINE HAS NO REFUND COMING —
+    yuvoy-app#48 §2.
+
+    `STATE_COPY.cancelled` opens "Your refund has already started." That was
+    safe while every cancellable booking had money in it, and D28 ended that:
+    a booking paid in cash cancels from the sheet with `refundPaise` 0, and
+    then reads a promise of money that is not moving because none was taken.
+
+    The sentence is DROPPED rather than replaced with its opposite. `refund` is
+    "present only when a refund exists", and a real refund may not have a row
+    the instant the cancellation lands, so asserting "nothing is coming back"
+    would be the same mistake pointed the other way. What is left is true in
+    both cases, and `RefundProgress` below renders the refund the moment there
+    is one, from the server's own state rather than from static copy.
+  */
+  const body =
+    status.state === "cancelled" && !status.refund
+      ? "Rebooking is a fresh booking rather than a silent move. The price you see will be the price you pay."
+      : copy.body;
 
   /*
     The reference in the tab, because the server cannot put it there.
@@ -209,7 +232,7 @@ function StatusBody({
       {reason ? (
         <p className="mt-3 max-w-prose text-sm font-bold">{reason}</p>
       ) : null}
-      <p className="text-forest/70 mt-3 max-w-prose text-sm">{copy.body}</p>
+      <p className="text-forest/70 mt-3 max-w-prose text-sm">{body}</p>
 
       {/*
         The countdown renders ONLY while holding. `holdExpiresAt` is absent in
@@ -246,23 +269,35 @@ function StatusBody({
         WHAT TO BRING, FOR AS LONG AS IT IS OWED — yuvoy-app#29.
 
         The success panel is transient by design: the moment a cash booking
-        lands the status is refetched, the state becomes `paid_pending_ops`,
-        and the pay area stops rendering. Without this the amount and the
-        instruction would vanish with it — and a traveller who reloads on the
-        morning of the trip would have a reference and no idea what to bring.
+        lands the status is refetched and the pay area stops rendering. Without
+        this the amount and the instruction would vanish with it, and a
+        traveller who reloads on the morning of the trip would have a reference
+        and no idea what to bring.
 
-        Driven by the FROZEN price on the booking, not a fresh read of the
-        listing: an operator editing a price cannot restate what this traveller
-        agreed to.
+        Read off `payment`, NOT off the state, and that is a correction rather
+        than a preference — see `cashOwed`. D-034 made a cash booking read
+        `confirmed` from the moment it is made, so the old
+        `state === "paid_pending_ops"` test silently stopped matching and this
+        panel silently stopped rendering.
 
-        It disappears at `confirmed`, which is the operator recording that they
-        took the money. "The honest version is a quiet line that disappears
-        once it flips."
+        The amount is `payment.amountPaise`: the price frozen at checkout, so
+        an operator editing a price cannot restate what this traveller agreed
+        to, and the field that names the obligation rather than the one that
+        names the sale.
+
+        It disappears when `collected` flips, which is the operator recording
+        that they took the money. "The honest version is a quiet line that
+        disappears once it flips."
       */}
-      {isCashDue(status.state) ? (
+      {cashOwed(status) ? (
         <Panel className="mt-6">
           <p className="text-base font-bold">
-            Bring {formatTotal(status.price)} in cash
+            Bring{" "}
+            {formatMoney({
+              amountMinor: cashOwedPaise(status) ?? 0,
+              currency: status.price?.currency ?? "INR",
+            })}{" "}
+            in cash
           </p>
           <p className="text-forest/70 mt-1.5 text-sm">
             Pay the operator at the meeting point. The money goes to them, not
@@ -361,11 +396,14 @@ function StatusBody({
 
             "To pay on the day" rather than "Unpaid" or "Due": the booking is
             confirmed and the wording must not read as a debt or as a problem
-            with it. Once the operator records taking the cash the state
-            becomes `confirmed` and this goes back to "Paid", which is then
-            true.
+            with it. Once the operator records taking the cash `payment
+            .collected` flips and this goes back to "Paid", which is then true.
+
+            It used to key on the state, and D-034 made that always false — so
+            this row said "Paid ₹9,000" to somebody who had not handed over a
+            rupee. See `cashOwed`.
           */}
-          <Row label={isCashDue(status.state) ? "To pay on the day" : "Paid"}>
+          <Row label={cashOwed(status) ? "To pay on the day" : "Paid"}>
             {formatTotal(status.price)}
           </Row>
         </dl>
@@ -382,6 +420,50 @@ function StatusBody({
         <OperatorUpdates
           updates={status.operatorUpdates}
           timezone={status.slot.timezone}
+        />
+      ) : null}
+
+      {/*
+        WHAT THE OPERATOR ASKED - yuvoy-app#46 §4.
+
+        Under the operator's own notes, because both are the business talking
+        to this traveller and this is the half they can answer. Needs the
+        network, so it is absent on an offline snapshot like every other
+        action on this screen.
+
+        `answersOpen` is read as told: `?? false` rather than inferred from
+        the state and the departure, because the contract sends it precisely
+        so "a form is never offered that would be refused".
+      */}
+      {token && status.questions?.length ? (
+        <BookingQuestions
+          token={token}
+          questions={status.questions}
+          answersOpen={status.answersOpen ?? false}
+        />
+      ) : null}
+
+      {/*
+        THE CONVERSATION WITH THE BUSINESS - yuvoy-app#47.
+
+        Under the operator's one-way notes and the questions, because this is
+        the same conversation getting more specific: what they told everybody,
+        what they asked this party, and what these two can say to each other.
+
+        Rendered for any link with a token, INCLUDING one whose hold or
+        request never became a booking: that answers "an empty, complete
+        conversation with `canWrite: false` and `closedReason: not_booked`,
+        not an error", and saying "messages open once the booking is made" is
+        more useful than a panel that is simply absent.
+
+        Absent on an offline snapshot, like every other action here, because
+        there is no token to open it with.
+      */}
+      {token ? (
+        <MessageThread
+          token={token}
+          operatorName={status.experience.operator}
+          bookingState={status.state}
         />
       ) : null}
 
@@ -920,6 +1002,23 @@ function ReleaseButton({
   );
 }
 
+/**
+ * What sort of update this is.
+ *
+ * `kind` is the field, and `intent` is a name that was only ever in the
+ * document: "Never emitted. This document named the field `intent` while the
+ * server has always sent `kind`; read `kind`." So the panel read a key the API
+ * has never sent, fell through to `"note"` on every update, and labelled a
+ * moved meeting point "A note" for as long as it has shipped. The mock sent
+ * `intent`, which is why nothing caught it.
+ *
+ * `intent` is still read, second: the contract keeps declaring it, and a field
+ * that is deprecated rather than deleted costs one `??` to honour.
+ */
+function updateKind(u: { kind?: string; intent?: string }): string {
+  return u.kind ?? u.intent ?? "note";
+}
+
 /** What the operator has told everybody on this departure. */
 const UPDATE_LABEL: Record<string, string> = {
   time_change: "Time changed",
@@ -944,12 +1043,9 @@ function OperatorUpdates({
         </h2>
         <ul className="mt-3 space-y-3">
           {updates.map((u, i) => (
-            <li
-              key={`${u.sentAt ?? i}-${u.intent ?? "note"}`}
-              className="text-sm"
-            >
+            <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
               <p className="font-bold">
-                {UPDATE_LABEL[u.intent ?? "note"] ?? "From the operator"}
+                {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
                 {u.detail ? `: ${u.detail}` : ""}
               </p>
               {u.note ? <p className="text-forest/80 mt-1">{u.note}</p> : null}
@@ -1101,6 +1197,14 @@ export function cancellationReason(code?: string): string | null {
     MEDICAL_UNFIT: "This trip was not medically suitable.",
     TRAVELLER_REQUEST: "You asked us to cancel.",
     CUSTOMER_REQUEST: "You asked us to cancel.",
+    /*
+      D-032.3, yuvoy-app#48 §1. The operator moved the departure after this
+      booking was made, so cancelling refunded everything paid online whatever
+      the tier. Without an entry the fallback said "The operator or we called
+      it off." to somebody who cancelled BECAUSE the time changed under them:
+      the wrong actor, and it hides the one fact that explains the full refund.
+    */
+    OPERATOR_MOVED_IT: "The operator moved this departure after you booked.",
     PAYMENT_FAILED: "The payment did not complete.",
     ADMIN_ERROR: "This was our mistake.",
   };
@@ -1109,17 +1213,26 @@ export function cancellationReason(code?: string): string | null {
 }
 
 /**
- * How long the operator has left to answer a request.
+ * When the operator has to answer by — yuvoy-app#32.
  *
- * The same machinery as `HoldCountdown` and deliberately not the same copy:
- * a hold is the traveller's clock — pay before it runs out — and this is
- * somebody else's. Nothing is required of the person reading it, so it is
- * `raised` rather than `alert` at every point on the clock, and there is no
- * urgent state. A request lapsing costs them nothing; they were never charged.
+ * ## It used to tick, and the API made that absurd
  *
- * The deadline is stated in the MARKET's zone, like every other time on this
- * screen, and against the server's clock via the offset each response teaches
- * us — a phone an hour fast used to show a live hold as already expired.
+ * `requestExpiresAt` was a short answer clock: a request lapsed in about two
+ * hours, so a live countdown beside it was the right shape. yuvoy-api#170
+ * changed it to the departure's booking CUTOFF, which is routinely days away
+ * — "so show it as a date and time rather than a countdown".
+ *
+ * The countdown was `formatCountdown`, which is `m:ss`. Three days out it
+ * rendered "4320:00" and decremented once a second: a number nobody can read
+ * as a duration, on a screen whose whole job is to stop somebody worrying.
+ *
+ * So the deadline is a date and a time, said once, with no interval and no
+ * re-render. Which is also the honest shape: the traveller is waiting on a
+ * person, not on a clock, and a second-by-second display implies a precision
+ * the answer does not have.
+ *
+ * Still `role="timer"` with `aria-live="off"`: it is a deadline, and it must
+ * not be announced.
  */
 function AnswerBy({
   expiresAt,
@@ -1128,17 +1241,6 @@ function AnswerBy({
   expiresAt: string;
   timezone: string;
 }) {
-  const [left, setLeft] = useState(() => msUntil(expiresAt, clockOffsetMs()));
-
-  useEffect(() => {
-    const t = setInterval(
-      () => setLeft(msUntil(expiresAt, clockOffsetMs())),
-      1000,
-    );
-    return () => clearInterval(t);
-  }, [expiresAt]);
-
-  const when = new Date(expiresAt);
   const deadline = new Intl.DateTimeFormat("en-IN", {
     timeZone: timezone,
     weekday: "long",
@@ -1147,16 +1249,15 @@ function AnswerBy({
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(when);
+  }).format(new Date(expiresAt));
 
   return (
     <Panel className="mt-6" role="timer" aria-live="off">
       <p className="label text-forest/75">The operator has until</p>
       <p className="mt-1 text-lg font-bold">{deadline}</p>
       <p className="text-forest/70 mt-2 text-sm">
-        {left > 0
-          ? `${formatCountdown(left)} left to answer. Nothing has been charged, and you can withdraw the ask at any time.`
-          : "That has passed. If they do not answer, the request lapses on its own and nothing is charged."}
+        Nothing has been charged, and you can withdraw the ask at any time. If
+        they do not answer by then, the request lapses on its own.
       </p>
     </Panel>
   );

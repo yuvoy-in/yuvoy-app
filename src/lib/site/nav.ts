@@ -78,21 +78,50 @@ export const FOCUSED_ROUTE_PREFIXES = [
   "/trips/recover",
   "/guides/",
   "/offline",
-] as const;
+  /*
+    A business's own pages, one level in — yuvoy-app#33. `/o/{slug}` itself is
+    a tab-less destination a traveller can arrive at from a listing or a search
+    result and keeps the bar; what they run and one of their reels are places
+    they go INTO from it, and both carry their own way back.
 
-/**
- * THE feed — the one route whose chrome retracts as a traveller scrolls.
- *
- * Here rather than as a `pathname === "/"` in the tab bar, because the bar is
- * the one place in the app that must be able to say "the feed asked for this
- * and we are on the feed". `/e/...` is a focused route and never reaches that
- * question; a future second reel surface would be added here and nowhere else.
- */
-export function isFeedRoute(pathname: string | null | undefined): boolean {
-  return pathname === "/";
-}
+    `*` matches one path segment, because the slug sits in the middle. The same
+    wildcard `PRIVATE_ROUTES` uses for `/e/*​/book`, and the reason
+    `isFocusedRoute` is not a plain `startsWith` any more.
+  */
+  "/o/*/listings",
+  "/o/*/r/",
+  // A search result, playing. `/search` itself is a tab root and keeps the bar.
+  "/search/r/",
+] as const;
 
 export function isFocusedRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
-  return FOCUSED_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  return FOCUSED_ROUTE_PREFIXES.some((prefix) => matches(prefix, pathname));
+}
+
+/**
+ * A prefix against a pathname, where `*` is exactly one path segment.
+ *
+ * Plain `startsWith` was enough while every focused route began with a fixed
+ * word. `/o/{slug}/listings` does not: the variable part is in the MIDDLE, and
+ * a prefix of `/o/` would take the bar off the business's profile too, which
+ * is a tab-less destination rather than a step inside one.
+ *
+ * Deliberately not a regex built from the string. A `*` is the only thing this
+ * needs to express, and the moment the prefixes become patterns somebody
+ * writes one with a `.` in it and it silently matches more than it says.
+ */
+function matches(prefix: string, pathname: string): boolean {
+  if (!prefix.includes("*")) return pathname.startsWith(prefix);
+
+  const wanted = prefix.split("/");
+  const actual = pathname.split("?")[0].split("/");
+  if (actual.length < wanted.length) return false;
+
+  return wanted.every((segment, i) => {
+    // A prefix ending in "/" splits to a trailing "", which matches anything
+    // after it — that is what makes it a prefix rather than a whole path.
+    if (segment === "" && i === wanted.length - 1) return true;
+    return segment === "*" || segment === actual[i];
+  });
 }

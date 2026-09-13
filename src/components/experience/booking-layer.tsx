@@ -2,32 +2,54 @@
 
 import { useState, type ReactNode } from "react";
 import { AvailabilityPicker, describeSlot } from "./availability-picker";
+import { AskSheet } from "./ask-sheet";
+import { Sheet } from "@/components/ui/sheet";
 import { StickyBar } from "@/components/ui/sticky-bar";
-import { ButtonArrow, ButtonLink } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
+import { PartyStepper } from "@/components/ui/party-stepper";
+import { Button, ButtonArrow, ButtonLink } from "@/components/ui/button";
+import { CalendarIcon } from "@/components/ui/icons";
 import type { components } from "@/lib/api/schema.gen";
 
+type Experience = components["schemas"]["Experience"];
 type Slot = components["schemas"]["Slot"];
-type BookingMode = components["schemas"]["BookingMode"];
 
 /**
- * The layer that turns a chosen departure into the sticky bar at the foot of
- * the detail page — the one action every reference detail screen carries.
+ * Choosing a departure and a party size, and the bar that carries them.
  *
- * It wraps the WHOLE sheet body. A sticky element sticks only while its
- * parent is on screen, so the bar has to belong to a box that reaches the
- * end of the page; the sections the server renders come through `before`
- * and `after` and are placed around the picker without being re-rendered on
- * the client.
+ * ## The 14-day list became a pop-up — yuvoy-app#32
+ *
+ * Every day in the window was stacked on the page. The owner walked it and
+ * called it an endless scroll: "make this simple sweet." "Pick a day" is a
+ * button now, and the pop-up holds a row of days and that day's departures.
+ *
+ * ## Party size moved here from checkout
+ *
+ * "I should book for my family, friends, right?" The only party control was at
+ * checkout, so a traveller had to commit to a departure before they could say
+ * there were four of them. The same `PartyStepper` the checkout form uses, so
+ * the two cannot disagree about the cap, and the count travels to checkout in
+ * the URL.
+ *
+ * ## Request mode never leaves the page
+ *
+ * A request charges nothing and holds nothing until the operator answers, so
+ * a whole checkout page for three fields was a screen between a traveller and
+ * a question they had already decided to ask. Allotment mode still goes to
+ * `/e/{slug}/book`: that one takes money, and money gets a page.
+ *
+ * It wraps the WHOLE sheet body, because a sticky element sticks only while
+ * its parent is on screen — so the bar has to belong to a box that reaches the
+ * end of the page. The sections the server renders come through `before` and
+ * `after` and are placed around the picker without being re-rendered here.
  */
 export function BookingLayer({
-  slug,
-  bookingMode,
+  experience,
   bookable,
   before,
   after,
 }: {
-  slug: string;
-  bookingMode: BookingMode;
+  experience: Experience;
   /**
    * Whether this listing can be sold right now — yuvoy-app#19 §1.
    *
@@ -46,8 +68,21 @@ export function BookingLayer({
   before?: ReactNode;
   after?: ReactNode;
 }) {
+  const slug = experience.slug;
   const [selected, setSelected] = useState<Slot | null>(null);
+  const [day, setDay] = useState<string | null>(null);
+  const [guests, setGuests] = useState(1);
+  const [datesOpen, setDatesOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+
   const chosen = selected ? describeSlot(selected) : null;
+  const isRequest = experience.bookingMode === "request";
+  /*
+    The cap the API enforces. A departure may narrow the listing's own, so the
+    departure wins when both are there — asking for more than one boat holds is
+    refused with `capacity_unavailable` whatever the listing says.
+  */
+  const maxParty = selected?.maxPartySize ?? experience.maxPartySize ?? 10;
 
   return (
     <>
@@ -64,13 +99,50 @@ export function BookingLayer({
         >
           Pick a day
         </h2>
+
         {bookable ? (
-          <AvailabilityPicker
-            slug={slug}
-            bookingMode={bookingMode}
-            selectedId={selected?.id ?? null}
-            onSelect={setSelected}
-          />
+          <>
+            <Panel className="mt-4">
+              <button
+                type="button"
+                onClick={() => setDatesOpen(true)}
+                className="flex w-full items-center gap-3 text-left"
+              >
+                <CalendarIcon className="text-forest/70 size-5 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  {chosen ? (
+                    <>
+                      <span className="block text-base font-bold">
+                        {chosen.day}
+                      </span>
+                      <span className="text-forest/70 mt-0.5 block text-sm">
+                        {chosen.time}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="block text-base font-bold">
+                      Choose a departure
+                    </span>
+                  )}
+                </span>
+                <span className="text-forest/70 shrink-0 text-sm underline underline-offset-4">
+                  {chosen ? "Change" : "See days"}
+                </span>
+              </button>
+            </Panel>
+
+            {/*
+              Party size BEFORE asking, which is the whole point of moving it
+              off checkout. Capped at the departure's own `maxPartySize` once
+              one is chosen, and at the listing's until then.
+            */}
+            <PartyStepper
+              className="mt-6"
+              value={guests}
+              onChange={setGuests}
+              max={maxParty}
+            />
+          </>
         ) : (
           /*
             No picker at all, rather than a picker that will always be empty.
@@ -91,12 +163,45 @@ export function BookingLayer({
 
       {after}
 
+      {datesOpen ? (
+        <Sheet open onClose={() => setDatesOpen(false)} title="Pick a day">
+          <AvailabilityPicker
+            slug={slug}
+            bookingMode={experience.bookingMode}
+            selectedId={selected?.id ?? null}
+            onSelect={(slot) => {
+              setSelected(slot);
+              // Choosing is the whole reason the sheet is open. Staying would
+              // make a traveller find the close control to see what they did.
+              if (slot) setDatesOpen(false);
+            }}
+            day={day}
+            onDay={setDay}
+          />
+        </Sheet>
+      ) : null}
+
+      {askOpen && selected ? (
+        <AskSheet
+          experience={experience}
+          slot={selected}
+          guests={guests}
+          onClose={() => setAskOpen(false)}
+        />
+      ) : null}
+
       {/*
         The bar is unreachable when `bookable` is false — nothing can be
         selected without a picker — but the condition is written anyway. A
         sticky Book button is the single most expensive thing on this page to
         get wrong, and it should not depend on a sibling's rendering to stay
         correct.
+
+        NO PRICE, as asked. It was beside the time, and the sticky bar is the
+        last thing a traveller reads before committing: a per-person figure
+        there reads as the total, and the total is on the screen that takes the
+        money. The chosen day and time stay, because that is what the bar is
+        confirming.
       */}
       {bookable && selected && chosen ? (
         <StickyBar>
@@ -105,22 +210,27 @@ export function BookingLayer({
               <p className="label text-forest/75">{chosen.day}</p>
               <p className="mt-0.5 truncate text-base font-bold">
                 {chosen.time}
-                {chosen.price ? (
-                  <span className="text-forest/70 font-normal">
-                    {" "}
-                    · {chosen.price}
-                  </span>
-                ) : null}
               </p>
             </div>
-            <ButtonLink
-              href={`/e/${slug}/book?slot=${encodeURIComponent(selected.id)}`}
-              size="lg"
-              className="shrink-0"
-            >
-              {bookingMode === "request" ? "Ask the operator" : "Continue"}
-              <ButtonArrow />
-            </ButtonLink>
+            {isRequest ? (
+              <Button
+                size="lg"
+                className="shrink-0"
+                onClick={() => setAskOpen(true)}
+              >
+                Ask the operator
+                <ButtonArrow />
+              </Button>
+            ) : (
+              <ButtonLink
+                href={`/e/${slug}/book?slot=${encodeURIComponent(selected.id)}&guests=${guests}`}
+                size="lg"
+                className="shrink-0"
+              >
+                Continue
+                <ButtonArrow />
+              </ButtonLink>
+            )}
           </div>
         </StickyBar>
       ) : null}
