@@ -5,6 +5,8 @@ import { renderWithQuery } from "@/test/render";
 import { SearchScreen } from "./search-screen";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
+import { marketToday, marketDaysFrom } from "@/lib/booking/availability-window";
+import { dateLabel } from "@/lib/search/labels";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -21,6 +23,13 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
  */
 const nav = vi.hoisted(() => ({ url: "/search" }));
 vi.mock("next/navigation", () => ({
+  /*
+    `LoginButton` sits in every logo header and in the feed masthead
+    (yuvoy-app#56), and it reads both of these. A mock missing either
+    fails the whole file with "No export is defined", which reads as a
+    broken screen rather than an incomplete mock.
+  */
+  usePathname: () => "/search",
   useRouter: () => ({
     replace: (href: string) => {
       nav.url = href;
@@ -45,12 +54,16 @@ async function openFilters(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByRole("dialog", { name: "Filters" });
 }
 
-describe("nothing is asked until something is asked for", () => {
-  it("renders a prompt by default and sends no request", async () => {
+describe("the default state is the grid, not a prompt", () => {
+  it("shows the unfiltered grid straight away", async () => {
     /*
-      The contract: "An empty `q` returns nothing, not everything — 'everything'
-      is what the feed is for." The screen used to fetch on mount with nothing
-      typed and render whatever the mock's kinder answer was.
+      The owner's decision on 14 September (yuvoy-app#37 item 9). This screen
+      used to refuse to ask anything until something was asked for: an empty
+      query was a prompt with two links, on the reasoning that "everything" is
+      what the feed is for.
+
+      A search screen whose first state is an instruction is one that has to be
+      obeyed before it does anything.
     */
     let calls = 0;
     server.use(
@@ -61,15 +74,30 @@ describe("nothing is asked until something is asked for", () => {
     );
 
     renderWithQuery(<SearchScreen />);
-    expect(
-      screen.getByText("Pick a day or a place, or type what you want to do"),
-    ).toBeInTheDocument();
-
-    await new Promise((r) => setTimeout(r, 50));
-    expect(calls).toBe(0);
+    await waitFor(() => expect(calls).toBeGreaterThan(0));
+    // And the prompt it replaces is gone, links and all.
+    expect(screen.queryByText(/Pick a day or a place/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Browse the feed" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Read the guides" })).toBeNull();
   });
 
-  it("returns to the prompt when the words are cleared, never to everything", async () => {
+  it("asks for nothing in particular, so the grid is the whole rotation", async () => {
+    const seen: string[] = [];
+    server.use(
+      http.get(`${BASE}/reels`, ({ request }) => {
+        seen.push(new URL(request.url).search);
+        return HttpResponse.json({ items: [], complete: true });
+      }),
+    );
+
+    renderWithQuery(<SearchScreen />);
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    for (const name of ["q", "bookableOn", "destinationKey", "category"]) {
+      expect(seen.at(-1), name).not.toMatch(new RegExp(`[?&]${name}=`));
+    }
+  });
+
+  it("returns to the unfiltered grid when the words are cleared", async () => {
     const user = userEvent.setup();
     const { rerender } = renderWithQuery(<SearchScreen />);
 
@@ -80,10 +108,9 @@ describe("nothing is asked until something is asked for", () => {
     await user.clear(box);
     await waitFor(() => expect(params().get("q")).toBeNull());
     rerender(<SearchScreen />);
+    // A grid, not a prompt.
     expect(
-      await screen.findByText(
-        "Pick a day or a place, or type what you want to do",
-      ),
+      await screen.findByRole("list", { name: "Search results" }),
     ).toBeInTheDocument();
   });
 });
@@ -125,7 +152,9 @@ describe("the filter set lives in the address", () => {
     renderWithQuery(<SearchScreen />);
     const sheet = await openFilters(user);
     await user.click(within(sheet).getByRole("button", { name: "Today" }));
-    await user.click(within(sheet).getByRole("button", { name: "Apply" }));
+    await user.click(
+      within(sheet).getByRole("button", { name: "Show results" }),
+    );
 
     await waitFor(() => expect(params().get("on")).toBeTruthy());
     await waitFor(() => expect(seen.length).toBeGreaterThan(0));
@@ -164,7 +193,7 @@ describe("the filter sheet", () => {
     */
     renderWithQuery(<SearchScreen />);
     expect(screen.getByRole("button", { name: /^Filters/ })).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Which day" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "When" })).toBeNull();
     expect(screen.queryByRole("group", { name: "Where" })).toBeNull();
   });
 
@@ -188,15 +217,46 @@ describe("the filter sheet", () => {
     ).toBeTruthy();
   });
 
-  it("narrows the activity chips to the chosen category", async () => {
-    // The vocabulary carries the category on each type, so the grouping is the
-    // server's rather than a second copy of the taxonomy in this client.
+  it("shows NO activity chips until a category is chosen", async () => {
+    /*
+      The other half of the owner's "very bad" verdict. All 35 activity types
+      were on the sheet at once, next to 12 categories and 14 day chips: sixty
+      one controls, harder to read than the three rows they replaced.
+
+      Activity only exists in relation to a category, so it only appears once
+      one is chosen, and then only that category's types (item 6).
+    */
     const user = userEvent.setup();
     renderWithQuery(<SearchScreen />);
     const sheet = await openFilters(user);
 
+    await within(sheet).findByRole("button", { name: "Adventure" });
+    expect(within(sheet).queryByRole("group", { name: "Activity" })).toBeNull();
+    expect(
+      within(sheet).queryByRole("button", { name: "Scuba diving" }),
+    ).toBeNull();
+    expect(within(sheet).queryByRole("button", { name: "Tasting" })).toBeNull();
+
+    await user.click(within(sheet).getByRole("button", { name: "Adventure" }));
+
+    expect(
+      within(sheet).getByRole("group", { name: "Activity" }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole("button", { name: "Scuba diving" }),
+    ).toBeTruthy();
+    // And ONLY Adventure's. Tasting belongs to another category.
+    expect(within(sheet).queryByRole("button", { name: "Tasting" })).toBeNull();
+  });
+
+  it("re-narrows the activity chips when the category changes", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    const sheet = await openFilters(user);
+
+    await within(sheet).findByRole("button", { name: "Adventure" });
+    await user.click(within(sheet).getByRole("button", { name: "Adventure" }));
     await within(sheet).findByRole("button", { name: "Scuba diving" });
-    expect(within(sheet).getByRole("button", { name: "Tasting" })).toBeTruthy();
 
     await user.click(
       within(sheet).getByRole("button", { name: "Nature and wildlife" }),
@@ -207,14 +267,111 @@ describe("the filter sheet", () => {
     expect(
       within(sheet).queryByRole("button", { name: "Scuba diving" }),
     ).toBeNull();
-    expect(within(sheet).queryByRole("button", { name: "Tasting" })).toBeNull();
   });
 
-  it("changes nothing until Apply", async () => {
+  it("offers four When chips, not a fortnight of them", async () => {
+    /*
+      Fourteen day chips could never reach past a fortnight however many were
+      added, and a traveller looking for a date in November had no way to ask.
+      Four chips and a calendar behind the fourth (item 4).
+    */
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    const sheet = await openFilters(user);
+
+    const when = within(sheet).getByRole("group", { name: "When" });
+    expect(within(when).getAllByRole("button")).toHaveLength(4);
+    for (const name of ["Any day", "Today", "Tomorrow", "Pick a date"]) {
+      expect(within(when).getByRole("button", { name }), name).toBeTruthy();
+    }
+  });
+
+  it("opens a month calendar behind Pick a date, and the chip then reads it", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    const sheet = await openFilters(user);
+
+    await user.click(
+      within(sheet).getByRole("button", { name: "Pick a date" }),
+    );
+
+    // A real month, with the arrows to move between them.
+    expect(
+      within(sheet).getByRole("button", { name: "Next month" }),
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByRole("button", { name: "Previous month" }),
+    ).toBeTruthy();
+
+    /*
+      Exactly ONE button named "Today": the When chip. A calendar cell is named
+      by its date, never by "Today" or "Tomorrow", so the two cannot collide in
+      one dialog. An earlier draft of this test expected two, which is how the
+      collision was found.
+    */
+    expect(
+      within(sheet).getAllByRole("button", { name: "Today" }),
+    ).toHaveLength(1);
+
+    /*
+      A cell is reachable by its date, and the chip then READS that date, so
+      the applied day is legible without re-opening the calendar. "Pick a date"
+      with a date quietly selected behind it is the fault this issue is about.
+    */
+    const [, tomorrow] = marketDaysFrom(marketToday(), 2);
+    const cell = within(sheet).getByRole("button", {
+      name: dateLabel(tomorrow),
+    });
+    await user.click(cell);
+
+    expect(
+      within(sheet).queryByRole("button", { name: "Pick a date" }),
+    ).toBeNull();
+    expect(
+      within(sheet).getByRole("button", { name: dateLabel(tomorrow) }),
+    ).toBeTruthy();
+
+    await user.click(
+      within(sheet).getByRole("button", { name: "Show results" }),
+    );
+    await waitFor(() => expect(params().get("on")).toBe(tomorrow));
+  });
+
+  it("refuses a date outside the window the API will answer", async () => {
+    /*
+      Before today, or more than 89 days after it. A disabled cell rather than
+      a styled one: the API refuses those dates, so letting one be pressed
+      would spend a round trip to show an empty grid.
+    */
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    const sheet = await openFilters(user);
+    await user.click(
+      within(sheet).getByRole("button", { name: "Pick a date" }),
+    );
+
+    const today = marketToday();
+    // The day before today, whichever month it falls in.
+    const before = new Date(`${today}T12:00:00+05:30`);
+    before.setUTCDate(before.getUTCDate() - 1);
+    const priorDate = before.toISOString().slice(0, 10);
+
+    const priorCell = within(sheet).queryByRole("button", {
+      name: dateLabel(priorDate),
+    });
+    // Only present when yesterday falls in the month on screen.
+    if (priorCell) expect(priorCell).toBeDisabled();
+    expect(
+      within(sheet).getByRole("button", { name: dateLabel(today) }),
+    ).toBeEnabled();
+  });
+
+  it("changes nothing until Show results", async () => {
     /*
       A sheet that filtered live would refetch on every tap and leave the grid
-      reflowing under a panel nobody can see past. It also makes Clear
-      meaningful.
+      reflowing under a panel nobody can see past. It also makes the footer's
+      "Clear all" meaningful: it empties the DRAFT, and the traveller still has
+      to say so.
     */
     const user = userEvent.setup();
     renderWithQuery(<SearchScreen />);
@@ -223,7 +380,9 @@ describe("the filter sheet", () => {
     await user.click(within(sheet).getByRole("button", { name: "Today" }));
     expect(params().get("on")).toBeNull();
 
-    await user.click(within(sheet).getByRole("button", { name: "Apply" }));
+    await user.click(
+      within(sheet).getByRole("button", { name: "Show results" }),
+    );
     await waitFor(() => expect(params().get("on")).toBeTruthy());
   });
 
@@ -255,8 +414,14 @@ describe("the filter sheet", () => {
     await user.click(
       within(sheet).getByRole("button", { name: "Scuba diving" }),
     );
-    await user.click(within(sheet).getByRole("button", { name: "Anything" }));
-    await user.click(within(sheet).getByRole("button", { name: "Apply" }));
+    /*
+      There is no "Anything" chip any more (item 5): tapping the SELECTED chip
+      unselects it, so a neutral option would be a second way to do one thing.
+    */
+    await user.click(within(sheet).getByRole("button", { name: "Adventure" }));
+    await user.click(
+      within(sheet).getByRole("button", { name: "Show results" }),
+    );
 
     await waitFor(() => expect(params().get("kind")).toBeNull());
     expect(params().get("doing")).toBeNull();
@@ -274,7 +439,14 @@ describe("the filter sheet", () => {
 
     renderWithQuery(<SearchScreen />);
     const sheet = await openFilters(user);
-    expect(await within(sheet).findByText(/did not load/)).toBeInTheDocument();
+    expect(
+      await within(sheet).findByText("Places and activities did not load."),
+    ).toBeInTheDocument();
+    // Offered again rather than left dead (item 7).
+    expect(
+      within(sheet).getByRole("button", { name: "Try again" }),
+    ).toBeTruthy();
+    // And When still works: these are dates, not server data.
     expect(within(sheet).getByRole("button", { name: "Today" })).toBeTruthy();
   });
 });
@@ -306,13 +478,13 @@ describe("results", () => {
     const sheet = await openFilters(user);
     await within(sheet).findByRole("button", { name: "Wellness" });
     await user.click(within(sheet).getByRole("button", { name: "Wellness" }));
-    await user.click(within(sheet).getByRole("button", { name: "Apply" }));
+    await user.click(
+      within(sheet).getByRole("button", { name: "Show results" }),
+    );
 
+    expect(await screen.findByText("No matches")).toBeInTheDocument();
     expect(
-      await screen.findByText("Nothing matches that yet"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Clear filters" }),
+      screen.getByRole("button", { name: "Clear all filters" }),
     ).toBeInTheDocument();
   });
 
@@ -332,9 +504,168 @@ describe("results", () => {
   it("treats an unknown activity type as an empty page, not an error", async () => {
     nav.url = "/search?doing=not_a_thing_yet";
     renderWithQuery(<SearchScreen />);
-    expect(
-      await screen.findByText("Nothing matches that yet"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("No matches")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/**
+ * The pills under the search bar (yuvoy-app#37 item 1).
+ *
+ * The sharpest half of the owner's "very bad filters" verdict was not the wall
+ * of chips inside the sheet: it was that NOTHING ON THE SCREEN showed what was
+ * applied. A traveller could open a filtered URL, see an empty grid, and have
+ * no way to know why except opening the sheet and reading sixty-one chips for
+ * a highlight.
+ */
+describe("what is applied, on the screen", () => {
+  it("shows nothing at all when nothing is applied", async () => {
+    renderWithQuery(<SearchScreen />);
+    await screen.findByRole("list", { name: "Search results" });
+    // An empty row would be permanent furniture above every result.
+    expect(screen.queryByRole("group", { name: "Filters applied" })).toBeNull();
+  });
+
+  it("names each applied filter in the server's own words", async () => {
+    nav.url = "/search?place=andaman%2Fhavelock&kind=adventure";
+    renderWithQuery(<SearchScreen />);
+
+    const row = await screen.findByRole("group", { name: "Filters applied" });
+    // "Havelock (Swaraj Dweep)" is the label verbatim. No title-casing of
+    // `andaman/havelock` produces it.
+    expect(
+      await within(row).findByText("Havelock (Swaraj Dweep)"),
+    ).toBeInTheDocument();
+    expect(within(row).getByText("Adventure")).toBeInTheDocument();
+  });
+
+  it("does not make a pill out of the typed word", async () => {
+    // The search box is already on screen and already holds it.
+    nav.url = "/search?q=diving";
+    renderWithQuery(<SearchScreen />);
+    await screen.findByRole("list", { name: "Search results" });
+    expect(screen.queryByRole("group", { name: "Filters applied" })).toBeNull();
+  });
+
+  it("takes one filter off with its own x, with no sheet and no Apply", async () => {
+    /*
+      The whole point. A removal writes the URL directly, so the grid reloads
+      from page one with no cursor: `GET /reels` answers 400 to a cursor
+      replayed under different filters.
+    */
+    const user = userEvent.setup();
+    nav.url = "/search?place=andaman%2Fhavelock&kind=adventure";
+    renderWithQuery(<SearchScreen />);
+
+    const row = await screen.findByRole("group", { name: "Filters applied" });
+    await within(row).findByText("Adventure");
+    await user.click(
+      within(row).getByRole("button", { name: "Remove Adventure" }),
+    );
+
+    await waitFor(() => expect(params().get("kind")).toBeNull());
+    // And only that one.
+    expect(params().get("place")).toBe("andaman/havelock");
+  });
+
+  it("takes the activity off with the category that framed it", async () => {
+    const user = userEvent.setup();
+    nav.url = "/search?kind=adventure&doing=scuba-diving";
+    renderWithQuery(<SearchScreen />);
+
+    const row = await screen.findByRole("group", { name: "Filters applied" });
+    await within(row).findByText("Adventure");
+    await user.click(
+      within(row).getByRole("button", { name: "Remove Adventure" }),
+    );
+
+    await waitFor(() => expect(params().get("kind")).toBeNull());
+    /*
+      A type left behind would be a filter with no chip to un-tap: the activity
+      chips only exist under a chosen category.
+    */
+    expect(params().get("doing")).toBeNull();
+  });
+
+  it("offers Clear all from two filters, and not from one", async () => {
+    /*
+      With one pill applied, its own x already clears everything, and a second
+      control beside it that does the same thing is a choice a traveller has to
+      read before discovering it was not one.
+    */
+    const { unmount } = renderWithQuery(<SearchScreen />);
+    nav.url = "/search?kind=adventure";
+    unmount();
+
+    renderWithQuery(<SearchScreen />);
+    const one = await screen.findByRole("group", { name: "Filters applied" });
+    expect(within(one).queryByRole("button", { name: "Clear all" })).toBeNull();
+
+    cleanup();
+    nav.url = "/search?kind=adventure&place=andaman%2Fhavelock";
+    renderWithQuery(<SearchScreen />);
+    const two = await screen.findByRole("group", { name: "Filters applied" });
+    expect(within(two).getByRole("button", { name: "Clear all" })).toBeTruthy();
+  });
+
+  it("Clear all keeps the typed word", async () => {
+    /*
+      Guaranteed TWICE, deliberately: `withoutFilters` returns `{ q }`, and
+      `apply` re-adds the word from the search box's own state. So breaking
+      either one alone leaves this green, which was checked rather than assumed:
+      it goes red only with both broken.
+
+      Worth writing down so a later reader does not take a single-path change
+      passing here as proof the assertion is vacuous. The one-way version lives
+      in `lib/search/labels.test.ts`, where it fails on its own.
+    */
+    const user = userEvent.setup();
+    nav.url = "/search?q=diving&kind=adventure&place=andaman%2Fhavelock";
+    renderWithQuery(<SearchScreen />);
+
+    const row = await screen.findByRole("group", { name: "Filters applied" });
+    await user.click(within(row).getByRole("button", { name: "Clear all" }));
+
+    await waitFor(() => expect(params().get("kind")).toBeNull());
+    expect(params().get("place")).toBeNull();
+    // Somebody who narrowed "diving" to nothing did not ask to lose the word.
+    expect(params().get("q")).toBe("diving");
+  });
+
+  it("shows a skeleton rather than a raw key while the vocabulary loads", async () => {
+    /*
+      `andaman/havelock` on screen is worse than a placeholder, and dropping
+      the pill entirely would leave a filter applied with nothing to remove it.
+      The x still works meanwhile: the filter IS applied.
+    */
+    server.use(
+      http.get(`${BASE}/catalog/vocabulary`, async () => {
+        await new Promise((r) => setTimeout(r, 300));
+        return HttpResponse.json({
+          destinations: [],
+          categories: [],
+          activityTypes: [],
+        });
+      }),
+    );
+
+    nav.url = "/search?place=andaman%2Fhavelock";
+    renderWithQuery(<SearchScreen />);
+
+    const row = await screen.findByRole("group", { name: "Filters applied" });
+    expect(within(row).queryByText(/andaman/)).toBeNull();
+    expect(
+      within(row).getByRole("button", { name: "Remove this filter" }),
+    ).toBeTruthy();
+  });
+
+  it("names a day as a word rather than a date where it can", async () => {
+    nav.url = `/search?on=${marketToday()}`;
+    renderWithQuery(<SearchScreen />);
+    const row = await screen.findByRole("group", { name: "Filters applied" });
+    expect(within(row).getByText("Today")).toBeInTheDocument();
+    expect(
+      within(row).getByRole("button", { name: "Remove Today" }),
+    ).toBeTruthy();
   });
 });

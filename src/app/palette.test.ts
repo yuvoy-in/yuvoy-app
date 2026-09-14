@@ -525,8 +525,15 @@ describe("measured contrast", () => {
       const marks = [...strip.matchAll(/<Wordmark ([^/]*)\/>/g)];
       expect(marks.length, "no Wordmark in the masthead").toBeGreaterThan(0);
       for (const [, props] of marks) {
-        expect(props, "the tagline is back over the reel").toContain(
-          'variant="compact"',
+        /*
+          This used to assert `variant="compact"`. The prop is gone: on 14 Sep
+          the owner asked for the tagline off every page, so the `lockup`
+          variant was deleted rather than left as a default somebody could
+          pass again (yuvoy-app#36). Asserting its ABSENCE is what keeps the
+          deletion, since re-adding the variant would have to re-add the prop.
+        */
+        expect(props, "the deleted lockup variant is back").not.toContain(
+          "variant",
         );
         expect(props, "the mark's height decides the block's").toContain(
           'className="h-7"',

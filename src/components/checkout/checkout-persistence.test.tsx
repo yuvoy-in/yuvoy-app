@@ -11,6 +11,13 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
+  /*
+    `LoginButton` sits in every logo header and in the feed masthead
+    (yuvoy-app#56), and it reads both of these. A mock missing either
+    fails the whole file with "No export is defined", which reads as a
+    broken screen rather than an incomplete mock.
+  */
+  usePathname: () => "/e/try-dive-nemo-reef/book",
   useRouter: () => ({ replace, push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -57,7 +64,7 @@ beforeEach(() => {
 });
 
 async function book(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText("Your name"), "Asha Menon");
+  await user.type(await screen.findByLabelText("Your name"), "Asha Menon");
   await user.type(screen.getByLabelText("WhatsApp number"), "+919000000000");
   await user.click(screen.getByRole("checkbox", { name: /called off/i }));
   await user.click(screen.getByRole("button", { name: /hold these seats/i }));

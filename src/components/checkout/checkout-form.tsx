@@ -22,7 +22,12 @@ import {
 import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
-import { Field } from "@/components/ui/field";
+import { DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
+import {
+  ContactFields,
+  useContactState,
+} from "@/components/auth/contact-fields";
+import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { PartyStepper } from "@/components/ui/party-stepper";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -95,6 +100,7 @@ function CheckoutFields({
 }) {
   const router = useRouter();
   const create = useCreateReservation();
+  const { refresh } = useTravellerSession();
 
   /**
    * A synchronous guard against the fast double-tap.
@@ -112,8 +118,15 @@ function CheckoutFields({
 
   const [guests, setGuests] = useState(1);
   const [name, setName] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
+  const [whatsapp, setWhatsapp] = useState(DEFAULT_DIAL_CODE);
   const [email, setEmail] = useState("");
+
+  /*
+    Which fields this form may still demand, and what goes in `contact`
+    (yuvoy-app#32). Declared here because `blockers` below reads it and
+    `ContactFields` cannot tell the Pay button anything.
+  */
+  const contact = useContactState(email);
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [declaredClear, setDeclaredClear] = useState<boolean | undefined>(
@@ -165,8 +178,19 @@ function CheckoutFields({
   /** Everything that must be true before the button does anything. */
   const blockers = useMemo(() => {
     const out: string[] = [];
-    if (!name.trim()) out.push("your name");
-    if (!whatsapp.trim()) out.push("a WhatsApp number");
+    /*
+      Only the fields the form is still SHOWING (yuvoy-app#32). A signed-in
+      traveller has no name box and no number box, so demanding either leaves
+      Pay permanently dead under "still needs your name" on a form that does
+      not ask for one.
+
+      `phoneGiven` rather than a non-empty check: `PhoneField` seeds the value
+      with a dial code, so "+91" alone is not a number.
+    */
+    if (contact.needsName && !name.trim()) out.push("your name");
+    if (contact.needsPhone && whatsapp.replace(/\D/g, "").length <= 4) {
+      out.push("a WhatsApp number");
+    }
     if (!policyAccepted) out.push("the cancellation policy");
     if (safety?.screener && declaredClear === undefined) {
       // Omitted is not false — the form must not let this through.
@@ -188,6 +212,8 @@ function CheckoutFields({
     }
     return out;
   }, [
+    contact.needsName,
+    contact.needsPhone,
     name,
     whatsapp,
     policyAccepted,
@@ -221,12 +247,22 @@ function CheckoutFields({
     submitting.current = true;
     try {
       await hold();
-    } catch {
+    } catch (error) {
       // Swallowed DELIBERATELY, and only here. `mutateAsync` rejects as well
       // as storing the failure on `create.error`, which is what renders the
       // message below — so letting it propagate produces an unhandled
       // rejection for a failure the traveller can already see. Nothing is lost:
       // the error object is still on the mutation.
+      /*
+        A 401 is the exception worth acting on rather than only showing. The
+        proxy has already dropped the cookie by the time it arrives, so the
+        cached "signed in" is stale and the form is still hiding the name and
+        number fields behind "Booking as ...". `refresh` re-asks the server and
+        brings them back (yuvoy-app#32).
+      */
+      if (error instanceof YuvoyError && error.status === 401) {
+        await refresh();
+      }
     } finally {
       submitting.current = false;
     }
@@ -246,11 +282,8 @@ function CheckoutFields({
     const reservation = await create.mutateAsync({
       slotId: slot.id,
       guests,
-      contact: {
-        name: name.trim(),
-        whatsapp: whatsapp.trim(),
-        ...(email.trim() ? { email: email.trim() } : {}),
-      },
+      authenticated: contact.authenticated,
+      contact: contact.contactFor({ name, phone: whatsapp, email }),
       ...(attribution ? { attribution } : {}),
       ...(safety?.screener || safety?.minAge
         ? {
@@ -302,6 +335,22 @@ function CheckoutFields({
     create.error.code === "capacity_unavailable"
       ? create.error
       : null;
+  /*
+    The two refusals about WHO is booking (yuvoy-app#32), handled the same way
+    as in the Ask pop-up.
+
+    `400` with `details["contact.name"]` is a profile with no name on record,
+    and the sentence belongs on the field it concerns. `401` is a session that
+    ended mid-form; `refresh` re-asks the server so the block flips back to
+    both fields rather than showing "Booking as ..." over a dead session.
+  */
+  const whoFailure = create.error instanceof YuvoyError ? create.error : null;
+  const nameRefusal =
+    whoFailure?.status === 400 &&
+    typeof whoFailure.details["contact.name"] === "string"
+      ? (whoFailure.details["contact.name"] as string)
+      : undefined;
+  const sessionEnded = whoFailure?.status === 401;
 
   const action = create.isPending
     ? "Holding your seats…"
@@ -329,32 +378,31 @@ function CheckoutFields({
         */}
         <PartyStepper value={guests} onChange={setGuests} max={maxParty} />
 
-        {/* Name and WhatsApp. Nothing else is required, on purpose. */}
-        <div className="space-y-4">
-          <Field
-            label="Your name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="name"
-            required
-          />
-          <Field
-            label="WhatsApp number"
-            type="tel"
-            value={whatsapp}
-            onChange={(e) => setWhatsapp(e.target.value)}
-            autoComplete="tel"
-            hint="This is how we send your booking and reach you if the sea changes."
-            required
-          />
-          <Field
-            label="Email (optional)"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-        </div>
+        {/*
+          Who is booking. The SAME block the Ask pop-up uses (yuvoy-app#32), so
+          a signed-in traveller is not asked for a name and number here either,
+          and the two forms cannot drift apart the way they already had.
+
+          The number is a `PhoneField` now rather than a free-text `tel` input.
+          That arrived with the shared block rather than being asked for, and
+          it is the better half of the two: it always emits E.164, which is
+          what `contact.whatsapp` is specified as.
+        */}
+        {sessionEnded ? (
+          <p role="alert" className="text-terra-deep text-sm">
+            Your sign-in has ended. Enter your name and number to book this.
+          </p>
+        ) : null}
+        <ContactFields
+          name={name}
+          onNameChange={setName}
+          phone={whatsapp}
+          onPhoneChange={setWhatsapp}
+          email={contact.emailValue}
+          onEmailChange={setEmail}
+          nameError={nameRefusal}
+          phoneHint="This is how we send your booking and reach you if the sea changes."
+        />
 
         {safety ? (
           <ScreeningFields

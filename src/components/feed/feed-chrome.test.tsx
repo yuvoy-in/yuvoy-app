@@ -12,8 +12,8 @@ import { useFeedStore } from "@/lib/feed/store";
  * reel fully, it is covered by lot of things." What was over every clip was
  * the operator's name, a Verified tag, the activity type, the next departure,
  * the price and its unit, an instant-or-request chip and a full-width call to
- * action — plus a wordmark carrying "Experience more." across the top, and a
- * tab bar that slid away as soon as anybody scrolled.
+ * action — plus a wordmark carrying the strapline across the top, and a tab
+ * bar that slid away as soon as anybody scrolled.
  *
  * Each removal is asserted BY NAME rather than by counting what is left. A
  * count passes for the wrong reason the moment somebody adds one thing and
@@ -22,6 +22,13 @@ import { useFeedStore } from "@/lib/feed/store";
 
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({
+  /*
+    `LoginButton` sits in every logo header and in the feed masthead
+    (yuvoy-app#56), and it reads both of these. A mock missing either
+    fails the whole file with "No export is defined", which reads as a
+    broken screen rather than an incomplete mock.
+  */
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => nav.pathname,
 }));
@@ -135,7 +142,7 @@ describe("what a reel no longer carries", () => {
 describe("the masthead", () => {
   it("shows the mark without the tagline", async () => {
     /*
-      "Experience more." is BAKED INTO the delivered lockup SVG, so this is a
+      The strapline is BAKED INTO the delivered lockup SVG, so this is a
       different file rather than a different class — see
       scripts/generate-feed-lockup.mjs. Asserted on the source, because jsdom
       cannot see inside an SVG and the whole point is which drawing is used.

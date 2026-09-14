@@ -50,6 +50,17 @@ export interface Trip {
   fetchedAt: string | null;
   /** True when the server listed it, so it is not device-only. */
   onServer: boolean;
+  /**
+   * The server's whole row, when there is one.
+   *
+   * Carried rather than copied field by field (yuvoy-app#38). The row gained
+   * ten fields the card now reads: `heroImageUrl`, `price`, `payment`,
+   * `refund`, `localDate`, `localTime`, `canReview`, `reviewed`,
+   * `experienceSlug` and `destination`. Flattening each into `Trip` would mean
+   * a second copy of an inline contract shape, which is what `ServerTrip` being
+   * derived from the generated operation exists to avoid.
+   */
+  server: ServerTrip | null;
 }
 
 /**
@@ -107,6 +118,7 @@ export function mergeTrips(
       dead: d.dead,
       fetchedAt: d.fetchedAt,
       onServer: false,
+      server: null,
     };
     out.push(trip);
     if (d.reference) byReference.set(d.reference, trip);
@@ -127,6 +139,7 @@ export function mergeTrips(
         now might.
       */
       existing.onServer = true;
+      existing.server = row;
       existing.reference = reference ?? existing.reference;
       existing.reservationId = row.reservationId;
       existing.state = row.state;
@@ -163,6 +176,7 @@ export function mergeTrips(
       dead: false,
       fetchedAt: null,
       onServer: true,
+      server: row,
     });
   }
 

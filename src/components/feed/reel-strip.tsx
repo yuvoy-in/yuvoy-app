@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { ExperienceCard } from "./experience-card";
 import { Wordmark } from "@/components/ui/wordmark";
+import { LoginButton } from "@/components/auth/login-button";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import type { FeedTail, Reel } from "@/lib/feed/reels";
 import { cn } from "@/lib/cn";
@@ -108,18 +109,26 @@ export function ReelFrame({
  */
 export function ReelMasthead({ href }: { href?: string }) {
   return (
-    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start px-5 pt-4 pb-20 lg:hidden">
+    /*
+      `justify-between` puts Login opposite the mark. The strip stays
+      `pointer-events-none` across its full width so the whole top of a reel
+      still scrolls the feed; only the mark's link and the button take a press
+      (yuvoy-app#56 item 2). Getting that wrong makes a two-inch band at the
+      top of every reel dead to a swipe, which is where a thumb rests.
+    */
+    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-5 pt-4 pb-20 lg:hidden">
       {href ? (
         <Link
           href={href}
           className="pointer-events-auto flex min-h-11 items-center"
           aria-label="Yuvoy home"
         >
-          <Wordmark variant="compact" tone="cream" className="h-7" priority />
+          <Wordmark tone="cream" className="h-7" priority />
         </Link>
       ) : (
-        <Wordmark variant="compact" tone="cream" className="h-7" priority />
+        <Wordmark tone="cream" className="h-7" priority />
       )}
+      <LoginButton className="pointer-events-auto" />
     </div>
   );
 }

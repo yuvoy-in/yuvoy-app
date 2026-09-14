@@ -1,95 +1,144 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, createApiClient } from "@/lib/api/client";
-import { qk } from "@/lib/query/policy";
-import { isDeadToken } from "@/lib/api/errors";
+import { useCallback } from "react";
 import {
-  getTravellerSession,
-  saveTravellerSession,
-  clearTravellerSession,
-} from "./traveller-session";
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { api, createProxyClient } from "@/lib/api/client";
+import { qk } from "@/lib/query/policy";
+import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
+import type { TripTab } from "@/lib/trips/tabs";
 
 /**
- * Whether this device is signed in — yuvoy-app#34.
+ * Twenty, the API's own default once paging is opted into.
  *
- * `undefined` while the store is being read, which is a third state and not a
- * nicety: `null` renders the sign-in form, and flashing that at somebody who
- * IS signed in, on every mount, is worse than a skeleton.
- *
- * Two screens read this now (Account and Trips), so the read, the save and the
- * sign-out are here rather than duplicated. They also have to agree instantly:
- * signing in on Account must fill Trips without a reload, which is why the
- * session lives in React Query rather than in each screen's own state.
+ * Sent explicitly rather than relied on: a default that moves upstream would
+ * silently change how much of somebody's history arrives in one page.
  */
+export const TRIPS_PAGE_SIZE = 20;
+
+/**
+ * Whether this device is signed in — yuvoy-app#34, rehoused by #57.
+ *
+ * ## The token is not here any more
+ *
+ * It used to be a string this hook read out of IndexedDB and handed to every
+ * caller, which then set an `Authorization` header. Safari on iPhone deletes
+ * script-written storage after seven days without a visit, so travellers were
+ * signed out roughly weekly while the server thought they were fine: on
+ * 14 September the owner's number had twelve live sessions from twenty-one
+ * hours, none revoked.
+ *
+ * The token now lives in an HttpOnly cookie that this app's own server sets,
+ * and nothing in the browser can read it. So this hook answers a BOOLEAN. A
+ * caller that wants an authenticated call makes it through `/api/v1/...` and
+ * the cookie rides along on its own.
+ *
+ * `undefined` while the answer is in flight, which is a third state and not a
+ * nicety: `false` renders the sign-in form and the Login button, and flashing
+ * either at somebody who IS signed in, on every mount, is worse than a
+ * skeleton.
+ */
+
+interface SessionAnswer {
+  signedIn: boolean;
+}
+
+async function readSession(signal?: AbortSignal): Promise<SessionAnswer> {
+  const response = await fetch("/api/session", {
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return { signedIn: false };
+  const body = (await response.json()) as Partial<SessionAnswer>;
+  return { signedIn: Boolean(body?.signedIn) };
+}
+
 export function useTravellerSession() {
   const qc = useQueryClient();
-  const [token, setToken] = useState<string | null | undefined>(undefined);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getTravellerSession().then((s) => {
-      if (!cancelled) setToken(s?.sessionToken ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const signIn = useCallback(
-    async (session: { sessionToken: string; expiresAt?: string | null }) => {
-      await saveTravellerSession(session);
-      setToken(session.sessionToken);
-      // The trips list is keyed by the token, so a new one is a new entry —
-      // but the OLD entry would otherwise sit in the cache holding somebody
-      // else's trips on a shared phone.
-      await qc.invalidateQueries({ queryKey: ["listMyBookings"] });
-    },
-    [qc],
-  );
-
-  const signOut = useCallback(async () => {
-    const current = await getTravellerSession();
+  const query = useQuery({
+    queryKey: qk.session(),
+    queryFn: ({ signal }) => readSession(signal),
+    retry: false,
     /*
-      Tell the server first, then forget locally — but never let the server's
-      answer decide whether the device forgets.
-
-      `DELETE /me/session` answers 204 whatever the token was, including one
-      already ended, so a failure here means the network rather than the
-      session. A traveller who taps sign out on a jetty with no signal must
-      still be signed out on the device in front of them; the session expires
-      on its own within thirty days either way.
+      The cookie can be cleared by the server underneath us: a revoked session
+      answers 401 through the proxy and the route drops it. Refetching when
+      the tab comes back is what turns that into a Login button rather than a
+      screen that keeps failing.
     */
-    if (current?.sessionToken) {
-      try {
-        const client = createApiClient();
-        await client.DELETE("/me/session", {
-          headers: { Authorization: `Bearer ${current.sessionToken}` },
-        });
-      } catch {
-        // Deliberately ignored. See above.
-      }
-    }
-    await clearTravellerSession();
-    setToken(null);
-    await qc.invalidateQueries({ queryKey: ["listMyBookings"] });
+    refetchOnWindowFocus: true,
+    staleTime: 60_000,
+  });
+
+  /*
+    A failed read is signed OUT, not unknown. The alternative is a screen stuck
+    on a skeleton for anybody whose first request missed, and the honest
+    fallback for "we could not tell" is the branch that offers a way in.
+  */
+  const signedIn = query.isPending ? undefined : Boolean(query.data?.signedIn);
+
+  /**
+   * After a successful `POST /api/session`.
+   *
+   * `removeQueries` rather than `invalidateQueries` on the trips list. The key
+   * can no longer carry the session token, so an invalidated entry would paint
+   * the PREVIOUS number's trips while the refetch ran. On a shared phone that
+   * is somebody else's booking on screen, which is the failure the old
+   * token-keyed cache existed to prevent.
+   */
+  const refresh = useCallback(async () => {
+    qc.removeQueries({ queryKey: ["listMyBookings"] });
+    qc.removeQueries({ queryKey: qk.myAccount() });
+    qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
-  return { token, signIn, signOut };
+  /*
+    The same work, under the name a caller means.
+
+    `signIn` is called after `POST /api/session` succeeds. `refresh` is called
+    after any proxied call answers `401`: the route has already dropped the
+    cookie by then, so the cached "signed in" is stale and a form still showing
+    "Booking as Asha" is about to fail again. Both cases are "the server knows
+    something this cache does not", which is why they are one function.
+  */
+  const signIn = refresh;
+
+  /**
+   * Sign out.
+   *
+   * The route tells the API and then clears the cookie, and never lets the
+   * API's answer decide whether the device forgets. A traveller who taps sign
+   * out on a jetty with no signal must still be signed out on the phone in
+   * front of them; the session lapses on its own within fourteen days either
+   * way.
+   */
+  const signOut = useCallback(async () => {
+    try {
+      await fetch("/api/session", { method: "DELETE" });
+    } catch {
+      // Deliberately ignored. See above.
+    }
+    qc.removeQueries({ queryKey: ["listMyBookings"] });
+    qc.removeQueries({ queryKey: qk.myAccount() });
+    qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    qc.setQueryData(qk.session(), { signedIn: false });
+    await qc.invalidateQueries({ queryKey: qk.session() });
+  }, [qc]);
+
+  return { signedIn, signIn, signOut, refresh, isLoading: query.isPending };
 }
 
 /**
  * Asking for a sign-in code.
  *
- * `POST /me/sign-in/request` rather than `/bookings/recovery/request`, and
- * that is the whole of yuvoy-app#34's first half: recovery refuses a correct
- * code for a number that has never booked, so a first-time traveller typed the
- * right code and read "That code did not work".
- *
- * It also answers plainly — "a code was sent" — where recovery is deliberately
- * vague, because recovery's answer would reveal whether a number has booked
- * and this one has nothing to reveal.
+ * Still goes straight to the API. It is unauthenticated, it mints nothing, and
+ * routing it through this app's server would add a hop for no gain. Only
+ * VERIFY moves, because verify is what produces the credential.
  */
 export function useRequestSignInCode() {
   return useMutation({
@@ -104,22 +153,68 @@ export function useRequestSignInCode() {
   });
 }
 
-/** Exchanging the code for a 30-day session that revokes nothing. */
+/**
+ * Exchanging the code for a session, through this app's own server.
+ *
+ * `POST /api/session` calls `POST /me/sign-in/verify` server-side and puts the
+ * token straight into an HttpOnly cookie. It answers `{ signedIn: true }` and
+ * never the token, so there is no moment at which the credential exists in a
+ * place script can reach.
+ *
+ * The route passes the API's status and error envelope through unchanged, so
+ * the failure is re-thrown here as the same `YuvoyError` the form has always
+ * branched on. Without that, every sentence in `signInFailure` would have to
+ * be re-derived from a status code.
+ */
 export function useVerifySignInCode() {
   return useMutation({
     retry: false,
     mutationFn: async (input: { phone: string; code: string }) => {
-      const { data, error } = await api.POST("/me/sign-in/verify", {
-        body: { phone: input.phone.trim(), code: input.code.trim() },
+      const response = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: input.phone.trim(),
+          code: input.code.trim(),
+        }),
       });
-      if (error) throw error;
-      return data;
+
+      if (!response.ok) throw await asYuvoyError(response);
+      return (await response.json()) as { signedIn: boolean };
     },
   });
 }
 
+/** The envelope the route passed through, back into the typed error. */
+async function asYuvoyError(response: Response): Promise<YuvoyError> {
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    // Fall through to the generic below.
+  }
+  if (isErrorEnvelope(body)) {
+    return new YuvoyError({
+      code: body.error.code,
+      message: body.error.message,
+      status: response.status,
+      details: body.error.details,
+      requestId:
+        body.error.requestId ??
+        response.headers.get("x-request-id") ??
+        undefined,
+    });
+  }
+  return new YuvoyError({
+    code: "internal_error",
+    message: `The server answered ${response.status}.`,
+    status: response.status,
+    requestId: response.headers.get("x-request-id") ?? undefined,
+  });
+}
+
 /**
- * Every trip on this number — `GET /me/bookings`.
+ * Every trip on this number — `GET /me/bookings`, through the proxy.
  *
  * ## Three things arrived here with yuvoy-api#172
  *
@@ -133,20 +228,68 @@ export function useVerifySignInCode() {
  *     "issuing it revokes nothing" — which is the difference from recovery and
  *     the reason merging the two lists is safe at all.
  *
- * Keyed by the token so two numbers on one phone cannot read each other's
- * trips out of the cache.
+ * No `Authorization` header and no token argument: the cookie authenticates
+ * this, and the browser never sees it (#57).
  */
-export function useMyBookings(token: string | null | undefined) {
-  return useQuery({
-    queryKey: qk.myBookings(token ?? ""),
-    enabled: Boolean(token),
+export function useMyBookings(
+  signedIn: boolean | undefined,
+  options: { tab?: TripTab; from?: string; to?: string } = {},
+) {
+  const { tab, from, to } = options;
+  return useInfiniteQuery({
+    queryKey: qk.myBookings(tab, from, to),
+    enabled: signedIn === true,
     retry: false,
-    queryFn: async ({ signal }) => {
-      const client = createApiClient();
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam, signal }) => {
+      const client = createProxyClient();
       const { data, error } = await client.GET("/me/bookings", {
-        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          query: {
+            /*
+              Any one of these opts the endpoint into paging, and `limit` then
+              defaults to 20. Sent explicitly so the page size is this app's
+              decision rather than a default that could move.
+            */
+            ...(tab ? { tab } : {}),
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+            limit: TRIPS_PAGE_SIZE,
+            // Omitted entirely on the first page: `cursor=` empty is a
+            // different request from sending none.
+            ...(pageParam ? { cursor: pageParam } : {}),
+          },
+        },
         signal,
       });
+      if (error) throw error;
+      return data;
+    },
+    /*
+      `nextCursor` is `null` when there is nothing more, and ALWAYS null on an
+      unpaged request. Reading it as the only signal is therefore correct here
+      and would not have been before paging existed.
+    */
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
+/**
+ * Trips somebody else booked and invited this number to (yuvoy-app#38).
+ *
+ * Not paged by the API, so not an infinite query. A guest's row carries no
+ * price, no payment, no refund and no booking link, by design: the contract
+ * says the booking reference, the money and anything about the person who paid
+ * are "deliberately absent".
+ */
+export function useInvitedTrips(signedIn: boolean | undefined) {
+  return useQuery({
+    queryKey: qk.invitedTrips(),
+    enabled: signedIn === true,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const client = createProxyClient();
+      const { data, error } = await client.GET("/me/invited-trips", { signal });
       if (error) throw error;
       return data;
     },

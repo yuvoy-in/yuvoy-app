@@ -1,24 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   listBookings,
   getSnapshot,
   rememberBooking,
-  bookingUrl,
 } from "@/lib/booking/token-store";
-import {
-  mergeTrips,
-  type DeviceTrip,
-  type Trip,
-} from "@/lib/booking/merge-trips";
+import { mergeTrips, type DeviceTrip } from "@/lib/booking/merge-trips";
 import {
   useTravellerSession,
   useMyBookings,
+  useInvitedTrips,
   isDeadToken,
 } from "@/lib/auth/use-traveller";
-import { formatAge } from "@/lib/format/time";
+import {
+  TRIP_TABS,
+  TAB_LABEL,
+  TAB_EMPTY,
+  invitedTripTab,
+  sortForTab,
+  withinDateFilter,
+  type TripTab,
+  type InvitedTrip,
+} from "@/lib/trips/tabs";
 import {
   EmptyState,
   LoadingState,
@@ -26,43 +31,54 @@ import {
   describeError,
 } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
-import { ButtonLink } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { ChipButton } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
-import { StateChip } from "@/components/booking/state-chip";
-import { CalendarIcon, ChevronRightIcon } from "@/components/ui/icons";
+import { TripCard, InvitedTripCard } from "./trip-card";
+import {
+  DateFilterSheet,
+  DateFilterButton,
+  type DateRange,
+} from "./date-filter";
 
 /**
- * The Trips tab — one list, from the device and from the number.
+ * The Trips tab: tabs, paging and a date filter (yuvoy-app#38 items 1 and 2).
  *
- * ## It said it merged them, and it read only the device
+ * ## Tabs, and who decides them
  *
- * This file's own comment promised "signed-in travellers get the same list
- * from `/v1/me/bookings` merged on top; that arrives with T11." It never did,
- * and T11 shipped on the Account tab instead — so a signed-in traveller had
- * two lists of overlapping bookings, in two places, with different cards
- * (yuvoy-app#34).
+ * The API decides the tab for a trip the traveller BOOKED, sends it as
+ * `?tab=`, and guarantees the three "never overlap and together they are the
+ * whole list". Nothing is re-derived here for those rows, including the rule
+ * that a `no_show` is a PAST trip rather than a cancelled one: the boat went.
  *
- * They are one list now, here, and the Account tab is what its name says.
+ * An invited trip carries no tab and is not paged, so `invitedTripTab` places
+ * it. That is the one piece of tab logic in this client and it is tested
+ * without a screen.
  *
- * ## The device is still read FIRST, and still works alone
+ * ## The device list is still read first, and still works alone
  *
- * Checkout is unauthenticated: the status token is the access, and this store
- * is the only copy a guest has. That is what makes this screen work with no
- * account and no signal, which is the point and does not change. The server's
- * list is merged on top when there is a session; without one, nothing about
- * this screen is different from before.
+ * Checkout is unauthenticated: the status token is the access, and the device
+ * store is the only copy a guest has. That is what makes this screen work with
+ * no account and no signal, and it does not change. Signed out there are no
+ * tabs at all, because there is nothing to divide: the device holds what it
+ * holds.
  *
- * ## Requests that are still waiting now appear
+ * ## Why the device trips sit in Upcoming
  *
- * `GET /me/bookings` lists them with `state: pending_request` and an empty
- * reference. Matching therefore falls back to `reservationId` — see
- * `mergeTrips`, where getting that wrong shows every waiting request twice.
+ * A device record the server has not listed has no tab to be put in: often all
+ * this phone knows is a token and a title. Hiding it until a tab could be
+ * decided would lose the one thing the device list is for. Anything the server
+ * DOES list is placed by the server.
  */
 export function TripsScreen() {
   const [device, setDevice] = useState<DeviceTrip[] | null>(null);
-  const { token } = useTravellerSession();
-  const server = useMyBookings(token);
+  const [tab, setTab] = useState<TripTab>("upcoming");
+  const [range, setRange] = useState<DateRange>({});
+  const [dateSheet, setDateSheet] = useState(false);
+
+  const { signedIn } = useTravellerSession();
+  const server = useMyBookings(signedIn, { tab, ...range });
+  const invited = useInvitedTrips(signedIn);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,11 +95,11 @@ export function TripsScreen() {
             /*
               The STORE's id first, and the snapshot's only as a fallback.
 
-              Checkout writes the record keyed by the reservation id, before
-              any status has been fetched — which is exactly the state a
-              waiting request is in. Reading only the snapshot left that record
-              with no id to match on, so the server's row for the same request
-              could not find it and the trip appeared twice, with two tokens.
+              Checkout writes the record keyed by the reservation id, before any
+              status has been fetched, which is exactly the state a waiting
+              request is in. Reading only the snapshot left that record with no
+              id to match on, so the server's row for the same request could not
+              find it and the trip appeared twice, with two tokens.
             */
             reservationId:
               b.reservationId ?? snap?.status.reservationId ?? null,
@@ -102,17 +118,23 @@ export function TripsScreen() {
     };
   }, []);
 
+  /** Every server row across every page fetched so far. */
+  const serverRows = useMemo(
+    () => server.data?.pages.flatMap((page) => page.bookings) ?? null,
+    [server.data],
+  );
+
   /*
     Claim the server's trips onto this device.
 
-    Each row's token is minted for that response and revokes nothing, so
-    keeping it is what lets a trip booked on another phone open here later,
-    offline, with no session. Keyed by the reference when there is one and by
-    the reservation id when there is not — the same two keys the merge uses,
+    Each row's token is minted for that response and revokes nothing, so keeping
+    it is what lets a trip booked on another phone open here later, offline,
+    with no session. Keyed by the reference when there is one and by the
+    reservation id when there is not, which is the same pair the merge uses and
     for the same reason: a waiting request has no reference to key by.
   */
   useEffect(() => {
-    for (const row of server.data?.bookings ?? []) {
+    for (const row of serverRows ?? []) {
       if (!row.statusToken) continue;
       const reference = row.reference?.trim();
       void rememberBooking(
@@ -121,11 +143,17 @@ export function TripsScreen() {
           : { reservationId: row.reservationId, token: row.statusToken },
       );
     }
-  }, [server.data]);
+  }, [serverRows]);
 
-  // The device read is what the screen cannot render without. The server's is
-  // an addition, so its loading and its failure are lines rather than states.
-  if (device === null) {
+  /*
+    The device read is what the screen cannot render without. The server's is an
+    addition, so its loading and its failure are lines rather than states.
+
+    `signedIn === undefined` waits too (yuvoy-app#57). It reads as falsy
+    everywhere below, so rendering through it would show the signed-out copy to
+    somebody who IS signed in, for one frame on every visit.
+  */
+  if (device === null || signedIn === undefined) {
     return (
       <Screen>
         <LoadingState label="Loading your trips">
@@ -138,49 +166,95 @@ export function TripsScreen() {
     );
   }
 
-  const trips = mergeTrips(device, server.data?.bookings ?? null);
-  const signedIn = Boolean(token);
-  /*
-    A session that has died server-side. Said plainly, because the alternative
-    is a Trips tab quietly missing half of somebody's bookings — and `retry:
-    false` means it will not resolve itself.
-  */
   const sessionDead = server.isError && isDeadToken(server.error);
 
-  if (trips.length === 0) {
+  /*
+    Signed out: no tabs, and the device list exactly as it was. There is nothing
+    to divide, and three tabs over one phone's bookings would be two empty ones.
+  */
+  if (!signedIn) {
+    const trips = mergeTrips(device, null);
     return (
       <Screen>
-        <EmptyState
-          title="Nothing booked yet"
-          body={
-            signedIn
-              ? "Nothing on this number, and nothing saved on this phone."
-              : "Bookings you make on this device show up here. No account needed. Sign in and the ones booked on another phone join them."
-          }
-          action={<ButtonLink href="/">Find something</ButtonLink>}
-        />
-        {signedIn ? null : <SignInPrompt />}
+        <Header signedIn={false} />
+        {trips.length === 0 ? (
+          <EmptyState
+            title="Nothing booked yet"
+            body="Bookings you make on this device show up here. No account needed. Sign in and the ones booked on another phone join them."
+            action={<ButtonLink href="/">Find something</ButtonLink>}
+          />
+        ) : (
+          <ul className="mt-6 space-y-3">
+            {trips.map((trip) => (
+              <li key={trip.key}>
+                <TripCard trip={trip} />
+              </li>
+            ))}
+          </ul>
+        )}
+        <SignInPrompt />
       </Screen>
     );
   }
 
+  const merged = mergeTrips(device, serverRows);
+
+  /*
+    A device record the server has not listed goes in Upcoming. It has no tab to
+    be placed in, and hiding it would lose the one thing the device list is for.
+  */
+  const bookings =
+    tab === "upcoming" ? merged : merged.filter((trip) => trip.onServer);
+
+  const invitedForTab = sortForTab(
+    (invited.data?.trips ?? [])
+      .filter((trip) => invitedTripTab(trip) === tab)
+      .filter((trip) => withinDateFilter(trip.localDate, range)),
+    tab,
+  );
+
+  const empty = bookings.length === 0 && invitedForTab.length === 0;
+
   return (
     <Screen>
-      <h1 className="font-display tracking-display text-3xl leading-tight">
-        Your trips
-      </h1>
-      <p className="text-forest/70 mt-2 text-xs">
-        {signedIn
-          ? "Every trip on your number, and the ones saved on this phone."
-          : "Kept on this device. No account, and they work without signal."}
-      </p>
+      <Header signedIn />
 
-      {server.isPending && signedIn ? (
-        <p role="status" className="text-forest/70 mt-3 text-xs">
-          Checking for trips booked on your other phones…
-        </p>
+      <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
+        <div role="tablist" aria-label="Which trips" className="flex gap-2">
+          {TRIP_TABS.map((name) => (
+            <ChipButton
+              key={name}
+              role="tab"
+              aria-selected={tab === name}
+              pressed={tab === name}
+              onClick={() => setTab(name)}
+            >
+              {TAB_LABEL[name]}
+            </ChipButton>
+          ))}
+        </div>
+        <span className="ml-auto">
+          <DateFilterButton
+            range={range}
+            onOpen={() => setDateSheet(true)}
+            onClear={() => setRange({})}
+          />
+        </span>
+      </div>
+
+      {dateSheet ? (
+        <DateFilterSheet
+          range={range}
+          onApply={setRange}
+          onClose={() => setDateSheet(false)}
+        />
       ) : null}
 
+      {/*
+        The server's failure is a line, not a state: the device's trips are
+        still true and still openable. A dead session says so plainly, because
+        `retry: false` means it will not resolve itself.
+      */}
       {server.isError ? (
         <Panel role="alert" className="mt-4 px-4 py-3">
           <p className="text-sm font-bold">
@@ -190,8 +264,8 @@ export function TripsScreen() {
           </p>
           <p className="text-forest/70 mt-1 text-sm">
             {sessionDead
-              ? "Sign in again and every trip on your number comes back. The ones below are saved on this phone and are unaffected."
-              : `${describeError(server.error).body} The ones below are saved on this phone.`}
+              ? "Sign in again and every trip on your number comes back. Anything saved on this phone is unaffected."
+              : `${describeError(server.error).body} Anything saved on this phone is still here.`}
           </p>
           {sessionDead ? (
             <ButtonLink
@@ -206,16 +280,78 @@ export function TripsScreen() {
         </Panel>
       ) : null}
 
-      <ul className="mt-6 space-y-3">
-        {trips.map((trip) => (
-          <li key={trip.key}>
-            <TripCard trip={trip} />
-          </li>
-        ))}
-      </ul>
+      {server.isPending ? (
+        <LoadingState label="Loading your trips">
+          <div className="mt-6 space-y-3">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        </LoadingState>
+      ) : empty ? (
+        <EmptyState
+          title={TAB_EMPTY[tab]}
+          body=""
+          action={<ButtonLink href="/">Find something</ButtonLink>}
+        />
+      ) : (
+        <>
+          <ul className="mt-6 space-y-3">
+            {bookings.map((trip) => (
+              <li key={trip.key}>
+                <TripCard trip={trip} />
+              </li>
+            ))}
+            {invitedForTab.map((trip) => (
+              <li key={`inv:${trip.id}`}>
+                <InvitedTripCard trip={trip} />
+              </li>
+            ))}
+          </ul>
 
-      {signedIn ? null : <SignInPrompt />}
+          {/*
+            A button, not a sentinel. `GET /me/bookings` mints a fresh status
+            token per row, so an observer that fetched on scroll would mint
+            links nobody asked for.
+          */}
+          {server.hasNextPage ? (
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="outline"
+                disabled={server.isFetchingNextPage}
+                onClick={() => void server.fetchNextPage()}
+              >
+                {server.isFetchingNextPage ? "Loading…" : "Show more"}
+              </Button>
+            </div>
+          ) : null}
+
+          {server.isFetchNextPageError ? (
+            <p
+              role="alert"
+              className="text-terra-deep mt-3 text-center text-sm"
+            >
+              That page did not load. Try again.
+            </p>
+          ) : null}
+        </>
+      )}
     </Screen>
+  );
+}
+
+function Header({ signedIn }: { signedIn: boolean }) {
+  return (
+    <>
+      <h1 className="font-display tracking-display text-3xl leading-tight">
+        Your trips
+      </h1>
+      <p className="text-forest/70 mt-2 text-xs">
+        {signedIn
+          ? "Every trip on your number, and the ones saved on this phone."
+          : "Kept on this device. No account, and they work without signal."}
+      </p>
+    </>
   );
 }
 
@@ -223,17 +359,16 @@ export function TripsScreen() {
  * The way to the rest of somebody's trips.
  *
  * It used to read "Booked on another phone? Get your link back", pointing at
- * recovery — the only route there was. Signing in is the route now: it works
- * for a number that has never booked, and it **revokes nothing**, where
- * recovery rotates the links already on this phone. Recovery is still offered,
- * and still described as the thing it is.
+ * recovery, which was the only route there was. Signing in is the route now: it
+ * works for a number that has never booked, and it revokes nothing, where
+ * recovery rotates the links already on this phone.
  */
 function SignInPrompt() {
   return (
     <div className="border-cream-line mt-10 border-t pt-6">
       <p className="text-forest/70 text-sm">
-        Booked on another phone? Sign in with your number and those trips join
-        this list. Nothing here changes, and there is no account to make.
+        Sign in to see every trip on your number. Those booked on another phone
+        join this list, nothing here changes, and there is no account to make.
       </p>
       <ButtonLink href="/account" variant="outline" size="sm" className="mt-3">
         Sign in with my number
@@ -252,120 +387,4 @@ function SignInPrompt() {
   );
 }
 
-function TripCard({ trip }: { trip: Trip }) {
-  if (trip.dead) {
-    /*
-      A link the server has finished with, and the number's list does not
-      carry this trip either. It stays listed — the trip is real — but tapping
-      it would open a dead page, so the card says what happened and offers the
-      two things that help. Signing in is offered first now: it fetches a fresh
-      token for every trip at once, where recovery rotates one.
-    */
-    return (
-      <Panel>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-bold">{trip.title}</p>
-            {trip.reference ? (
-              <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
-                {trip.reference}
-              </p>
-            ) : null}
-          </div>
-          <Chip size="sm" tone="accent">
-            Link expired
-          </Chip>
-        </div>
-        <p className="text-forest/70 mt-3 text-sm">
-          This link no longer opens the booking. Signing in with the number you
-          booked with brings it back, along with everything else on it.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <ButtonLink href="/account" variant="outline" size="sm">
-            Sign in
-          </ButtonLink>
-          <ButtonLink href="/trips/recover" variant="outline" size="sm">
-            Get a new link
-          </ButtonLink>
-        </div>
-      </Panel>
-    );
-  }
-
-  return (
-    <Link
-      href={bookingUrl(trip.token)}
-      className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-5 transition-colors duration-200"
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <p className="font-bold">{trip.title}</p>
-          {trip.state ? <StateChip state={trip.state} /> : null}
-        </div>
-
-        {/*
-          The reference is what gets read out at a jetty. A request the
-          operator has not answered has none — the server sends it empty on
-          purpose — and an internal id styled as one is a number somebody will
-          read out to no effect. So the line says what is true of a request
-          instead.
-        */}
-        <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
-          {trip.reference ??
-            (trip.state === "pending_request"
-              ? "Waiting for the operator"
-              : "Not yet confirmed")}
-        </p>
-
-        {trip.startsAt ? (
-          <p className="text-forest/80 mt-3 flex items-center gap-2 text-sm">
-            <CalendarIcon className="text-forest/70 size-4" />
-            {formatWhen(trip)}
-          </p>
-        ) : null}
-
-        {/* Never presented as live. This is what we saved. */}
-        {trip.fetchedAt ? (
-          <p className="text-forest/70 mt-2 text-xs">
-            Last checked {formatAge(trip.fetchedAt)}
-          </p>
-        ) : null}
-      </div>
-      <ChevronRightIcon className="text-forest/70 size-5 shrink-0" />
-    </Link>
-  );
-}
-
-/**
- * When the trip is, from whichever source knew.
- *
- * A device snapshot carries a real instant and the market's zone; a server row
- * carries the market's local date and time with no zone at all. The second is
- * printed as it arrived rather than parsed: reading "06:30 on the 14th" as an
- * instant would move a dawn dive to the previous afternoon for anybody east of
- * Greenwich, which is everybody here.
- */
-function formatWhen(trip: Trip): string {
-  if (!trip.startsAt) return "";
-
-  if (trip.timezone) {
-    return new Intl.DateTimeFormat("en-IN", {
-      timeZone: trip.timezone,
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(trip.startsAt));
-  }
-
-  const [date, time = ""] = trip.startsAt.split("T");
-  const day = new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: "Asia/Kolkata",
-  }).format(new Date(`${date}T12:00:00+05:30`));
-  return time ? `${day}, ${time.slice(0, 5)}` : day;
-}
+export type { InvitedTrip };

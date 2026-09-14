@@ -846,7 +846,29 @@ paths:
         `statusToken` is returned exactly once, here. Only its hash is stored, so
         it cannot be recovered afterwards — including by us. It belongs in a URL
         fragment, never a path or query.
+
+
+        **Signed in (optional, since 2026-09-13).** Send `Authorization: Bearer
+        <travellerSession>` (a recovery token also counts; a `statusToken` does
+        not) and the checkout is the traveller's own:
+
+          - `contact.whatsapp` may be left out, and is **ignored if sent**. The
+            booking goes on the number the session proved. A typed number would
+            put the booking on a number nobody proved, and it would appear in
+            that number's account.
+          - `contact.name` may be left out. The profile name is used, else the
+            name on the newest booking made with the number. With neither, `400`
+            with `details["contact.name"]`.
+          - `contact.email` stays optional; left out, the profile email is used
+            when there is one.
+          - Anything sent in `name` or `email` is used as sent.
+
+        A Bearer credential that is not a live sign-in (expired, signed out,
+        unknown, or a booking's status token) is `401 unauthorized`, never a
+        guest checkout: sign in again, or retry without the header. With no
+        `Authorization` header, checkout is exactly the guest checkout above.
       operationId: createReservation
+      security: [{}, { travellerSession: [] }]
       parameters:
         - name: Idempotency-Key
           in: header
@@ -865,6 +887,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Reservation" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401":
+          description: >
+            A Bearer credential was sent and is not a live sign-in. Only ever
+            answered to a request that sent `Authorization`; a guest checkout
+            never sees it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: >
@@ -1542,7 +1572,11 @@ paths:
       summary: Exchange a sign-in code for a session
       operationId: verifyTravellerSignIn
       description: >-
-        Returns a session that lasts 30 days. **Revokes nothing**: every booking
+        Returns a session that lasts 14 days since it was last used: every
+        request it authenticates moves `expiresAt` to 14 days from then, so
+        only a traveller away for 14 days is signed out. `expiresAt` here is
+        the end as of signing in; `getMyAccount` answers the current one in
+        `session.expiresAt`. **Revokes nothing**: every booking
         link saved on this phone, and any other phone this traveller is signed
         in on, keeps working. That is the difference from
         `verifyBookingRecovery`, which exists for a lost link and rotates it.
@@ -1572,7 +1606,10 @@ paths:
                   sessionToken:
                     type: string
                     description: "Send as an `Authorization: Bearer` header to `/me/bookings`."
-                  expiresAt: { type: string, format: date-time }
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    description: 14 days from now. Each use of the session moves it on.
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -1589,6 +1626,214 @@ paths:
       responses:
         "204": { description: Signed out. }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /me:
+    get:
+      tags: [me]
+      summary: The Account tab
+      operationId: getMyAccount
+      description: >-
+        Who the signed-in traveller is, a summary of their trips, and how to
+        reach a person. Reads only: a number with no profile answers
+        `onboardingRequired: true` with `name`, `email` and `memberSince` null.
+
+
+        `onboardingRequired` is true until the first-sign-in screen has been
+        completed or skipped (`updateMyAccount`). **It is never a gate.** Show
+        the screen, let it be dismissed, and never put it in front of a booking
+        in progress.
+
+
+        `trips` counts exactly the rows `listMyBookings` returns: `total` is
+        its length, `upcoming` is trips still ahead that are confirmed or
+        waiting on the operator (a declined or cancelled trip is not upcoming),
+        and `completed` is trips that happened.
+
+
+        `support.whatsappE164` is null until Yuvoy has a support number. Hide
+        "Chat with us" while it is null. When present, open
+        `https://wa.me/<number without +>?text=<message>` with the booking
+        reference in the message; the traveller starts the chat, so nothing is
+        sent on their behalf.
+
+
+        `session` is present only when a traveller session signed the request
+        in, and absent for a recovery token. `session.expiresAt` is when that
+        session now ends, 14 days since this use. Keep a cookie or any stored
+        expiry in step with it rather than with the value sign-in returned.
+      security: [{ travellerSession: [] }, { statusToken: [] }]
+      responses:
+        "200":
+          description: The account.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TravellerAccount" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+    patch:
+      tags: [me]
+      summary: Answer the first-sign-in screen, or edit the profile
+      operationId: updateMyAccount
+      description: >-
+        Creates the profile on first save and updates it after. Send only the
+        fields that change: an absent field is left alone, `email: null` or
+        `email: ""` removes the email, and `interests: []` clears the
+        interests.
+
+
+        **The skip button is `{"onboarded": true}` on its own.** Any other
+        first save needs a `name`. Saving a name also marks the screen
+        answered, so the screen does not come back if `onboarded` is forgotten.
+
+
+        `interests` are keys from `listInterestOptions`, or any category or
+        activity-type key from `getPublicVocabulary`. At most 8 after
+        duplicates are removed. Anything else is a `400`.
+
+
+        Validation problems are a `400` with one plain sentence per field in
+        `error.details`, keyed `name`, `email`, `interests` or `onboarded`.
+      security: [{ travellerSession: [] }, { statusToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                  description: Trimmed before it is checked and stored.
+                email:
+                  type: [string, "null"]
+                  maxLength: 254
+                interests:
+                  type: array
+                  maxItems: 8
+                  items: { type: string, pattern: "^[a-z][a-z0-9_]*$" }
+                onboarded:
+                  type: boolean
+                  enum: [true]
+                  description: The first-sign-in screen was completed or skipped.
+      responses:
+        "200":
+          description: The account after the change, the same shape as `getMyAccount`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TravellerAccount" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /me/interest-options:
+    get:
+      tags: [me]
+      summary: The tiles for the first-sign-in screen
+      operationId: listInterestOptions
+      description: >-
+        Six to eight interests to offer, so the app does not invent its own
+        list. Activity types with the most live listings come first; when too
+        little is on sale to fill the screen, the busiest categories and then
+        the leading categories top it up.
+
+
+        **The populated vocabulary, not the active one**, which is why this is
+        not a field on `getPublicVocabulary`. A filter chip must not vanish when
+        its last listing pauses; a tile asking what somebody likes should only
+        offer what is actually sold.
+
+
+        No session. `marketKey` narrows to one market; without it, every market.
+        Edge-cacheable for a few minutes.
+      parameters:
+        - name: marketKey
+          in: query
+          schema: { $ref: "#/components/schemas/MarketKey" }
+      responses:
+        "200":
+          description: The tiles, in the order to show them.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [options]
+                properties:
+                  options:
+                    type: array
+                    minItems: 6
+                    maxItems: 8
+                    items:
+                      type: object
+                      required: [key, label, kind]
+                      properties:
+                        key: { type: string, description: "What to send in `interests`." }
+                        label: { type: string }
+                        kind: { type: string, enum: [activityType, category] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /support/requests:
+    post:
+      tags: [me]
+      summary: Send Yuvoy a message from the app
+      operationId: createSupportRequest
+      description: >-
+        The in-app help form. The message reaches the admin customer support
+        queue (`adminCustomerSupport`, kind `TRAVELLER_HELP_REQUEST`, source
+        `traveller`), and a person replies on WhatsApp.
+
+
+        Accepts a signed-in session **or** a booking link's status token, so a
+        traveller who booked without signing in can still ask for help.
+
+
+        `bookingReference` is optional. With a session it must be a booking on
+        the signed-in number; with a booking link it must be that link's own
+        booking, and when omitted the link's booking is attached anyway.
+        Somebody else's reference, or one that does not exist, is a `404`.
+
+
+        Sending the same message about the same booking again returns the same
+        `reference` rather than opening a second case. Five requests an hour per
+        number, then `429`.
+      security: [{ travellerSession: [] }, { statusToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, minLength: 10, maxLength: 2000 }
+                bookingReference: { type: string, example: YV-8K2M4PQR }
+                topic:
+                  type: string
+                  enum: [booking, payment, cancellation, other]
+                  default: other
+      responses:
+        "201":
+          description: The message is in the support queue.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reference, message]
+                properties:
+                  reference:
+                    type: string
+                    example: SR-3F9A12C0
+                    description: Short enough to quote on a call.
+                  message:
+                    type: string
+                    description: Plain words to show the traveller.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
   /bookings/share:
     post:
@@ -1620,7 +1865,12 @@ paths:
                 type: object
                 required: [shareUrl, expiresIn]
                 properties:
-                  shareUrl: { type: string }
+                  shareUrl:
+                    type: string
+                    description: >-
+                      Opens `/trip/{token}` on the traveller app, the shared-trip
+                      page that reads `GET /v1/trips/{token}`.
+                    example: https://app.yuvoy.in/trip/3q2-Xw9vLk
                   expiresIn: { type: integer, description: Seconds. }
                   reveals:
                     type: string
@@ -1671,6 +1921,309 @@ paths:
                   partySize: { type: integer }
                   cancelled: { type: boolean }
         "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /bookings/invites:
+    post:
+      tags: [bookings]
+      summary: Invite somebody onto this trip
+      operationId: createTripInvite
+      description: >-
+        Offers one place in the party, to a phone number or as a link. Both
+        answer with `inviteUrl`, so the booker can copy an invitation to a
+        number into a chat of their own. The link is returned once and never
+        again; offer Copy and Share rather than printing it.
+
+
+        With `phone`, the invitation also waits in that number's own account
+        (`listInvitedTrips`) with no link at all. Numbers are normalised as at
+        checkout, so a bare ten-digit number is taken as +91.
+
+
+        Without `phone`, the link is single-use: the first verified number to
+        accept it has the place.
+
+
+        **The guest-count rule.** Live invitations (invited or joined) may not
+        exceed the party size less the booker, so a party of four can invite
+        three people and a party of one nobody. Declined and removed
+        invitations do not use a place. Beyond that, `409`.
+
+
+        **Delivery.** There is no WhatsApp sender yet, so an invitation to a
+        number reads `delivery: not_sent_no_channel` and nothing is queued. When
+        a sender is configured the same request reads `queued`. A link is never
+        sent by us and reads `not_applicable`.
+
+
+        Authorised by the booking's status token (any issuer, including the
+        `statusToken` rows of `listMyBookings`), or by a traveller session for
+        the number the booking was made with, in which case `reservationId` is
+        required. A share token is refused. Invitations are taken for a trip
+        that is confirmed, or a request still waiting on the operator, and that
+        has not ended.
+      security: [{ statusToken: [] }, { travellerSession: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  description: The number to invite. Omit for a link anybody may accept once.
+                reservationId:
+                  type: string
+                  description: >-
+                    Which booking, when signed in with a session. Optional with a
+                    status token, where it must be that token's own booking.
+      responses:
+        "201":
+          description: The invitation, with its link.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreatedTripInvite" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >-
+            `conflict`. The trip is not taking invitations (cancelled, called
+            off, over, or an unpaid hold), every place is already offered, that
+            number already has an invitation, or it is the booker's own number.
+            `message` says which.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+    get:
+      tags: [bookings]
+      summary: Who the booker invited
+      operationId: listTripInvites
+      description: >-
+        Every invitation on this booking except removed ones, oldest first. A
+        number is shown masked to its last four digits, unless the guest joined
+        with a profile name, in which case the name is shown instead. Declined
+        invitations stay, so the booker knows.
+      security: [{ statusToken: [] }, { travellerSession: [] }]
+      parameters:
+        - name: reservationId
+          in: query
+          required: false
+          description: Required with a travellerSession.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The guests, and how many places there are to offer.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [guests, maxGuests]
+                properties:
+                  guests:
+                    type: array
+                    items: { $ref: "#/components/schemas/TripGuest" }
+                  maxGuests:
+                    type: integer
+                    description: The party size less the booker.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /bookings/invites/{id}:
+    delete:
+      tags: [bookings]
+      summary: Remove a guest or revoke an invitation
+      operationId: removeTripGuest
+      description: >-
+        Withdraws an invitation, revokes its link, or takes somebody who joined
+        off the trip. Their access ends on the next request. `204` also when
+        they were already removed. With a session, `reservationId` may be
+        omitted: the invitation names its booking, and the session must be the
+        number that booking was made with.
+      security: [{ statusToken: [] }, { travellerSession: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: reservationId
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "204": { description: Removed. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /invites/{token}:
+    get:
+      tags: [bookings]
+      summary: Which trip an invitation link is for
+      operationId: previewTripInvite
+      description: >-
+        Unauthenticated. Names the trip so somebody knows what they are signing
+        in for: the experience, the day, the operator and where it stands.
+        Nothing personal and nothing about money. `404` for a link that is
+        unknown, revoked, declined, or past the end of its trip.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The trip behind the link.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TripInvitePreview" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /invites/{token}/accept:
+    post:
+      tags: [me]
+      summary: Accept an invitation link
+      operationId: acceptTripInvite
+      description: >-
+        Joins the trip as the number the session proved (`verifyTravellerSignIn`).
+        An invitation addressed to a number can be accepted by that number only;
+        any other number gets `404`, not `403`. A link addressed to nobody is
+        single-use. Accepting again is not an error. The trip then appears in
+        `listInvitedTrips`.
+      security: [{ travellerSession: [] }]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The trip, as a guest sees it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitedTrip" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >-
+            `conflict`. The trip was cancelled or called off before it was
+            accepted, or this is the number the trip was booked with.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /me/invited-trips:
+    get:
+      tags: [me]
+      summary: Trips this number was invited to
+      operationId: listInvitedTrips
+      description: >-
+        Trips the signed-in number joined as a guest, and invitations addressed
+        to it that can still be accepted, each with `role: guest`. Ordered as
+        trips are: upcoming soonest first, then past ones most recent first.
+
+
+        **Separate from `listMyBookings` on purpose.** Those rows carry a booking
+        link and belong to the person who booked; these carry no money, no
+        reference and no link, and an invitee cannot cancel or change anything.
+        The app merges the two lists, telling them apart by `role`.
+      security: [{ travellerSession: [] }]
+      responses:
+        "200":
+          description: The trips.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [trips]
+                properties:
+                  trips:
+                    type: array
+                    items: { $ref: "#/components/schemas/InvitedTrip" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /me/invited-trips/{id}:
+    get:
+      tags: [me]
+      summary: One trip this number was invited to
+      operationId: getInvitedTrip
+      security: [{ travellerSession: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The trip, as a guest sees it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitedTrip" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /me/invited-trips/{id}/accept:
+    post:
+      tags: [me]
+      summary: Accept an invitation from the list
+      operationId: acceptInvitedTrip
+      description: >-
+        For an invitation addressed to this number, with no link needed.
+        Accepting again is not an error.
+      security: [{ travellerSession: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The trip, as a guest sees it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitedTrip" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`conflict`. The trip was cancelled or called off before it was accepted."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /me/invited-trips/{id}/decline:
+    post:
+      tags: [me]
+      summary: Decline an invitation
+      operationId: declineInvitedTrip
+      description: >-
+        Frees the place for somebody else and takes the trip out of this list.
+        Declining again is not an error; declining a trip already joined is
+        `409`.
+      security: [{ travellerSession: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Declined. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`conflict`. This number already joined the trip."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
   /bookings/review:
@@ -1769,6 +2322,11 @@ paths:
         Answers are taken while the booking is going ahead and until its
         departure leaves; after that this answers `409 answers_closed`. These
         questions never ask about health, which is the screener at checkout.
+
+
+        Answers are kept for 90 days after the departure ends, and then deleted,
+        unless a legal hold names this booking (D46). `PartyQuestion` says how
+        the booking reads afterwards.
       operationId: answerBookingQuestions
       security: [{ statusToken: [] }]
       requestBody:
@@ -2075,7 +2633,8 @@ components:
       scheme: bearer
       description: >-
         The opaque token `verifyTravellerSignIn` returns. Proves a code reached
-        a phone number; not tied to any booking.
+        a phone number; not tied to any booking. Lasts 14 days since it was
+        last used: each request it authenticates extends it.
     statusToken:
       type: http
       scheme: bearer
@@ -2137,6 +2696,169 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
+    TripInviteDelivery:
+      type: string
+      enum: [not_sent_no_channel, queued, not_applicable]
+      description: >-
+        Whether we told anybody. `not_sent_no_channel`: an invitation to a
+        number while there is no WhatsApp sender; it still waits in that
+        number's account. `queued`: a WhatsApp message is on its way.
+        `not_applicable`: a link, which we never send.
+
+    GuestTripStatus:
+      type: string
+      enum: [pending, confirmed, completed, cancelled, called_off]
+      description: >-
+        Where the trip stands, for a guest. `pending` is a request still waiting
+        on the operator. `called_off` is the operator standing the departure
+        down; `cancelled` is the booking withdrawn, declined or lapsed.
+
+    CreatedTripInvite:
+      type: object
+      required: [id, state, delivery, inviteUrl]
+      properties:
+        id: { type: string }
+        state: { type: string, enum: [invited] }
+        delivery: { $ref: "#/components/schemas/TripInviteDelivery" }
+        inviteUrl:
+          type: string
+          description: >-
+            Returned once. Offer Copy and Share; do not print it. Opens
+            `/i/{token}` on the traveller app, where the invited person signs in
+            with their own number and accepts.
+          example: https://app.yuvoy.in/i/8Hk2-pQv7Zr
+
+    TripGuest:
+      type: object
+      required: [id, state, delivery, createdAt]
+      description: One invitation as the booker sees it. At most one of `name` and `phoneMasked`; a link nobody accepted has neither.
+      properties:
+        id: { type: string }
+        phoneMasked:
+          type: string
+          description: The number's last four digits, the rest replaced.
+        name:
+          type: string
+          description: The name a guest's profile had when they joined.
+        state: { type: string, enum: [invited, joined, declined] }
+        delivery: { $ref: "#/components/schemas/TripInviteDelivery" }
+        createdAt: { type: string, format: date-time }
+
+    TripInvitePreview:
+      type: object
+      required: [experience, experienceSlug, operator, localDate, localTime, status]
+      properties:
+        experience: { type: string }
+        experienceSlug: { type: string }
+        operator: { type: string }
+        localDate: { type: string, format: date }
+        localTime: { type: string, example: "06:30" }
+        status: { $ref: "#/components/schemas/GuestTripStatus" }
+
+    InvitedTrip:
+      type: object
+      description: >-
+        A trip as a guest sees it. Deliberately absent: the booking reference,
+        any booking link, the price, the payment, the refund position, and
+        anything about the person who paid. A guest cannot cancel or change the
+        booking.
+      required: [id, role, guestState, experience, experienceSlug, operator, localDate, localTime,
+                 meetingPoint, durationMinutes, partySize, status, going]
+      properties:
+        id:
+          type: string
+          description: The invitation's id, for getInvitedTrip, acceptInvitedTrip and declineInvitedTrip.
+        role: { type: string, enum: [guest] }
+        guestState: { type: string, enum: [invited, joined] }
+        experience: { type: string }
+        experienceSlug:
+          type: string
+          description: Links to the listing, `getExperience`.
+        operator: { type: string }
+        localDate: { type: string, format: date }
+        localTime: { type: string, example: "06:30" }
+        meetingPoint: { type: string }
+        landmark: { type: string }
+        durationMinutes: { type: integer }
+        bring:
+          type: array
+          items: { type: string }
+          description: What to bring. No listing field carries this yet, so it is absent for now.
+        partySize: { type: integer }
+        status: { $ref: "#/components/schemas/GuestTripStatus" }
+        going:
+          type: array
+          description: >-
+            Guests who accepted, in the order they did. A name only when they
+            joined with a profile name, otherwise "Guest"; never a number. The
+            booker is not listed; `partySize` counts them.
+          items:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              you: { type: boolean, description: Present and true on the caller's own place. }
+
+    TravellerAccount:
+      type: object
+      required: [phone, name, email, interests, onboardingRequired, memberSince, trips, reviews, support]
+      properties:
+        phone: { type: string, description: "The proven number, in E.164." }
+        name:
+          type: [string, "null"]
+          description: Null until given; also null for somebody who skipped the first screen.
+        email: { type: [string, "null"] }
+        interests:
+          type: array
+          items: { type: string }
+          description: Category and activity-type keys, in the order chosen.
+        onboardingRequired:
+          type: boolean
+          description: Show the first-sign-in screen, skippable. Never a gate on booking.
+        memberSince:
+          type: [string, "null"]
+          format: date-time
+          description: The earlier of the profile's creation and the first booking on the number.
+        trips:
+          type: object
+          required: [total, upcoming, completed]
+          properties:
+            total: { type: integer }
+            upcoming: { type: integer }
+            completed: { type: integer }
+        reviews:
+          type: object
+          required: [count]
+          properties:
+            count: { type: integer, description: "Reviews this number wrote, published or not." }
+        support: { $ref: "#/components/schemas/SupportContact" }
+        session:
+          type: object
+          description: >-
+            Present only when a traveller session signed the request in; absent
+            for a recovery token. Additive: a client that ignores it loses
+            nothing.
+          required: [expiresAt]
+          properties:
+            expiresAt:
+              type: string
+              format: date-time
+              description: >-
+                When this session now ends: 14 days since it was last used,
+                including this request.
+
+    SupportContact:
+      type: object
+      description: >-
+        How a traveller reaches a person. The same configuration everywhere it
+        appears (`getMyAccount`, `getBookingStatus`).
+      required: [whatsappE164, hours]
+      properties:
+        whatsappE164:
+          type: [string, "null"]
+          description: Null while Yuvoy has no support number. Hide "Chat with us" then.
+        hours: { type: string, description: "When somebody is there to reply, in words." }
+
     Error:
       type: object
       required: [error]
@@ -2801,6 +3523,10 @@ components:
 
             A retry that replays an existing reservation records nothing new;
             answer from the booking link instead.
+
+
+            Answers are kept for 90 days after the departure ends, and then
+            deleted, as `PartyQuestion` describes.
           items: { $ref: "#/components/schemas/BookingAnswer" }
 
     SafetyRequirements:
@@ -2892,6 +3618,13 @@ components:
         first, in the listing's order, answered or not. After them comes any
         question this party answered that the listing no longer asks, with
         `current: false`, so an earlier answer stays readable with its words.
+
+
+        Answers are kept for 90 days after the departure ends, and then deleted,
+        unless a legal hold names this booking (D46). Afterwards every question
+        the listing still asks reads `answered: false`, with no `answer` or
+        `answeredAt`, exactly as a question never answered reads, and a question
+        the listing no longer asks is not listed at all.
       required: [questionId, text, answerType, required, current, answered]
       properties:
         questionId: { type: string }
@@ -2914,7 +3647,7 @@ components:
             answered again.
         answered:
           type: boolean
-          description: "`false` means not answered yet."
+          description: "`false` means no answer is on record: not answered yet, or deleted 90 days after the trip."
         answer:
           type: string
           description: >-
@@ -3051,11 +3784,22 @@ components:
       # Name and a WhatsApp number, and nothing else required. Minimal by
       # design: it is what puts someone on a boat and tells them where to be,
       # and every extra field costs conversions on the one funnel there is.
-      required: [name, whatsapp]
+      #
+      # Not listed in `required` since 2026-09-13, because a signed-in checkout
+      # may leave both out (see createReservation). A guest checkout still must
+      # send both, and is refused with a 400 naming the field when it does not.
+      description: >-
+        `name` and `whatsapp` are required for a guest checkout. Signed in with a
+        travellerSession, both may be omitted and `whatsapp` is ignored.
       properties:
-        name: { type: string, maxLength: 120 }
-        whatsapp: { type: string, description: "E.164, e.g. +919000000000" }
-        email: { type: string, description: Optional. }
+        name:
+          type: string
+          maxLength: 120
+          description: Required for a guest. Signed in, defaults to the profile name, then the newest booking's name.
+        whatsapp:
+          type: string
+          description: "E.164, e.g. +919000000000. Required for a guest. Ignored when signed in: the session's number is used."
+        email: { type: string, description: "Optional. Signed in and left out, the profile email is used when there is one." }
         marketingConsent:
           type: boolean
           description: >-
@@ -3501,8 +4245,10 @@ components:
           description: >-
             The questions this listing asks and what this party answered. Absent
             when the listing asks nothing and nothing was answered. A question
-            with `answered: false` is not answered yet; answer it with
-            `POST /bookings/answers` while `answersOpen` is `true`.
+            with `answered: false` has no answer on record; answer it with
+            `POST /bookings/answers` while `answersOpen` is `true`. Answers are
+            deleted 90 days after the trip, as `PartyQuestion` describes, and
+            `questions` is then absent if the listing no longer asks anything.
           items: { $ref: "#/components/schemas/PartyQuestion" }
         answersOpen:
           type: boolean
@@ -3525,6 +4271,13 @@ components:
             message:
               type: string
               description: Ready-to-render copy for the current refund state.
+        support:
+          allOf: [{ $ref: "#/components/schemas/SupportContact" }]
+          description: >-
+            How to reach a person, the same as on `getMyAccount`, so a traveller
+            on a booking link who never signed in can still "Chat with us".
+            Always sent (since 2026-09-13); `whatsappE164` is null while there is
+            no support number, and the button is hidden then.
         review:
           type: object
           required: [reviewed, canReview]

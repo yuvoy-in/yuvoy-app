@@ -65,3 +65,60 @@ describe("describeError — the refusals that name a next step", () => {
     expect(describeError(err("cutoff_passed", 409)).requestId).toBe("01J");
   });
 });
+
+/*
+  Codes that were in the contract's enum and not in `ERROR_CODES`, so
+  `YuvoyError` narrowed them to `unknown_error` and every one of them read
+  "Something went wrong ... trying again often fixes it" (yuvoy-app#53).
+
+  `scripts/qa.mjs` check 17 is what stops the class coming back. These assert
+  that each one now says something true, which the drift check cannot.
+*/
+describe("describeError — codes the client used to not recognise", () => {
+  const GENERIC = /trying again often fixes it/;
+
+  it("separates the two review refusals by their next step", () => {
+    const notYet = describeError(err("not_reviewable_yet", 409));
+    expect(notYet.title).toBe("This trip is not finished yet");
+    expect(notYet.body).not.toMatch(GENERIC);
+    expect(notYet.canRetry).toBe(false);
+
+    const closed = describeError(err("review_window_closed", 409));
+    expect(closed.title).toBe("Too late to review this one");
+    expect(closed.body).toMatch(/30 days/);
+    expect(closed.canRetry).toBe(false);
+
+    // Different states, so they must not share a sentence.
+    expect(notYet.title).not.toBe(closed.title);
+  });
+
+  it("keeps `unavailable` retryable, and does not read it as a deliberate stop", () => {
+    const d = describeError(err("unavailable", 503));
+    /*
+      The contract is explicit that the request was not recorded and that
+      trying later is the right move. It is the one 503 in the enum that is
+      neither somebody's decision nor a dead end, so both the calm
+      "we stopped this on purpose" treatment and a no-retry treatment would
+      be wrong.
+    */
+    expect(d.canRetry).toBe(true);
+    expect(d.deliberate).toBe(false);
+    expect(d.body).not.toMatch(GENERIC);
+    // It must not suggest the booking itself is gone.
+    expect(d.body).toMatch(/nothing has happened to your booking/i);
+  });
+
+  it("recognises every one of them rather than narrowing to unknown_error", () => {
+    for (const code of [
+      "not_reviewable_yet",
+      "already_reviewed",
+      "review_window_closed",
+      "unavailable",
+    ]) {
+      expect(
+        new YuvoyError({ code, message: "raw", status: 409 }).code,
+        code,
+      ).toBe(code);
+    }
+  });
+});

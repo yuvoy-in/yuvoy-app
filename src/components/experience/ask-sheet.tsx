@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { YuvoyError } from "@/lib/api/errors";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { readAttribution } from "@/lib/booking/attribution";
@@ -13,8 +15,12 @@ import {
 } from "@/components/checkout/screening-fields";
 import { describeError, FailurePanel } from "@/components/states";
 import { Sheet } from "@/components/ui/sheet";
-import { Field } from "@/components/ui/field";
-import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
+import { DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
+import {
+  ContactFields,
+  useContactState,
+} from "@/components/auth/contact-fields";
+import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { CheckIcon } from "@/components/ui/icons";
@@ -35,20 +41,25 @@ type Slot = components["schemas"]["Slot"];
  * a question they had already decided to ask. Allotment mode still goes to
  * `/e/{slug}/book`: that one takes money, and money gets a page.
  *
- * ## Two fields the issue does not list, and why they are here anyway
+ * ## The terms checkbox is gone, and the screener stays
  *
- * Both appear only when the LISTING carries them, so for the listing the owner
- * walked this really is three fields and nothing else.
+ * The owner said on 14 September that the pop-up had more fields than the
+ * three asked for. The acknowledgement checkbox went: the API has no field for
+ * accepting it, so it was ceremony this form invented, and the policy is now
+ * one line of text above Send. `checkoutRefusal` still refuses a listing with
+ * no published terms at all, which is the part that was actually load-bearing.
  *
- *   - **The safety screener.** A request-mode listing may declare `safety`
- *     with a health screener and a minimum age. It is the one input on this
- *     flow that exists to stop somebody being taken somewhere dangerous, and
- *     "only asks for name, number, email" is a statement about ceremony rather
- *     than a decision to drop a safety gate. Dropping it silently is not mine
- *     to make.
- *   - **The cancellation terms.** The product refuses to take any booking
- *     without published terms (`checkoutRefusal`), and the acknowledgement is
- *     the pair to that refusal. Say so and I will take it out of the pop-up.
+ * The safety screener stays, and appears only when the LISTING declares it. It
+ * is the one input here that exists to stop somebody being taken somewhere
+ * dangerous, `POST /reservations` answers `400 screening_required` without it,
+ * and "only asks for name, number, email" is a statement about ceremony rather
+ * than a decision to drop a safety gate. On a listing with no `safety` the
+ * pop-up really is three fields and Send.
+ *
+ * ## A signed-in traveller is not asked who they are
+ *
+ * `ContactFields` decides that, and the same block runs in checkout, so the
+ * two cannot drift (yuvoy-app#32).
  *
  * ## The success screen is the issue's, exactly
  *
@@ -70,10 +81,11 @@ export function AskSheet({
   onClose: () => void;
 }) {
   const create = useCreateReservation();
+  const router = useRouter();
+  const { refresh } = useTravellerSession();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState(DEFAULT_DIAL_CODE);
   const [email, setEmail] = useState("");
-  const [policyAccepted, setPolicyAccepted] = useState(false);
   const [declaredClear, setDeclaredClear] = useState<boolean | undefined>();
   const [ageBands, setAgeBands] = useState<(AgeBand | undefined)[]>([]);
   const [sentToken, setSentToken] = useState<string | null>(null);
@@ -86,6 +98,28 @@ export function AskSheet({
   */
   const submitting = useRef(false);
 
+  const contact = useContactState(email);
+
+  /*
+    The two refusals the API can make about WHO is asking (yuvoy-app#32).
+
+    `400` with `details["contact.name"]` is a profile with no name on record:
+    the sentence belongs on the field it concerns, not in a panel below the
+    button, which is where the traveller is not looking.
+
+    `401` is a session that ended between opening the sheet and pressing Send.
+    `refresh` re-asks the server, which flips `ContactFields` back to both
+    fields; without it the form keeps showing "Booking as ..." over a session
+    that no longer exists and Send fails identically forever.
+  */
+  const failure = create.error instanceof YuvoyError ? create.error : null;
+  const nameRefusal =
+    failure?.status === 400 &&
+    typeof failure.details["contact.name"] === "string"
+      ? (failure.details["contact.name"] as string)
+      : undefined;
+  const sessionEnded = failure?.status === 401;
+
   const refusal = checkoutRefusal(experience);
   const safety = experience.safety;
 
@@ -93,9 +127,15 @@ export function AskSheet({
   const phoneGiven = phone.replace(/\D/g, "").length > 4;
 
   const blockers: string[] = [];
-  if (!name.trim()) blockers.push("your name");
-  if (!phoneGiven) blockers.push("a WhatsApp number");
-  if (!policyAccepted) blockers.push("the cancellation terms");
+  /*
+    Only the fields the form is still SHOWING. A signed-in traveller has no
+    name box and no number box, so demanding either would leave Send
+    permanently dead with "still needs your name" under a form that does not
+    ask for one. That is the class of defect `pnpm qa` already checks for on
+    the checkbox pair.
+  */
+  if (contact.needsName && !name.trim()) blockers.push("your name");
+  if (contact.needsPhone && !phoneGiven) blockers.push("a WhatsApp number");
   // Omitted is not false. The form must not let an unanswered screener past.
   if (safety?.screener && declaredClear === undefined) {
     blockers.push("the health check");
@@ -113,6 +153,7 @@ export function AskSheet({
       .some((b) => b && !bandMeetsMinimum(b, safety.minAge!));
 
   const canSend =
+    !contact.loading &&
     blockers.length === 0 &&
     !declaredCondition &&
     !tooYoung &&
@@ -127,11 +168,8 @@ export function AskSheet({
       const reservation = await create.mutateAsync({
         slotId: slot.id,
         guests,
-        contact: {
-          name: name.trim(),
-          whatsapp: phone.trim(),
-          ...(email.trim() ? { email: email.trim() } : {}),
-        },
+        authenticated: contact.authenticated,
+        contact: contact.contactFor({ name, phone, email }),
         ...(attribution ? { attribution } : {}),
         ...(safety?.screener || safety?.minAge
           ? {
@@ -152,10 +190,13 @@ export function AskSheet({
         the token to the device store, so Trips finds it either way.
       */
       setSentToken(reservation.statusToken ?? "");
-    } catch {
+    } catch (error) {
       // Swallowed deliberately: `mutateAsync` rejects AND stores the failure
       // on `create.error`, which is what renders the panel below, so letting
       // it propagate is an unhandled rejection for a visible failure.
+      if (error instanceof YuvoyError && error.status === 401) {
+        await refresh();
+      }
     } finally {
       submitting.current = false;
     }
@@ -163,7 +204,15 @@ export function AskSheet({
 
   if (sentToken !== null) {
     return (
-      <Sheet open onClose={onClose} title="Request sent">
+      /*
+        CLOSING GOES TO THE FEED, not back to the listing (yuvoy-app#32
+        item 3). `onClose` returns to the page underneath, which is the
+        experience the traveller has just finished asking about: a dead end,
+        and the owner said so. The × , the backdrop and Escape all run this,
+        so all three land in the same place as "Back to the feed" below rather
+        than one of them being the odd one out.
+      */
+      <Sheet open onClose={() => router.push("/")} title="Request sent">
         {/*
           The sheet's own header already says "Request sent". A second heading
           under it said the same words twice — visually a stutter, and to a
@@ -254,27 +303,22 @@ export function AskSheet({
             {guests === 1 ? "1 person" : `${guests} people`}
           </p>
 
-          <div className="mt-5 space-y-4">
-            <Field
-              label="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="name"
-              required
-            />
-            <PhoneField
-              label="WhatsApp number"
-              value={phone}
-              onChange={setPhone}
-              hint="This is how the operator answers, and how we reach you if the sea changes."
-              required
-            />
-            <Field
-              label="Email (optional)"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+          {sessionEnded ? (
+            <p role="alert" className="text-terra-deep mt-5 text-sm">
+              Your sign-in has ended. Enter your name and number to send this.
+            </p>
+          ) : null}
+
+          <div className="mt-5">
+            <ContactFields
+              name={name}
+              onNameChange={setName}
+              phone={phone}
+              onPhoneChange={setPhone}
+              email={contact.emailValue}
+              onEmailChange={setEmail}
+              nameError={nameRefusal}
+              phoneHint="This is how the operator answers, and how we reach you if the sea changes."
             />
           </div>
 
@@ -298,25 +342,15 @@ export function AskSheet({
           ) : null}
 
           {/*
-            Unconditional, because its blocker is. The pair being
-            conditional-and-unconditional is the defect `pnpm qa` checks for:
-            a form asking for a checkbox that is not on the page has a
-            permanently dead button. `checkoutRefusal` above is what handles a
-            listing with no terms at all.
+            The policy, as a sentence rather than a checkbox (yuvoy-app#32
+            item 4). The API has no field for accepting it, so the checkbox was
+            an acknowledgement this form invented and then made Send depend on.
+            `checkoutRefusal` above still refuses a listing with no published
+            terms at all, which is the part that protects anybody.
           */}
-          <label className="mt-6 flex cursor-pointer gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={policyAccepted}
-              onChange={(e) => setPolicyAccepted(e.target.checked)}
-              className="accent-terra-deep mt-0.5 size-4 shrink-0"
-              aria-describedby="ask-policy"
-            />
-            <span id="ask-policy" className="text-forest/80">
-              I have read what happens if it is called off:{" "}
-              {experience.cancellationPolicy}
-            </span>
-          </label>
+          <p className="text-forest/70 mt-6 text-sm">
+            If it is called off: {experience.cancellationPolicy}
+          </p>
 
           {create.error ? (
             <FailurePanel

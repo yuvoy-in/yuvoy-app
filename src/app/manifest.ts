@@ -10,7 +10,7 @@ import { THEME_COLOR } from "@/lib/site/theme";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Yuvoy · Experience More.",
+    name: "Yuvoy",
     short_name: "Yuvoy",
     description:
       "Find something worth doing in the Andaman Islands, and book a seat on it.",

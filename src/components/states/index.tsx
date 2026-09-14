@@ -323,6 +323,51 @@ export function describeError(
           body: "No more messages can be sent on this booking. Everything already written can still be read. If something still needs sorting, send it to us and we will pass it on.",
           canRetry: false,
         };
+      /*
+        A 503 nobody chose. The booking store behind recovery, cancellation
+        quotes and "my trips" is not wired, so those endpoints cannot answer.
+
+        It keeps the retry, unlike the four deliberate stops, because the
+        contract says the request was not recorded and that trying later is
+        the right move. What changes from the default is the promise: this is
+        temporary and it is not the traveller's booking that is wrong, so the
+        copy must not imply their trip is gone.
+      */
+      case "unavailable":
+        return {
+          ...base,
+          title: "We cannot reach your bookings",
+          body: "This part of Yuvoy is not answering at the moment. Nothing has happened to your booking, and nothing you just did was recorded. Try again shortly.",
+          canRetry: true,
+        };
+      /*
+        REVIEWING A TRIP, the two of the three new codes that are not
+        "already recorded" (yuvoy-app#53).
+
+        `already_reviewed` is deliberately NOT here. It is a recorded state,
+        not a failure, and `ReviewForm` renders it as the recorded review
+        rather than as an error panel. It reaches this switch only from
+        somewhere that has no such state to show, and the default is honest
+        enough there.
+
+        Neither of these offers a retry, and they are separated because the
+        next step differs: one is "come back later", the other is "there is
+        nothing to do".
+      */
+      case "not_reviewable_yet":
+        return {
+          ...base,
+          title: "This trip is not finished yet",
+          body: "A review can be left once the trip has run and the operator has marked it done. Come back after you have been.",
+          canRetry: false,
+        };
+      case "review_window_closed":
+        return {
+          ...base,
+          title: "Too late to review this one",
+          body: "Reviews close 30 days after a trip. This one is past that, so it can no longer be reviewed.",
+          canRetry: false,
+        };
       case "not_found":
         return {
           ...base,

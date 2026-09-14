@@ -150,7 +150,15 @@ test.describe("asking the operator", () => {
 
     await sheet.getByLabel("Your name").fill("Asha Menon");
     await sheet.getByLabel("WhatsApp number").fill("9000000000");
-    await sheet.getByRole("checkbox").check();
+    /*
+      There is no terms checkbox any more (yuvoy-app#32 item 4, owner 14 Sep).
+      The API has no field for accepting it, so the checkbox was an
+      acknowledgement this form invented and then made Send depend on. The
+      policy is a sentence above Send, and it is asserted here rather than
+      merely un-clicked, so deleting the sentence too would fail.
+    */
+    await expect(sheet.getByRole("checkbox")).toHaveCount(0);
+    await expect(sheet.getByText(/If it is called off:/)).toBeVisible();
     await sheet.getByRole("button", { name: /Send the request/ }).click();
 
     const sent = page.getByRole("dialog", { name: "Request sent" });
@@ -164,6 +172,32 @@ test.describe("asking the operator", () => {
     */
     await sent.getByRole("link", { name: "Back to the feed" }).click();
     await page.waitForURL("**/");
+  });
+
+  test("CLOSING Request sent also goes to the feed, not the listing", async ({
+    page,
+  }) => {
+    /*
+      The third mismatch the owner found on 14 Sep (yuvoy-app#32 item 3).
+      "Back to the feed" already did the right thing; the × , the backdrop and
+      Escape closed the sheet onto the listing the traveller had just finished
+      asking about. Three ways out, one of them somewhere else.
+    */
+    await page.goto(REQUEST);
+    await chooseDeparture(page);
+    await page.getByRole("button", { name: /Ask the operator/ }).click();
+
+    const sheet = page.getByRole("dialog", { name: "Ask the operator" });
+    await sheet.getByLabel("Your name").fill("Asha Menon");
+    await sheet.getByLabel("WhatsApp number").fill("9000000000");
+    await sheet.getByRole("button", { name: /Send the request/ }).click();
+
+    const sent = page.getByRole("dialog", { name: "Request sent" });
+    await expect(sent).toBeVisible();
+
+    await sent.getByRole("button", { name: /close/i }).click();
+    await page.waitForURL("**/");
+    expect(new URL(page.url()).pathname).toBe("/");
   });
 
   test("an instant book still goes to checkout", async ({ page }) => {

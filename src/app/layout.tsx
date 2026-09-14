@@ -5,6 +5,7 @@ import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { AttributionCapture } from "@/components/booking/attribution-capture";
+import { AdoptStoredSession } from "@/components/auth/adopt-stored-session";
 import { InstallObservability } from "@/components/observability/install";
 import { ConsentBanner } from "@/components/analytics/consent-banner";
 import { THEME_COLOR } from "@/lib/site/theme";
@@ -79,6 +80,11 @@ export default function RootLayout({
         <AttributionCapture />
         <MswProvider>
           <Providers>
+            {/*
+              Inside Providers, because it invalidates a React Query entry.
+              One-time migration off IndexedDB; renders nothing. See #57.
+            */}
+            <AdoptStoredSession />
             <AppShell>{children}</AppShell>
             <ConsentBanner />
           </Providers>

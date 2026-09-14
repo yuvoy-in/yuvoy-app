@@ -11,6 +11,13 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
+  /*
+    `LoginButton` sits in every logo header and in the feed masthead
+    (yuvoy-app#56), and it reads both of these. A mock missing either
+    fails the whole file with "No export is defined", which reads as a
+    broken screen rather than an incomplete mock.
+  */
+  usePathname: () => "/e/try-dive-nemo-reef/book",
   useRouter: () => ({ replace, push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -25,15 +32,15 @@ const kayakSlot = availabilityFor("mangrove-kayak-at-dawn")[0];
 beforeEach(() => replace.mockClear());
 
 async function fillContact(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText("Your name"), "Asha Menon");
+  await user.type(await screen.findByLabelText("Your name"), "Asha Menon");
   await user.type(screen.getByLabelText("WhatsApp number"), "+919000000000");
   await user.click(screen.getByRole("checkbox", { name: /called off/i }));
 }
 
 describe("CheckoutForm — the money rules", () => {
-  it("asks for a name and a WhatsApp number, and nothing else required", () => {
+  it("asks for a name and a WhatsApp number, and nothing else required", async () => {
     renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
-    expect(screen.getByLabelText("Your name")).toBeRequired();
+    expect(await screen.findByLabelText("Your name")).toBeRequired();
     expect(screen.getByLabelText("WhatsApp number")).toBeRequired();
     // Every extra required field costs conversions on the one funnel there is.
     expect(screen.getByLabelText("Email (optional)")).not.toBeRequired();
@@ -242,7 +249,7 @@ describe("CheckoutForm — the money rules", () => {
       screen.getByText(new RegExp(kayak.cancellationPolicy!.slice(0, 30), "i")),
     ).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Your name"), "Asha Menon");
+    await user.type(await screen.findByLabelText("Your name"), "Asha Menon");
     await user.type(screen.getByLabelText("WhatsApp number"), "+919000000000");
     // Blocked until it is ticked, and released by ticking it — which is the
     // thing that was impossible.
