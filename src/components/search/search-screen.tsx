@@ -10,18 +10,19 @@ import {
 } from "@/components/states";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/chrome/screen";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { SearchIcon } from "@/components/ui/icons";
 import { ReelGrid } from "@/components/feed/reel-grid";
 import { FilterSheet } from "./filter-sheet";
+import { ActiveFilters } from "./active-filters";
 import { playableReels } from "@/lib/feed/reels";
 import {
   filtersFromParams,
   filtersToParams,
-  isAsking,
   type ReelFilters,
 } from "@/lib/search/filters";
-import { useSearchReels } from "@/lib/search/use-search-reels";
+import { activeFilterCount, withoutFilters } from "@/lib/search/labels";
+import { useSearchReels, useVocabulary } from "@/lib/search/use-search-reels";
 
 /**
  * The Search tab — a search bar, one Filters button, and results as reels.
@@ -53,11 +54,23 @@ import { useSearchReels } from "@/lib/search/use-search-reels";
  *
  * A shareable search is the bonus, not the reason.
  *
- * ## Nothing is asked until something is asked for
+ * ## The default state is the grid, not a prompt
  *
- * Unchanged, and still the contract's rule: an empty query with no filters is
- * not "everything", because everything is what the feed is for. The default
- * state is a prompt and costs no request.
+ * This screen used to refuse to ask anything until something was asked for:
+ * an empty query with no filters was a prompt with two links, on the reasoning
+ * that "everything" is what the feed is for.
+ *
+ * The owner decided otherwise on 14 September (yuvoy-app#37 item 9): opening
+ * Search shows the unfiltered reel grid straight away. A search screen whose
+ * first state is an instruction is a screen that has to be obeyed before it
+ * does anything, and the grid is both the answer to "what is on" and the
+ * fastest way to see that filtering is possible at all.
+ *
+ * ## What is applied is on the screen
+ *
+ * The pills under the search bar, and they are the other half of the owner's
+ * "very bad filters" verdict. The wall of chips was inside the sheet; the part
+ * that made an empty grid unexplainable was that nothing out here said why.
  */
 export function SearchScreen() {
   const router = useRouter();
@@ -102,17 +115,12 @@ export function SearchScreen() {
     });
   };
 
-  const asking = isAsking(filters);
   const search = useSearchReels(filters);
+  const vocabulary = useVocabulary();
   const items = playableReels(search.data?.pages);
 
   /* How many filters are on, for the button. The word is not one of them. */
-  const active = [
-    filters.bookableOn,
-    filters.destinationKey,
-    filters.category,
-    filters.activityType,
-  ].filter(Boolean).length;
+  const active = activeFilterCount(filters);
 
   return (
     <Screen>
@@ -156,6 +164,17 @@ export function SearchScreen() {
       </div>
 
       {/*
+        WHAT IS APPLIED, before the results rather than inside the pop-up. A
+        removal here writes the URL directly: no sheet, no draft, no Apply
+        (yuvoy-app#37 item 1).
+      */}
+      <ActiveFilters
+        filters={filters}
+        vocabulary={vocabulary.data}
+        onChange={apply}
+      />
+
+      {/*
         Mounted only while open, which is what seeds the draft afresh each time
         and is why the sheet needs no effect to mirror the applied filters into
         it. An always-mounted sheet with an `open` prop looked tidier and was a
@@ -170,20 +189,7 @@ export function SearchScreen() {
       ) : null}
 
       <div className="mt-8">
-        {!asking ? (
-          <EmptyState
-            title="Pick a day or a place, or type what you want to do"
-            body="Search finds one thing. Everything that is on is in the feed."
-            action={
-              <>
-                <ButtonLink href="/">Browse the feed</ButtonLink>
-                <ButtonLink href="/guides" variant="outline">
-                  Read the guides
-                </ButtonLink>
-              </>
-            }
-          />
-        ) : search.isPending ? (
+        {search.isPending ? (
           <LoadingState label="Searching">
             <div className="grid grid-cols-3 gap-2">
               {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -220,20 +226,24 @@ export function SearchScreen() {
             assumes the word is at fault.
           */
           <EmptyState
-            title={
-              filters.bookableOn
-                ? "Nothing on that day"
-                : "Nothing matches that yet"
-            }
+            title={filters.bookableOn ? "Nothing on that day" : "No matches"}
             body={
               filters.bookableOn
-                ? "No operator has a departure we can sell for that date. Try another day, or take a filter off."
-                : "Nothing on sale matches all of that. Take a filter off, or try a shorter word."
+                ? "No departure can be booked on that date. Try another day or remove a filter."
+                : "Nothing on sale matches this. Remove a filter or try another word."
             }
+            /*
+              Clears every filter and KEEPS the typed word. Somebody who typed
+              "diving" and then narrowed it to nothing did not ask to lose the
+              word (yuvoy-app#37 item 8).
+            */
             action={
               active > 0 ? (
-                <Button variant="outline" onClick={() => apply({})}>
-                  Clear filters
+                <Button
+                  variant="outline"
+                  onClick={() => apply(withoutFilters(filters))}
+                >
+                  Clear all filters
                 </Button>
               ) : undefined
             }
