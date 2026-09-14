@@ -69,14 +69,23 @@ test("no page shows it once signed in", async ({ page }) => {
   await expect(page.getByText("You are signed in")).toBeVisible();
 
   for (const path of ["/", "/search", "/trips"]) {
-    await page.goto(path);
     /*
-      Waited out rather than asserted immediately. `signedIn` is undefined
-      until `/api/session` answers, so an instant assertion would pass while
-      the component was still in its held-space branch and would keep passing
-      if the signed-in branch were deleted.
+      Waited on `/api/session` specifically, not on `networkidle`.
+
+      `signedIn` is undefined until that call answers, so an instant assertion
+      would pass while the component was still in its held-space branch and
+      would keep passing if the signed-in branch were deleted. But
+      `networkidle` never settles on the feed: the reels keep fetching media, so
+      the first draft of this test timed out at 30s on `/` and looked like a
+      broken button.
     */
-    await page.waitForLoadState("networkidle");
+    const answered = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/session" &&
+        response.request().method() === "GET",
+    );
+    await page.goto(path);
+    await answered;
     await expect(login(page), `Login on ${path} while signed in`).toHaveCount(
       0,
     );

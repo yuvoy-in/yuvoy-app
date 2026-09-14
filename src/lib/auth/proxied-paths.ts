@@ -71,7 +71,49 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     for `sessionToken` and deliberately not for `statusToken`.
   */
   { method: "POST", pattern: "/reservations" },
+  /*
+    Trips somebody else booked, and joining one (yuvoy-app#38 items 1, 7, 11).
+
+    Session-ONLY in the contract: `security: [{ travellerSession: [] }]` with no
+    `statusToken` alternative, because a guest has no booking link and never
+    gets one. So these cannot be called any other way and all four belong here.
+
+    `/invites/{token}/accept` is the one an invite LINK leads to. The token in
+    the path names the invitation; the session says who is accepting. Both are
+    needed, which is why a signed-out visitor is sent to sign in first rather
+    than being able to accept with the link alone.
+  */
+  { method: "GET", pattern: "/me/invited-trips" },
+  { method: "GET", pattern: "/me/invited-trips/{id}" },
+  { method: "POST", pattern: "/me/invited-trips/{id}/accept" },
+  { method: "POST", pattern: "/me/invited-trips/{id}/decline" },
+  { method: "POST", pattern: "/invites/{token}/accept" },
+  /*
+    Editing the profile, and asking us for help from Account (items 9, 10).
+
+    `PATCH /me` is session-only. `POST /support/requests` takes either
+    credential, and this entry is for the Account screen's copy of it: the
+    BOOKING page's copy sends the booking's own status token directly, because
+    that is the credential it holds and the one that attaches the reference.
+  */
+  { method: "PATCH", pattern: "/me" },
+  { method: "POST", pattern: "/support/requests" },
 ];
+
+/*
+  Deliberately NOT proxied, with the reason, so the next reader does not add
+  them for symmetry:
+
+    - `GET /invites/{token}` needs no credential at all. The invite landing
+      page shows it to a signed-out visitor, which is the whole point.
+    - `GET /me/interest-options` says "No session" in the contract and is
+      edge-cacheable. Routing it through this app's server would put a hop and
+      a cache miss in front of a list of words.
+    - `GET`/`POST`/`DELETE /bookings/invites` are authenticated by the
+      BOOKING's status token, which the browser legitimately holds: it is the
+      access a guest checkout has and the thing the device store is for. They
+      are called directly, the way the review form and the cancel sheet are.
+*/
 
 /** `/me/invited-trips/{id}` becomes `^/me/invited-trips/[^/]+$`. */
 function toRegExp(pattern: string): RegExp {

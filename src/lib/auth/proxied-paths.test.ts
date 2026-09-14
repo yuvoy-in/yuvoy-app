@@ -125,21 +125,60 @@ describe("the list itself", () => {
     }
   });
 
-  it("lists nothing unauthenticated, so the proxy is never a plain relay", () => {
+  it("lists nothing the contract says needs no credential", () => {
     /*
-      Every entry must be a call that NEEDS the session. Forwarding an
-      unauthenticated path would make this app's server a free proxy for the
-      API, reachable by anyone who can load a page.
+      Derived from the contract's own `security:`, not from a list of path
+      prefixes. The first draft of this test WAS a prefix list, and it refused
+      `/support/requests` the moment that was legitimately added: a rule that
+      has to be edited every time it is satisfied is not a rule.
+
+      What it protects: the proxy attaches the traveller's session to whatever
+      it forwards, so an endpoint that needs no credential would become a free,
+      credentialed relay into the API reachable by anyone who can load a page.
+      `GET /invites/{token}` and `GET /me/interest-options` are both real,
+      useful, and unauthenticated, which is exactly why neither may be here.
     */
-    for (const { pattern } of PROXIED_PATHS) {
+    const contract = readFileSync(
+      join(process.cwd(), "contracts/openapi.yaml"),
+      "utf8",
+    );
+
+    /** The `security:` line for one method under one path, if it has one. */
+    const securityFor = (pattern: string, method: string) => {
+      const start = contract.indexOf(`\n  ${pattern}:\n`);
+      if (start < 0) return null;
+      const rest = contract.slice(start + 1);
+      const end = rest.slice(1).search(/\n {2}\/[a-z]/i);
+      const block = end < 0 ? rest : rest.slice(0, end + 1);
+
+      const verb = `\n    ${method.toLowerCase()}:\n`;
+      const at = block.indexOf(verb);
+      if (at < 0) return null;
+      const afterVerb = block.slice(at + 1);
+      const nextVerb = afterVerb
+        .slice(1)
+        .search(/\n {4}(get|post|patch|put|delete):\n/);
+      const operation =
+        nextVerb < 0 ? afterVerb : afterVerb.slice(0, nextVerb + 1);
+
+      return /^ {6}security:\s*\[(.+)\]/m.exec(operation)?.[1] ?? null;
+    };
+
+    for (const { method, pattern } of PROXIED_PATHS) {
+      const security = securityFor(pattern, method);
       expect(
-        pattern === "/me" ||
-          pattern.startsWith("/me/") ||
-          pattern.startsWith("/bookings/invites") ||
-          pattern.startsWith("/invites/") ||
-          pattern === "/reservations",
-        `${pattern} is not an authenticated family`,
-      ).toBe(true);
+        security,
+        `${method} ${pattern} has no security: in the contract`,
+      ).not.toBeNull();
+      /*
+        And it must actually name a scheme. `security: []` is the OpenAPI
+        spelling of "no credential required", which would be the worst case
+        here: a path that looks guarded and is not.
+      */
+      expect(
+        security!.trim().length,
+        `${method} ${pattern} declares an EMPTY security list`,
+      ).toBeGreaterThan(0);
     }
   });
 });

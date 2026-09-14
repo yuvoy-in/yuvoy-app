@@ -86,6 +86,22 @@ export const qk = {
    */
   myAccount: () => ["getMyAccount"] as const,
   /**
+   * Trips the traveller was invited to. Not paged by the API (yuvoy-app#38).
+   *
+   * Its own entry rather than part of `myBookings`: it is a different endpoint
+   * with a different shape and no cursor, and a guest's trip carries no price,
+   * no payment and no booking link.
+   */
+  invitedTrips: () => ["listInvitedTrips"] as const,
+  /** One invited trip, for `/trips/invited/{id}`. */
+  invitedTrip: (id: string) => ["getInvitedTrip", id] as const,
+  /** An invite link's preview, unauthenticated, for `/i/{token}`. */
+  invitePreview: (token: string) => ["previewTripInvite", token] as const,
+  /** The guests on a booking, as the booker sees them. */
+  tripInvites: (token: string) => ["listTripInvites", token] as const,
+  /** The first-sign-in screen's tiles. */
+  interestOptions: () => ["listInterestOptions"] as const,
+  /**
    * Every trip on a signed-in number (yuvoy-app#34).
    *
    * This used to be keyed by the session token, so that two numbers on one
@@ -97,7 +113,8 @@ export const qk = {
    * the refetch runs, which is the exact failure the token key existed to
    * prevent.
    */
-  myBookings: () => ["listMyBookings"] as const,
+  myBookings: (tab?: string, from?: string, to?: string) =>
+    ["listMyBookings", tab ?? "", from ?? "", to ?? ""] as const,
   /** The filter chips' word list (yuvoy-app#37). */
   vocabulary: () => ["getPublicVocabulary"] as const,
   /**

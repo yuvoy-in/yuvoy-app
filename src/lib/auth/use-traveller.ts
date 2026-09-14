@@ -1,10 +1,24 @@
 "use client";
 
 import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { api, createProxyClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
+import type { TripTab } from "@/lib/trips/tabs";
+
+/**
+ * Twenty, the API's own default once paging is opted into.
+ *
+ * Sent explicitly rather than relied on: a default that moves upstream would
+ * silently change how much of somebody's history arrives in one page.
+ */
+export const TRIPS_PAGE_SIZE = 20;
 
 /**
  * Whether this device is signed in — yuvoy-app#34, rehoused by #57.
@@ -77,8 +91,9 @@ export function useTravellerSession() {
    * token-keyed cache existed to prevent.
    */
   const refresh = useCallback(async () => {
-    qc.removeQueries({ queryKey: qk.myBookings() });
+    qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
+    qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -108,8 +123,9 @@ export function useTravellerSession() {
     } catch {
       // Deliberately ignored. See above.
     }
-    qc.removeQueries({ queryKey: qk.myBookings() });
+    qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
+    qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
@@ -215,14 +231,65 @@ async function asYuvoyError(response: Response): Promise<YuvoyError> {
  * No `Authorization` header and no token argument: the cookie authenticates
  * this, and the browser never sees it (#57).
  */
-export function useMyBookings(signedIn: boolean | undefined) {
+export function useMyBookings(
+  signedIn: boolean | undefined,
+  options: { tab?: TripTab; from?: string; to?: string } = {},
+) {
+  const { tab, from, to } = options;
+  return useInfiniteQuery({
+    queryKey: qk.myBookings(tab, from, to),
+    enabled: signedIn === true,
+    retry: false,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam, signal }) => {
+      const client = createProxyClient();
+      const { data, error } = await client.GET("/me/bookings", {
+        params: {
+          query: {
+            /*
+              Any one of these opts the endpoint into paging, and `limit` then
+              defaults to 20. Sent explicitly so the page size is this app's
+              decision rather than a default that could move.
+            */
+            ...(tab ? { tab } : {}),
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+            limit: TRIPS_PAGE_SIZE,
+            // Omitted entirely on the first page: `cursor=` empty is a
+            // different request from sending none.
+            ...(pageParam ? { cursor: pageParam } : {}),
+          },
+        },
+        signal,
+      });
+      if (error) throw error;
+      return data;
+    },
+    /*
+      `nextCursor` is `null` when there is nothing more, and ALWAYS null on an
+      unpaged request. Reading it as the only signal is therefore correct here
+      and would not have been before paging existed.
+    */
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
+/**
+ * Trips somebody else booked and invited this number to (yuvoy-app#38).
+ *
+ * Not paged by the API, so not an infinite query. A guest's row carries no
+ * price, no payment, no refund and no booking link, by design: the contract
+ * says the booking reference, the money and anything about the person who paid
+ * are "deliberately absent".
+ */
+export function useInvitedTrips(signedIn: boolean | undefined) {
   return useQuery({
-    queryKey: qk.myBookings(),
+    queryKey: qk.invitedTrips(),
     enabled: signedIn === true,
     retry: false,
     queryFn: async ({ signal }) => {
       const client = createProxyClient();
-      const { data, error } = await client.GET("/me/bookings", { signal });
+      const { data, error } = await client.GET("/me/invited-trips", { signal });
       if (error) throw error;
       return data;
     },
