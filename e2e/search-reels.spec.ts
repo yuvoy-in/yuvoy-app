@@ -89,6 +89,22 @@ test.describe("the filter sheet", () => {
       for the animations is the fix, and it is the honest one — an axe run
       mid-transition measures a frame no user ever reads.
     */
+    /*
+      The CONTENT has to settle before the animations are waited on.
+
+      This went flaky when the sheet gained skeletons (yuvoy-app#37 item 7):
+      Where and What draw placeholders until the vocabulary lands, so the
+      dialog's subtree is replaced while `getAnimations({ subtree: true })` is
+      walking it, and the evaluate aborts with "The user aborted a request".
+      It passed on retry, which is the tell: a run that only fails sometimes at
+      a point where nothing varies is a race, not a defect.
+
+      Waiting for a real chip is waiting for the skeletons to be gone.
+    */
+    await expect(
+      page.getByRole("button", { name: "Havelock (Swaraj Dweep)" }),
+    ).toBeVisible();
+
     await page
       .locator("dialog[open]")
       .evaluate((el) =>

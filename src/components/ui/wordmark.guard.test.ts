@@ -17,17 +17,23 @@ import { join, relative } from "node:path";
  * string, or a `title`/`alt` somebody writes from the brand deck. This walks
  * the two directories the owner named and fails on the words themselves.
  *
- * Scoped exactly to the issue's own acceptance criteria:
+ * Scoped exactly to the issue's own two acceptance greps over `src` and
+ * `public`: one for the strapline, one for the delivered lockup's filename.
+ * Both must return nothing.
  *
- *     git grep -i "experience more" -- src public
- *     git grep yuvoy-lockup        -- src public
+ * The strapline check is deliberately case-insensitive. The delivered art and
+ * the manifest capitalised it differently, and the two would otherwise need
+ * separate rules.
  *
- * Both must return nothing. The check is deliberately case-insensitive for
- * the first: the delivered art writes "Experience more.", the manifest wrote
- * "Experience More.", and the two would otherwise need separate rules.
+ * ## Neither forbidden string is written out anywhere in this file
  *
- * This file is the one place either string may appear, which is why it is
- * built from fragments rather than written out.
+ * Not even in this comment. The scanner already excludes its own path, so the
+ * TEST would pass either way, but the issue's acceptance criterion is a literal
+ * `git grep` that anybody can run, and one that comes back with a hit inside
+ * the guard enforcing it needs a verbal exemption every time. It is cheaper to
+ * describe the strings than to quote them.
+ *
+ * The needles are joined from fragments below for the same reason.
  */
 
 const ROOT = process.cwd();
@@ -66,12 +72,11 @@ const files = SCANNED.flatMap((d) => walk(join(ROOT, d)))
 /*
   Contents AND path.
 
-  The path half is not decoration. Re-adding `yuvoy-lockup-on-dark.svg` was
-  caught below only because the delivered art happens to name the strapline in
-  its own `<desc>`; a redelivery that reworded that one line would have put
-  the file back under `public/brand` with nothing complaining. The file name
-  is the thing the issue asked to be gone, so the file name is what is
-  checked.
+  The path half is not decoration. Re-adding the delivered art was caught below
+  only because it happens to name the strapline in its own `<desc>`; a
+  redelivery that reworded that one line would have put the file back under
+  `public/brand` with nothing complaining. The FILE NAME is the thing the issue
+  asked to be gone, so the file name is what is checked.
 */
 function hits(needle: string): string[] {
   const found: string[] = [];
