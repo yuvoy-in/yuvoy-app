@@ -12,7 +12,7 @@ import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { TripsScreen } from "./trips-screen";
 import { server } from "../../../mocks/server";
-import { saveTravellerSession } from "@/lib/auth/traveller-session";
+import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { rememberBooking } from "@/lib/booking/token-store";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
@@ -44,8 +44,13 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-const signIn = () =>
-  saveTravellerSession({ sessionToken: "sess_test", expiresAt: null });
+/*
+  Signed in means "the cookie is set", and the cookie is server-side now
+  (yuvoy-app#57). Nothing in the browser holds a token, so a test cannot put
+  one in storage to sign in; it flips the flag the app-route mock keeps where
+  the real route keeps a cookie. See mocks/app-route-handlers.ts.
+*/
+const signIn = () => __signInAppRouteMock("sess_test");
 
 /** The server's answer, with only what a test cares about spelled out. */
 function serverBookings(

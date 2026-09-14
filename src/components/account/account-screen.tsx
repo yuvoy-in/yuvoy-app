@@ -38,7 +38,7 @@ import { Skeleton, LoadingState } from "@/components/states";
  * drop-off available in this product, and none of it appears in checkout.
  */
 export function AccountScreen() {
-  const { token, signIn, signOut } = useTravellerSession();
+  const { signedIn, signIn, signOut } = useTravellerSession();
   const [phone, setPhone] = useState(DEFAULT_DIAL_CODE);
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -61,15 +61,20 @@ export function AccountScreen() {
   }
 
   async function submitCode() {
-    const session = await verify.mutateAsync({ phone, code }).catch(() => null);
-    if (session?.sessionToken) {
-      await signIn(session);
+    /*
+      The answer carries no token any more, only `{ signedIn: true }`. The
+      session is already in an HttpOnly cookie by the time this resolves,
+      because `POST /api/session` set it server-side (yuvoy-app#57).
+    */
+    const answer = await verify.mutateAsync({ phone, code }).catch(() => null);
+    if (answer?.signedIn) {
+      await signIn();
       setSent(false);
       setCode("");
     }
   }
 
-  if (token === undefined) {
+  if (signedIn === undefined) {
     return (
       <Screen>
         <LoadingState label="Checking this device">
@@ -86,7 +91,7 @@ export function AccountScreen() {
     );
   }
 
-  if (token) return <SignedIn onSignOut={signOut} />;
+  if (signedIn) return <SignedIn onSignOut={signOut} />;
 
   const failure = signInFailure(verify.error ?? request.error, sent);
 

@@ -1362,6 +1362,58 @@ export const bookingHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  /*
+    The Account tab, and the read every signed-in screen makes (yuvoy-api,
+    14 Sep). `session.expiresAt` is what the cookie's life is set from: a
+    traveller session lasts 14 days SINCE LAST USE, and this answers the
+    current end rather than the one sign-in returned (yuvoy-app#57).
+
+    `name` and `email` are null for a number with no profile, which is the
+    common first-sign-in state and the one #32 and #38 branch on. The scenario
+    switch reaches it without needing a second fixture number.
+  */
+  http.get(url("/me"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    if (scenarioOf(request) === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+
+    const fresh = scenarioOf(request) === "first-sign-in";
+    return HttpResponse.json(
+      {
+        phone: "+919000000000",
+        name: fresh ? null : "Asha Menon",
+        email: fresh ? null : "asha@example.com",
+        interests: fresh ? [] : ["adventure", "scuba-diving"],
+        onboardingRequired: fresh,
+        memberSince: fresh ? null : "2026-07-02T04:30:00Z",
+        trips: { total: 3, upcoming: 1, completed: 2 },
+        reviews: { count: 1 },
+        support: {
+          whatsappE164: "+919000000001",
+          hours: "9am to 7pm, every day",
+        },
+        /*
+          Present only under a traveller session. The mock cannot tell a
+          session token from a status token by inspection, so it keys on the
+          prefix the verify handler mints.
+        */
+        ...(request.headers.get("authorization")?.includes("Bearer sess_")
+          ? {
+              session: {
+                expiresAt: new Date(
+                  mockNow() + 14 * 24 * 60 * 60_000,
+                ).toISOString(),
+              },
+            }
+          : {}),
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
   http.get(url("/me/bookings"), async ({ request }) => {
     if (!request.headers.get("authorization")) {
       return envelope("unauthorized", "Sign in first.", 401);

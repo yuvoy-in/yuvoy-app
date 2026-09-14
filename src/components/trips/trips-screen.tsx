@@ -61,8 +61,8 @@ import { CalendarIcon, ChevronRightIcon } from "@/components/ui/icons";
  */
 export function TripsScreen() {
   const [device, setDevice] = useState<DeviceTrip[] | null>(null);
-  const { token } = useTravellerSession();
-  const server = useMyBookings(token);
+  const { signedIn } = useTravellerSession();
+  const server = useMyBookings(signedIn);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,9 +123,16 @@ export function TripsScreen() {
     }
   }, [server.data]);
 
-  // The device read is what the screen cannot render without. The server's is
-  // an addition, so its loading and its failure are lines rather than states.
-  if (device === null) {
+  /*
+    The device read is what the screen cannot render without. The server's is
+    an addition, so its loading and its failure are lines rather than states.
+
+    `signedIn === undefined` waits too, and that is new with the cookie
+    (yuvoy-app#57). It reads as falsy everywhere below, so rendering through it
+    would show "Sign in and the ones booked on another phone join them" to
+    somebody who IS signed in, for one frame on every visit, and then swap it.
+  */
+  if (device === null || signedIn === undefined) {
     return (
       <Screen>
         <LoadingState label="Loading your trips">
@@ -139,7 +146,6 @@ export function TripsScreen() {
   }
 
   const trips = mergeTrips(device, server.data?.bookings ?? null);
-  const signedIn = Boolean(token);
   /*
     A session that has died server-side. Said plainly, because the alternative
     is a Trips tab quietly missing half of somebody's bookings — and `retry:
@@ -148,6 +154,30 @@ export function TripsScreen() {
   const sessionDead = server.isError && isDeadToken(server.error);
 
   if (trips.length === 0) {
+    /*
+      A dead session with nothing saved on this phone.
+
+      This branch used to read "Nothing on this number, and nothing saved on
+      this phone", which is a claim the screen cannot make: the number's trips
+      were never read, they were refused. Saying it anyway tells a traveller
+      their bookings are gone. The panel below already says the true thing
+      when there is at least one device trip to sit under it; with none, the
+      empty state was the only thing on screen and it said the wrong thing
+      (yuvoy-app#57 item 7).
+    */
+    if (sessionDead) {
+      return (
+        <Screen>
+          <EmptyState
+            title="Your sign-in has expired"
+            body="Sign in again and every trip on your number comes back. Nothing is saved on this phone yet."
+            action={<ButtonLink href="/account">Sign in again</ButtonLink>}
+          />
+          <SignInPrompt />
+        </Screen>
+      );
+    }
+
     return (
       <Screen>
         <EmptyState

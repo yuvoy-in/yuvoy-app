@@ -68,14 +68,27 @@ export const qk = {
   /** One reel by its own id — a shared link (yuvoy-app#36). */
   reel: (id: string) => ["getReel", id] as const,
   /**
+   * Whether this device is signed in (yuvoy-app#57).
+   *
+   * One entry, read by every screen that shows a Login button or a signed-in
+   * branch, so signing in on Account fills Trips without a reload. There is
+   * nothing to key it by: the token is in an HttpOnly cookie now and the
+   * browser cannot see it, which is the point.
+   */
+  session: () => ["session"] as const,
+  /**
    * Every trip on a signed-in number (yuvoy-app#34).
    *
-   * Keyed by the SESSION TOKEN, not by a constant. Two numbers on one phone —
-   * a guide and a traveller sharing it, a family — must not read each other's
-   * trips out of the cache, and a stale entry under a shared key is exactly
-   * how that happens.
+   * This used to be keyed by the session token, so that two numbers on one
+   * phone could not read each other's trips out of the cache. The token is no
+   * longer visible to the browser (yuvoy-app#57), so the key cannot carry it
+   * and the separation has to come from somewhere else: `useTravellerSession`
+   * REMOVES this entry on both sign-in and sign-out, rather than invalidating
+   * it. Invalidating would leave the previous number's trips on screen while
+   * the refetch runs, which is the exact failure the token key existed to
+   * prevent.
    */
-  myBookings: (token: string) => ["listMyBookings", token] as const,
+  myBookings: () => ["listMyBookings"] as const,
   /** The filter chips' word list (yuvoy-app#37). */
   vocabulary: () => ["getPublicVocabulary"] as const,
   /**

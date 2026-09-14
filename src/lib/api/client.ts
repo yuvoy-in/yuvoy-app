@@ -276,3 +276,31 @@ export function createApiClient(options?: { baseUrl?: string }) {
 
 /** The shared browser client. Server components build their own per request. */
 export const api = createApiClient();
+
+/**
+ * The same client, pointed at this app's own authenticated proxy
+ * (yuvoy-app#57).
+ *
+ * `/api/v1/<x>` forwards to `<x>` on the API with the session attached from an
+ * HttpOnly cookie, so a call made through here is authenticated without any
+ * browser code holding a token. The path space mirrors the contract exactly,
+ * which is why the generated `paths` type still describes it and why
+ * `client.GET("/me/bookings")` is the same call it always was.
+ *
+ * Absolute rather than relative. `retryingFetch` builds a `Request`, and a
+ * `Request` constructed from a bare path throws outside a browser: under
+ * vitest's jsdom the global `fetch` is Node's, which refuses a relative URL.
+ * Reading the origin keeps one code path for the browser and the test.
+ *
+ * Browser only, by construction. A server component has the cookie already and
+ * should call the API directly rather than looping back through its own HTTP
+ * server.
+ */
+export function proxyBaseUrl(): string {
+  if (typeof window === "undefined") return "/api/v1";
+  return `${window.location.origin}/api/v1`;
+}
+
+export function createProxyClient() {
+  return createApiClient({ baseUrl: proxyBaseUrl() });
+}

@@ -1226,6 +1226,169 @@ for (const f of files) {
   }
 }
 
+/* ------- 18. the session token must never come back to the browser ------- */
+
+/**
+ * Two ways the HttpOnly session could leak into script, and both are silent.
+ *
+ * yuvoy-app#57 moved the traveller's session into a cookie the browser cannot
+ * read, so that an injected script cannot lift it. That property is not one
+ * the typechecker can hold: it is a statement about what a route WRITES and
+ * about which upstream answers a credentialed proxy is willing to forward.
+ *
+ * ## 18a. The proxy must not forward a response that contains a credential
+ *
+ * `/api/v1/[...path]` attaches the cookie and hands the API's answer back
+ * verbatim. Add `POST /me/sign-in/verify` to the allowlist and the proxy
+ * cheerfully returns `{ sessionToken: "..." }` to the page, undoing the whole
+ * change in one line that reviews as "allow one more endpoint".
+ *
+ * So the allowlist is checked against the CONTRACT, not against a memory of
+ * which endpoints are sensitive: any path whose own block mentions
+ * `sessionToken` is refused, `$ref`s resolved one level.
+ *
+ * `statusToken` is deliberately NOT in that test, and the first draft of this
+ * check got it wrong: it flagged `/me` and `/me/bookings`, both correctly
+ * allowlisted. A status token is a per-booking credential the app is SUPPOSED
+ * to receive and keep, which is how a trip booked on another phone opens on
+ * this one, and #57 says in as many words that per-booking tokens are out of
+ * scope. Only the session token has to stay server-side.
+ *
+ * The `security:` block is stripped before the scan for the same reason the
+ * first draft failed: it names the auth SCHEMES a path accepts, one of which
+ * is literally `statusToken`, and a scheme name is not a response field.
+ *
+ * ## 18b. A session route must not put the token in its own answer
+ *
+ * `/api/session` and `/api/session/adopt` hold the token in a local and must
+ * hand back a boolean. Every argument to `NextResponse.json(...)` under
+ * `src/app/api/` is extracted with a brace-aware scan and refused if it names
+ * the token. `answer.body` is allowed only where it cannot carry one, which
+ * 18a is what establishes.
+ */
+
+{
+  const contract = readFileSync(join(ROOT, "contracts/openapi.yaml"), "utf8");
+  const allowlistSrc = readFileSync(
+    join(SRC, "lib/auth/proxied-paths.ts"),
+    "utf8",
+  );
+
+  /* -- 18a -- */
+
+  const listed = [
+    ...allowlistSrc.matchAll(
+      /\{\s*method:\s*"([A-Z]+)",\s*pattern:\s*"([^"]+)"\s*\}/g,
+    ),
+  ].map((m) => ({ method: m[1], pattern: m[2] }));
+
+  if (listed.length === 0) {
+    problems.push(
+      `src/lib/auth/proxied-paths.ts: no proxied paths parsed. The proxy ` +
+        `credential check cannot run, which means it is silently passing.`,
+    );
+  }
+
+  /** A path's own YAML block, `  /x:` up to the next top-level path. */
+  const blockFor = (p) => {
+    const start = contract.indexOf(`\n  ${p}:\n`);
+    if (start < 0) return null;
+    const rest = contract.slice(start + 1);
+    const next = rest.slice(1).search(/\n {2}\/[a-z]/i);
+    return next < 0 ? rest : rest.slice(0, next + 1);
+  };
+
+  /** A component schema's own block, for one level of `$ref` resolution. */
+  const schemaFor = (name) => {
+    const start = contract.indexOf(`\n    ${name}:\n`);
+    if (start < 0) return "";
+    const rest = contract.slice(start + 1);
+    const next = rest.slice(1).search(/\n {4}\w+:/);
+    return next < 0 ? rest : rest.slice(0, next + 1);
+  };
+
+  const CREDENTIALS = /sessionToken/;
+
+  for (const { method, pattern } of listed) {
+    const block = blockFor(pattern);
+    if (!block) {
+      problems.push(
+        `src/lib/auth/proxied-paths.ts: proxies ${method} ${pattern}, which ` +
+          `the pinned contract does not have. A proxied path the API lacks is ` +
+          `a 404 nobody can act on.`,
+      );
+      continue;
+    }
+
+    /*
+      Strip `security:` first. It lists the auth schemes a path accepts, and
+      one of them is spelled `statusToken`, so scanning it would flag every
+      authenticated path as leaking a credential.
+    */
+    let text = block.replace(/\n {4}security:[\s\S]*?(?=\n {4}\w)/g, "\n");
+    for (const ref of block.matchAll(/#\/components\/schemas\/(\w+)/g)) {
+      text += schemaFor(ref[1]);
+    }
+
+    if (CREDENTIALS.test(text)) {
+      problems.push(
+        `src/lib/auth/proxied-paths.ts: proxies ${method} ${pattern}, whose ` +
+          `contract response carries a credential. The proxy hands the API's ` +
+          `answer to the browser verbatim, so this would put the session ` +
+          `token back in reach of script and undo yuvoy-app#57. Give it its ` +
+          `own route that keeps the token server-side.`,
+      );
+    }
+  }
+
+  /* -- 18b -- */
+
+  const apiRoutes = walk(join(APP, "api")).filter((f) =>
+    /route\.tsx?$/.test(f),
+  );
+  if (apiRoutes.length === 0) {
+    problems.push(
+      `src/app/api: no route handlers found. The session-leak check cannot ` +
+        `run, which means it is silently passing.`,
+    );
+  }
+
+  for (const f of apiRoutes) {
+    const s = code(f);
+    for (const m of s.matchAll(/NextResponse\.json\(/g)) {
+      const open = m.index + m[0].length - 1;
+      let depth = 0;
+      let end = open;
+      let quote = null;
+      for (let i = open; i < s.length; i += 1) {
+        const c = s[i];
+        if (quote) {
+          if (c === "\\") i += 1;
+          else if (c === quote) quote = null;
+          continue;
+        }
+        if (c === '"' || c === "'" || c === "`") quote = c;
+        else if (c === "(") depth += 1;
+        else if (c === ")") {
+          depth -= 1;
+          if (depth === 0) {
+            end = i;
+            break;
+          }
+        }
+      }
+      const args = s.slice(open + 1, end);
+      if (/sessionToken/.test(args)) {
+        problems.push(
+          `${rel(f)}: hands \`sessionToken\` to NextResponse.json. The whole ` +
+            `point of yuvoy-app#57 is that no browser code can reach the ` +
+            `session. Answer a boolean and keep the token in the cookie.`,
+        );
+      }
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

@@ -1,104 +1,71 @@
-import { get, set, del } from "idb-keyval";
+import { get, del } from "idb-keyval";
 
 /**
- * The traveller's session — yuvoy-app#34, yuvoy-api#172.
+ * What is left of the IndexedDB session: the way out of it (yuvoy-app#57).
  *
- * ## What this replaces, and why it had to change
+ * ## Why it is going
  *
- * Signing in used to BE booking recovery: `POST /bookings/recovery/verify`
- * returned a status token and this stored it. The contract said so at the
- * time, and it was the smaller shape — one secret instead of two.
+ * The traveller's session token used to live here, beside the booking tokens,
+ * because `localStorage` is an eslint error in this repo and IndexedDB was the
+ * remaining choice. Both are script-written storage, and Safari on iPhone
+ * deletes a site's script-written storage after seven days of Safari use
+ * without a visit. Nothing in the app ever deleted a session; Safari did, over
+ * and over. On 14 September the owner's number had twelve live sessions from
+ * about twenty-one hours, all valid and none revoked.
  *
- * It was also broken in two ways the owner hit within a minute of trying it:
+ * A cookie the origin's own server sets survives that, and cannot be read by
+ * script at all. See `session-cookie.ts`.
  *
- *   - **Recovery refuses a correct code for a number that has never booked.**
- *     It is a recovery endpoint; there is nothing to recover. So a traveller
- *     signing in for the first time typed the right code and read "That code
- *     did not work".
- *   - **Every successful recovery REVOKES the booking links already saved on
- *     the phone.** Rotating the link is the whole point of recovery. So the
- *     "Booked on this device" trips stopped opening the moment anybody signed
- *     in — a traveller lost access to their own bookings by signing in to see
- *     them.
+ * ## Why this file still exists
  *
- * `POST /me/sign-in/verify` is the sign-in: any number, whether or not it has
- * ever booked, a session that lasts 30 days, and it **revokes nothing**.
- * Recovery survives for the one job it is for — "Lost your link? Get it back"
- * — where rotating the link is the point.
+ * Deleting the store outright would sign out everybody who was signed in when
+ * the change shipped, for a reason none of them could see: their session is
+ * good, the app has simply stopped looking where it was kept. So the token is
+ * handed to `POST /api/session/adopt` once, which proves it against `GET /me`
+ * before setting a cookie from it, and the record is deleted either way.
  *
- * ## The stored shape changed with it
- *
- * A status token authenticated one booking; a session token authenticates a
- * number. The field is renamed rather than reused, so nothing can pass one
- * where the other belongs, and `expiresAt` is kept because the server sets a
- * real horizon and a client that ignores it shows a signed-in screen that can
- * only fail.
- *
- * Stored in IndexedDB beside the booking tokens, for the same reason: an
- * eslint rule bans `localStorage` outright.
+ * Nothing WRITES here any more. When the adoption window has passed, this file
+ * and its two callers go, and the booking-token store in `token-store.ts` is
+ * unaffected: per-booking status tokens are explicitly out of scope for #57.
  */
 
 const KEY = "yuvoy.traveller-session";
-/** The pre-#34 record, read once so a signed-in traveller is not thrown out. */
+/** The pre-#34 record. It held a status token the new endpoints do not take. */
 const LEGACY_KEY = "yuvoy.traveller-token";
-
-export interface TravellerSession {
-  /** From `verifyTravellerSignIn`. Bearer credential for `/me/*`. */
-  sessionToken: string;
-  /** ISO 8601. The server's horizon, not ours. */
-  expiresAt: string | null;
-  savedAt: string;
-}
 
 function available(): boolean {
   return typeof indexedDB !== "undefined";
 }
 
-export async function saveTravellerSession(session: {
-  sessionToken: string;
-  expiresAt?: string | null;
-}): Promise<void> {
-  if (!available()) return;
-  await set(KEY, {
-    sessionToken: session.sessionToken,
-    expiresAt: session.expiresAt ?? null,
-    savedAt: new Date().toISOString(),
-  } satisfies TravellerSession);
-}
-
 /**
- * The session, or `null`.
+ * The stored token, if a signed-in traveller predates the cookie.
  *
- * An EXPIRED session answers null and deletes itself. The alternative is a
- * screen that renders as signed in and then fails its first request — which is
- * the state this whole change exists to remove, arrived at from the other
- * side.
- *
- * The legacy record is read once and then dropped. It held a status token,
- * which the new endpoints do not accept: keeping it would sign somebody in to
- * a session that 401s on its first call, and deleting it silently signs out
- * everybody who was signed in before this shipped. Neither is good, and the
- * second is the honest one — they sign in again, and this time it works for a
- * number that has never booked.
+ * Deliberately does not check `expiresAt`. The server is the only authority on
+ * whether a session is live, `POST /api/session/adopt` asks it, and a local
+ * clock that is wrong by a day would otherwise throw away a working session.
  */
-export async function getTravellerSession(): Promise<TravellerSession | null> {
+export async function storedSessionToken(): Promise<string | null> {
   if (!available()) return null;
-
-  const legacy = await get<{ token?: string }>(LEGACY_KEY);
-  if (legacy) await del(LEGACY_KEY);
-
-  const session = await get<TravellerSession>(KEY);
-  if (!session?.sessionToken) return null;
-
-  if (session.expiresAt && Date.parse(session.expiresAt) <= Date.now()) {
-    await del(KEY);
+  try {
+    const session = await get<{ sessionToken?: string }>(KEY);
+    return session?.sessionToken ?? null;
+  } catch {
+    /*
+      A private window, a browser with storage blocked, or a database that
+      will not open. There is nothing to migrate and nothing to report: the
+      traveller signs in again, which is the pre-change behaviour anyway.
+    */
     return null;
   }
-  return session;
 }
 
-export async function clearTravellerSession(): Promise<void> {
+/** Removes both records. Called after an adoption attempt, whatever it said. */
+export async function forgetStoredSession(): Promise<void> {
   if (!available()) return;
-  await del(KEY);
-  await del(LEGACY_KEY);
+  try {
+    await del(KEY);
+    await del(LEGACY_KEY);
+  } catch {
+    // As above. A failure to clean up must never surface to a traveller.
+  }
 }

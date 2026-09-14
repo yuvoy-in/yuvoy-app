@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { AccountScreen } from "./account-screen";
 import { server } from "../../../mocks/server";
-import { clearTravellerSession } from "@/lib/auth/traveller-session";
+import { __resetAppRouteMocks } from "../../../mocks/app-route-handlers";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -15,8 +15,13 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-beforeEach(async () => {
-  await clearTravellerSession();
+beforeEach(() => {
+  /*
+    Start signed out. The session is an HttpOnly cookie now (yuvoy-app#57), so
+    there is nothing in browser storage to clear; the app-route mock keeps a
+    flag where the real route keeps the cookie.
+  */
+  __resetAppRouteMocks();
 });
 afterEach(cleanup);
 
