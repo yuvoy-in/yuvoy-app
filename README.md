@@ -40,7 +40,8 @@ http://localhost:3000/?__scenario=booking-disabled
 **Catalog and feed**
 `ok` · `empty` · `slow` · `offline` · `server-error` · `rate-limited` ·
 `booking-disabled` · `operator-not-bookable` · `media-unavailable` ·
-`stale-availability`
+`stale-availability` · `vocabulary-unavailable` (the word list alone; Where and
+What fail while the search box, the grid and the When chips keep working)
 
 **The money loop**
 `payments-ready` (payment succeeds) · `verifying` · `paid` (verifying → confirmed) ·

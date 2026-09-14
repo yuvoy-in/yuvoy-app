@@ -4,12 +4,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
 import { REELS_PAGE_SIZE, type ReelsPage } from "@/lib/feed/reels";
-import {
-  isAsking,
-  reelFilterKey,
-  reelQuery,
-  type ReelFilters,
-} from "./filters";
+import { reelFilterKey, reelQuery, type ReelFilters } from "./filters";
 
 /**
  * The words the filter sheet may offer — `GET /catalog/vocabulary`.
@@ -84,9 +79,19 @@ export function useSearchReels(filters: ReelFilters) {
   return useInfiniteQuery({
     queryKey: qk.searchReels(reelFilterKey(filters)),
     initialPageParam: undefined as string | undefined,
-    // Nothing is asked until something is asked for. An unfiltered call here
-    // would be the feed, and the feed is a tab away.
-    enabled: isAsking(filters),
+    /*
+      NO `enabled` gate, since 14 September.
+
+      It used to be `isAsking(filters)`: nothing was asked until something was
+      asked for, because an unfiltered call here is the same rotation the feed
+      shows and the feed is a tab away. The owner decided otherwise
+      (yuvoy-app#37 item 9): opening Search shows the unfiltered grid, so the
+      screen's first state is results rather than an instruction.
+
+      The same reel in two places is the cost, and it is the smaller one. A
+      search screen that refuses to answer "what is on" until a filter is
+      chosen is one that has to be obeyed before it does anything.
+    */
     queryFn: async ({ pageParam, signal }): Promise<ReelsPage> => {
       const { data, error } = await api.GET("/reels", {
         params: {

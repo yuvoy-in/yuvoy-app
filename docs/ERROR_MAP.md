@@ -11,6 +11,13 @@ somebody's exact request in the logs and guessing.
 
 Implemented in `src/lib/api/errors.ts` and `src/components/states/index.tsx`.
 
+**This table is not the enforcement point.** `scripts/qa.mjs` check 17 fails the build when a code
+in the contract's `ErrorCode` enum is missing from `ERROR_CODES`, because that is the drift the
+typechecker structurally cannot see: `YuvoyError` narrows an unrecognised code to `unknown_error`,
+so the app compiles, the tests pass, and the traveller reads "Something went wrong" over a refusal
+that retrying cannot fix. That shipped on `POST /bookings/review` (yuvoy-app#53), and the same
+check found `unavailable` had been missing for longer.
+
 ## Transport and shape — client bugs, never product states
 
 | Code                                     | HTTP      | Treatment                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -36,9 +43,12 @@ Implemented in `src/lib/api/errors.ts` and `src/components/states/index.tsx`.
 
 ## Deliberately stopped — 503, but not an outage
 
-These three are somebody's decision. **A crash screen here tells the traveller Yuvoy is broken
+These four are somebody's decision. **A crash screen here tells the traveller Yuvoy is broken
 when in fact a human stopped sales on purpose.** Calm, truthful copy; browsing stays intact; and
 **no retry button** — retrying just asks the decision again.
+
+`unavailable` is the 503 that is **not** one of these and must never be added to
+`DELIBERATE_STOPS`. See below.
 
 | Code                    | Treatment                                                                                                                                                                                                                  |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -90,3 +100,50 @@ reservation. Tests pin both directions.
 | `refund_quote_moved`                   | Re-quote and re-show before committing.                                            |
 | `confirmation_required`                | Echo the value back to prove it was seen.                                          |
 | `invalid_reason_code` · `invalid_role` | Client bugs.                                                                       |
+
+## A 503 nobody chose
+
+| Code          | Treatment                                                                                                                                                                                                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unavailable` | The booking store behind recovery, cancellation quotes and "my trips" is not wired, so those endpoints cannot answer. **Keeps the retry**: the contract says the request was not recorded and trying later is the right move, which is why it is a 503 and not an `internal_error`. |
+
+The bare spelling is deliberate upstream. The sibling surfaces name themselves
+(`admin_unavailable`, `operator_unavailable`, `media_unavailable`); this one predates that
+convention and is left as the handlers write it rather than renamed underneath a client.
+
+The trap it sits next to: it is a 503, so it looks like the four above, and treating it as one
+would tell a traveller somebody stopped their trip on purpose and offer them no way forward. It is
+also not an `internal_error`, so the generic "it is us, not you" crash copy overstates it. The
+sentence has to say the booking is untouched and the wait is short.
+
+## Answering a listing's questions, and the conversation with the business
+
+| Code               | Treatment                                                                                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `answers_required` | The listing asks its own questions and at least one is unanswered. Checkout marks each named question and scrolls to it. No retry: the same body is refused identically.    |
+| `answers_closed`   | The departure has left, or the booking is not going ahead. Nothing written was saved. No retry.                                                                             |
+| `messages_closed`  | No more messages on this booking. `details.reason` says which of the three reasons it is, and the thread renders it in a sentence of its own. No retry: it does not reopen. |
+
+## Reviewing a trip
+
+`POST /bookings/review` answered `conflict` for all three of these until **2026-09-13**, when the
+API split it. `conflict` stays in `ERROR_CODES` and stays handled: the code that arrives is decided
+by the **deployed** API, not by the pinned document, and a deployment behind the split still
+answers the old one.
+
+| Code                   | Treatment                                                                                                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `already_reviewed`     | **Not a failure.** A review exists and cannot be changed. `ReviewForm` renders the recorded state, with no error panel and no retry. `conflict` renders the same. |
+| `not_reviewable_yet`   | The trip has not been marked completed. "Come back after you have been." No retry, and **the form is taken off the screen** rather than left with a live button.  |
+| `review_window_closed` | More than 30 days have passed. Nothing to do. No retry, and the form is taken off the screen.                                                                     |
+
+The reason the last two remove the form: #53 was a button that could never succeed. Leaving an
+enabled "Leave this review" under "Too late to review this one" rebuilds the same trap with better
+copy on top of it.
+
+## Shape errors that are ours
+
+| Code                 | Treatment                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `payload_too_large`  | 413, from the global 64K body limit. A client bug, and **the honest next step is not a retry**: an identical body fails identically, so a replay is a loop.  |
+| `unclassified_error` | The server could not classify its own failure. Always the fallback; newly declared rather than newly emitted, which is why no client can have a case for it. |

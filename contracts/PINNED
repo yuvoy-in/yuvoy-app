@@ -263,6 +263,77 @@ repo=yuvoy-in/yuvoy-api
 # `required:` says — a pinned contract states what an API WILL send, never what
 # it does send today (yuvoy-api#126).
 
-ref=4c9e49f2845152a8798573429410a50920013e94
+
+# ---
+#
+# 14 Sep 2026. Forward from 4c9e49f28451 to 80668e7f. Eleven new paths,
+# thirteen new operations, eight new schemas. This is the batch the owner's
+# 14 Sep round reads: the traveller Account, invites, help, and the session
+# rule behind yuvoy-app#57.
+#
+# The removals were read first, because that is the half that breaks a
+# deployed client. There are eleven lines and NOT ONE narrows anything:
+#   - four are an inline map rewritten as a block so a `description` fits
+#     (`expiresAt` on sign-in, `shareUrl` on the trip link). Same type, same
+#     `required:`, no generated change beyond a doc comment.
+#   - five are prose rewritten in place (`verifyTravellerSignIn`'s 30 days
+#     becoming 14 since last use, the `travellerSession` scheme, two
+#     `answered: false` sentences that now say answers are deleted 90 days
+#     after the trip).
+#   - `ReservationContact` loses `required: [name, whatsapp]`. That is a
+#     REQUEST body, so dropping a required constraint WIDENS what the API
+#     accepts and cannot break a client that keeps sending both. It is the
+#     contract catching up with yuvoy-api#183: a signed-in checkout may leave
+#     both out. The generated type turns both optional, which relaxes the
+#     typechecker rather than tripping it, so the guard here is the issue, not
+#     the compiler.
+# The `ErrorCode` enum is byte-identical, 40 entries both sides.
+#
+# New, and each one is consumed by a named issue:
+#   - `GET /me` + `PATCH /me` + `TravellerAccount` + `SupportContact`
+#     (app#32, app#38, app#57). One read for the whole Account tab: `phone`,
+#     `name`, `email`, `interests`, `onboardingRequired`, `memberSince`,
+#     `trips`, `reviews` and `support`. `onboardingRequired` is explicitly
+#     NEVER a gate on booking, and the first-sign-in screen's skip button is
+#     `{"onboarded": true}` on its own.
+#   - `session.expiresAt` on `GET /me`, present only under a travellerSession
+#     and absent under a statusToken (app#57). The document's own instruction:
+#     "Keep a cookie or any stored expiry in step with it rather than with the
+#     value sign-in returned." The cookie's Max-Age is therefore re-set from
+#     this on every proxied call, not from the sign-in answer.
+#   - `GET /me/interest-options` (app#38's first-sign-in screen).
+#   - `POST /support/requests` (app#38's help screen).
+#   - `POST /bookings/invites`, `GET /bookings/invites`,
+#     `DELETE /bookings/invites/{id}`, `GET /invites/{token}`,
+#     `POST /invites/{token}/accept`, and the four `/me/invited-trips` paths,
+#     with `TripInviteDelivery`, `GuestTripStatus`, `CreatedTripInvite`,
+#     `TripGuest`, `TripInvitePreview` and `InvitedTrip` (app#38 items 7 and
+#     11). `inviteUrl` is minted as `https://app.yuvoy.in/i/{token}`; it used
+#     to be `yuvoy.in/i/...`, which answered 404 (yuvoy-api#188).
+#
+# Behaviour that changed under a path already called, which is the dangerous
+# half of any bump:
+#   - **A traveller session now lasts 14 days SINCE LAST USE, not 30 days
+#     flat.** Every request it authenticates moves `expiresAt` on. A client
+#     that stored the sign-in answer's `expiresAt` once and trusted it will
+#     sign a traveller out early, and one that never re-reads it will keep a
+#     dead cookie. Both are handled under app#57 by re-setting from
+#     `session.expiresAt`.
+#   - `ReservationContact` as above. Guest checkout is unchanged and still
+#     refused with a `400` naming the field; signed in, `whatsapp` is IGNORED
+#     rather than merely optional, so sending it is not a way to override the
+#     session's number.
+#
+# Consumed in THIS change: nothing. The contract, the generated client and the
+# fixtures move together, and every field above lands with the issue that
+# reads it.
+#
+# `git ls-remote` was the check for this ref, not `gh api .../commits/master`,
+# which served a five-minute-stale SHA twice on 8 Sep and cost a retracted
+# issue. And every field above is consumed as OPTIONAL regardless of what
+# `required:` says: a pinned contract states what an API WILL send, never what
+# it does send today (yuvoy-api#126).
+
+ref=80668e7f1fd4740529a5f5d88787236508b6a014
 branch=master
-pinned_on=2026-09-13
+pinned_on=2026-09-14

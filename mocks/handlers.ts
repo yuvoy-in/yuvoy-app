@@ -38,6 +38,15 @@ export type Scenario =
   | "payments-unavailable"
   | "rate-limited"
   | "stale-availability"
+  /*
+    The word list alone is unavailable (yuvoy-app#37 item 7).
+
+    `server-error` cannot reach this state: it fails every read, so the screen
+    goes to its own error panel and the sheet never opens. Where and What have
+    to fail while the search box, the grid and the When chips keep working, and
+    that is a state only a per-endpoint scenario can produce.
+  */
+  | "vocabulary-unavailable"
   | "capacity-unavailable"
   | "cutoff-passed"
   | "request-window-closed"
@@ -358,6 +367,9 @@ export const handlers = [
   http.get(url("/catalog/vocabulary"), async ({ request }) => {
     const failed = await commonFailure(request);
     if (failed) return failed;
+    if (scenarioOf(request) === "vocabulary-unavailable") {
+      return envelope("unavailable", "The word list is not answering.", 503);
+    }
 
     return HttpResponse.json(
       {

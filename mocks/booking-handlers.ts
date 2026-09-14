@@ -1362,6 +1362,153 @@ export const bookingHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  /*
+    The Account tab, and the read every signed-in screen makes (yuvoy-api,
+    14 Sep). `session.expiresAt` is what the cookie's life is set from: a
+    traveller session lasts 14 days SINCE LAST USE, and this answers the
+    current end rather than the one sign-in returned (yuvoy-app#57).
+
+    `name` and `email` are null for a number with no profile, which is the
+    common first-sign-in state and the one #32 and #38 branch on. The scenario
+    switch reaches it without needing a second fixture number.
+  */
+  http.get(url("/me"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    if (scenarioOf(request) === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+
+    const fresh = scenarioOf(request) === "first-sign-in";
+    return HttpResponse.json(
+      {
+        phone: "+919000000000",
+        name: fresh ? null : "Asha Menon",
+        email: fresh ? null : "asha@example.com",
+        interests: fresh ? [] : ["adventure", "scuba-diving"],
+        onboardingRequired: fresh,
+        memberSince: fresh ? null : "2026-07-02T04:30:00Z",
+        trips: { total: 3, upcoming: 1, completed: 2 },
+        reviews: { count: 1 },
+        support: {
+          whatsappE164: "+919000000001",
+          hours: "9am to 7pm, every day",
+        },
+        /*
+          Present only under a traveller session. The mock cannot tell a
+          session token from a status token by inspection, so it keys on the
+          prefix the verify handler mints.
+        */
+        ...(request.headers.get("authorization")?.includes("Bearer sess_")
+          ? {
+              session: {
+                expiresAt: new Date(
+                  mockNow() + 14 * 24 * 60 * 60_000,
+                ).toISOString(),
+              },
+            }
+          : {}),
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  /* -------------------------------------------------- invited trips ---- */
+
+  /*
+    Trips somebody else booked (yuvoy-app#38). A guest's row carries no price,
+    no payment, no refund and no booking reference, and this fixture carries
+    none either: a mock that sent them would let a card render money a guest
+    must never see, and the issue forbids it twice.
+  */
+  http.get(url("/me/invited-trips"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    /*
+      A revoked session refuses EVERY authenticated call, which is what the real
+      API does and what this scenario has to reproduce.
+
+      Without this the mock was incoherent, and an e2e test found it: bookings
+      answered 401 and cleared the cookie, then this call answered 200 and the
+      proxy re-set the cookie from the token that request had carried. The proxy
+      is right to do that (a 200 means the API accepted the token), so the
+      mock was the thing that was wrong.
+    */
+    if (scenarioOf(request) === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+    return HttpResponse.json(
+      { trips: [INVITED_TRIP, INVITED_CANCELLED] },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.get(url("/me/invited-trips/:id"), async ({ request, params }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    if (params.id === INVITED_CANCELLED.id) {
+      return HttpResponse.json(INVITED_CANCELLED);
+    }
+    if (params.id !== INVITED_TRIP.id) {
+      return envelope("not_found", "No such invitation.", 404);
+    }
+    return HttpResponse.json(INVITED_TRIP, { headers: mockHeaders(rid()) });
+  }),
+
+  http.post(url("/me/invited-trips/:id/accept"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    return HttpResponse.json({ ...INVITED_TRIP, guestState: "joined" });
+  }),
+
+  http.post(url("/me/invited-trips/:id/decline"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  /*
+    The invite LINK's preview. No credential at all, deliberately: the landing
+    page shows the trip to a signed-out visitor and then asks them to sign in,
+    which is the whole shape of the flow.
+  */
+  http.get(url("/invites/:token"), async ({ params }) => {
+    if (params.token === "gone") {
+      return envelope("not_found", "No such invitation.", 404);
+    }
+    return HttpResponse.json({
+      experience: INVITED_TRIP.experience,
+      experienceSlug: INVITED_TRIP.experienceSlug,
+      operator: INVITED_TRIP.operator,
+      localDate: INVITED_TRIP.localDate,
+      localTime: INVITED_TRIP.localTime,
+      status: INVITED_TRIP.status,
+    });
+  }),
+
+  http.post(url("/invites/:token/accept"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    return HttpResponse.json({ id: INVITED_TRIP.id });
+  }),
+
+  http.get(url("/me/interest-options"), async () =>
+    HttpResponse.json({
+      options: [
+        { key: "scuba", label: "Scuba diving" },
+        { key: "snorkelling", label: "Snorkelling" },
+        { key: "kayaking", label: "Kayaking" },
+        { key: "birdwatching", label: "Birdwatching" },
+      ],
+    }),
+  ),
+
   http.get(url("/me/bookings"), async ({ request }) => {
     if (!request.headers.get("authorization")) {
       return envelope("unauthorized", "Sign in first.", 401);
@@ -1413,6 +1560,40 @@ export const bookingHandlers = [
  * as `devCode` in development, which is exactly what this mock does.
  */
 const DEV_SIGN_IN_CODE = "123456";
+
+/**
+ * A trip somebody else booked and invited this number to.
+ *
+ * No price, no payment, no reference, and nothing about the booker. The
+ * contract lists all of those as deliberately absent for a guest, so a fixture
+ * that carried any of them would let a card render something a guest must
+ * never see and no server would send.
+ */
+const INVITED_TRIP = {
+  id: "inv_joined",
+  role: "guest" as const,
+  guestState: "invited" as const,
+  experience: "Try-dive at Nemo Reef",
+  experienceSlug: "try-dive-nemo-reef",
+  operator: "Sample Dive Operator",
+  localDate: "2026-09-22",
+  localTime: "07:00",
+  meetingPoint: "Jetty 2, Havelock",
+  landmark: "Beside the blue ticket hut",
+  durationMinutes: 120,
+  partySize: 3,
+  status: "confirmed" as const,
+  going: [{ name: "Asha Menon" }, { name: "Guest", you: true }],
+};
+
+/** The same, called off, so the Cancelled tab has something in it. */
+const INVITED_CANCELLED = {
+  ...INVITED_TRIP,
+  id: "inv_called_off",
+  guestState: "joined" as const,
+  status: "called_off" as const,
+  localDate: "2026-09-10",
+};
 
 /** A trip on this number that this device has never seen. */
 const ANOTHER_PHONES_TRIP = {

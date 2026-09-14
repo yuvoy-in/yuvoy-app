@@ -3,6 +3,7 @@ import { afterEach, beforeAll, afterAll, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { server } from "./mocks/server";
 import { __resetBookingMocks } from "./mocks/booking-handlers";
+import { __resetAppRouteMocks } from "./mocks/app-route-handlers";
 import { __resetClockOffset } from "./src/lib/booking/clock";
 
 /*
@@ -16,6 +17,12 @@ afterEach(() => {
   // Reservations and idempotency keys are module state in the mock. Leaking
   // them between cases makes an idempotency test pass for the wrong reason.
   __resetBookingMocks();
+  /*
+    The signed-in flag standing in for the session cookie is module state too.
+    One test's sign-in must not be the next test's starting state, which would
+    make a signed-out branch pass for the wrong reason.
+  */
+  __resetAppRouteMocks();
   // The measured server-clock offset is module state; one test's fixture
   // clock must not become the next test's idea of now.
   __resetClockOffset();
