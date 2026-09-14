@@ -125,7 +125,7 @@ const SHARE_CARD = {
   url: "/opengraph-image",
   width: 1200,
   height: 630,
-  alt: "Yuvoy · Experience More.",
+  alt: "Yuvoy",
   type: "image/png",
 };
 

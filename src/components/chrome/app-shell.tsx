@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Desktop rail. Hidden below lg, where the floating bar takes over. */}
       <aside className="app-chrome border-cream/10 hidden w-64 shrink-0 flex-col border-r lg:sticky lg:top-0 lg:flex lg:h-dvh lg:overflow-y-auto">
         <div className="px-6 py-7">
-          <Wordmark tone="cream" className="h-10" priority />
+          <Wordmark tone="cream" className="h-8" priority />
         </div>
         <nav aria-label="Primary" className="px-3">
           <NavList orientation="rail" />

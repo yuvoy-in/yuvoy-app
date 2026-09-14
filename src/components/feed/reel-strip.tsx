@@ -115,10 +115,10 @@ export function ReelMasthead({ href }: { href?: string }) {
           className="pointer-events-auto flex min-h-11 items-center"
           aria-label="Yuvoy home"
         >
-          <Wordmark variant="compact" tone="cream" className="h-7" priority />
+          <Wordmark tone="cream" className="h-7" priority />
         </Link>
       ) : (
-        <Wordmark variant="compact" tone="cream" className="h-7" priority />
+        <Wordmark tone="cream" className="h-7" priority />
       )}
     </div>
   );
