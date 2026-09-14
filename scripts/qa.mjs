@@ -879,16 +879,31 @@ for (const f of files) {
       ).test(s);
       if (!declared) continue;
 
-      const call = `${setter}(`;
+      /*
+        Two spellings of "a control on the page can set this".
+
+        `setName(` is the setter called inline, in an `onChange`. `={setName}`
+        is the setter HANDED to a component that owns the input, which is what
+        `<ContactFields onNameChange={setName} />` does since yuvoy-app#32
+        pulled the shared who-is-booking block out of both forms.
+
+        The second spelling is deliberately narrow. Matching a bare `setName`
+        anywhere would count a mention in a comment, a dependency array or a
+        `useCallback` body, and the whole value of this check is that it fails
+        when nothing can actually set the field.
+      */
+      const spellings = [`${setter}(`, `={${setter}}`];
       let found = false;
       let unconditional = false;
-      for (
-        let i = s.indexOf(call, markupFrom);
-        i !== -1;
-        i = s.indexOf(call, i + 1)
-      ) {
-        found = true;
-        if (!isGated(i)) unconditional = true;
+      for (const call of spellings) {
+        for (
+          let i = s.indexOf(call, markupFrom);
+          i !== -1;
+          i = s.indexOf(call, i + 1)
+        ) {
+          found = true;
+          if (!isGated(i)) unconditional = true;
+        }
       }
 
       if (!found) {

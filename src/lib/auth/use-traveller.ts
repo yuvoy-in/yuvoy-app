@@ -76,10 +76,22 @@ export function useTravellerSession() {
    * is somebody else's booking on screen, which is the failure the old
    * token-keyed cache existed to prevent.
    */
-  const signIn = useCallback(async () => {
+  const refresh = useCallback(async () => {
     qc.removeQueries({ queryKey: qk.myBookings() });
+    qc.removeQueries({ queryKey: qk.myAccount() });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
+
+  /*
+    The same work, under the name a caller means.
+
+    `signIn` is called after `POST /api/session` succeeds. `refresh` is called
+    after any proxied call answers `401`: the route has already dropped the
+    cookie by then, so the cached "signed in" is stale and a form still showing
+    "Booking as Asha" is about to fail again. Both cases are "the server knows
+    something this cache does not", which is why they are one function.
+  */
+  const signIn = refresh;
 
   /**
    * Sign out.
@@ -97,11 +109,12 @@ export function useTravellerSession() {
       // Deliberately ignored. See above.
     }
     qc.removeQueries({ queryKey: qk.myBookings() });
+    qc.removeQueries({ queryKey: qk.myAccount() });
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
-  return { signedIn, signIn, signOut, isLoading: query.isPending };
+  return { signedIn, signIn, signOut, refresh, isLoading: query.isPending };
 }
 
 /**

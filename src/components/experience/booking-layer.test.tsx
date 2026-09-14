@@ -1,16 +1,32 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { BookingLayer } from "./booking-layer";
 import { EXPERIENCE_DETAIL } from "../../../mocks/fixtures";
+import { http, HttpResponse } from "msw";
+import { server } from "../../../mocks/server";
+import {
+  __resetAppRouteMocks,
+  __signInAppRouteMock,
+} from "../../../mocks/app-route-handlers";
 
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+
+const nav = vi.hoisted(() => ({ pushed: [] as string[] }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({
+    push: (href: string) => nav.pushed.push(href),
+    replace: vi.fn(),
+  }),
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/e/snorkel-elephant-beach",
 }));
 
+beforeEach(() => {
+  nav.pushed = [];
+  __resetAppRouteMocks();
+});
 afterEach(cleanup);
 
 const request = EXPERIENCE_DETAIL["snorkel-elephant-beach"];
@@ -151,7 +167,9 @@ describe("asking the operator", () => {
     const sheet = await screen.findByRole("dialog", {
       name: "Ask the operator",
     });
-    expect(within(sheet).getByLabelText("Your name")).toBeInTheDocument();
+    expect(
+      await within(sheet).findByLabelText("Your name"),
+    ).toBeInTheDocument();
     expect(within(sheet).getByLabelText("WhatsApp number")).toBeInTheDocument();
     expect(
       within(sheet).getByLabelText("Email (optional)"),
@@ -176,12 +194,14 @@ describe("asking the operator", () => {
     const sheet = await screen.findByRole("dialog", {
       name: "Ask the operator",
     });
-    await user.type(within(sheet).getByLabelText("Your name"), "Asha Menon");
+    await user.type(
+      await within(sheet).findByLabelText("Your name"),
+      "Asha Menon",
+    );
     await user.type(
       within(sheet).getByLabelText("WhatsApp number"),
       "9000000000",
     );
-    await user.click(within(sheet).getByRole("checkbox"));
     await user.click(
       within(sheet).getByRole("button", { name: /Send the request/ }),
     );
@@ -214,7 +234,10 @@ describe("asking the operator", () => {
     const sheet = await screen.findByRole("dialog", {
       name: "Ask the operator",
     });
-    await user.type(within(sheet).getByLabelText("Your name"), "Asha Menon");
+    await user.type(
+      await within(sheet).findByLabelText("Your name"),
+      "Asha Menon",
+    );
     expect(
       within(sheet).getByRole("button", { name: /Send the request/ }),
     ).toBeDisabled();
@@ -234,10 +257,156 @@ describe("asking the operator", () => {
     const sheet = await screen.findByRole("dialog", {
       name: "Ask the operator",
     });
-    await user.type(within(sheet).getByLabelText("Your name"), "Asha");
-    await user.click(within(sheet).getByRole("checkbox"));
+    await user.type(await within(sheet).findByLabelText("Your name"), "Asha");
     expect(
       within(sheet).getByRole("button", { name: /Send the request/ }),
     ).toBeDisabled();
+  });
+});
+
+/**
+ * The three things the owner said the Ask pop-up still got wrong on 14 Sep
+ * (yuvoy-app#32), and one it always did right.
+ */
+describe("the Ask pop-up after the owner's second look", () => {
+  async function openAsk(user: ReturnType<typeof userEvent.setup>) {
+    renderWithQuery(<BookingLayer experience={request} bookable />);
+    await chooseDeparture(user);
+    await user.click(
+      await screen.findByRole("button", { name: /Ask the operator/ }),
+    );
+    return screen.findByRole("dialog", { name: "Ask the operator" });
+  }
+
+  it("has no terms checkbox, and says the policy as a sentence instead", async () => {
+    /*
+      "The API has no field for accepting it." So the checkbox was an
+      acknowledgement this form invented and then made Send depend on. The
+      policy still has to be readable before sending, which is what the
+      sentence is for.
+    */
+    const user = userEvent.setup();
+    const sheet = await openAsk(user);
+
+    expect(within(sheet).queryByRole("checkbox")).toBeNull();
+    expect(within(sheet).getByText(/If it is called off:/)).toBeInTheDocument();
+  });
+
+  it("sends with no name or number for a signed-in traveller", async () => {
+    /*
+      The owner's complaint, at the wire. `contact.whatsapp` is IGNORED by the
+      API on an authenticated reservation, so sending it would be a lie about
+      which number the operator will answer on; `contact.name` absent means
+      "use the profile's".
+    */
+    __signInAppRouteMock();
+    server.use(
+      http.get(`${BASE}/me`, () =>
+        HttpResponse.json({
+          phone: "+919000003210",
+          name: "Asha Menon",
+          email: "asha@example.com",
+          interests: [],
+          onboardingRequired: false,
+          memberSince: null,
+          trips: { total: 0, upcoming: 0, completed: 0 },
+          reviews: { count: 0 },
+          support: { whatsappE164: null, hours: "9am to 7pm" },
+        }),
+      ),
+    );
+
+    let body: Record<string, unknown> | null = null;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request: req }) => {
+        body = (await req.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            reservationId: "res_signed_in",
+            state: "pending_request",
+            statusToken: "tok_signed_in",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    const sheet = await openAsk(user);
+    await within(sheet).findByText(/Booking as/);
+    await user.click(
+      within(sheet).getByRole("button", { name: /Send the request/ }),
+    );
+
+    await screen.findByRole("dialog", { name: "Request sent" });
+    const contact = (body as unknown as { contact: Record<string, unknown> })
+      .contact;
+    expect(contact).not.toHaveProperty("whatsapp");
+    expect(contact).not.toHaveProperty("name");
+    expect(contact.email).toBe("asha@example.com");
+  });
+
+  it("still sends both for a guest, which is the majority path", async () => {
+    let body: Record<string, unknown> | null = null;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request: req }) => {
+        body = (await req.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            reservationId: "res_guest",
+            state: "pending_request",
+            statusToken: "tok_guest",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    const sheet = await openAsk(user);
+    await user.type(
+      await within(sheet).findByLabelText("Your name"),
+      "Asha Menon",
+    );
+    await user.type(
+      within(sheet).getByLabelText("WhatsApp number"),
+      "9000000000",
+    );
+    await user.click(
+      within(sheet).getByRole("button", { name: /Send the request/ }),
+    );
+
+    await screen.findByRole("dialog", { name: "Request sent" });
+    const contact = (body as unknown as { contact: Record<string, unknown> })
+      .contact;
+    expect(contact.name).toBe("Asha Menon");
+    expect(contact.whatsapp).toBe("+919000000000");
+  });
+
+  it("closing Request sent goes to the feed, not back to the listing", async () => {
+    /*
+      The third mismatch. `onClose` returns to the page underneath, which is
+      the listing the traveller has just finished asking about. The × , the
+      backdrop and Escape all run it, so all three have to land where "Back to
+      the feed" does.
+    */
+    const user = userEvent.setup();
+    const sheet = await openAsk(user);
+    await user.type(
+      await within(sheet).findByLabelText("Your name"),
+      "Asha Menon",
+    );
+    await user.type(
+      within(sheet).getByLabelText("WhatsApp number"),
+      "9000000000",
+    );
+    await user.click(
+      within(sheet).getByRole("button", { name: /Send the request/ }),
+    );
+
+    const sent = await screen.findByRole("dialog", { name: "Request sent" });
+    await user.click(within(sent).getByRole("button", { name: /close/i }));
+
+    await waitFor(() => expect(nav.pushed).toContain("/"));
   });
 });

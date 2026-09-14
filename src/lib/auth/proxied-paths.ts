@@ -57,6 +57,20 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     what this change exists to stop.
   */
   { method: "GET", pattern: "/me/bookings" },
+  /*
+    Signed-in checkout (yuvoy-app#32). The one entry here that is NOT
+    session-only: a guest books through the same endpoint, unauthenticated, and
+    that path must not move behind the proxy. `useCreateReservation` chooses
+    per call, and the API decides what to do with the session it is or is not
+    given: signed in, `contact.whatsapp` is ignored and `contact.name` defaults
+    to the profile's.
+
+    Its answer carries a `statusToken`, which the browser is SUPPOSED to
+    receive: it is the per-booking credential the device stores so a trip opens
+    later with no session at all. That is why `scripts/qa.mjs` check 18a looks
+    for `sessionToken` and deliberately not for `statusToken`.
+  */
+  { method: "POST", pattern: "/reservations" },
 ];
 
 /** `/me/invited-trips/{id}` becomes `^/me/invited-trips/[^/]+$`. */

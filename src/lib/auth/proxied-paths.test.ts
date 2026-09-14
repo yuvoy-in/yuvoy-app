@@ -29,11 +29,20 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("POST", "/me/bookings")).toBeNull();
   });
 
+  it("forwards signed-in checkout, which a GUEST still reaches directly", () => {
+    /*
+      The one entry that is not session-only (yuvoy-app#32). Booking with no
+      account is this product's whole shape, so `useCreateReservation` chooses
+      per call and only the signed-in one comes through here.
+    */
+    expect(allowedProxyPath("POST", "/reservations")).toBe("/reservations");
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
-    expect(allowedProxyPath("POST", "/reservations")).toBeNull();
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();
     expect(allowedProxyPath("DELETE", "/me/session")).toBeNull();
+    expect(allowedProxyPath("GET", "/reservations")).toBeNull();
   });
 
   it("refuses the sign-in endpoints, which mint the credential", () => {

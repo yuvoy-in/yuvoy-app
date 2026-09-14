@@ -77,6 +77,15 @@ export const qk = {
    */
   session: () => ["session"] as const,
   /**
+   * The signed-in traveller's own profile (yuvoy-app#32, #38).
+   *
+   * Not keyed by anything, for the same reason `myBookings` is not: the token
+   * is in an HttpOnly cookie and the browser cannot see it. Removed rather
+   * than invalidated on both sign-in and sign-out, so a shared phone never
+   * paints the previous number's name into a form while a refetch runs.
+   */
+  myAccount: () => ["getMyAccount"] as const,
+  /**
    * Every trip on a signed-in number (yuvoy-app#34).
    *
    * This used to be keyed by the session token, so that two numbers on one

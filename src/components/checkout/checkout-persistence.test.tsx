@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 async function book(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText("Your name"), "Asha Menon");
+  await user.type(await screen.findByLabelText("Your name"), "Asha Menon");
   await user.type(screen.getByLabelText("WhatsApp number"), "+919000000000");
   await user.click(screen.getByRole("checkbox", { name: /called off/i }));
   await user.click(screen.getByRole("button", { name: /hold these seats/i }));
