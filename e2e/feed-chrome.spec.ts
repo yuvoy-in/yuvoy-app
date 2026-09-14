@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { swipe } from "./support/touch";
 
 /**
  * The reel keeps the screen, and the bar keeps its place — in a real browser.
@@ -32,36 +33,6 @@ async function toReel(page: Page, index: number) {
   await expect(
     page.locator(`article[aria-posinset="${index + 1}"]`),
   ).toBeInViewport();
-}
-
-/** One real touch drag, through the browser's own input pipeline. */
-async function swipe(
-  page: Page,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  steps = 12,
-) {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Input.dispatchTouchEvent", {
-    type: "touchStart",
-    touchPoints: [{ x: from.x, y: from.y }],
-  });
-  for (let i = 1; i <= steps; i++) {
-    await cdp.send("Input.dispatchTouchEvent", {
-      type: "touchMove",
-      touchPoints: [
-        {
-          x: from.x + ((to.x - from.x) * i) / steps,
-          y: from.y + ((to.y - from.y) * i) / steps,
-        },
-      ],
-    });
-  }
-  await cdp.send("Input.dispatchTouchEvent", {
-    type: "touchEnd",
-    touchPoints: [],
-  });
-  await cdp.detach();
 }
 
 test.describe("the reel keeps the screen", () => {
@@ -106,17 +77,27 @@ test.describe("the reel keeps the screen", () => {
     await expect(masthead).toHaveCSS("opacity", "1");
   });
 
-  test("the masthead is a mark, top left, with no tagline and nothing to press", async ({
+  test("the masthead is a mark, top left, with a tagline-free drawing", async ({
     page,
     isMobile,
   }) => {
     test.skip(!isMobile, "no masthead above lg");
 
-    // Nothing to press: the whole top of a reel is feed. The Search disc that
-    // used to sit up here is gone — the bar below already carried it.
-    await expect(page.locator(`${MASTHEAD} a, ${MASTHEAD} button`)).toHaveCount(
-      0,
-    );
+    /*
+      This used to assert NOTHING to press. The Search disc that sat up here
+      was gone and the bar below already carried that destination, so the whole
+      top of a reel was feed.
+
+      Exactly one thing may be pressed now: Login (yuvoy-app#56, owner, 14 Sep).
+      The rule the old assertion was protecting is unchanged and is asserted
+      instead: one control, it is Login, and nothing else has crept back. The
+      strip stays `pointer-events-none` across its full width, which
+      `login-button.spec.ts` proves with a real touch drag that starts inside
+      it.
+    */
+    const pressable = page.locator(`${MASTHEAD} a, ${MASTHEAD} button`);
+    await expect(pressable).toHaveCount(1);
+    await expect(pressable).toHaveAccessibleName("Login");
     /*
       One visible way to Search, not two. `:visible` is load-bearing — the
       desktop rail is in the document at every width and merely `hidden` below

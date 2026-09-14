@@ -22,6 +22,13 @@ import { useFeedStore } from "@/lib/feed/store";
 
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("next/navigation", () => ({
+  /*
+    `LoginButton` sits in every logo header and in the feed masthead
+    (yuvoy-app#56), and it reads both of these. A mock missing either
+    fails the whole file with "No export is defined", which reads as a
+    broken screen rather than an incomplete mock.
+  */
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => nav.pathname,
 }));

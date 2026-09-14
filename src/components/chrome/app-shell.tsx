@@ -5,6 +5,7 @@ import { TabBar } from "./tab-bar";
 import { Wordmark } from "@/components/ui/wordmark";
 import { BookIcon } from "@/components/ui/icons";
 import { SECONDARY_ROUTES } from "@/lib/site/nav";
+import { LoginButton } from "@/components/auth/login-button";
 
 /**
  * The app chassis (v2.7).
@@ -67,7 +68,24 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {/*
+          The desktop Login, in one place for every page (yuvoy-app#56 item 4).
+
+          It cannot live in `Screen`'s header, because that strip is
+          `lg:hidden` on a tab root: the rail carries the mark up here. And the
+          feed has no `Screen` at all. Putting it on the shell is what makes it
+          the same position on every page rather than three positions that
+          drift apart.
+
+          `pointer-events-none` on the wrapper so a full-bleed reel still takes
+          a click anywhere behind it; only the button itself takes one.
+        */}
+        <div className="pointer-events-none absolute top-7 right-8 z-30 hidden lg:block">
+          <div className="pointer-events-auto">
+            <LoginButton />
+          </div>
+        </div>
         <main id="main" className="flex min-w-0 flex-1 flex-col">
           {children}
         </main>

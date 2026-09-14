@@ -21,6 +21,13 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
  */
 const nav = vi.hoisted(() => ({ url: "/search" }));
 vi.mock("next/navigation", () => ({
+  /*
+    `LoginButton` sits in every logo header and in the feed masthead
+    (yuvoy-app#56), and it reads both of these. A mock missing either
+    fails the whole file with "No export is defined", which reads as a
+    broken screen rather than an incomplete mock.
+  */
+  usePathname: () => "/search",
   useRouter: () => ({
     replace: (href: string) => {
       nav.url = href;

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Wordmark } from "@/components/ui/wordmark";
 import { BackButton } from "./back-button";
+import { LoginButton } from "@/components/auth/login-button";
 
 /**
  * The screen chassis — v2.7's stage and sheet.
@@ -94,8 +95,19 @@ export function Screen({
                 {stageLabel}
               </p>
             ) : null}
-            <div className="flex gap-2">
-              {heroActions ?? <span aria-hidden="true" className="size-11" />}
+            {/*
+              Login sits to the LEFT of any hero actions, and only on a screen
+              that carries the logo: a focused screen has a back control there
+              instead, and no mark to sit opposite (yuvoy-app#56 item 3).
+
+              The empty 44px span that used to hold this slot open is gone.
+              `LoginButton` holds its own space while the session is still
+              being read, and an invisible span beside a real button would
+              simply push Login 44px off the edge.
+            */}
+            <div className="flex items-center gap-2">
+              {focused ? null : <LoginButton />}
+              {heroActions}
             </div>
           </header>
         )}

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
@@ -6,6 +6,18 @@ import { OperatorScreen } from "./operator-screen";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 import { operatorProfileFor } from "../../../mocks/fixtures";
+
+/*
+  `LoginButton` sits in every logo header (yuvoy-app#56) and reads both of
+  these. Without the mock the whole tree throws inside <LoginButton> and every
+  assertion here fails as "unable to find heading", which reads as a broken
+  screen rather than a missing router.
+*/
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/o/sample-boat-operator",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 const SLUG = "sample-boat-operator";

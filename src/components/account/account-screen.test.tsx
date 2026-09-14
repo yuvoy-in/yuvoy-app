@@ -9,13 +9,29 @@ import { __resetAppRouteMocks } from "../../../mocks/app-route-handlers";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
+const nav = vi.hoisted(() => ({ replaced: [] as string[] }));
+
+/*
+  `next` is read off `window.location` in the submit handler, not with
+  `useSearchParams`: the hook would bail `/account` out of static rendering,
+  and a Suspense boundary around the screen empties the prerendered HTML that
+  carries the privacy and terms links (`e2e/audit.spec.ts` caught that). So a
+  test sets the real address rather than a mocked hook.
+*/
+const atAccount = (search = "") =>
+  window.history.replaceState({}, "", `/account${search ? `?${search}` : ""}`);
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: (href: string) => nav.replaced.push(href),
+  }),
   usePathname: () => "/account",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 beforeEach(() => {
+  atAccount();
+  nav.replaced = [];
   /*
     Start signed out. The session is an HttpOnly cookie now (yuvoy-app#57), so
     there is nothing in browser storage to clear; the app-route mock keeps a
@@ -239,5 +255,64 @@ describe("what it says when something goes wrong", () => {
     expect(
       screen.getByRole("link", { name: /trips on this phone/ }),
     ).toHaveAttribute("href", "/trips");
+  });
+});
+
+/**
+ * Coming back to where Login was pressed (yuvoy-app#56 item 5).
+ *
+ * The happy path is small. The refusals are the feature: `next` arrives from
+ * the query string, so a link to `/account?next=https://evil.example/login`
+ * would hand a traveller who has just signed in on OUR domain, with our form,
+ * to somebody else's page in the same tab, already trusting what they see.
+ * `safeNextPath` is what stands between that and a traveller, and its own
+ * unit tests cover the shapes; this proves the screen actually consults it.
+ */
+describe("where signing in lands", () => {
+  const signIn = async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<AccountScreen />);
+    await screen.findByText("There is no account to make");
+    await user.type(
+      screen.getByLabelText("Your WhatsApp number"),
+      "9111111111",
+    );
+    await user.click(screen.getByRole("button", { name: "Send me a code" }));
+    await user.type(await screen.findByLabelText("The code we sent"), "123456");
+    await user.click(screen.getByRole("button", { name: "Show me my trips" }));
+  };
+
+  it("returns to a path on this origin", async () => {
+    atAccount("next=%2Fsearch%3Fq%3Ddiving");
+    await signIn();
+    await waitFor(() => expect(nav.replaced).toEqual(["/search?q=diving"]));
+  });
+
+  it("stays on Account when there is no next at all", async () => {
+    await signIn();
+    await screen.findByText("You are signed in");
+    expect(nav.replaced).toEqual([]);
+  });
+
+  it("REFUSES an absolute URL and stays on Account", async () => {
+    atAccount("next=https%3A%2F%2Fevil.example%2Flogin");
+    await signIn();
+    await screen.findByText("You are signed in");
+    expect(nav.replaced).toEqual([]);
+  });
+
+  it("REFUSES a protocol-relative URL, which starts with a slash", async () => {
+    // The bypass a "must start with /" check waves through.
+    atAccount("next=%2F%2Fevil.example");
+    await signIn();
+    await screen.findByText("You are signed in");
+    expect(nav.replaced).toEqual([]);
+  });
+
+  it("REFUSES a javascript: scheme", async () => {
+    atAccount("next=javascript%3Aalert(1)");
+    await signIn();
+    await screen.findByText("You are signed in");
+    expect(nav.replaced).toEqual([]);
   });
 });

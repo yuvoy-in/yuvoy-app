@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { YuvoyError } from "@/lib/api/errors";
 import {
   useTravellerSession,
@@ -14,6 +15,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { Screen } from "@/components/chrome/screen";
 import { LegalLinks } from "@/components/site/legal-links";
+import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
 
 /**
@@ -39,6 +41,7 @@ import { Skeleton, LoadingState } from "@/components/states";
  */
 export function AccountScreen() {
   const { signedIn, signIn, signOut } = useTravellerSession();
+  const router = useRouter();
   const [phone, setPhone] = useState(DEFAULT_DIAL_CODE);
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -71,6 +74,30 @@ export function AccountScreen() {
       await signIn();
       setSent(false);
       setCode("");
+
+      /*
+        Back where the Login button was pressed (yuvoy-app#56 item 5).
+
+        Read off `window.location` in the handler rather than with
+        `useSearchParams`. The hook would bail this whole page out of static
+        rendering unless it sat inside a Suspense boundary, and a boundary
+        around the screen empties the prerendered HTML: `/account` is where the
+        privacy and terms links live, `e2e/audit.spec.ts` asserts them in the
+        SERVER-RENDERED source, and it caught exactly that. The value is only
+        needed at the instant sign-in succeeds, which is browser-only anyway.
+
+        `safeNextPath` is an open-redirect guard, not a formality: `next`
+        arrives from the query string, so a link to
+        `/account?next=https://evil.example/login` would otherwise hand a
+        traveller who has just signed in on OUR domain to somebody else's page,
+        in the same tab, already trusting what they see. Anything that is not a
+        path on this origin answers null and they stay here, signed in, which
+        is the issue's own instruction.
+      */
+      const next = safeNextPath(
+        new URLSearchParams(window.location.search).get("next"),
+      );
+      if (next) router.replace(next);
     }
   }
 
