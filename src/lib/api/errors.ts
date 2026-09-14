@@ -48,6 +48,27 @@ export const ERROR_CODES = [
   "operator_not_bookable",
   "payments_unavailable",
   "media_unavailable",
+  /*
+    A 503 that is NOT one of the four above, and must not be added to
+    `DELIBERATE_STOPS`.
+
+    Nobody decided this. The booking store that recovery, cancellation quotes
+    and "my trips" read is not wired, so those endpoints cannot answer. The
+    contract is explicit that the request was not recorded and that retrying
+    later is the right move, which is exactly why it is a 503 and not an
+    `internal_error`. Calm "somebody stopped this on purpose" copy with no
+    retry would be a lie in both halves.
+
+    The bare spelling is deliberate upstream: the three sibling surfaces name
+    themselves (`admin_unavailable`, `operator_unavailable`,
+    `media_unavailable`) and this one predates that convention. It is left as
+    the handlers actually write it rather than renamed underneath a client.
+
+    Found by the ERROR_CODES drift check in `scripts/qa.mjs` the first time it
+    ran, having been in the contract and absent here for some time
+    (yuvoy-app#53).
+  */
+  "unavailable",
   // Idempotency and checkout.
   "idempotency_key_malformed",
   "idempotency_key_reuse",
@@ -77,6 +98,24 @@ export const ERROR_CODES = [
   "answers_required",
   "answers_closed",
   "messages_closed",
+  /*
+    The three codes that replaced `conflict` on `POST /bookings/review`
+    (yuvoy-app#53). The API stopped returning `conflict` there on 2026-09-13
+    and split it three ways.
+
+    `conflict` stays in the enum above and stays handled: the split is a
+    change in what the API RETURNS, not in what it may return, and a client
+    that stops recognising the old code breaks against any deployment that
+    has not shipped the split.
+
+    Without these three, `YuvoyError.code` falls to `unknown_error` and
+    `describeError` says "Something went wrong ... trying again often fixes
+    it" with a retry button, over three states that are not failures and that
+    trying again cannot change.
+  */
+  "not_reviewable_yet",
+  "already_reviewed",
+  "review_window_closed",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

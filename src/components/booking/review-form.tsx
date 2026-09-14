@@ -54,10 +54,49 @@ export function ReviewForm({ token }: { token: string }) {
     },
   });
 
-  // 409 `conflict` here means one thing: a review already exists for this
-  // booking. That is the recorded state, not a failure to render as one.
+  /*
+    A review already exists for this booking. That is the recorded state, not
+    a failure to render as one.
+
+    Two codes, and both are load-bearing. The API answered `conflict` until
+    2026-09-13 and answers `already_reviewed` since (yuvoy-app#53). `conflict`
+    is kept because the code the app reads is decided by the DEPLOYED API, not
+    by the pinned document: a deployment behind the split still answers the
+    old one, and dropping it would put this branch back out of reach.
+
+    The other two codes of that split are NOT "already recorded" and must not
+    land here. `not_reviewable_yet` means the trip has not been marked done,
+    and `review_window_closed` means 30 days have passed. Both fall through to
+    the failure panel, which has a sentence for each.
+  */
   const alreadyRecorded =
-    submit.error instanceof YuvoyError && submit.error.code === "conflict";
+    submit.error instanceof YuvoyError &&
+    (submit.error.code === "already_reviewed" ||
+      submit.error.code === "conflict");
+
+  /*
+    The other two codes of the 2026-09-13 split. Neither is "already
+    recorded" and neither can be retried: the trip has not been marked done,
+    or 30 days have passed.
+
+    They take the form off the screen rather than sitting under it, because
+    the whole point of #53 was a button that could never succeed. Leaving an
+    enabled "Leave this review" beneath "Too late to review this one" would
+    rebuild the same trap with better copy on top of it.
+  */
+  const reviewClosed =
+    submit.error instanceof YuvoyError &&
+    (submit.error.code === "not_reviewable_yet" ||
+      submit.error.code === "review_window_closed");
+
+  if (reviewClosed) {
+    return (
+      <FailurePanel
+        failure={describeError(submit.error, { tokenBearing: true })}
+        className="mt-8"
+      />
+    );
+  }
 
   if (submit.isSuccess || alreadyRecorded) {
     return (

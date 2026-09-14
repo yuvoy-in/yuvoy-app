@@ -1144,6 +1144,88 @@ for (const f of files) {
   }
 }
 
+/* --------- 17. every contract error code is one the client recognises ---- */
+
+/**
+ * A code in the contract's `ErrorCode` enum that is missing from
+ * `ERROR_CODES` in `src/lib/api/errors.ts`.
+ *
+ * This is the one drift the typechecker structurally cannot see. `ERROR_CODES`
+ * is a hand-written mirror of the enum, and `YuvoyError` narrows anything it
+ * does not recognise to `unknown_error`. So a code the API really returns and
+ * the client has never heard of does not fail to compile, does not fail a
+ * test, and does not throw. It renders "Something went wrong. It is us, not
+ * you, and trying again often fixes it." with a retry button, over a refusal
+ * that is frequently not an error at all and that retrying cannot change.
+ *
+ * It shipped exactly that way: `POST /bookings/review` split `conflict` into
+ * `not_reviewable_yet`, `already_reviewed` and `review_window_closed` on
+ * 2026-09-13. All three were in the contract on the ref this app was pinned
+ * to. None was in `ERROR_CODES`. A traveller who had already reviewed their
+ * trip read a crash message and was invited to retry forever
+ * (yuvoy-app#53).
+ *
+ * The check runs one way on purpose. A code in `ERROR_CODES` that is NOT in
+ * the contract is fine and is sometimes required: the API may stop RETURNING
+ * a code long before the enum drops it, and a deployment behind the current
+ * document still answers the old one. `conflict` is live proof of both halves.
+ */
+
+{
+  const contract = readFileSync(join(ROOT, "contracts/openapi.yaml"), "utf8");
+
+  /*
+    The enum entries under `ErrorCode:`, stopping at the next schema. Read off
+    the text rather than a YAML parser, which this repo does not depend on,
+    and anchored on the two-space schema indent the document uses throughout.
+  */
+  const block = /^ {4}ErrorCode:\n([\s\S]*?)(?=^ {4}\w+:\n)/m.exec(contract);
+  if (!block) {
+    problems.push(
+      `contracts/openapi.yaml: no ErrorCode schema found. The error-code ` +
+        `drift check cannot run, which means it is silently passing.`,
+    );
+  } else {
+    const declared = [...block[1].matchAll(/^ {8}- ([a-z_]+)$/gm)].map(
+      (m) => m[1],
+    );
+    if (declared.length < 20) {
+      problems.push(
+        `scripts/qa.mjs: only ${declared.length} ErrorCode entries parsed out ` +
+          `of the contract. The enum has dozens, so the parse is broken and ` +
+          `the drift check is passing over almost nothing.`,
+      );
+    }
+
+    const errorsTs = readFileSync(join(SRC, "lib/api/errors.ts"), "utf8");
+    const arr = /export const ERROR_CODES = \[([\s\S]*?)\n\] as const;/.exec(
+      errorsTs,
+    );
+    if (!arr) {
+      problems.push(
+        `src/lib/api/errors.ts: ERROR_CODES array not found. The error-code ` +
+          `drift check cannot run, which means it is silently passing.`,
+      );
+    } else {
+      // String literals only, so a code named inside a comment does not count.
+      const known = new Set(
+        [...arr[1].matchAll(/^ *"([a-z_]+)",$/gm)].map((m) => m[1]),
+      );
+      const missing = declared.filter((c) => !known.has(c));
+      if (missing.length) {
+        problems.push(
+          `src/lib/api/errors.ts: ERROR_CODES is missing ${missing.join(", ")}` +
+            `, which the pinned contract declares. YuvoyError narrows an ` +
+            `unrecognised code to unknown_error, so describeError says ` +
+            `"Something went wrong" and offers a retry over a refusal that ` +
+            `retrying cannot fix. Add each one and give it a sentence ` +
+            `(yuvoy-app#53).`,
+        );
+      }
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);
