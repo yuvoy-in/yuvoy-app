@@ -1474,3 +1474,47 @@ describe("add to calendar", () => {
     }
   });
 });
+
+describe("the experience title", () => {
+  it("links to the listing (#38 item 3)", async () => {
+    /*
+      Somebody on this page a week before their trip wants to re-read what they
+      booked. None of it is here and all of it is one tap away; without the
+      link the only route is searching for it again by name.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByRole("link", { name: "Try-dive at Nemo Reef" }),
+    ).toHaveAttribute("href", "/e/try-dive-nemo-reef");
+  });
+
+  it("stays plain text rather than linking to /e/undefined", async () => {
+    // A pinned contract states what an API WILL send, never what it does send.
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            experience: {
+              title: "Try-dive at Nemo Reef",
+              operator: "Sample Dive Operator",
+            },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText("Try-dive at Nemo Reef"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Try-dive at Nemo Reef" }),
+    ).toBeNull();
+  });
+});

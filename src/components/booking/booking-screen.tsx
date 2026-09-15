@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useDocumentTitle } from "@/lib/site/use-document-title";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
@@ -348,7 +349,28 @@ function StatusBody({
               </p>
             </Row>
           ) : null}
-          <Row label="Experience">{status.experience.title}</Row>
+          {/*
+            The title as a link to the listing (#38 item 3).
+
+            Somebody on this page a week before their trip wants to re-read
+            what they booked: what is included, what to bring, how long it
+            takes. None of that is here and all of it is one tap away, and
+            without the link the only route is searching for it again by name.
+
+            `slug` is required on the response and is guarded anyway, in line
+            with the standing rule that a pinned contract states what an API
+            WILL send. A missing slug renders the title as plain text rather
+            than a link to `/e/undefined`.
+          */}
+          <Row label="Experience">
+            {status.experience.slug ? (
+              <Link href={`/e/${status.experience.slug}`} className="underline">
+                {status.experience.title}
+              </Link>
+            ) : (
+              status.experience.title
+            )}
+          </Row>
           {/*
             The booking carries an instant plus the MARKET's zone, not the
             pre-formatted local fields the catalog slots have. Rendering it in
