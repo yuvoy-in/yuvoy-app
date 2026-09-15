@@ -175,6 +175,17 @@ export function ExperienceCard({
               answered the question the connection heuristic was guessing at.
             */
             onRequestPlay={() => setAutoplayAllowed(true)}
+            /*
+              Hidden while the panel is open.
+
+              The panel's ground is 94% abyss, not 100%, so a 64px play glyph
+              sitting at the centre of the card shows THROUGH it: not a z-order
+              problem, a translucency one, and invisible to every test because
+              both elements are exactly where they should be. It is also a
+              control a traveller cannot reach while the panel covers it, and
+              drawing one of those is drawing a lie.
+            */
+            hidden={detailsOpen}
           />
         ) : (
           /*

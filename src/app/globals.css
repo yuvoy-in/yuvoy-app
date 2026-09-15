@@ -672,17 +672,53 @@
   the next reel in the middle of reading.
 */
 @utility reel-sheet-scroll {
-  @apply min-h-0 flex-1 overflow-y-auto px-5 pt-1;
+  @apply min-h-0 flex-1 overflow-y-auto px-5 pb-2;
   overscroll-behavior: contain;
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
     display: none;
   }
+
+  /*
+    Say there is more, when there is.
+
+    The panel has a ceiling it may not break, so on a short screen or a listing
+    with a party size the operator's credential line falls below the fold. The
+    scrollbar is hidden, so without this the last visible line is simply cut in
+    half and reads as a rendering fault rather than as something to scroll to.
+
+    The fade acts on the content that is already being cut, so what is going out
+    of view visibly goes out of view. `data-more` is set by the component only
+    while the area actually overflows, so a panel that fits is drawn plain.
+  */
+  &[data-more="true"] {
+    mask-image: linear-gradient(
+      to bottom,
+      #000 calc(100% - 1.5rem),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 calc(100% - 1.5rem),
+      transparent 100%
+    );
+  }
 }
 
+/*
+  The foot clears the BAR, not a screen.
+
+  `tabbar-clearance` is 76px because a screen leaves the bar's 46px, its 12px
+  foot and a breath. A panel's own edge is a surface: it needs to clear the
+  bar's top edge and nothing more. The eight pixels that buys are not
+  decoration, they are the operator's credential line, which is the whole of
+  this product's answer to having no star ratings and was falling below the fold
+  by about that much.
+*/
 @utility reel-sheet-foot {
-  @apply tabbar-clearance flex-none px-5;
+  @apply flex-none px-5;
+  padding-bottom: calc(3.625rem + env(safe-area-inset-bottom, 0px));
 }
 
 @utility reel-sheet-title {
@@ -695,7 +731,7 @@
 
 /* The one number the panel exists to answer, so it is the largest thing in it. */
 @utility reel-sheet-price {
-  @apply mb-3 flex flex-wrap items-baseline gap-2;
+  @apply mb-2 flex flex-wrap items-baseline gap-2;
 }
 @utility reel-sheet-amount {
   @apply font-display text-cream tracking-display text-2xl leading-none;
@@ -708,7 +744,7 @@
 }
 
 @utility reel-sheet-facts {
-  @apply mb-3 grid gap-2;
+  @apply mb-2 grid gap-1.5;
 }
 @utility reel-sheet-fact {
   @apply flex items-baseline justify-between gap-4;
@@ -722,7 +758,7 @@
 }
 
 @utility reel-sheet-operator {
-  @apply border-cream/14 border-t pt-3;
+  @apply border-cream/14 border-t pt-2.5;
 }
 @utility reel-sheet-operator-name {
   @apply text-cream text-sm font-bold;

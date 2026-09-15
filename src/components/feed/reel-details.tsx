@@ -64,6 +64,7 @@ export function ReelDetails({
   id: string;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   /*
     Nothing is rendered inside until the panel has actually been opened once.
@@ -105,6 +106,32 @@ export function ReelDetails({
     else node.setAttribute("inert", "");
   }, [open]);
 
+  /*
+    Whether there is more below, so the fade is drawn only when it means
+    something.
+
+    A `ResizeObserver` rather than a measurement on open: the panel's content
+    is the same height every time, but the FRAME is not. A rotation, a
+    different phone, a longer operator name and a listing that carries a party
+    size all change whether this overflows, and none of them fire a scroll.
+  */
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    const mark = () => {
+      const more = node.scrollHeight - node.clientHeight - node.scrollTop;
+      node.setAttribute("data-more", more > 2 ? "true" : "false");
+    };
+    mark();
+    node.addEventListener("scroll", mark);
+    const observer = new ResizeObserver(mark);
+    observer.observe(node);
+    return () => {
+      node.removeEventListener("scroll", mark);
+      observer.disconnect();
+    };
+  }, [open]);
+
   const price = formatFromPrice(experience.fromPrice);
   const duration = formatDuration(experience.durationMinutes);
   const departure = nextDepartureSentence(experience);
@@ -133,7 +160,7 @@ export function ReelDetails({
 
       {everOpened ? (
         <>
-          <div className="reel-sheet-scroll">
+          <div ref={scrollRef} className="reel-sheet-scroll">
             {/*
           The name, and the way to it.
 
@@ -183,12 +210,20 @@ export function ReelDetails({
                     : "The operator answers first, then you pay"
                 }
               />
-              {experience.maxPartySize ? (
-                <Fact
-                  term="Party"
-                  value={`Up to ${experience.maxPartySize} people`}
-                />
-              ) : null}
+              {/*
+                `maxPartySize` is NOT here, and that is the information
+                architecture rather than an omission.
+
+                The study that produced this screen classified it as detail-page
+                information: it matters when a traveller is choosing a date and
+                a party, not when they are deciding whether to look closer. It
+                was in the first cut of this panel anyway, and the real fixtures
+                showed why that was wrong: the extra row pushed the operator's
+                credential line below the fold, and that line is the whole of
+                this product's answer to having no star ratings. The panel has a
+                ceiling, so a row added here is a row taken from somewhere else,
+                and this is the cheapest one to give up.
+              */}
             </dl>
 
             {/*
