@@ -25,9 +25,10 @@ type ExperienceSummary = components["schemas"]["ExperienceSummary"];
  *
  * **The date is the MARKET's, never the device's.** A slot rendered in the
  * traveller's own timezone is a missed boat, which is why an eslint rule bans
- * every `toLocale*` call in this repository. `Intl.DateTimeFormat` with an
- * explicit `timeZone` is the sanctioned route and the one `formatMarketTime`
- * already uses.
+ * every `toLocale*` call in this repository. `nextAvailable` arrives already in
+ * the market's calendar, so the correct handling is to not convert it at all:
+ * see `marketDate` for why reaching for `Intl` here was both unnecessary and
+ * actively wrong.
  *
  * **`seatsOnNextDisplay` is printed verbatim.** The card used to derive "N
  * seats left" from `seatsOnNext` against a threshold it kept itself, which is a
@@ -47,23 +48,56 @@ export interface NextDeparture {
   seats: string | null;
 }
 
-const MARKET_TIMEZONE = "Asia/Kolkata";
+/*
+  Fixed tables, not `Intl`, and this is a production defect rather than a
+  preference.
 
-/**
- * "Thu, 17 Sep" in the market's zone.
- *
- * The date arrives as a plain `YYYY-MM-DD` in the market's own calendar, so it
- * is anchored at that zone's midnight before formatting. Parsing it as a bare
- * date string would put it at UTC midnight, which is the previous evening in
- * the Andamans and prints the wrong day for every departure.
- */
-function marketDate(date: string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: MARKET_TIMEZONE,
-  }).format(new Date(`${date}T00:00:00+05:30`));
+  The first version formatted with `Intl.DateTimeFormat("en-IN", { month:
+  "short", timeZone: "Asia/Kolkata" })`, which looks correct and is not: the
+  abbreviation comes from whatever CLDR the RUNTIME carries. Node renders
+  "Wed, 16 Sept" and WebKit renders "Wed, 16 Sep", so the server HTML and the
+  client's first render disagreed by one character and React threw a hydration
+  mismatch (#418) on every reel with a departure. It reached production and was
+  found by reading the console on the live site, because nothing else can see
+  it: both halves are individually right, and the server and the browser only
+  disagree when they are the same machine's two different ICU builds.
+
+  There was also no reason to convert a timezone at all. `nextAvailable` is
+  already a plain `YYYY-MM-DD` in the MARKET's own calendar, so treating it as
+  an instant and asking what day that instant falls on in Asia/Kolkata is a
+  round trip back to where it started, with an environment dependency picked up
+  on the way.
+
+  The weekday is computed in UTC so it cannot depend on where this runs either.
+*/
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/** "Wed, 16 Sep", identically on a server and in any browser. */
+function marketDate(date: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const weekday =
+    WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return `${weekday}, ${day} ${MONTHS[month - 1]}`;
 }
 
 export function nextDepartureSentence(
@@ -81,6 +115,16 @@ export function nextDepartureSentence(
 
   const when = marketDate(experience.nextAvailable);
   const seats = experience.seatsOnNextDisplay ?? null;
+
+  /*
+    A date the server sent in a shape this cannot read is treated exactly like
+    no date at all. Saying "Next" followed by nothing, or echoing a raw
+    `2026-09-16`, would both be worse than the honest sentence.
+  */
+  if (!when) {
+    const text = "No dates in the next 90 days";
+    return { bookable: false, short: text, full: text, seats: null };
+  }
 
   return {
     bookable: true,
