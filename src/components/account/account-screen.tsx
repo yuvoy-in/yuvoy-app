@@ -130,7 +130,7 @@ export function AccountScreen() {
       <p className="text-forest/70 mt-3 text-sm">
         {sent
           ? `We sent a six-digit code to ${phone}. It is good for a few minutes.`
-          : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password, no sign-up, and the trips already on this phone stay exactly where they are."}
+          : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up."}
       </p>
 
       <form
@@ -336,7 +336,7 @@ function signInFailure(
     body: "That is our side or the island signal, not your number. Try again in a moment.",
     action: (
       <ButtonLink href="/trips" variant="outline" size="sm">
-        See the trips on this phone
+        Go to my trips
       </ButtonLink>
     ),
   };
@@ -360,7 +360,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
       */}
       <p className="text-forest/70 mt-3 text-sm">
         Every trip on your number is under Trips, including ones booked on
-        another phone. The ones saved on this device are in the same list.
+        another phone.
       </p>
 
       <ButtonLink href="/trips" size="lg" className="mt-6">
@@ -376,9 +376,20 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         Sign out on this device
       </Button>
 
+      {/*
+        SAYS WHAT SIGNING OUT NOW DOES, BECAUSE IT CHANGED (yuvoy-app#60).
+
+        This used to read "It leaves the bookings saved here alone, and they
+        stay under Trips", which was true and is now the opposite of true: sign
+        out clears every booking this phone has saved. That is deliberate, a
+        status token both opens a booking and can cancel it, but it is also the
+        kind of thing somebody must be told BEFORE they tap rather than
+        discover afterwards, and the way back is a sentence long.
+      */}
       <p className="text-forest/70 mt-4 text-xs">
-        This signs out this device only. It leaves the bookings saved here
-        alone, and they stay under Trips.
+        This signs out this device only, and clears the bookings saved on it.
+        Nothing is cancelled: signing in again with the same number brings every
+        trip back.
       </p>
 
       {/*

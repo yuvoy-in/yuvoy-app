@@ -83,7 +83,7 @@ export function BookingScreen() {
           up from a name.
         </p>
         <ButtonLink href="/trips" className="mt-6">
-          Bookings on this device
+          Go to my trips
         </ButtonLink>
       </Shell>
     );

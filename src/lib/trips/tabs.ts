@@ -1,8 +1,24 @@
 import { formatMoney } from "@/lib/format/money";
 import { marketToday } from "@/lib/booking/availability-window";
-import type { components } from "@/lib/api/schema.gen";
+import type { components, operations } from "@/lib/api/schema.gen";
 
 export type InvitedTrip = components["schemas"]["InvitedTrip"];
+
+/**
+ * One row of `GET /me/bookings`, and the only shape Trips renders.
+ *
+ * DERIVED from the generated operation rather than retyped. The response is
+ * inline in the contract with no named schema, and a hand-written copy of an
+ * inline shape is exactly what `contracts/PINNED` exists to prevent: it would
+ * still compile the day the server adds a field or drops one, and the
+ * disagreement would surface at runtime, in a list of somebody's bookings.
+ *
+ * It lived in `merge-trips.ts` until yuvoy-app#60 removed the device list this
+ * screen used to merge in. There is one source now, so there is nothing to
+ * merge and the type belongs beside the tab rules that place it.
+ */
+export type ServerTrip =
+  operations["listMyBookings"]["responses"][200]["content"]["application/json"]["bookings"][number];
 
 /**
  * Which tab a trip belongs in, and what its price line says (yuvoy-app#38).

@@ -229,9 +229,16 @@ describe("what it says when something goes wrong", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers the trips on this phone when it cannot reach us at all", async () => {
-    // Not the traveller's fault and not their problem to diagnose, so it says
-    // so and offers the one thing that still works with no session.
+  it("offers a way on when it cannot reach us at all", async () => {
+    /*
+      Not the traveller's fault and not their problem to diagnose, so it says
+      so and offers somewhere to go rather than a dead end.
+
+      The label used to be "See the trips on this phone", which was true while
+      Trips read a list out of this device. Since yuvoy-app#60 it reads the
+      account's trips and nothing else, so the old label promised a list that
+      no longer exists.
+    */
     server.use(
       http.post(`${BASE}/me/sign-in/request`, () =>
         HttpResponse.json(
@@ -253,7 +260,7 @@ describe("what it says when something goes wrong", () => {
       await screen.findByText("We could not reach us"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /trips on this phone/ }),
+      screen.getByRole("link", { name: /Go to my trips/ }),
     ).toHaveAttribute("href", "/trips");
   });
 });
