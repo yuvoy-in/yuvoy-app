@@ -300,7 +300,7 @@ export function KeepBooking({
   return variant === "panel" ? (
     <Panel className="mt-6">{body}</Panel>
   ) : (
-    <div className="border-cream-line mt-8 border-t pt-6">{body}</div>
+    <div className="border-paper-line mt-8 border-t pt-6">{body}</div>
   );
 }
 

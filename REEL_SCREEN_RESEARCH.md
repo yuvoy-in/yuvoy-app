@@ -26,7 +26,7 @@ Each card today draws, and nothing else:
 | The clip or its poster | full bleed                                 | `bg-abyss` ground                      |
 | The Yuvoy mark         | top left, inert                            | no tagline, `feed-scrim-top` behind it |
 | The title              | bottom left, `line-clamp-3`, 2rem Fraunces | a link to `/e/{slug}`                  |
-| Arrow disc             | bottom right, solid cream                  | same href                              |
+| Arrow disc             | bottom right, solid paper                  | same href                              |
 | Sound disc             | below the arrow, translucent               | only when a clip is playable           |
 | Share disc             | below sound, translucent                   | shares `/r/{media.id}`                 |
 | The tab bar            | floating forest pill, always visible       | 56px plus a 12px foot                  |
@@ -118,7 +118,7 @@ how anybody plans three days.
   vertical stack read as one control group of equal weight. Fill alone is a weak
   differentiator at 44px over moving footage.
 - **No visual relationship between the reel and the bar.** The bar floats over
-  the picture with a `cream/12` ring. It does not belong to the reel, and the
+  the picture with a `paper/12` ring. It does not belong to the reel, and the
   reel does not acknowledge it. It reads as an app chrome pasted over a video
   player, which is precisely the thing Phase 4 of the brief says to avoid.
 
@@ -445,7 +445,7 @@ Ranked by how much they differentiate the product, not by effort.
   brightest pixel. A gradient added for style is a darkened photograph for no
   reason.
 - **Shadows.** There is no shadow token in this system and there will not be
-  one. Hairlines at `cream/12` do the work.
+  one. Hairlines at `paper/12` do the work.
 - **Glass and heavy blur.** Explicitly rejected in v2.7 on GPU cost for
   mid-range Android. Backdrop blur is allowed only on the existing 64px play
   disc, where it already ships.

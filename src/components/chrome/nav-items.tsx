@@ -24,7 +24,7 @@ const ICONS: Record<NavIcon, ComponentType<{ className?: string }>> = {
  * registry in two orientations. One component, because two copies of a nav
  * drift the first time a destination is added.
  *
- * In the bar the active destination opens into a cream pill carrying its
+ * In the bar the active destination opens into a paper pill carrying its
  * name; the other three are discs holding only their glyph, named for a
  * screen reader. That is the reference pattern (the "Chats" pill) and it
  * keeps four targets inside a phone-width pill without becoming a toolbar.
@@ -57,11 +57,11 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
                 "ease-interaction flex h-11 items-center rounded-full transition-[background-color,color] duration-200",
                 bar
                   ? active
-                    ? "bg-cream text-forest gap-2 pr-4 pl-3.5"
-                    : "text-cream/70 hover:text-cream w-11 justify-center"
+                    ? "bg-paper text-forest gap-2 pr-4 pl-3.5"
+                    : "text-paper/70 hover:text-paper w-11 justify-center"
                   : active
-                    ? "bg-cream text-forest gap-3 px-4"
-                    : "text-cream/70 hover:bg-cream/8 hover:text-cream gap-3 px-4",
+                    ? "bg-paper text-forest gap-3 px-4"
+                    : "text-paper/70 hover:bg-paper/8 hover:text-paper gap-3 px-4",
               )}
             >
               <Icon className="size-5" />

@@ -34,7 +34,7 @@ import { cn } from "@/lib/cn";
 
 /** The well's geometry, shared by the strip and by every state beside it. */
 export const REEL_WELL =
-  "bg-abyss relative h-dvh w-full lg:h-[calc(100dvh-3rem)] lg:rounded-sheet lg:ring-1 lg:ring-cream/10";
+  "bg-abyss relative h-dvh w-full lg:h-[calc(100dvh-3rem)] lg:rounded-sheet lg:ring-1 lg:ring-paper/10";
 
 /**
  * How a message sits in the well, for the states that are one block of text.
@@ -129,10 +129,10 @@ export function ReelMasthead({ href }: { href?: string }) {
           className="pointer-events-auto flex min-h-11 items-center"
           aria-label="Yuvoy home"
         >
-          <Wordmark tone="cream" className="h-7" priority />
+          <Wordmark tone="paper" className="h-7" priority />
         </Link>
       ) : (
-        <Wordmark tone="cream" className="h-7" priority />
+        <Wordmark tone="paper" className="h-7" priority />
       )}
       <LoginButton className="pointer-events-auto" />
     </div>
@@ -417,7 +417,7 @@ export function ReelStrip({
           className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center"
         >
           {isFetchNextPageError ? (
-            <p className="text-cream/60 text-xs">
+            <p className="text-paper/60 text-xs">
               More reels did not load: usually the island signal rather than
               you. Scroll up and back down to try again.
             </p>
@@ -429,9 +429,9 @@ export function ReelStrip({
               is usually gone before anybody sees it is a flicker at the bottom
               of every scroll.
             */
-            <p className="text-cream/60 text-xs">Loading more reels…</p>
+            <p className="text-paper/60 text-xs">Loading more reels…</p>
           ) : tail === "complete" ? (
-            <p className="text-cream/60 text-xs">
+            <p className="text-paper/60 text-xs">
               {emptyTailNote ?? "That is everything on sale right now."}
             </p>
           ) : (
@@ -442,7 +442,7 @@ export function ReelStrip({
               refetching from the top is the only move that exists, and the
               copy does not claim an ending it was not told about.
             */
-            <p className="text-cream/60 text-xs">
+            <p className="text-paper/60 text-xs">
               That is as far as we can load right now, not the end of what is on
               sale. Reload to try again.
             </p>

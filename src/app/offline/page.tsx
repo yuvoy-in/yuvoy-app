@@ -30,10 +30,10 @@ export default function OfflinePage() {
   return (
     <div className="stage flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
       <p className="eyebrow text-terra-soft">No signal</p>
-      <p className="font-display tracking-display text-cream mt-4 text-3xl leading-tight">
+      <p className="font-display tracking-display text-paper mt-4 text-3xl leading-tight">
         You are offline
       </p>
-      <p className="text-cream/70 mt-3 max-w-sm text-sm">
+      <p className="text-paper/70 mt-3 max-w-sm text-sm">
         Havelock does this. A booking you have already opened on this phone
         still opens from its own link. Everything else needs a connection to
         tell you anything true.

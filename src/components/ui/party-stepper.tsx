@@ -46,7 +46,7 @@ export function PartyStepper({
       <div className="mt-3 flex items-center gap-4">
         <IconButton
           label="One fewer guest"
-          variant="onCream"
+          variant="onPaper"
           disabled={value <= 1}
           onClick={() => onChange(Math.max(1, value - 1))}
         >
@@ -64,7 +64,7 @@ export function PartyStepper({
         </span>
         <IconButton
           label="One more guest"
-          variant="onCream"
+          variant="onPaper"
           disabled={atCap}
           onClick={() => onChange(Math.min(max, value + 1))}
         >

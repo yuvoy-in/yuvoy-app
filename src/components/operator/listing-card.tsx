@@ -34,7 +34,7 @@ export function ListingCard({
   return (
     <Link
       href={`/e/${experience.slug}`}
-      className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-3 pr-4 transition-colors duration-200"
+      className="rounded-card border-paper-line bg-paper-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-3 pr-4 transition-colors duration-200"
     >
       <div className="rounded-tile bg-abyss relative h-24 w-18 shrink-0 overflow-hidden">
         <Poster url={experience.heroMedia?.posterUrl} />

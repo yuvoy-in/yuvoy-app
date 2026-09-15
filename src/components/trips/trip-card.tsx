@@ -78,7 +78,7 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
   return (
     <Link
       href={bookingUrl(trip.statusToken)}
-      className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-start gap-4 border p-4 transition-colors duration-200"
+      className="rounded-card border-paper-line bg-paper-deep hover:border-forest/40 ease-interaction flex items-start gap-4 border p-4 transition-colors duration-200"
     >
       <HeroTile src={trip.heroImageUrl} alt="" />
 
@@ -132,7 +132,7 @@ export function InvitedTripCard({ trip }: { trip: InvitedTrip }) {
   return (
     <Link
       href={`/trips/invited/${trip.id}`}
-      className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-start gap-4 border p-4 transition-colors duration-200"
+      className="rounded-card border-paper-line bg-paper-deep hover:border-forest/40 ease-interaction flex items-start gap-4 border p-4 transition-colors duration-200"
     >
       <HeroTile alt="" />
 

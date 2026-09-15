@@ -95,17 +95,17 @@ export const FOCUSED_ROUTE_PREFIXES = [
 ] as const;
 
 /**
- * Routes whose ground is the MEDIA rather than a cream sheet.
+ * Routes whose ground is the MEDIA rather than a paper sheet.
  *
  * The feed, a shared reel, a search result played in place, and a business's
  * own reels: on all four the bar floats over `abyss` and a moving picture.
- * Everywhere else it floats over a cream sheet.
+ * Everywhere else it floats over a paper sheet.
  *
  * ## Why this exists, and why it is not `pathname === "/"`
  *
  * The bar is translucent so it sits INTO the picture rather than on top of it,
  * and translucency is a property of the bar on a dark ground, not of the bar.
- * Over a cream sheet the arithmetic inverts: the inactive glyphs are `cream/70`
+ * Over a paper sheet the arithmetic inverts: the inactive glyphs are `paper/70`
  * on a pill that is now letting the sheet through, and they measure **2.62:1**
  * against the 3:1 non-text floor. On the media ground the same glyphs measure
  * about 6.6:1, because what shows through is the caption scrim's own dark foot.

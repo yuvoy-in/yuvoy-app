@@ -52,9 +52,9 @@ export function ConsentBanner() {
     <div
       role="region"
       aria-label="Analytics choice"
-      className="app-chrome ring-cream/12 rounded-card fixed inset-x-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] z-40 p-5 ring-1 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:max-w-md"
+      className="app-chrome ring-paper/12 rounded-card fixed inset-x-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] z-40 p-5 ring-1 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:max-w-md"
     >
-      <p className="text-cream/80 text-sm">
+      <p className="text-paper/80 text-sm">
         May we count how this app gets used? It helps us fix what is broken. We
         never send your name, your number or your booking.
       </p>

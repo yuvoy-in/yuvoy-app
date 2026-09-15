@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 /**
  * A panel: the raised card every sheet composes from.
  *
- *   raised  — the default, a cream-deep card on the sheet
+ *   raised  — the default, a paper-deep card on the sheet
  *   outline — a hairline only, for a group that should not read as an object
  *   alert   — a failure or a warning: the accent hairline, never a red
  *   dark    — a translucent card on the stage, used sparingly
@@ -16,10 +16,10 @@ import { cn } from "@/lib/cn";
 export const panelVariants = cva("rounded-card p-5", {
   variants: {
     tone: {
-      raised: "border border-cream-line bg-cream-deep text-forest",
-      outline: "border border-cream-line text-forest",
-      alert: "border border-terra-deep/30 bg-cream-deep text-forest",
-      dark: "border border-cream/12 bg-cream/6 text-cream",
+      raised: "border border-paper-line bg-paper-deep text-forest",
+      outline: "border border-paper-line text-forest",
+      alert: "border border-terra-deep/30 bg-paper-deep text-forest",
+      dark: "border border-paper/12 bg-paper/6 text-paper",
     },
   },
   defaultVariants: {

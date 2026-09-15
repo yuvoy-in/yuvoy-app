@@ -183,7 +183,7 @@ export function BookingQuestions({
           it looks like it lost it.
         */}
         {past.length > 0 ? (
-          <div className="border-cream-line mt-6 border-t pt-5">
+          <div className="border-paper-line mt-6 border-t pt-5">
             <p className="text-forest/70 text-xs">
               Asked when you booked. This trip no longer asks these.
             </p>

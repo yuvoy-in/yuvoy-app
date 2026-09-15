@@ -34,7 +34,7 @@
     abyss: "#0a100e",
     forest: "#16362e",
     terra: "#be7149",
-    cream: "#f4efe4",
+    paper: "#ffffff",
   };
 
   /*
@@ -483,7 +483,7 @@
   var ABYSS_RGB = [10, 16, 14];
 
   /**
-   * The smallest abyss veil that brings cream to `target` over this colour.
+   * The smallest abyss veil that brings paper to `target` over this colour.
    *
    * Composited the way the browser actually will: per channel in sRGB, then
    * luminance from the result. Stepped rather than solved because the function
@@ -498,7 +498,7 @@
       var lr = r * (1 - a) + ABYSS_RGB[0] * a;
       var lg = g * (1 - a) + ABYSS_RGB[1] * a;
       var lb = b * (1 - a) + ABYSS_RGB[2] * a;
-      if (creamContrast(relativeLuminance(lr, lg, lb)) >= target) {
+      if (paperContrast(relativeLuminance(lr, lg, lb)) >= target) {
         return Math.round(a * 100) / 100;
       }
     }
@@ -514,11 +514,11 @@
     return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
   }
 
-  /** Contrast of cream (#F4EFE4) over a surface of the given luminance. */
-  function creamContrast(luminance) {
-    var cream = relativeLuminance(244, 239, 228);
-    var hi = Math.max(cream, luminance);
-    var lo = Math.min(cream, luminance);
+  /** Contrast of paper (#FFFFFF) over a surface of the given luminance. */
+  function paperContrast(luminance) {
+    var paper = relativeLuminance(255, 255, 255);
+    var hi = Math.max(paper, luminance);
+    var lo = Math.min(paper, luminance);
     return (hi + 0.05) / (lo + 0.05);
   }
 
@@ -527,7 +527,7 @@
     names: Object.keys(FRAMES),
     luminanceGrid: luminanceGrid,
     relativeLuminance: relativeLuminance,
-    creamContrast: creamContrast,
+    paperContrast: paperContrast,
     veilFor: veilFor,
   };
 

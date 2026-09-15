@@ -62,7 +62,7 @@ export function MonthCalendar({
   const canForward = canStepMonth(anchor, 1, today);
 
   return (
-    <div className="border-cream-line mt-3 rounded-2xl border p-3">
+    <div className="border-paper-line mt-3 rounded-2xl border p-3">
       <div className="flex items-center justify-between">
         <Arrow
           direction="back"
@@ -115,7 +115,7 @@ export function MonthCalendar({
                 */
                 cell.disabled && "opacity-40",
                 !cell.disabled && value !== cell.date && "hover:bg-forest/8",
-                value === cell.date && "bg-forest text-cream font-bold",
+                value === cell.date && "bg-forest text-paper font-bold",
               )}
             >
               {cell.day}

@@ -3,7 +3,7 @@
 
   It is deliberately NOT drawn in the brand's colours. Everything inside the
   phone is the product and everything outside it is an instrument, and a tool
-  painted in forest and cream would make it impossible to tell which of the two
+  painted in forest and paper would make it impossible to tell which of the two
   you were looking at. The chrome here is neutral grey and one monospace face,
   on purpose.
 

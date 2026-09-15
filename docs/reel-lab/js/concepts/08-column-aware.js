@@ -19,7 +19,7 @@
   words relocate, and words are read where they are found.
 
   The rail's own hairline is solved separately, at the 3:1 non-text floor rather
-  than the 7:1 the type gets: a solid cream disc carries its glyph at 11.44:1
+  than the 7:1 the type gets: a solid paper disc carries its glyph at 13.11:1
   whatever is behind it, so the only thing at risk is its edge dissolving into
   white surf. On deep water that hairline resolves to nothing.
 

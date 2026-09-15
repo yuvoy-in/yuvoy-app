@@ -21,6 +21,7 @@
     "codegen": "openapi-typescript contracts/openapi.yaml -o src/lib/api/schema.gen.ts && prettier --write src/lib/api/schema.gen.ts",
     "contract:check": "node scripts/check-contract-drift.mjs",
     "qa": "node scripts/qa.mjs",
+    "icons": "node scripts/generate-icons.mjs",
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm qa && pnpm test && pnpm contract:check && pnpm build && pnpm prerender:check && CI=1 pnpm test:e2e",
     "prepare": "husky",
     "prerender:check": "node scripts/check-prerender.mjs",
@@ -65,6 +66,7 @@
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
     "vitest": "^4.1.10"

@@ -858,7 +858,7 @@ console.log(
 // ---- 06: the lightened chassis is still legible -----------------------------
 //
 // The owner asked for less shade on 14 September and they were right: the
-// shipped scrim reached 100% abyss at the foot and held 16.75:1 where the floor
+// shipped scrim reached 100% abyss at the foot and held 19.21:1 where the floor
 // is 4.5:1. Lightening a scrim is the easiest change in this whole laboratory
 // to get wrong, because it fails only over the palest frame, only on the
 // shortest phone, and never in a screenshot anybody happens to take.
@@ -875,7 +875,7 @@ await page.waitForTimeout(500);
 
 const legible = await page.evaluate(async () => {
   const ABYSS = [10, 16, 14];
-  const CREAM = [244, 239, 228];
+  const PAPER = [255, 255, 255];
   /* The palest surf the design system measures artwork against, #E8E2D4. */
   const SURF = [232, 226, 212];
 
@@ -1005,13 +1005,13 @@ const legible = await page.evaluate(async () => {
     return {
       pos,
       abyss: Math.round(at(top, pos) * 100),
-      got: +ratio(CREAM, bg).toFixed(2),
+      got: +ratio(PAPER, bg).toFixed(2),
       floor: 3,
     };
   });
 
   /* The bar, measured WITHOUT its blur: a browser that drops `backdrop-filter`
-     must still clear the floor. Inactive glyphs are cream/70 on the bar, which
+     must still clear the floor. Inactive glyphs are paper/70 on the bar, which
      makes them graphics at 3:1. */
   const pill = document.querySelector(".tabbar-pill");
   const pillBg = getComputedStyle(pill).backgroundColor;
@@ -1021,7 +1021,7 @@ const legible = await page.evaluate(async () => {
   const barAlpha = pm && pm[4] !== undefined ? parseFloat(pm[4]) : 1;
   const barRgb = pm ? [+pm[1], +pm[2], +pm[3]] : [22, 54, 46];
   const barOverSurf = mix(barRgb, SURF, barAlpha);
-  const glyph = mix(CREAM, barOverSurf, 0.7);
+  const glyph = mix(PAPER, barOverSurf, 0.7);
 
   return {
     footAbyss: Math.round(at(bottom, 0) * 100),

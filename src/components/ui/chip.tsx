@@ -6,8 +6,8 @@ import { cn } from "@/lib/cn";
  * A chip: a fact, a filter or a state, in a pill.
  *
  * Two surfaces, three tones. The accent tone on a DARK surface is outline
- * only, with no fill — measured, a `cream/10` tint under `terra-soft` drops
- * the pairing to 4.05:1, below AA; on plain forest it holds 5.36:1 and on
+ * only, with no fill — measured, a `paper/10` tint under `terra-soft` drops
+ * the pairing to 3.95:1, below AA; on plain forest it holds 5.36:1 and on
  * abyss 7.86:1. `palette.test.ts` pins that composite so it cannot creep back.
  *
  * `Chip` is a fact (a span). `ChipButton` is a filter (a button with
@@ -21,7 +21,7 @@ export const chipVariants = cva(
   {
     variants: {
       surface: {
-        cream: "",
+        paper: "",
         dark: "",
       },
       tone: {
@@ -37,24 +37,24 @@ export const chipVariants = cva(
     },
     compoundVariants: [
       {
-        surface: "cream",
+        surface: "paper",
         tone: "neutral",
-        class: "border-cream-line bg-cream-deep text-forest",
+        class: "border-paper-line bg-paper-deep text-forest",
       },
       {
-        surface: "cream",
+        surface: "paper",
         tone: "accent",
-        class: "border-terra-deep/30 bg-cream-deep text-terra-deep",
+        class: "border-terra-deep/30 bg-paper-deep text-terra-deep",
       },
       {
-        surface: "cream",
+        surface: "paper",
         tone: "selected",
-        class: "border-forest bg-forest text-cream",
+        class: "border-forest bg-forest text-paper",
       },
       {
         surface: "dark",
         tone: "neutral",
-        class: "border-cream/15 bg-cream/10 text-cream",
+        class: "border-paper/15 bg-paper/10 text-paper",
       },
       {
         surface: "dark",
@@ -64,11 +64,11 @@ export const chipVariants = cva(
       {
         surface: "dark",
         tone: "selected",
-        class: "border-cream bg-cream text-forest",
+        class: "border-paper bg-paper text-forest",
       },
     ],
     defaultVariants: {
-      surface: "cream",
+      surface: "paper",
       tone: "neutral",
       size: "md",
     },
@@ -110,7 +110,7 @@ export function ChipButton({
         chipVariants({ surface, size, tone: pressed ? "selected" : "neutral" }),
         !pressed &&
           (surface === "dark"
-            ? "hover:border-cream/40"
+            ? "hover:border-paper/40"
             : "hover:border-forest/40"),
         className,
       )}

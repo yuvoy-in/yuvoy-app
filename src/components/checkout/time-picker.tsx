@@ -63,8 +63,8 @@ export function TimePicker({
                 "rounded-control ease-interaction tap-target border px-4 py-2 text-left transition-colors duration-200",
                 !open && "cursor-not-allowed opacity-40",
                 chosen
-                  ? "border-forest bg-forest text-cream"
-                  : "border-cream-line bg-cream text-forest hover:border-forest/40",
+                  ? "border-forest bg-forest text-paper"
+                  : "border-paper-line bg-paper text-forest hover:border-forest/40",
               )}
             >
               <span className="block text-sm font-bold">{time}</span>
@@ -80,7 +80,7 @@ export function TimePicker({
                 <span
                   className={cn(
                     "mt-0.5 block text-[11px] leading-none",
-                    chosen ? "text-cream/80" : "text-forest/70",
+                    chosen ? "text-paper/80" : "text-forest/70",
                   )}
                 >
                   {slot.remainingDisplay}

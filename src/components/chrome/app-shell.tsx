@@ -11,7 +11,7 @@ import { LoginButton } from "@/components/auth/login-button";
  * The app chassis (v2.7).
  *
  * The forest STAGE is the ground on every viewport. On a phone each screen
- * stands a cream sheet on it and the floating tab bar sits over the foot; the
+ * stands a paper sheet on it and the floating tab bar sits over the foot; the
  * feed alone fills the stage edge to edge with its media ground. On a desktop
  * the navigation moves to a rail and each sheet becomes a panel floating on
  * the stage, so the feed column can stay 9:16 and capped rather than
@@ -39,9 +39,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="stage on-dark flex min-h-dvh flex-col lg:flex-row">
       {/* Desktop rail. Hidden below lg, where the floating bar takes over. */}
-      <aside className="app-chrome border-cream/10 hidden w-64 shrink-0 flex-col border-r lg:sticky lg:top-0 lg:flex lg:h-dvh lg:overflow-y-auto">
+      <aside className="app-chrome border-paper/10 hidden w-64 shrink-0 flex-col border-r lg:sticky lg:top-0 lg:flex lg:h-dvh lg:overflow-y-auto">
         <div className="px-6 py-7">
-          <Wordmark tone="cream" className="h-8" priority />
+          <Wordmark tone="paper" className="h-8" priority />
         </div>
         <nav aria-label="Primary" className="px-3">
           <NavList orientation="rail" />
@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <li key={route.href}>
                 <Link
                   href={route.href}
-                  className="text-cream/70 hover:bg-cream/8 hover:text-cream ease-interaction flex h-11 items-center gap-3 rounded-full px-4 transition-[background-color,color] duration-200"
+                  className="text-paper/70 hover:bg-paper/8 hover:text-paper ease-interaction flex h-11 items-center gap-3 rounded-full px-4 transition-[background-color,color] duration-200"
                 >
                   <BookIcon className="size-5" />
                   <span className="label font-bold">{route.label}</span>

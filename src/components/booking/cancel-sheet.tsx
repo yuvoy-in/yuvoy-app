@@ -137,7 +137,7 @@ export function CancelSheet({
     <Panel className="mt-8">
       <div className="flex items-start justify-between gap-3">
         <h2 className="pt-2 text-sm font-bold">Cancel this booking</h2>
-        <IconButton label="Close" variant="onCream" size="sm" onClick={onClose}>
+        <IconButton label="Close" variant="onPaper" size="sm" onClick={onClose}>
           <CloseIcon className="size-4" />
         </IconButton>
       </div>

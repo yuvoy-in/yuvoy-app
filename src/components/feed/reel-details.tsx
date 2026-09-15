@@ -283,8 +283,8 @@ function Fact({
   if (!value) return null;
   return (
     <div className="reel-sheet-fact">
-      <dt className="label text-cream/60">{term}</dt>
-      <dd className={muted ? "text-cream/70" : "text-cream"}>{value}</dd>
+      <dt className="label text-paper/60">{term}</dt>
+      <dd className={muted ? "text-paper/70" : "text-paper"}>{value}</dd>
     </div>
   );
 }

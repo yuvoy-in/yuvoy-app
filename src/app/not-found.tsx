@@ -3,7 +3,7 @@ import { EmptyState } from "@/components/states";
 import { ButtonLink } from "@/components/ui/button";
 
 /**
- * A sheet like every other screen, so the floating bar has cream under it —
+ * A sheet like every other screen, so the floating bar has paper under it —
  * a forest pill on the bare forest stage is a bar nobody can see.
  */
 export default function NotFound() {

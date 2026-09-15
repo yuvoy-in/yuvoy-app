@@ -15,7 +15,7 @@ import { Panel } from "@/components/ui/panel";
  * rather than reimplementing them, and so a screen that renders `null` for one
  * of them is visible in review as a missing prop rather than as nothing.
  *
- * `tone` names the surface a state sits on: `cream` for a sheet, `dark` for
+ * `tone` names the surface a state sits on: `paper` for a sheet, `dark` for
  * the stage or the media ground. The floors are the measured ones from §1.
  */
 
@@ -59,18 +59,18 @@ export function EmptyState({
   title,
   body,
   action,
-  tone = "cream",
+  tone = "paper",
 }: {
   title: string;
   body: string;
   action?: ReactNode;
-  tone?: "cream" | "dark";
+  tone?: "paper" | "dark";
 }) {
   return (
     <div
       className={cn(
         "flex flex-col items-center justify-center px-6 py-16 text-center",
-        tone === "dark" ? "text-cream" : "text-forest",
+        tone === "dark" ? "text-paper" : "text-forest",
       )}
     >
       <p className="font-display tracking-display text-2xl leading-tight">
@@ -79,7 +79,7 @@ export function EmptyState({
       <p
         className={cn(
           "mt-3 max-w-sm text-sm",
-          tone === "dark" ? "text-cream/70" : "text-forest/70",
+          tone === "dark" ? "text-paper/70" : "text-forest/70",
         )}
       >
         {body}
@@ -396,12 +396,12 @@ export function describeError(
 export function ErrorState({
   error,
   onRetry,
-  tone = "cream",
+  tone = "paper",
   tokenBearing = false,
 }: {
   error: unknown;
   onRetry?: () => void;
-  tone?: "cream" | "dark";
+  tone?: "paper" | "dark";
   /** The failed request carried a status token, so a 401 is a dead link. */
   tokenBearing?: boolean;
 }) {
@@ -413,7 +413,7 @@ export function ErrorState({
       role="alert"
       className={cn(
         "flex w-full flex-col items-center justify-center px-6 py-16 text-center",
-        dark ? "text-cream" : "text-forest",
+        dark ? "text-paper" : "text-forest",
       )}
     >
       <p className="font-display tracking-display text-2xl leading-tight">
@@ -422,7 +422,7 @@ export function ErrorState({
       <p
         className={cn(
           "mt-3 max-w-sm text-sm",
-          dark ? "text-cream/70" : "text-forest/70",
+          dark ? "text-paper/70" : "text-forest/70",
         )}
       >
         {d.body}
@@ -451,7 +451,7 @@ export function ErrorState({
         <p
           className={cn(
             "mt-8 font-mono text-[10px] tracking-wider",
-            dark ? "text-cream/60" : "text-forest/70",
+            dark ? "text-paper/60" : "text-forest/70",
           )}
         >
           {d.requestId}
@@ -520,7 +520,7 @@ export function OfflineNotice({ className }: { className?: string }) {
     <div
       role="status"
       className={cn(
-        "rounded-card border-cream-line bg-cream-deep text-forest/75 border px-4 py-3 text-xs",
+        "rounded-card border-paper-line bg-paper-deep text-forest/75 border px-4 py-3 text-xs",
         className,
       )}
     >
@@ -548,7 +548,7 @@ export function StaleNotice({
     <div
       role="status"
       className={cn(
-        "rounded-card border-cream-line bg-cream-deep flex items-center gap-3 border px-4 py-3",
+        "rounded-card border-paper-line bg-paper-deep flex items-center gap-3 border px-4 py-3",
         className,
       )}
     >
