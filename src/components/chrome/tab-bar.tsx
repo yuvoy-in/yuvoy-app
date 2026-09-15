@@ -48,7 +48,7 @@ export function TabBar() {
     >
       <div
         className={cn(
-          "ring-cream/12 pointer-events-auto rounded-full p-[5px] ring-1",
+          "ring-cream/12 pointer-events-auto rounded-full p-1.5 ring-1",
           onMedia ? "tabbar-on-media" : "app-chrome",
         )}
       >

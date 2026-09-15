@@ -196,10 +196,20 @@ function StatusBody({
   useDocumentTitle(identity ? `${identity} · Yuvoy` : null);
   const [cancelling, setCancelling] = useState(false);
 
-  // Read the clock ONCE, outside the render path. Reading it during render is
-  // impure and the React compiler refuses it — and "is this trip still ahead"
-  // does not need to be re-evaluated between frames.
-  const [now] = useState(() => Date.now());
+  /*
+    Read ONCE, outside the render path, and against the SERVER's clock.
+
+    Reading it during render is impure and the React compiler refuses it, and
+    "is this trip still ahead" does not need re-evaluating between frames.
+
+    `clockOffsetMs()` is the half that was missing (yuvoy-app#69). `upcoming`
+    below gates Share and "I need to cancel", so a phone running fast HID the
+    cancel button on a trip that had not happened, and a hidden control has no
+    server backstop: no request is made for anyone to refuse. The offset is
+    recorded from the `Date` header on every response, so it costs nothing to
+    read and this file already uses it for the hold countdown.
+  */
+  const [now] = useState(() => Date.now() + clockOffsetMs());
 
   // Confirmed and still ahead of us: sharing and cancelling both make sense.
   // A trip that has already left can do neither.

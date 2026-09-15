@@ -242,7 +242,7 @@ export function ReelDetails({
               </p>
               {experience.operator.verified ? (
                 <p className="reel-sheet-evidence">
-                  <CheckIcon className="size-3.5 shrink-0" />
+                  <CheckIcon className="size-4 shrink-0" />
                   <span>
                     {experience.operator.credentialsSummary?.[0] ??
                       "Credentials checked and current"}
