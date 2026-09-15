@@ -110,7 +110,19 @@ describe("palette", () => {
   it("never puts a display face at a weight other than 400 or the turn", () => {
     const offenders = FILES.filter((f) => {
       const s = read(f);
-      return /font-display[^"'`]*font-(medium|bold|black)/.test(s);
+      /*
+        Within ONE declaration, not across the file.
+
+        `[^"'`]*` was meant to span a single class string and in a `.tsx` it
+        does. In `globals.css` it spans everything between two quotes, which is
+        most of the file: a `font-display` in one `@apply` matched a `font-bold`
+        forty lines and six utilities later, and the rule reported a violation
+        that did not exist. Excluding `;` and the braces bounds it to the
+        declaration it is actually about, and a real offender (`font-display
+        font-bold` in one string or one `@apply`) still has nothing between
+        them to stop it.
+      */
+      return /font-display[^"'`;{}]*font-(medium|bold|black)/.test(s);
     }).map(rel);
     expect(offenders).toEqual([]);
   });
@@ -364,14 +376,22 @@ describe("measured contrast", () => {
 
     it("keeps the caption legible over the brightest frame a clip can show", () => {
       /*
-        The caption's top edge lands between 50% and 62% of the scrim's height
-        — 50% for a one-line title, 62% for the longest that fits with an
-        activity line under it. Both ends are checked, because "it passes
-        where the copy usually starts" is not the claim being made.
+        The caption's top edge lands between 40% and 58% of the scrim's height.
+
+        Both ends are measured rather than assumed. 40% is a one-line title on a
+        standard phone; 58% is the worst case, which is a NARROW phone, where the
+        operator-written title wraps to two lines and lifts the whole caption
+        roughly a line higher into the ramp. That case is why the scrim grows to
+        64% of the frame below 400px: at 52% it put the activity line at 3.17:1.
+
+        The band moved from 50%-62% when the scrim was cut from 67% of the frame
+        to 52% and the type came down a step (yuvoy-app#36, owner 14 Sep). The
+        numbers are re-derived, not relaxed: the floor at the top of the caption
+        is still 4.5 and it still clears it with margin.
       */
       const ramp = stops("feed-scrim");
-      expect(creamOverScrim(alphaAt(ramp, 50))).toBeGreaterThanOrEqual(7);
-      expect(creamOverScrim(alphaAt(ramp, 62))).toBeGreaterThanOrEqual(4.5);
+      expect(creamOverScrim(alphaAt(ramp, 40))).toBeGreaterThanOrEqual(7);
+      expect(creamOverScrim(alphaAt(ramp, 58))).toBeGreaterThanOrEqual(4.5);
     });
 
     it("only ever gets lighter on the way up", () => {
@@ -479,26 +499,33 @@ describe("measured contrast", () => {
 
     it("keeps the wordmark legible over the same frame", () => {
       /*
-        The mark occupies 13%–36% of the top scrim: 16px to 44px of the
-        masthead's 124px block. The next test is what keeps that true.
+        The mark occupies 22%-48% of the top scrim: 24px to 52px of the
+        masthead's 108px block. The next test is what keeps that true.
 
-        It was 12%–39% of a 132px block while the mark was the full lockup at
-        `h-9`. The compact mark is shorter, so the band moved UP the gradient,
-        which is the darker end — the worst case sampled here is now better
-        than the one it was written for, and the numbers are updated rather
-        than left flattering.
+        The band moved TWICE and only the second move was deliberate. On 14 Sep
+        `LoginButton` joined the masthead at `size="md"`, which made the row 44px
+        instead of the mark's own 28px and pushed the block to 140px without
+        anybody updating the arithmetic here. Then the tail came down from 80px
+        to 48px when the owner asked for less shade. 108px is both of those
+        accounted for.
+
+        The floor here is 3:1, not 4.5: the mark is a GRAPHIC and so is the edge
+        of the Login pill beside it. The lower end is checked against 3 for that
+        reason, and the upper against 7 because the top of the band is where the
+        ramp is darkest and there is no excuse for it being tight there.
       */
       const ramp = stops("feed-scrim-top");
-      expect(creamOverScrim(alphaAt(ramp, 13))).toBeGreaterThanOrEqual(7);
-      expect(creamOverScrim(alphaAt(ramp, 36))).toBeGreaterThanOrEqual(4.5);
+      expect(creamOverScrim(alphaAt(ramp, 22))).toBeGreaterThanOrEqual(7);
+      expect(creamOverScrim(alphaAt(ramp, 48))).toBeGreaterThanOrEqual(3);
     });
 
     it("pins the masthead's height to the gradient measured against it", () => {
       /*
         The one above is a claim about a POSITION in a gradient, and the
-        position is decided by the block's own box: 16px above the mark, 28px
-        of mark, 80px of tail — 124px, and `feed-scrim-top`'s stops are
-        percentages of exactly that. Change any of the three without changing
+        position is decided by the block's own box: 16px above the row, a 44px
+        row (`LoginButton` at `size="md"` is the tallest thing in it), and 48px
+        of tail. 108px, and `feed-scrim-top`'s stops are percentages of exactly
+        that. Change any of the three without changing
         the stops and the mark slides into a lighter band with every contrast
         test still passing, which is the quietest possible way to break this.
 
@@ -520,7 +547,7 @@ describe("measured contrast", () => {
         "the masthead no longer wears its own scrim",
       ).not.toBeNull();
       expect(masthead![0]).toContain("pt-4");
-      expect(masthead![0]).toContain("pb-20");
+      expect(masthead![0]).toContain("pb-12");
 
       const marks = [...strip.matchAll(/<Wordmark ([^/]*)\/>/g)];
       expect(marks.length, "no Wordmark in the masthead").toBeGreaterThan(0);

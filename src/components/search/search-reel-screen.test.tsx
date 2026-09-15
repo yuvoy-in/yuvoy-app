@@ -68,7 +68,9 @@ describe("a search result, playing", () => {
   it("keeps the arrow to the listing and the reel's own share", async () => {
     renderWithQuery(<SearchReelScreen mediaId="med_dive" />);
     const first = (await screen.findAllByRole("article"))[0];
-    expect(within(first).getByLabelText(/^Open /)).toBeTruthy();
+    expect(
+      within(first).getByRole("link", { name: /^(Book|View)$/ }),
+    ).toBeTruthy();
     expect(within(first).getByLabelText("Share this reel")).toBeTruthy();
   });
 

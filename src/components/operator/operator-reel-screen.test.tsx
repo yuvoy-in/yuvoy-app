@@ -91,10 +91,9 @@ describe("a business's reel, playing in place", () => {
     const cards = await screen.findAllByRole("article");
     const first = cards[0];
     expect(within(first).getByLabelText("Share this reel")).toBeTruthy();
-    expect(within(first).getByLabelText(/^Open /)).toHaveAttribute(
-      "href",
-      `/e/${theirs[0].experience.slug}`,
-    );
+    expect(
+      within(first).getByRole("link", { name: /^(Book|View)$/ }),
+    ).toHaveAttribute("href", `/e/${theirs[0].experience.slug}`);
   });
 
   it("says so when the reel is not this business's, and offers the way back", async () => {

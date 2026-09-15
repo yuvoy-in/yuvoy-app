@@ -1,14 +1,19 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import Link from "next/link";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
+import { ReelDetails } from "./reel-details";
 import { useFeedStore } from "@/lib/feed/store";
 import { useSwipeToOpen } from "@/lib/feed/use-swipe-to-open";
-import { IconButton, IconLink } from "@/components/ui/icon-button";
+import { useSaved } from "@/lib/feed/use-saved";
+import { nextDepartureSentence } from "@/lib/feed/availability";
+import { IconButton } from "@/components/ui/icon-button";
 import {
-  ArrowRightIcon,
+  BookmarkFilledIcon,
+  BookmarkIcon,
+  ChevronUpIcon,
   VolumeIcon,
   VolumeOffIcon,
 } from "@/components/ui/icons";
@@ -20,23 +25,52 @@ type Media = components["schemas"]["Media"];
 /**
  * One reel, full-bleed 9:16, in the vertical scroller.
  *
- * ## The overlay is the reel's name and three controls, and nothing else
+ * ## The overlay, after two swings and a study
  *
- * It used to carry everything that might decide a tap — the operator, a
- * Verified tag, the activity type, the next departure, the price and its unit,
- * an instant-or-request chip and a full-width call to action — on the stated
- * reasoning that a traveller should be able to skip what is not for them
- * without paying a round trip. The owner walked it on a phone on 13 September
- * and the reasoning did not survive contact: "I'm unable to see reel fully, it
- * is covered by lot of things" (yuvoy-app#36).
+ * It began carrying nine things: the operator, a Verified tag, the activity
+ * type, the next departure, the price and its unit, an instant-or-request chip
+ * and a full-width call to action. The owner walked it on a phone on 13
+ * September and the reasoning did not survive contact: "I'm unable to see reel
+ * fully, it is covered by lot of things" (yuvoy-app#36). It was cut to the
+ * name and three discs.
  *
- * So the reel is the product and the overlay gets out of its way. Everything
- * removed is one tap away behind the arrow, and the arrow, the title and a
- * right-to-left swipe are three routes to the same listing.
+ * That cut was right about restraint and wrong about which words it kept. It
+ * removed `nextAvailable`, whose absence the contract defines as *nothing
+ * bookable in the next ninety days*, so the feed spent the next day sending
+ * travellers to listings with no departures. `seatsOnNextDisplay`, built by the
+ * API for this card, was rendered nowhere at all.
+ *
+ * The complaint was **spatial, not informational**. This is the answer to it:
+ * the same restraint, spent on the two facts that decide a swipe, with
+ * everything else one deliberate tap away.
+ *
+ * ## What is on the picture, and why each thing earns its place
+ *
+ * - **Activity and place.** On a feed where every clip is blue water, "Scuba
+ *   diving · Havelock" is the difference between a scroll and a tap, and it is
+ *   two words. Absent on a listing nobody has classified, in which case nothing
+ *   is drawn rather than a prettified key.
+ * - **The name.**
+ * - **When you could go**, or the fact that you could not. This is the line
+ *   that stops the losing tap, and it is also the control that opens the panel.
+ * - **A rail**: sound, save, share, and the way out.
+ *
+ * Price, operator and evidence are behind the chevron. A feed that prices every
+ * card invites comparison before understanding; a feed that never prices
+ * anything makes every tap a coin flip. The panel is the middle, and it costs
+ * no request: everything in it is already in this row.
+ *
+ * ## One job per control
+ *
+ * The chevron opens the panel. **Book** opens the listing. Neither carries the
+ * other's meaning, which is what a right-pointing arrow that opened a panel was
+ * doing before. The listing stays reachable four ways: Book, the title, a
+ * right-to-left swipe, and the panel's own title and action.
  *
  * `feed-scrim` still sizes against the brightest pixel a clip can show rather
  * than the average, because video moves and a frame that is dark when the
- * poster loads can be white surf two seconds later.
+ * poster loads can be white surf two seconds later. It is lighter and shorter
+ * than it was; see `globals.css` for what that was measured against.
  */
 export function ExperienceCard({
   experience,
@@ -52,14 +86,9 @@ export function ExperienceCard({
   /**
    * The clip this card is showing.
    *
-   * Passed in rather than read off `experience.heroMedia`, and that is the
-   * whole shape of yuvoy-app#18: the feed is built on `GET /reels`, where one
-   * listing may appear several times with a different clip each — a listing's
-   * hero is one of its reels, not the only one a traveller may see.
-   *
-   * Optional, because a card with no clip is still a complete card. That is a
-   * real state on `/e/[slug]` and a defensive one in the feed, where the
-   * contract makes `media` optional even though the endpoint is reels.
+   * Passed in rather than read off `experience.heroMedia`: the feed is built on
+   * `GET /reels`, where one listing may appear several times with a different
+   * clip each. Optional, because a card with no clip is still a complete card.
    */
   media?: Media;
   active: boolean;
@@ -67,27 +96,40 @@ export function ExperienceCard({
   muted: boolean;
   autoplayAllowed: boolean;
   index: number;
-  /**
-   * How many reels the feed HAS, or `-1` when that is not yet known.
-   *
-   * `-1` is ARIA's own value for an unknown set size, and it is what an
-   * unfinished infinite scroll actually knows. See `Feed`'s `setSize`.
-   */
+  /** How many reels the feed HAS, or `-1` when that is not yet known. */
   total: number;
 }) {
   /*
-    Built ONCE, and handed to all three ways in. The arrow, the title and the
-    swipe are three routes to one screen; three string literals a hundred lines
+    Built ONCE, and handed to every way in. Book, the title, the swipe and the
+    panel are four routes to one screen; four string literals a hundred lines
     apart are how they quietly stop agreeing.
   */
   const href = `/e/${experience.slug}`;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const swipeHandlers = useSwipeToOpen(href, surfaceRef);
-  // Whether there is a clip to control. Set by the player; false for a
-  // poster that will never play, so no dead mute disc is drawn.
+  // Whether there is a clip to control. Set by the player; false for a poster
+  // that will never play, so no dead mute disc is drawn.
   const [playable, setPlayable] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const toggleMuted = useFeedStore((s) => s.toggleMuted);
   const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
+  const { isSaved, toggleSaved } = useSaved();
+
+  const departure = nextDepartureSentence(experience);
+  const saved = isSaved(experience.id);
+  const disclosureId = useId();
+
+  /*
+    A card that scrolls out of view takes its panel with it.
+
+    The panel covers the caption, so leaving one open on a card the traveller
+    has left means returning to a reel with its own name hidden behind a panel
+    about it. `active` is the strip's single source of truth for which reel is
+    on screen, so this follows it rather than a scroll handler.
+  */
+  if (!active && detailsOpen) setDetailsOpen(false);
+
+  const closeDetails = useCallback(() => setDetailsOpen(false), []);
 
   return (
     <article
@@ -99,17 +141,27 @@ export function ExperienceCard({
       aria-posinset={index + 1}
       aria-setsize={total}
       aria-label={experience.title}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && detailsOpen) {
+          e.stopPropagation();
+          setDetailsOpen(false);
+        }
+      }}
       /*
-        Right to left opens this experience — the same href the button below
-        carries. The handlers sit on the ARTICLE so the whole card is the
-        target, and the transform sits on the surface inside it so the snap
-        child's own box is never touched: a scroll-snap area is the
-        TRANSFORMED border box, and moving the element the scroller is
-        snapping to is not a thing to find out about in production.
+        Right to left opens this experience, the same href Book carries. The
+        handlers sit on the ARTICLE so the whole card is the target, and the
+        transform sits on the surface inside it so the snap child's own box is
+        never touched: a scroll-snap area is the TRANSFORMED border box, and
+        moving the element the scroller is snapping to is not a thing to find
+        out about in production.
       */
       {...swipeHandlers}
     >
-      <div ref={surfaceRef} className="relative h-full w-full">
+      <div
+        ref={surfaceRef}
+        className="relative h-full w-full"
+        data-details={detailsOpen ? "open" : "shut"}
+      >
         {media ? (
           <FeedPlayer
             media={media}
@@ -119,31 +171,20 @@ export function ExperienceCard({
             autoplayAllowed={autoplayAllowed}
             onPlayableChange={setPlayable}
             /*
-            Asked once, trusted from then on. A traveller who taps play has
-            answered the question the connection heuristic was guessing at, so
-            the rest of the feed stops guessing — scrolling to the next card
-            and having to tap again would read as the app not listening.
-          */
+              Asked once, trusted from then on. A traveller who taps play has
+              answered the question the connection heuristic was guessing at.
+            */
             onRequestPlay={() => setAutoplayAllowed(true)}
           />
         ) : (
           /*
-          No clip. Still a complete card — an editorial type plate, the same
-          fallback the marketing site's destination panels use.
-
-          The operator's logo goes above it when they have set one, because a
-          business's own mark says more than a rectangle of nothing. It is
-          `logoUrl` on `OperatorSummary`, "present when the business has set a
-          logo, absent when not" — so there is no placeholder branch and no
-          broken-image state to design around.
-        */
+            No clip. Still a complete card: an editorial type plate, the same
+            fallback the marketing site's destination panels use. The operator's
+            logo goes above it when they have set one, because a business's own
+            mark says more than a rectangle of nothing.
+          */
           <div className="bg-abyss absolute inset-0 flex flex-col items-center justify-center gap-6 px-8">
             {experience.operator.logoUrl ? (
-              /*
-              A plain `<img>`, deliberately: a small mark on a card that has
-              no clip, not the LCP element, loaded straight from Cloudflare
-              Images — the host the CSP's `img-src` names for it.
-            */
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={experience.operator.logoUrl}
@@ -160,98 +201,193 @@ export function ExperienceCard({
         )}
 
         {/*
-        The scrim. Sized against the brightest pixel a clip can show, not the
-        average — video moves, and a frame that is dark when the poster loads
-        can be white surf two seconds later.
-      */}
+          Tapping the picture dismisses the panel.
+
+          A layer rather than a handler on the player, so the shared component
+          keeps knowing nothing about panels: it exists only while the panel is
+          open, sits above the picture and below the panel, and is `aria-hidden`
+          because the panel already has a named close control and a keyboard
+          already has Escape. One tap does one thing.
+        */}
+        {detailsOpen ? (
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={closeDetails}
+            className="absolute inset-0 z-10 cursor-default"
+          />
+        ) : null}
+
+        {/*
+          The scrim. Sized against the brightest pixel a clip can show, not the
+          average. Shorter and lighter than it was, and every number behind that
+          is in `globals.css` beside the stops.
+        */}
         <div
           aria-hidden="true"
-          className="feed-scrim pointer-events-none absolute inset-x-0 bottom-0 h-2/3"
+          className="feed-scrim pointer-events-none absolute inset-x-0 bottom-0"
         />
 
         {/*
-          The overlay, cut back to the picture — yuvoy-app#36.
+          The caption and the rail, bottom-aligned as one row.
 
-          The owner's words on their own phone: "I'm unable to see reel fully,
-          it is covered by lot of things." What was here was the operator's
-          name, a Verified tag, the activity type, the next departure, the
-          price and its unit, an instant-or-request chip, and a full-width
-          call to action. Nine things over a video, each defensible on its own
-          and collectively a card with a clip behind it.
-
-          What is left is the reel, its name, and three controls. Everything
-          removed is one tap away on the listing, which is what the arrow is
-          for; nothing is hidden behind a tap-to-reveal, because a reel is a
-          decision about whether to look closer and the overlay was answering
-          a question nobody had asked yet.
-
-          The foot is `tabbar-clearance`: the bar no longer retracts, so the
-          caption clears it on every reel rather than moving out of its way and
-          back. One number, the same one every other screen leaves.
+          They are the two halves of a decision, which is why the rail is not
+          floating higher up the frame: Book sits level with the line that says
+          whether the tap is worth making. Both step aside when the panel opens,
+          because the panel covers them and a control nobody can see must not
+          still be reachable by a keyboard.
         */}
-        <div className="tabbar-clearance absolute inset-x-0 bottom-0 px-5">
-          <div className="flex items-end gap-4">
+        <div className="feed-foot tabbar-clearance absolute inset-x-0 bottom-0 flex items-end gap-4 px-5">
+          <div className="min-w-0 flex-1">
+            {experience.activityTypeLabel || experience.location ? (
+              <p className="label text-cream/70 mb-1.5 text-[11px]">
+                {[experience.activityTypeLabel, experience.location]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
+
             {/*
-              The name, and a way in. The `<h2>` used to be plain text with the
-              real route on a button below it; a traveller who taps the title
-              of the thing they are watching means to open it, and did nothing.
+              The name, and a way in. A traveller who taps the title of the
+              thing they are watching means to open it.
 
               `line-clamp-3` because a title is operator-written and unbounded,
-              and a five-line headline over a reel is the same complaint this
-              issue is about. It clamps rather than truncating to one line, so
-              a long name is still readable.
+              and a five-line headline over a reel is the complaint this screen
+              started from.
             */}
-            <h2 className="min-w-0 flex-1">
+            <h2 className="mb-1.5 min-w-0">
               <Link
                 href={href}
-                className="font-display text-cream tracking-display ease-interaction line-clamp-3 text-[2rem] leading-[1.05] transition-opacity duration-200 hover:opacity-80"
+                className="font-display text-cream tracking-display ease-interaction line-clamp-3 text-[1.625rem] leading-[1.05] transition-opacity duration-200 hover:opacity-80"
               >
                 {experience.title}
               </Link>
             </h2>
 
             {/*
-              The rail. Arrow above sound and share, as asked.
+              When you could go, and the way to everything else.
 
-              The arrow is `paper` — the system's solid cream disc — while the
-              other two are translucent. With the call to action gone this is
-              the only way forward on the card, and a rail of three identical
-              discs would say the way out of the feed is worth exactly as much
-              as muting it. It carries the same href as the swipe and the
-              title, built once above.
+              The whole line is the control, not the chevron alone: a 14px glyph
+              is a 14px target, well under the 24px floor, and the line is what a
+              thumb is aiming at anyway. 36px tall, which is the system's `sm`.
             */}
-            <div className="flex shrink-0 flex-col gap-3">
-              <IconLink
-                href={href}
-                label={`Open ${experience.title}`}
-                variant="paper"
+            <button
+              type="button"
+              id={disclosureId}
+              aria-expanded={detailsOpen}
+              onClick={() => setDetailsOpen((open) => !open)}
+              className="ease-interaction flex min-h-9 items-center text-left text-[13px] transition-opacity duration-200 hover:opacity-80"
+            >
+              <span
+                className={departure.bookable ? "text-cream" : "text-cream/60"}
               >
-                <ArrowRightIcon />
-              </IconLink>
-              {playable ? (
-                <IconButton
-                  label={muted ? "Unmute" : "Mute"}
-                  variant="onDark"
-                  onClick={toggleMuted}
-                >
-                  {muted ? <VolumeOffIcon /> : <VolumeIcon />}
-                </IconButton>
-              ) : null}
+                {departure.short}
+              </span>
               {/*
-                The REEL, not the listing — yuvoy-app#36. Somebody sharing a
-                clip means the clip. A card with no clip has nothing to share
-                but the listing, and says so in its own label rather than
-                sending a `/r/` address for a reel that does not exist.
+                The server's own sentence, printed verbatim, and cream rather
+                than the accent: `terra-soft` needs 79% abyss under it to clear
+                4.5:1 over the palest surf, and the lighter scrim only reaches
+                that below the caption. The scarcity is said by the words.
               */}
-              <ShareLink
-                path={media ? `/r/${media.id}` : href}
-                title={experience.title}
-                label={media ? "Share this reel" : "Share this experience"}
+              {departure.seats ? (
+                <span className="text-cream/70">
+                  <span aria-hidden="true" className="mx-[0.4em] opacity-60">
+                    ·
+                  </span>
+                  {departure.seats}
+                </span>
+              ) : null}
+              <ChevronUpIcon className="text-cream/70 ml-2 size-3.5 shrink-0" />
+            </button>
+          </div>
+
+          {/*
+            The rail: sound, save, share, then the way out at the foot of it.
+
+            The first three are translucent discs; Book is the system's solid
+            cream control. That difference is doing real work: four identical
+            discs would say that leaving the feed is worth exactly as much as
+            muting it, and Book is the only one of the four that goes anywhere.
+          */}
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            {playable ? (
+              <IconButton
+                label={muted ? "Unmute" : "Mute"}
                 variant="onDark"
-              />
-            </div>
+                size="sm"
+                onClick={toggleMuted}
+              >
+                {muted ? <VolumeOffIcon /> : <VolumeIcon />}
+              </IconButton>
+            ) : null}
+
+            {/*
+              Save: a private wishlist, not a like.
+
+              Nothing here is counted, published, or shown to an operator, which
+              is why it is a bookmark and not a heart. It is device-local until
+              yuvoy-api#192 lands; `use-saved` is written against an interface so
+              that is a one-file swap.
+            */}
+            <IconButton
+              label={
+                saved
+                  ? `Saved. Remove ${experience.title}`
+                  : `Save ${experience.title}`
+              }
+              variant="onDark"
+              size="sm"
+              aria-pressed={saved}
+              className={
+                saved ? "text-terra-soft ring-terra-soft/45" : undefined
+              }
+              onClick={() => toggleSaved(experience.id)}
+            >
+              {saved ? <BookmarkFilledIcon /> : <BookmarkIcon />}
+            </IconButton>
+
+            {/*
+              The REEL, not the listing. Somebody sharing a clip means the clip.
+              A card with no clip has nothing to share but the listing, and says
+              so in its own label rather than sending a `/r/` address for a reel
+              that does not exist.
+            */}
+            <ShareLink
+              path={media ? `/r/${media.id}` : href}
+              title={experience.title}
+              label={media ? "Share this reel" : "Share this experience"}
+              variant="onDark"
+              size="sm"
+            />
+
+            <Link href={href} className="feed-book">
+              {departure.bookable ? "Book" : "View"}
+            </Link>
           </div>
         </div>
+
+        {/*
+          Only the ACTIVE card carries a panel.
+
+          Mounted for every card it is twelve panels of DOM on the first page
+          alone, eleven of which can never be seen: a traveller can only open
+          the reel they are looking at. On a mid-range Android that is real
+          weight on the screen that is the product, for nothing.
+
+          Mounted rather than conditional on `open`, though, because the slide
+          needs a "from" state: a panel that appears already in place pops, and
+          the active card's panel is the one that is about to be asked for.
+        */}
+        {active ? (
+          <ReelDetails
+            experience={experience}
+            href={href}
+            open={detailsOpen}
+            onClose={closeDetails}
+            labelledBy={disclosureId}
+          />
+        ) : null}
       </div>
     </article>
   );

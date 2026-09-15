@@ -320,21 +320,75 @@
  * never above the title. `palette.test.ts` records the failing composite.
  */
 @utility feed-scrim {
+  /*
+    Two thirds of the height, and never solid.
+
+    ## What was wrong, measured
+
+    It ran 66.7% of the frame at 100% abyss on the foot. The caption occupies
+    only the bottom 36% of that, so **two thirds of the scrim carried no text at
+    all** and was pure darkening; and where text did sit the contrast ran 10.8:1
+    to 13.2:1 against floors of 4.5 and 3. The scrim was paying for a worst case
+    it had already cleared three times over, across most of the picture. The
+    owner's words for the result: the reel "feels cropped".
+
+    ## How these numbers were chosen
+
+    The text bands were measured off the live screen, composited per channel in
+    sRGB over `#E8E2D4` (the palest surf highlight this file already measures
+    its artwork against), and the search was for the least darkening that still
+    clears every floor with margin.
+
+    Minimising darkening ALONE gives the wrong answer: a flat slab with a cliff
+    above it, which satisfies every number and is a worse version of the
+    complaint, because a change in slope is exactly what an eye reads as an
+    edge. So the SHAPE below is the previous ramp's, scaled: the same sampled
+    sigmoid, the same slopes, no new knot anywhere.
+
+    ## The result, and the floor it holds
+
+    Reach 67% to 52% of the frame, foot 100% to 86%, about a third less
+    darkening. Measured on the smallest phone, where a wrapped title lifts the
+    caption highest into the ramp: availability 8.7:1, title 7.7:1 against its
+    3:1 large-text floor, the activity line 7.0:1. `palette.test.ts` recomputes
+    these from the stops below, so lightening it further fails the suite rather
+    than the next traveller in bright sun.
+
+    ## One consequence that is not optional
+
+    `terra-soft` needs 79% abyss under it to clear 4.5:1, and this ramp only
+    reaches that below the caption. **The accent can no longer carry body text
+    here**, which is why the seat sentence on the card is cream. The old rule
+    that the accent "sits in the bottom band" was a consequence of the old ramp;
+    change one and the other moves.
+  */
+  height: 52%;
   background: linear-gradient(
     to top,
-    var(--color-abyss) 0%,
-    color-mix(in srgb, var(--color-abyss) 97%, transparent) 8%,
-    color-mix(in srgb, var(--color-abyss) 92%, transparent) 18%,
-    color-mix(in srgb, var(--color-abyss) 86%, transparent) 30%,
-    color-mix(in srgb, var(--color-abyss) 79%, transparent) 42%,
-    color-mix(in srgb, var(--color-abyss) 71%, transparent) 52%,
-    color-mix(in srgb, var(--color-abyss) 61%, transparent) 62%,
-    color-mix(in srgb, var(--color-abyss) 47%, transparent) 72%,
-    color-mix(in srgb, var(--color-abyss) 30%, transparent) 82%,
-    color-mix(in srgb, var(--color-abyss) 13%, transparent) 91%,
-    color-mix(in srgb, var(--color-abyss) 4%, transparent) 96%,
+    color-mix(in srgb, var(--color-abyss) 86%, transparent) 0%,
+    color-mix(in srgb, var(--color-abyss) 83%, transparent) 8%,
+    color-mix(in srgb, var(--color-abyss) 79%, transparent) 18%,
+    color-mix(in srgb, var(--color-abyss) 74%, transparent) 30%,
+    color-mix(in srgb, var(--color-abyss) 68%, transparent) 42%,
+    color-mix(in srgb, var(--color-abyss) 61%, transparent) 52%,
+    color-mix(in srgb, var(--color-abyss) 52%, transparent) 62%,
+    color-mix(in srgb, var(--color-abyss) 40%, transparent) 72%,
+    color-mix(in srgb, var(--color-abyss) 26%, transparent) 82%,
+    color-mix(in srgb, var(--color-abyss) 11%, transparent) 91%,
+    color-mix(in srgb, var(--color-abyss) 3%, transparent) 96%,
     transparent 100%
   );
+
+  /*
+    A narrow phone needs a taller ramp, and that is arithmetic rather than a
+    retreat. Below about 400px the operator-written title wraps to two lines and
+    lifts the whole caption roughly a line higher, from 47% of the ramp to 69%,
+    where 52% had fallen to 44% abyss and cream measured 3.17:1. The foot stays
+    at 86%, so even here it is lighter than what it replaced.
+  */
+  @media (max-width: 400px) {
+    height: 64%;
+  }
 }
 
 /**
@@ -356,15 +410,29 @@
  * the tail, where the eye cannot find the end of it.
  */
 @utility feed-scrim-top {
+  /*
+    The same cut, for the same reason, against a different floor.
+
+    The mark and the Login button are GRAPHICS and a label, so this band's floor
+    is the 3:1 non-text minimum rather than 4.5:1, and it was sitting at 7.8:1
+    to 10.1:1: a great deal of darkened sky to carry a 28px logo. The peak comes
+    down from 80% to 76% and the block loses its long tail (see the padding on
+    `ReelMasthead`), which leaves the mark at 4.1:1, still 1.4x its floor.
+
+    The block's HEIGHT is part of the measurement, not a layout detail: these
+    stops are percentages of it, so moving the masthead's padding without moving
+    them slides the mark into a lighter band with every contrast test still
+    passing. `palette.test.ts` pins the two together for exactly that reason.
+  */
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--color-abyss) 80%, transparent) 0%,
-    color-mix(in srgb, var(--color-abyss) 80%, transparent) 12%,
-    color-mix(in srgb, var(--color-abyss) 77%, transparent) 25%,
-    color-mix(in srgb, var(--color-abyss) 67%, transparent) 38%,
-    color-mix(in srgb, var(--color-abyss) 52%, transparent) 50%,
-    color-mix(in srgb, var(--color-abyss) 33%, transparent) 62%,
-    color-mix(in srgb, var(--color-abyss) 15%, transparent) 74%,
+    color-mix(in srgb, var(--color-abyss) 76%, transparent) 0%,
+    color-mix(in srgb, var(--color-abyss) 76%, transparent) 12%,
+    color-mix(in srgb, var(--color-abyss) 73%, transparent) 25%,
+    color-mix(in srgb, var(--color-abyss) 64%, transparent) 38%,
+    color-mix(in srgb, var(--color-abyss) 49%, transparent) 50%,
+    color-mix(in srgb, var(--color-abyss) 31%, transparent) 62%,
+    color-mix(in srgb, var(--color-abyss) 14%, transparent) 74%,
     color-mix(in srgb, var(--color-abyss) 3%, transparent) 86%,
     transparent 100%
   );
@@ -386,6 +454,31 @@
  * strip the sheet rises out of; on a desktop it is the whole canvas the
  * panel floats on.
  */
+/*
+  The bar over a moving picture.
+
+  `app-chrome` is solid `forest`, which is right on a cream sheet and reads as a
+  slab on a reel. This lets the picture through and sits into it.
+
+  60% is not a taste number. The inactive glyphs are `cream/70` on whatever the
+  pill composites to: over the caption scrim's own foot they measure about
+  6.6:1, and the value barely moves with opacity there, because what shows
+  through is already dark. Over a cream sheet the same 60% puts them at 2.62:1,
+  which is why `TabBar` only reaches for this on the media routes.
+
+  The blur is the one in the app, and it bends the v2.7 ruling that rejected
+  glass on GPU cost for a mid-range Android. It is a single 46px pill rather
+  than a surface treatment, and it is worth re-testing on a real device: without
+  it the bar still works, the picture just shows through sharply rather than as
+  a wash.
+*/
+@utility tabbar-on-media {
+  background-color: color-mix(in srgb, var(--color-forest) 60%, transparent);
+  color: var(--color-cream);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(18px) saturate(1.15);
+}
+
 @utility stage {
   background-color: var(--color-forest);
   color: var(--color-cream);
@@ -446,10 +539,188 @@
  * focused screen (one with a back button) hides the bar and needs none.
  */
 @utility tabbar-clearance {
-  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+  /*
+    The bar's 46px (a 36px target in 5px of padding), its 12px foot, and a
+    breath. Was 5.75rem when the target was 44px; both moved together, which is
+    the whole reason this is one number rather than a literal at each call site.
+  */
+  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
 
   @media (min-width: 64rem) {
     padding-bottom: 2rem;
+  }
+}
+
+/* --------------------------------------------------- the feed's overlay */
+
+/*
+  The caption and the rail step aside when the details panel opens.
+
+  Not a polish pass. The panel is bottom anchored and reaches just over half the
+  frame, so it necessarily covers both. Leaving them there left four controls a
+  keyboard could still reach and a screen reader still announced behind a panel
+  nobody could see through.
+
+  `visibility` as well as `opacity`, because opacity alone hides something from
+  eyes and from nothing else: a hidden control still in the tab order is the
+  same defect wearing a different coat.
+*/
+@utility feed-foot {
+  transition:
+    opacity 200ms var(--ease-interaction),
+    visibility 200ms var(--ease-interaction);
+}
+
+[data-details="open"] .feed-foot {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/*
+  The way out of the feed, as a word.
+
+  The system's `paper` control at `sm`: solid cream, forest ink, 36px, uppercase
+  at `tracking-label`. 11.44:1 either way round, so it needs nothing from the
+  scrim and nothing from the frame behind it. CTAs are monochrome here;
+  terracotta is never a fill.
+*/
+@utility feed-book {
+  @apply ease-interaction tracking-label inline-flex h-9 items-center justify-center rounded-full px-3.5 text-[11px] font-bold uppercase transition-[background-color,transform] duration-200;
+  background-color: var(--color-cream);
+  color: var(--color-forest);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: var(--color-cream-deep);
+  }
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+/* ------------------------------------------------------ the details panel */
+
+/*
+  Non-modal, and that is the design rather than a shortcut.
+
+  A `<dialog>` brings a focus trap and a backdrop, and both stop the video being
+  watched. This covers a stated ceiling of 54% of the frame and no more, so at
+  least 46% of the clip is visible and playing at every moment it is open.
+*/
+@utility reel-sheet {
+  @apply rounded-t-sheet absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden;
+  max-height: 54%;
+  background-color: color-mix(in srgb, var(--color-abyss) 94%, transparent);
+  box-shadow: inset 0 1px 0
+    color-mix(in srgb, var(--color-cream) 14%, transparent);
+  transform: translateY(100%);
+  transition: transform 240ms var(--ease-interaction);
+
+  &[data-open="open"] {
+    transform: none;
+  }
+}
+
+/* The 4px bar is the affordance; the CONTROL is 36px and the full width,
+   because a 4px target is not a target. */
+@utility reel-sheet-handle {
+  @apply flex h-9 w-full items-center justify-center;
+
+  &::before {
+    content: "";
+    width: 2.25rem;
+    height: 0.25rem;
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--color-cream) 30%, transparent);
+    transition: background-color 200ms var(--ease-interaction);
+  }
+  &:hover::before {
+    background-color: color-mix(in srgb, var(--color-cream) 45%, transparent);
+  }
+}
+
+/*
+  The body scrolls; the foot does not.
+
+  The ceiling is a promise about the picture, so when the content does not fit,
+  the content gives way. `overscroll-behavior: contain` so reaching the end of
+  this does not hand the gesture to the feed behind it, which would scroll to
+  the next reel in the middle of reading.
+*/
+@utility reel-sheet-scroll {
+  @apply min-h-0 flex-1 overflow-y-auto px-5 pt-1;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility reel-sheet-foot {
+  @apply tabbar-clearance flex-none px-5;
+}
+
+@utility reel-sheet-title {
+  @apply text-cream ease-interaction mb-2 line-clamp-2 block text-sm font-bold no-underline transition-opacity duration-200;
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+/* The one number the panel exists to answer, so it is the largest thing in it. */
+@utility reel-sheet-price {
+  @apply mb-3 flex flex-wrap items-baseline gap-2;
+}
+@utility reel-sheet-amount {
+  @apply font-display text-cream tracking-display text-2xl leading-none;
+}
+@utility reel-sheet-unit {
+  @apply text-cream/60 text-[13px];
+}
+@utility reel-sheet-absent {
+  @apply text-cream/70 text-[15px];
+}
+
+@utility reel-sheet-facts {
+  @apply mb-3 grid gap-2;
+}
+@utility reel-sheet-fact {
+  @apply flex items-baseline justify-between gap-4;
+
+  & dt {
+    @apply flex-none text-[11px];
+  }
+  & dd {
+    @apply m-0 text-right text-sm text-pretty;
+  }
+}
+
+@utility reel-sheet-operator {
+  @apply border-cream/14 border-t pt-3;
+}
+@utility reel-sheet-operator-name {
+  @apply text-cream text-sm font-bold;
+}
+@utility reel-sheet-evidence {
+  @apply text-terra-soft mt-0.5 flex items-center gap-1.5 text-[13px];
+}
+
+/* `md`. One rung above the card's controls, which is right: this is the panel's
+   only action and the heaviest control in the screen. */
+@utility reel-sheet-cta {
+  @apply ease-interaction tracking-label flex h-11 w-full items-center justify-center gap-2 rounded-full text-[11px] font-bold uppercase no-underline transition-[background-color,transform] duration-200;
+  background-color: var(--color-cream);
+  color: var(--color-forest);
+
+  &:hover {
+    background-color: var(--color-cream-deep);
+  }
+  &:active {
+    transform: scale(0.99);
   }
 }
 

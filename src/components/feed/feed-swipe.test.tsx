@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  render,
-  screen,
-  fireEvent,
-  cleanup,
-  within,
-} from "@testing-library/react";
+import { screen, fireEvent, cleanup, within } from "@testing-library/react";
+import { renderWithQuery } from "@/test/render";
 import { ExperienceCard } from "./experience-card";
 import { EXPERIENCES } from "../../../mocks/fixtures";
 
@@ -39,8 +34,17 @@ vi.mock("next/navigation", () => ({
 const experience = EXPERIENCES[0];
 const href = `/e/${experience.slug}`;
 
+/*
+  Wrapped in a QueryClient because the card reads the saved set through one.
+
+  Saving is a device-local list today and a server resource the day
+  yuvoy-api#192 lands, and React Query is where that belongs either way: see
+  `use-saved`. The gesture under test does not care, but the component cannot
+  render without a client, and a provider here is cheaper than pushing feed-wide
+  state through props to keep a test simple.
+*/
 function renderCard() {
-  render(
+  renderWithQuery(
     <ExperienceCard
       experience={experience}
       index={0}
@@ -109,14 +113,18 @@ describe("swiping a reel", () => {
       is unchanged and only the control it is read from moved.
     */
     const article = renderCard();
-    const link = screen.getByLabelText(/^Open /);
+    /* The arrow became a word on 15 September: "Book", or "View" when nothing is
+       bookable in the next ninety days. Queried by ROLE and name rather than by
+       an `aria-label`, because the control's visible text IS its name now and a
+       label would be a second copy of it. */
+    const link = screen.getByRole("link", { name: /^(Book|View)$/ });
     drag(article, { x: 300, y: 400 }, { x: 180, y: 400 });
     expect(push).toHaveBeenCalledWith(link.getAttribute("href"));
   });
 
   it("agrees with the title, which is the third way in", () => {
     renderCard();
-    const arrow = screen.getByLabelText(/^Open /);
+    const arrow = screen.getByRole("link", { name: /^(Book|View)$/ });
     const title = within(screen.getByRole("heading", { level: 2 })).getByRole(
       "link",
     );
