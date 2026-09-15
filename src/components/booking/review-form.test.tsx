@@ -149,4 +149,80 @@ describe("ReviewForm — the three codes that replaced `conflict`", () => {
     ).toBeNull();
     expect(screen.queryByText("Already recorded")).toBeNull();
   });
+
+  it("sends the tags a traveller picked, in the order picked", async () => {
+    /*
+      The contract keeps the order it is sent and drops repeats, so the order
+      is a real part of the payload rather than an accident of iteration.
+    */
+    let body: unknown = null;
+    server.use(
+      http.post(`${BASE}/bookings/review`, async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<ReviewForm token="t" />);
+    await user.click(screen.getByRole("button", { name: "5 out of 5" }));
+    await user.click(screen.getByRole("button", { name: "Safety" }));
+    await user.click(screen.getByRole("button", { name: "The guide" }));
+    await user.click(
+      screen.getByRole("button", { name: /leave this review/i }),
+    );
+
+    await screen.findByText("Thank you");
+    expect(body).toMatchObject({ rating: 5, tags: ["safety", "guide"] });
+  });
+
+  it("untoggles a tag, and sends no tags key at all when none are picked", async () => {
+    /*
+      Absent rather than `[]`. "I picked nothing" and "I did not answer" are
+      different statements, and the absent form is the one that stays correct
+      if anything downstream ever tells them apart.
+    */
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(`${BASE}/bookings/review`, async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<ReviewForm token="t" />);
+    await user.click(screen.getByRole("button", { name: "4 out of 5" }));
+
+    const safety = screen.getByRole("button", { name: "Safety" });
+    await user.click(safety);
+    expect(safety).toHaveAttribute("aria-pressed", "true");
+    await user.click(safety);
+    expect(safety).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(
+      screen.getByRole("button", { name: /leave this review/i }),
+    );
+    await screen.findByText("Thank you");
+    expect(body).toEqual({ rating: 4 });
+  });
+
+  it("offers every tag the contract declares, and no others", async () => {
+    /*
+      Six, by key. A tag this app invents is a submission refused with
+      `invalid_input` after the traveller has chosen it, which is the failure
+      mode worth pinning rather than the labels.
+    */
+    renderWithQuery(<ReviewForm token="t" />);
+    for (const label of [
+      "The guide",
+      "Safety",
+      "Value for money",
+      "Organisation",
+      "On time",
+      "Equipment",
+    ]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+  });
 });

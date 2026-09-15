@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import {
   findByToken,
+  forgetAllBookings,
   getSnapshot,
   listBookings,
   markTokenDead,
@@ -165,5 +166,71 @@ describe("nothing here may throw", () => {
     await expect(getSnapshot("YV-1")).resolves.toBeNull();
     await expect(findByToken("tok_a")).resolves.toBeNull();
     await expect(markTokenDead("tok_a")).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * Sign out forgets this phone's bookings (yuvoy-app#60 item 3).
+ *
+ * The owner's report was "after signing out, bookings still show in Trips",
+ * and that is the visible half. The other half is that a status token is a
+ * bearer credential which both opens a booking and can cancel it, so leaving
+ * one behind is the same shape as leaving a session cookie behind.
+ */
+describe("forgetting everything", () => {
+  it("clears every token and every snapshot", async () => {
+    await rememberBooking({ reference: "YV-ONE", token: "tok_1" });
+    await rememberBooking({ reference: "YV-TWO", token: "tok_2" });
+    await saveSnapshot("YV-ONE", status());
+    expect(await listBookings()).toHaveLength(2);
+
+    await forgetAllBookings();
+
+    expect(await listBookings()).toEqual([]);
+    expect(await getSnapshot("YV-ONE")).toBeNull();
+    expect(await findByToken("tok_1")).toBeNull();
+  });
+
+  it("reaches records that listing cannot", async () => {
+    /*
+      The reason this sweeps the keyspace rather than iterating `listBookings`.
+      A record `normalise` cannot read is dropped from the listing, so an
+      iterating version would leave it on the phone forever, with nothing able
+      to see it. A record written by an older version of this app is exactly
+      that shape.
+
+      The orphan snapshot is the same argument pointed the other way: its token
+      record is gone, so nothing lists it, and it is still a copy of somebody's
+      booking, meeting point and party included.
+    */
+    idb.store.set("yuvoy.token.YV-BROKEN", { nonsense: true });
+    idb.store.set("yuvoy.booking.YV-ORPHAN", { also: "nonsense" });
+    expect(await listBookings()).toEqual([]);
+
+    await forgetAllBookings();
+
+    expect([...idb.store.keys()]).toEqual([]);
+  });
+
+  it("leaves keys that are not ours alone", async () => {
+    // The store is shared with whatever else the app keeps in IndexedDB.
+    // Signing out of Yuvoy is not a reason to clear somebody else's data.
+    idb.store.set("yuvoy.saved.v1", ["exp_1"]);
+    idb.store.set("something.else", 1);
+    await rememberBooking({ reference: "YV-ONE", token: "tok_1" });
+
+    await forgetAllBookings();
+
+    expect([...idb.store.keys()].sort()).toEqual([
+      "something.else",
+      "yuvoy.saved.v1",
+    ]);
+  });
+
+  it("resolves even when the device refuses to open", async () => {
+    // Sign out must complete on a phone with no usable IndexedDB as surely as
+    // on one with it, or a refusal would leave somebody signed in.
+    idb.mode = "reject";
+    await expect(forgetAllBookings()).resolves.toBeUndefined();
   });
 });

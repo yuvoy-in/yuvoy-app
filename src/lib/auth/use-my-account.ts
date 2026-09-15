@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
 import type { components } from "@/lib/api/schema.gen";
@@ -44,6 +44,77 @@ export function useMyAccount(signedIn: boolean | undefined) {
       const { data, error } = await client.GET("/me", { signal });
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+/**
+ * The tiles for the first-sign-in screen and the profile sheet.
+ *
+ * `listInterestOptions` exists "so the app does not invent its own list": the
+ * options are activity types with live listings, ordered by how much is
+ * actually on sale. A hard-coded list here would offer a traveller an interest
+ * nothing in the market matches.
+ *
+ * Fetched only when something is about to render it, and cached for the
+ * session: the list changes with inventory, not with the minute.
+ */
+export function useInterestOptions(enabled: boolean) {
+  return useQuery({
+    queryKey: qk.interestOptions(),
+    enabled,
+    retry: false,
+    staleTime: 60 * 60_000,
+    queryFn: async ({ signal }) => {
+      const client = createProxyClient();
+      const { data, error } = await client.GET("/me/interest-options", {
+        signal,
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+/** What `PATCH /me` accepts. Only what changes is ever sent. */
+export interface AccountPatch {
+  name?: string;
+  email?: string | null;
+  interests?: string[];
+  onboarded?: true;
+}
+
+/**
+ * Saving the profile, and answering the first-sign-in screen.
+ *
+ * One mutation for both, because they are one endpoint and one rule: "Creates
+ * the profile on first save and updates it after. Send only the fields that
+ * change."
+ *
+ * ## The answer is written straight into the cache
+ *
+ * `PATCH /me` returns "the account after the change, the same shape as
+ * `getMyAccount`", so the response IS the next value of the query. Writing it
+ * with `setQueryData` rather than invalidating means the screen behind the
+ * sheet is correct the instant the sheet closes, with no second request and no
+ * frame showing the old name.
+ *
+ * That matters most for `onboardingRequired`: an invalidate would leave the
+ * first-sign-in screen on the screen until a refetch landed, so skipping it
+ * would visibly not work on a slow connection.
+ */
+export function useUpdateMyAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: async (patch: AccountPatch) => {
+      const client = createProxyClient();
+      const { data, error } = await client.PATCH("/me", { body: patch });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (account) => {
+      if (account) qc.setQueryData(qk.myAccount(), account);
     },
   });
 }

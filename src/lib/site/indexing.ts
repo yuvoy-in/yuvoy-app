@@ -59,6 +59,16 @@ export const robotsMeta: Metadata["robots"] = INDEXABLE
  */
 export const PRIVATE_ROUTES = [
   "/booking",
+  /*
+    An invitation link and a guest's own trip (yuvoy-app#38 items 7 and 11).
+
+    `/i/{token}` carries a credential in its path: whoever opens it takes a
+    place in somebody's party, and the link is single-use, so an indexed one
+    would be both a leak and a 404. `/trips/invited/` is keyed by the reader's
+    session and has nothing to serve a crawler at all.
+  */
+  "/i/",
+  "/trips/invited/",
   // Checkout. A URL with a `?slot=` on it, holding an idempotency key.
   // Wildcards are matched by every crawler that matters, and the page carries
   // `privateRobotsMeta` for the ones that ignore robots.txt entirely.

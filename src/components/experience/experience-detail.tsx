@@ -6,7 +6,7 @@ import { formatDuration } from "@/lib/format/time";
 import { Screen } from "@/components/chrome/screen";
 import { Chip } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
-import { ButtonArrow, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   ChevronRightIcon,
   ClockIcon,
@@ -195,10 +195,6 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                   </p>
                 )}
               </div>
-              <a href="#dates" className={buttonVariants({ size: "md" })}>
-                Pick a day
-                <ButtonArrow />
-              </a>
             </Panel>
 
             {/*

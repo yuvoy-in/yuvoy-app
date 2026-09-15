@@ -62,6 +62,21 @@ export function FilterSheet({
   const vocabulary = useVocabulary();
   const [draft, setDraft] = useState<ReelFilters>(filters);
 
+  /*
+    The DEVICE's day, deliberately, and the only one of the three sites in
+    yuvoy-app#69 that stays that way.
+
+    The server's clock is reachable through `clockOffsetMs()`, but only after a
+    response has recorded it, and this sheet can open before any request on the
+    screen has landed. Anchoring it to a query's `dataUpdatedAt`, which is what
+    the trips list does, does not work either: the vocabulary this sheet reads is
+    cached for a long time, so that instant can be hours old, and an hours-old
+    "now" across midnight is worse than a phone that is merely a minute out.
+
+    The stakes decide it. A wrong day here costs an empty result on a filter the
+    traveller can change, not a hidden cancel button. Left alone rather than made
+    unstable.
+  */
   const today = marketToday();
   const [, tomorrow] = marketDaysFrom(today, 2);
 

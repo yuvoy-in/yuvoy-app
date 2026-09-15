@@ -226,6 +226,37 @@ export async function forgetBooking(key: string): Promise<void> {
   ]);
 }
 
+/**
+ * Every booking this device remembers, gone (yuvoy-app#60, item 3).
+ *
+ * Called on sign out. A status token is a bearer credential: it opens the
+ * booking, and it can cancel it. Leaving one on a phone after somebody has
+ * signed out is the same shape as leaving a session cookie behind, and the
+ * owner's report was the visible half of it, bookings still listed in Trips
+ * after signing out.
+ *
+ * ## Why it sweeps the keyspace rather than iterating `listBookings`
+ *
+ * `listBookings` drops any record `normalise` cannot read, and a record
+ * written by an older version of this app is exactly the kind it would drop.
+ * Forgetting has to reach records that listing cannot, or an unreadable token
+ * survives sign out forever with nothing able to see it. So both prefixes are
+ * swept directly.
+ *
+ * It also deletes orphans: a snapshot whose token record is gone is still a
+ * copy of somebody's booking, meeting point and party included.
+ *
+ * Resolves rather than rejecting even when the store is unavailable, in step
+ * with everything else here. Sign out must complete on a phone with no
+ * IndexedDB as surely as on one with it.
+ */
+export async function forgetAllBookings(): Promise<void> {
+  const ours = (await safeKeys()).filter(
+    (k) => k.startsWith(TOKEN_PREFIX) || k.startsWith(SNAPSHOT_PREFIX),
+  );
+  await Promise.all(ours.map(safeDel));
+}
+
 /* ------------------------------------------------------------- snapshots */
 
 /**

@@ -3046,8 +3046,19 @@ export interface operations {
                             localDate: string;
                             /** @example 06:30 */
                             localTime: string;
-                            /** @description The booking's state, or for a request with no booking yet `pending_request` (waiting on the operator) or `declined` (the operator said no; see `reasonCode`). */
-                            state: string;
+                            /**
+                             * @description The booking's state, or for a request with no booking yet `pending_request` (waiting on the operator) or `declined` (the operator said no; see `reasonCode`). These are every value this field takes (since 2026-09-14 the list is declared; the values are not new).
+                             *
+                             *     - `pending_request`: a request the operator has not answered yet. There is no `reference` and no `payment`.
+                             *     - `paid_pending_ops`: booked, and not yet settled. For a cash booking this is a seat that is theirs, with the cash still to be paid on the day; `payment.collected` says whether it has been. `getBookingStatus` shows the same booking as `confirmed` with a `payment` block.
+                             *     - `confirmed`: booked and settled.
+                             *     - `declined`: the operator said no, to a request or to a booking. `reasonCode` says why on a request.
+                             *     - `cancelled`: called off by the traveller, the operator or us, including a departure cancelled for weather.
+                             *     - `completed`: the trip happened.
+                             *     - `no_show`: the boat went and the traveller was not on it. A past trip, not a cancelled one.
+                             * @enum {string}
+                             */
+                            state: "pending_request" | "paid_pending_ops" | "confirmed" | "declined" | "cancelled" | "completed" | "no_show";
                             guests: number;
                             meetingPoint?: string;
                             /** @description A booking link for this trip, minted for this response, so a trip booked on another phone opens here. Opens this booking only; it can never list the number's other trips. Issuing it revokes nothing. */

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { chooseDeparture } from "./support/checkout";
 import AxeBuilder from "@axe-core/playwright";
 
 /**
@@ -11,53 +12,6 @@ import AxeBuilder from "@axe-core/playwright";
 
 const REQUEST = "/e/snorkel-elephant-beach";
 const INSTANT = "/e/try-dive-nemo-reef";
-
-/** Opens the date pop-up and picks the first departure that can be picked. */
-async function chooseDeparture(page: import("@playwright/test").Page) {
-  await page.getByRole("button", { name: /Choose a departure|Change/ }).click();
-  const sheet = page.getByRole("dialog", { name: "Pick a day" });
-  await expect(sheet).toBeVisible();
-
-  const group = sheet.getByRole("group", { name: "Which day" });
-  // The chips arrive with the availability read, so counting before they do
-  // gives zero and walks straight past every day to the throw below.
-  await expect(group.getByRole("button").first()).toBeVisible();
-
-  const chips = group.getByRole("button");
-  for (let i = 0; i < (await chips.count()); i++) {
-    await chips.nth(i).click();
-
-    /*
-      Wait for the chip to BE the chosen one before reading the rows under it.
-
-      Two races, and the second is the one that survived a first fix. A day
-      chip re-renders the list below it, so `count()` straight after the click
-      is a snapshot that can catch nothing at all — or, worse, the OUTGOING
-      day's rows, in which case the helper reads the wrong day's departure,
-      finds it disabled, and moves on having silently skipped a day that had
-      seats. It threw "no selectable departure" on listings with several,
-      about one full run in three, and moved between specs — which is what a
-      race looks like when the contended resource is the render.
-
-      React commits the pressed chip and its rows together, so waiting on
-      `aria-pressed` ties the two: once it is true, the rows are this day's.
-    */
-    await expect(chips.nth(i)).toHaveAttribute("aria-pressed", "true");
-
-    const rows = sheet.getByRole("button", { name: /^\d\d:\d\d/ });
-    // A chip exists only because that day has departures, so this cannot hang
-    // on a legitimately empty day.
-    await expect.poll(() => rows.count()).toBeGreaterThan(0);
-
-    const first = rows.first();
-    if (await first.isEnabled()) {
-      await first.click();
-      await expect(sheet).toBeHidden();
-      return;
-    }
-  }
-  throw new Error("no selectable departure in any day of the fixture");
-}
 
 test.describe("the gallery", () => {
   test("swipes, and opens full screen", async ({ page }) => {
@@ -106,117 +60,80 @@ test.describe("the gallery", () => {
   });
 });
 
-test.describe("choosing a day", () => {
-  test("is a pop-up, and the page carries no list of days", async ({
-    page,
-  }) => {
+test.describe("one button, and it opens checkout", () => {
+  /*
+    yuvoy-app#62 deleted three things from this page: a "Pick a day" pop-up
+    with a day strip, a party stepper, and an "Ask the operator" sheet. The
+    tests for all three went with them. What is asserted now is that none of
+    them came back, and that the one button goes where it says.
+  */
+
+  test("carries no date or party control of its own", async ({ page }) => {
     await page.goto(REQUEST);
     await expect(page.getByRole("group", { name: "Which day" })).toHaveCount(0);
-
-    await page.getByRole("button", { name: /Choose a departure/ }).click();
-    const sheet = page.getByRole("dialog", { name: "Pick a day" });
-    await expect(sheet.getByRole("group", { name: "Which day" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Choose a departure/ }),
+    ).toHaveCount(0);
+    await expect(page.getByText(/How many of you/i)).toHaveCount(0);
   });
 
-  test("the sticky bar shows the day and time, and no price", async ({
+  test("opens checkout with nothing chosen, for both booking modes", async ({
     page,
   }) => {
-    await page.goto(REQUEST);
-    await chooseDeparture(page);
+    /*
+      The divergence this issue ended. Request mode used to answer in a sheet on
+      this page while allotment mode went to checkout, so the two had different
+      flows, different validation and different copy for the same act.
+    */
+    for (const listing of [REQUEST, INSTANT]) {
+      await page.goto(listing);
+      await page.getByRole("link", { name: /^Pick a day/ }).click();
+      await page.waitForURL(new RegExp(`${listing}/book$`));
+    }
+  });
 
-    const bar = page.getByRole("button", { name: /Ask the operator/ });
+  test("the bar carries no price", async ({ page }) => {
+    // Removed by the owner and kept removed. The bar is the last thing read
+    // before committing, and a per-person figure there reads as the total.
+    await page.goto(REQUEST);
+    const bar = page.getByRole("link", { name: /^Pick a day/ });
     await expect(bar).toBeVisible();
-    // The bar is the last thing read before committing; a per-person figure
-    // there reads as the total.
-    const region = page.locator("[data-sticky-bar], footer, .sticky").first();
-    const text = (await region.count()) ? await region.innerText() : "";
-    expect(text).not.toMatch(/₹/);
+    expect(await bar.innerText()).not.toMatch(/₹/);
   });
 });
 
-test.describe("asking the operator", () => {
-  test("never leaves the listing, and ends somewhere useful", async ({
+test.describe("choosing a departure on checkout", () => {
+  test("picks a day and a time, and keeps both in the URL", async ({
     page,
   }) => {
-    await page.goto(REQUEST);
-    await chooseDeparture(page);
-    await page.getByRole("button", { name: /Ask the operator/ }).click();
-
-    const sheet = page.getByRole("dialog", { name: "Ask the operator" });
-    await expect(sheet).toBeVisible();
-    // Still on the listing. A whole checkout page for three fields was a
-    // screen between a traveller and a question they had decided to ask.
-    expect(new URL(page.url()).pathname).toBe(REQUEST);
-
-    await sheet.getByLabel("Your name").fill("Asha Menon");
-    await sheet.getByLabel("WhatsApp number").fill("9000000000");
-    /*
-      There is no terms checkbox any more (yuvoy-app#32 item 4, owner 14 Sep).
-      The API has no field for accepting it, so the checkbox was an
-      acknowledgement this form invented and then made Send depend on. The
-      policy is a sentence above Send, and it is asserted here rather than
-      merely un-clicked, so deleting the sentence too would fail.
-    */
-    await expect(sheet.getByRole("checkbox")).toHaveCount(0);
-    await expect(sheet.getByText(/If it is called off:/)).toBeVisible();
-    await sheet.getByRole("button", { name: /Send the request/ }).click();
-
-    const sent = page.getByRole("dialog", { name: "Request sent" });
-    await expect(sent).toBeVisible();
-    await expect(
-      sent.getByRole("link", { name: "Go to my trips" }),
-    ).toHaveAttribute("href", "/trips");
-    /*
-      Back goes to the FEED, not to the listing. Somebody who has just asked
-      about this experience has finished with its page.
-    */
-    await sent.getByRole("link", { name: "Back to the feed" }).click();
-    await page.waitForURL("**/");
-  });
-
-  test("CLOSING Request sent also goes to the feed, not the listing", async ({
-    page,
-  }) => {
-    /*
-      The third mismatch the owner found on 14 Sep (yuvoy-app#32 item 3).
-      "Back to the feed" already did the right thing; the × , the backdrop and
-      Escape closed the sheet onto the listing the traveller had just finished
-      asking about. Three ways out, one of them somewhere else.
-    */
-    await page.goto(REQUEST);
-    await chooseDeparture(page);
-    await page.getByRole("button", { name: /Ask the operator/ }).click();
-
-    const sheet = page.getByRole("dialog", { name: "Ask the operator" });
-    await sheet.getByLabel("Your name").fill("Asha Menon");
-    await sheet.getByLabel("WhatsApp number").fill("9000000000");
-    await sheet.getByRole("button", { name: /Send the request/ }).click();
-
-    const sent = page.getByRole("dialog", { name: "Request sent" });
-    await expect(sent).toBeVisible();
-
-    await sent.getByRole("button", { name: /close/i }).click();
-    await page.waitForURL("**/");
-    expect(new URL(page.url()).pathname).toBe("/");
-  });
-
-  test("an instant book still goes to checkout", async ({ page }) => {
-    // Money gets a page. Only requests move into the pop-up.
     await page.goto(INSTANT);
     await chooseDeparture(page);
-    await page.getByRole("link", { name: /Continue/ }).click();
-    await page.waitForURL(/\/e\/try-dive-nemo-reef\/book\?/);
+
+    await expect(page).toHaveURL(/\/book\?date=\d{4}-\d{2}-\d{2}&slot=/);
+    // And the whole choice on one line, above the action.
+    await expect(page.getByText(/· 1 person ·/)).toBeVisible();
   });
 
-  test("the pop-up is accessible", async ({ page }) => {
+  test("a request-mode listing sends a request from the same page", async ({
+    page,
+  }) => {
     await page.goto(REQUEST);
     await chooseDeparture(page);
-    await page.getByRole("button", { name: /Ask the operator/ }).click();
-    const sheet = page.getByRole("dialog", { name: "Ask the operator" });
-    await expect(sheet).toBeVisible();
-    await sheet.evaluate((el) =>
-      Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)),
-    );
+
+    await page.getByLabel(/Your name/i).fill("Asha Menon");
+    await page.getByLabel(/WhatsApp number/i).fill("9000000000");
+    await expect(
+      page.getByRole("button", { name: /Send request/ }),
+    ).toBeVisible();
+  });
+
+  test("the calendar is accessible", async ({ page }) => {
+    await page.goto(INSTANT);
+    await page.getByRole("link", { name: /^Pick a day/ }).click();
+    await page.waitForURL(/\/book$/);
+    await expect(
+      page.getByRole("region", { name: "Pick a day" }),
+    ).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

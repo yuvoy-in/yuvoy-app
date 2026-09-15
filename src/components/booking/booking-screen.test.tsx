@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { BookingScreen } from "./booking-screen";
@@ -1311,5 +1311,210 @@ describe("finishing a booking in cash", () => {
 
     renderWithQuery(<BookingScreen />);
     expect(await screen.findByText("YV-4K2M9P7Q")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Whether to offer "how was it" is the SERVER's answer (#38 item 3).
+ *
+ * This screen used to read `state === "completed"`, which is the client
+ * deriving a rule the API owns, and it was wrong in both directions.
+ * `leaveReview` also refuses a trip already reviewed and one whose 30 day
+ * window has closed, so a completed trip could show a button that could never
+ * succeed. That is the trap yuvoy-app#53 was filed about, rebuilt.
+ */
+describe("the review offer", () => {
+  it("offers the form when the server says it will accept one", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: false, canReview: true },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(await screen.findByText("How was it?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /leave this review/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers NOTHING on a completed trip the server will refuse", async () => {
+    /*
+      The case the old check got wrong: completed, so the state test passed,
+      but outside the window, so the POST could only ever 409. A button that
+      cannot succeed is worse than no button.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: false, canReview: false },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(
+      screen.queryByRole("button", { name: /leave this review/i }),
+    ).toBeNull();
+  });
+
+  it("says the rating back once one is recorded", async () => {
+    // A traveller returning to this page wants to know their rating landed.
+    // An absent form alone is indistinguishable from a broken one.
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: true, canReview: false, rating: 5 },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText(/Thanks, you rated this 5 stars/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /leave this review/i }),
+    ).toBeNull();
+  });
+
+  it("says star, not stars, for one", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: true, canReview: false, rating: 1 },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText(/Thanks, you rated this 1 star\./),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing at all when the server sends no review block", async () => {
+    /*
+      `review` is required on the response and is read defensively anyway: the
+      standing rule here is that a pinned contract states what an API WILL
+      send, never what it does send today. Absent means offer nothing, which is
+      the only safe reading of "we do not know".
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ state: "completed" })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(
+      screen.queryByRole("button", { name: /leave this review/i }),
+    ).toBeNull();
+    expect(screen.queryByText(/Thanks, you rated/)).toBeNull();
+  });
+});
+
+/**
+ * Add to calendar (#38 item 5).
+ *
+ * The file itself is pinned line by line in `lib/booking/calendar.test.ts`.
+ * What is asserted here is the half that file cannot see: when the button is
+ * offered at all, and what the screen hands it.
+ */
+describe("add to calendar", () => {
+  it("is offered on a booking that is going ahead", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByRole("button", { name: /Add to calendar/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("is hidden on a trip that is not happening", async () => {
+    /*
+      A calendar entry for a cancelled trip is worse than none: it survives in
+      the traveller's phone long after this page is closed, and nothing here
+      will ever remove it.
+    */
+    for (const state of ["cancelled", "declined", "expired"]) {
+      cleanup();
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(statusBody({ state })),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText(/Try-dive at Nemo Reef/);
+      expect(
+        screen.queryByRole("button", { name: /Add to calendar/ }),
+        state,
+      ).toBeNull();
+    }
+  });
+});
+
+describe("the experience title", () => {
+  it("links to the listing (#38 item 3)", async () => {
+    /*
+      Somebody on this page a week before their trip wants to re-read what they
+      booked. None of it is here and all of it is one tap away; without the
+      link the only route is searching for it again by name.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByRole("link", { name: "Try-dive at Nemo Reef" }),
+    ).toHaveAttribute("href", "/e/try-dive-nemo-reef");
+  });
+
+  it("stays plain text rather than linking to /e/undefined", async () => {
+    // A pinned contract states what an API WILL send, never what it does send.
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            experience: {
+              title: "Try-dive at Nemo Reef",
+              operator: "Sample Dive Operator",
+            },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText("Try-dive at Nemo Reef"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Try-dive at Nemo Reef" }),
+    ).toBeNull();
   });
 });

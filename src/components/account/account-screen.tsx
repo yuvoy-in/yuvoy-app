@@ -17,6 +17,11 @@ import { Screen } from "@/components/chrome/screen";
 import { LegalLinks } from "@/components/site/legal-links";
 import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
+import { useMyAccount, type TravellerAccount } from "@/lib/auth/use-my-account";
+import { civilInZone, monthName } from "@/lib/format/date";
+import { HelpSection } from "@/components/support/help-section";
+import { EditProfileSheet } from "./edit-profile-sheet";
+import { FirstSignIn } from "./first-sign-in";
 
 /**
  * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
@@ -35,9 +40,19 @@ import { Skeleton, LoadingState } from "@/components/states";
  * `/me/sign-in/*` fixes both: any number, 30 days, and it revokes nothing.
  * Recovery stays at `/trips/recover`, where rotating the link is the point.
  *
- * There is still no account to create, and this screen still says so as its
- * heading. A login prompt in front of a stranger with a phone is the largest
- * drop-off available in this product, and none of it appears in checkout.
+ * ## The heading changed, and the reassurance moved rather than went
+ *
+ * It read "There is no account to make", which said the most reassuring true
+ * thing about this product in the largest type on the screen. The owner asked
+ * for "Sign in" (yuvoy-app#38 item 9), and that is their call: a heading that
+ * argues with the reader before it tells them where they are is clever at the
+ * cost of being plain.
+ *
+ * The claim itself is not lost. The first line of the body still opens
+ * "Booking never needs one", which is the sentence that matters and is now
+ * where somebody reads it rather than where they parse it. Nothing about this
+ * appears in checkout either way, which is the part that actually protects
+ * against the drop-off.
  */
 export function AccountScreen() {
   const { signedIn, signIn, signOut } = useTravellerSession();
@@ -125,12 +140,12 @@ export function AccountScreen() {
   return (
     <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        {sent ? "Check your WhatsApp" : "There is no account to make"}
+        {sent ? "Check your WhatsApp" : "Sign in"}
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
         {sent
           ? `We sent a six-digit code to ${phone}. It is good for a few minutes.`
-          : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password, no sign-up, and the trips already on this phone stay exactly where they are."}
+          : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up."}
       </p>
 
       <form
@@ -332,40 +347,118 @@ function signInFailure(
     still works with no session at all.
   */
   return {
-    title: "We could not reach us",
+    title: "We could not connect",
     body: "That is our side or the island signal, not your number. Try again in a moment.",
     action: (
       <ButtonLink href="/trips" variant="outline" size="sm">
-        See the trips on this phone
+        Go to my trips
       </ButtonLink>
     ),
   };
 }
 
-/** Signed in. The trips themselves live on the Trips tab now — see #34. */
+/**
+ * Signed in: who you are, and the four things an account can do.
+ *
+ * yuvoy-app#38 item 9. This screen used to be a sentence and a sign-out
+ * button, because everything it might have shown lived somewhere else. It now
+ * reads `GET /me`, which is the one endpoint that knows the traveller rather
+ * than the booking.
+ *
+ * ## The first-sign-in screen is mounted HERE and nowhere else
+ *
+ * That placement is the whole of the issue's "never shown during checkout, the
+ * Ask pop-up or an invite, and if sign-in happens anywhere else, show it the
+ * next time Account opens". It is not a rule enforced by a flag; the screen is
+ * simply not rendered anywhere a booking could be in progress.
+ *
+ * ## The header says nothing it cannot prove
+ *
+ * `memberSince` is null for a number with no profile, and the line is dropped
+ * rather than rendered as "Member since". Same for a name: the header offers a
+ * way to add one instead of inventing a greeting.
+ */
 function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
+  const account = useMyAccount(true);
+  const [editing, setEditing] = useState(false);
+
+  if (account.isPending) {
+    return (
+      <Screen>
+        <LoadingState label="Loading your account">
+          <Skeleton className="h-10 w-2/3" />
+          <Skeleton className="mt-4 h-24 w-full" />
+        </LoadingState>
+      </Screen>
+    );
+  }
+
+  /*
+    A failed read is not a failed session. The account is a summary, and every
+    row below except Edit profile works without it, so the screen renders with
+    a line rather than becoming an error page that also hides Sign out.
+  */
+  const me = account.data;
+
+  if (me?.onboardingRequired) {
+    return <FirstSignIn />;
+  }
+
   return (
     <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        You are signed in
+        {me?.name ?? "You are signed in"}
       </h1>
-      {/*
-        The list moved to Trips — yuvoy-app#34.
 
-        This screen used to render every trip on the number, beside a Trips tab
-        rendering every trip on the device. Two lists of overlapping bookings,
-        in two places, with different cards. They are one list now, on the tab
-        whose name says so, and this screen is what it always claimed to be:
-        the account.
-      */}
-      <p className="text-forest/70 mt-3 text-sm">
-        Every trip on your number is under Trips, including ones booked on
-        another phone. The ones saved on this device are in the same list.
-      </p>
+      {me ? (
+        <div className="mt-3">
+          <p className="text-forest/80 text-sm">{me.phone}</p>
+          {me.memberSince ? (
+            <p className="text-forest/70 mt-1 text-sm">
+              Member since {memberSince(me.memberSince)}
+            </p>
+          ) : null}
+          <p className="text-forest/70 mt-1 text-sm">{counts(me)}</p>
+          {!me.name ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing(true)}
+              className="mt-3"
+            >
+              Add your name
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <p role="alert" className="text-forest/70 mt-3 text-sm">
+          We could not load your profile just now. Everything below still works.
+        </p>
+      )}
 
-      <ButtonLink href="/trips" size="lg" className="mt-6">
+      <ButtonLink href="/trips" size="lg" block className="mt-6">
         Go to my trips
       </ButtonLink>
+
+      {me ? (
+        <Button
+          variant="outline"
+          block
+          onClick={() => setEditing(true)}
+          className="mt-3"
+        >
+          Edit profile
+        </Button>
+      ) : null}
+
+      {/*
+        The same section as the booking page's, with no reference attached:
+        Account has a session and no one booking in mind.
+      */}
+      <HelpSection
+        support={me?.support}
+        whatsappMessage="Hi, I need help with Yuvoy."
+      />
 
       <Button
         variant="outline"
@@ -376,9 +469,20 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         Sign out on this device
       </Button>
 
+      {/*
+        SAYS WHAT SIGNING OUT NOW DOES, BECAUSE IT CHANGED (yuvoy-app#60).
+
+        This used to read "It leaves the bookings saved here alone, and they
+        stay under Trips", which was true and is now the opposite of true: sign
+        out clears every booking this phone has saved. That is deliberate, a
+        status token both opens a booking and can cancel it, but it is also the
+        kind of thing somebody must be told BEFORE they tap rather than
+        discover afterwards, and the way back is a sentence long.
+      */}
       <p className="text-forest/70 mt-4 text-xs">
-        This signs out this device only. It leaves the bookings saved here
-        alone, and they stay under Trips.
+        This signs out this device only, and clears the bookings saved on it.
+        Nothing is cancelled: signing in again with the same number brings every
+        trip back.
       </p>
 
       {/*
@@ -387,6 +491,31 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         is where somebody comes looking for it a week later.
       */}
       <LegalLinks className="border-cream-line mt-10 border-t pt-6 text-xs" />
+
+      {editing && me ? (
+        <EditProfileSheet account={me} onClose={() => setEditing(false)} />
+      ) : null}
     </Screen>
   );
+}
+
+/**
+ * "Member since Sep 2026".
+ *
+ * Built from civil fields rather than formatted, for the reason in
+ * `lib/format/date`: `Intl` takes its month names from the runtime's CLDR, and
+ * this screen is server rendered (yuvoy-app#67).
+ */
+function memberSince(iso: string): string | null {
+  const civil = civilInZone(iso, "Asia/Kolkata");
+  return civil ? `${monthName(civil)} ${civil.year}` : null;
+}
+
+/** "3 trips · 1 review", with the singular where it belongs. */
+function counts(me: TravellerAccount): string {
+  const trips = me.trips?.total ?? 0;
+  const reviews = me.reviews?.count ?? 0;
+  const plural = (n: number, word: string) =>
+    `${n} ${word}${n === 1 ? "" : "s"}`;
+  return `${plural(trips, "trip")} · ${plural(reviews, "review")}`;
 }

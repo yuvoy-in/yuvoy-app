@@ -39,7 +39,7 @@ test("shows on the feed, search and trips when signed out", async ({
 
 test("is not drawn on Account, which is the sign-in form", async ({ page }) => {
   await page.goto("/account");
-  await expect(page.getByText("There is no account to make")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   await expect(login(page)).toHaveCount(0);
 });
 
@@ -55,7 +55,7 @@ test("signing in from it lands back on the same page, with Login gone", async ({
   await login(page).click();
 
   await page.waitForURL(/\/account\?next=/);
-  await expect(page.getByText("There is no account to make")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
   await signIn(page);
 
@@ -66,7 +66,9 @@ test("signing in from it lands back on the same page, with Login gone", async ({
 test("no page shows it once signed in", async ({ page }) => {
   await page.goto("/account");
   await signIn(page);
-  await expect(page.getByText("You are signed in")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toBeVisible();
 
   for (const path of ["/", "/search", "/trips"]) {
     /*
@@ -105,7 +107,9 @@ test("never flashes at a signed-in traveller during the read", async ({
   */
   await page.goto("/account");
   await signIn(page);
-  await expect(page.getByText("You are signed in")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toBeVisible();
 
   await page.goto("/trips", { waitUntil: "commit" });
   for (let i = 0; i < 25; i += 1) {
@@ -196,7 +200,9 @@ test("an open redirect is refused, and the traveller stays on Account", async ({
   await page.goto("/account?next=https%3A%2F%2Fevil.example%2Flogin");
   await signIn(page);
 
-  await expect(page.getByText("You are signed in")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toBeVisible();
   expect(new URL(page.url()).host).not.toContain("evil.example");
   expect(new URL(page.url()).pathname).toBe("/account");
 });

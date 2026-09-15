@@ -1,4 +1,5 @@
 import { marketToday, marketDaysFrom } from "@/lib/booking/availability-window";
+import { civilFromDate, weekdayName, dayMonth } from "@/lib/format/date";
 import type { ReelFilters } from "./filters";
 
 /**
@@ -62,32 +63,26 @@ export function dayLabel(date: string, today: string = marketToday()): string {
  */
 export function dateLabel(date: string): string {
   /*
-    Noon in the market, not midnight. A date parsed as UTC midnight is the
-    previous evening in Asia/Kolkata, so `weekday` would name the wrong day for
-    every date in the calendar. Noon is far enough from both edges that no
-    offset in use can move it across one.
-  */
-  const parts = new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: "Asia/Kolkata",
-  }).formatToParts(new Date(`${date}T12:00:00+05:30`));
+    No timezone step, and no `Intl` (yuvoy-app#67).
 
-  /*
-    Assembled from the parts rather than taken as formatted, because en-IN's
-    own joining is not what the issue asks for: it produces "Sun, 20 Sept",
-    with a comma and a four-letter September. The issue's format is
-    "Tue 16 Sep".
+    This used to parse the date as noon in `Asia/Kolkata` and ask a formatter
+    what day that instant fell on, which is a round trip: `date` is already a
+    plain `YYYY-MM-DD` in the market's own calendar. Noon was the guard against
+    a UTC-midnight parse naming the previous day, and the guard is unnecessary
+    once nothing is converted.
 
-    Only the pieces are borrowed from the locale, which is the half worth
-    borrowing: the weekday and month NAMES, and the day number without a
-    leading zero. The month is cut to three, which is a no-op for every month
-    but September in this locale and gives the conventional abbreviation there.
+    The old version was already immune to the "Sept" divergence, because it
+    assembled the label from `formatToParts` and cut the month to three. Moving
+    it here is not a fix, it is the rule: `month: "short"` lives in exactly one
+    module now, so `pnpm qa` can refuse it everywhere else.
+
+    A date the server sent in a shape this cannot read is echoed unchanged
+    rather than dropped. This names a calendar CELL and a blank cell is worse
+    than an oddly spelled one.
   */
-  const at = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-  return `${at("weekday")} ${at("day")} ${at("month").slice(0, 3)}`;
+  const civil = civilFromDate(date);
+  if (!civil) return date;
+  return `${weekdayName(civil)} ${dayMonth(civil)}`;
 }
 
 /** The vocabulary, in the shape this module needs. */

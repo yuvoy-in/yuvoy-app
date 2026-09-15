@@ -263,12 +263,19 @@ describe("CheckoutForm — the money rules", () => {
   });
 
   it("says the operator answers first in request mode, and does not promise a seat", () => {
+    /*
+      "Send request", not "Ask the operator" (yuvoy-app#62 item 7). The old
+      label belonged to a pop-up on the LISTING page that this issue deleted.
+      On a checkout page with a day, a time, a party and their details already
+      filled in, "Ask" understates what the traveller just did: they have
+      committed to everything except the operator's yes.
+    */
     const snorkel = EXPERIENCE_DETAIL["snorkel-elephant-beach"];
     const snorkelSlot = availabilityFor("snorkel-elephant-beach")[0];
     renderWithQuery(<CheckoutForm experience={snorkel} slot={snorkelSlot} />);
 
     expect(
-      screen.getByRole("button", { name: /ask the operator/i }),
+      screen.getByRole("button", { name: /send request/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/You pay only once the operator says yes/i),

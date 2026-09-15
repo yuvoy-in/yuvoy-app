@@ -139,6 +139,9 @@ describe("palette", () => {
       // The OG card renders through Satori, outside the CSS pipeline, so a
       // custom property cannot reach it. Asserted to be tokens below.
       "src/app/opengraph-image.tsx",
+      // The booking pass, for the same reason and with the same assertion
+      // (yuvoy-app#61). Both render through `next/og`.
+      "src/app/api/booking-pass/route.tsx",
     ];
     const offenders = FILES.filter((f) => /#[0-9a-fA-F]{6}\b/.test(read(f)))
       .map(rel)
@@ -181,14 +184,22 @@ describe("palette", () => {
         m[1].toLowerCase(),
       ),
     );
-    const og = stripComments(
-      readFileSync(join(SRC, "app/opengraph-image.tsx"), "utf8"),
-    );
-    const used = [...og.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
-      m[0].toLowerCase(),
-    );
-    expect(used.length).toBeGreaterThan(0);
-    for (const hex of used) expect(tokens).toContain(hex);
+    /*
+      Both Satori surfaces, not just the OG card. The booking pass is the one a
+      traveller keeps in Photos and shows at a jetty, so it is the last place
+      an off-brand colour should be able to appear unnoticed.
+    */
+    for (const file of [
+      "app/opengraph-image.tsx",
+      "app/api/booking-pass/route.tsx",
+    ]) {
+      const source = stripComments(readFileSync(join(SRC, file), "utf8"));
+      const used = [...source.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
+        m[0].toLowerCase(),
+      );
+      expect(used.length, file).toBeGreaterThan(0);
+      for (const hex of used) expect(tokens, `${file}: ${hex}`).toContain(hex);
+    }
   });
 
   it("keeps THEME_COLOR equal to the forest token", () => {

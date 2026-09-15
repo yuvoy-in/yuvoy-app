@@ -540,11 +540,13 @@
  */
 @utility tabbar-clearance {
   /*
-    The bar's 46px (a 36px target in 5px of padding), its 12px foot, and a
-    breath. Was 5.75rem when the target was 44px; both moved together, which is
-    the whole reason this is one number rather than a literal at each call site.
+    The bar's 56px (a 44px target in 6px of padding), its 12px foot, and a
+    breath. It was briefly 4.75rem against a 36px target, and the owner reversed
+    that on 15 September: the foot was not too large after all. Both numbers
+    moved together, which is the whole reason this is one utility rather than a
+    literal at each call site.
   */
-  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
 
   @media (min-width: 64rem) {
     padding-bottom: 2rem;
@@ -586,7 +588,7 @@
   terracotta is never a fill.
 */
 @utility feed-book {
-  @apply ease-interaction tracking-label inline-flex h-9 items-center justify-center rounded-full px-3.5 text-[11px] font-bold uppercase transition-[background-color,transform] duration-200;
+  @apply ease-interaction tracking-label inline-flex h-11 items-center justify-center rounded-full px-4 text-xs font-bold uppercase transition-[background-color,transform] duration-200;
   background-color: var(--color-cream);
   color: var(--color-forest);
   text-decoration: none;
@@ -648,7 +650,7 @@
 /* The 4px bar is the affordance; the CONTROL is 36px and the full width,
    because a 4px target is not a target. */
 @utility reel-sheet-handle {
-  @apply flex h-9 w-full items-center justify-center;
+  @apply flex h-11 w-full items-center justify-center;
 
   &::before {
     content: "";
@@ -672,7 +674,7 @@
   the next reel in the middle of reading.
 */
 @utility reel-sheet-scroll {
-  @apply min-h-0 flex-1 overflow-y-auto px-5 pb-2;
+  @apply min-h-0 flex-1 overflow-y-auto px-5 pb-3;
   overscroll-behavior: contain;
   scrollbar-width: none;
 
@@ -709,20 +711,22 @@
 /*
   The foot clears the BAR, not a screen.
 
-  `tabbar-clearance` is 76px because a screen leaves the bar's 46px, its 12px
+  `tabbar-clearance` is 92px because a screen leaves the bar's 56px, its 12px
   foot and a breath. A panel's own edge is a surface: it needs to clear the
-  bar's top edge and nothing more. The eight pixels that buys are not
-  decoration, they are the operator's credential line, which is the whole of
-  this product's answer to having no star ratings and was falling below the fold
-  by about that much.
+  bar's top edge and nothing more. The pixels that buys are not decoration, they
+  are the operator's credential line, which is the whole of this product's
+  answer to having no star ratings and was falling below the fold by about that
+  much.
+
+  It follows the bar, so it moved back up with it on 15 September: 56 + 12.
 */
 @utility reel-sheet-foot {
   @apply flex-none px-5;
-  padding-bottom: calc(3.625rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 @utility reel-sheet-title {
-  @apply text-cream ease-interaction mb-2 line-clamp-2 block text-sm font-bold no-underline transition-opacity duration-200;
+  @apply text-cream ease-interaction mb-2 line-clamp-2 block text-base font-bold no-underline transition-opacity duration-200;
 
   &:hover {
     opacity: 0.8;
@@ -734,43 +738,45 @@
   @apply mb-2 flex flex-wrap items-baseline gap-2;
 }
 @utility reel-sheet-amount {
-  @apply font-display text-cream tracking-display text-2xl leading-none;
+  @apply font-display text-cream tracking-display text-3xl leading-none;
 }
 @utility reel-sheet-unit {
-  @apply text-cream/60 text-[13px];
+  @apply text-cream/60 text-sm;
 }
 @utility reel-sheet-absent {
-  @apply text-cream/70 text-[15px];
+  @apply text-cream/70 text-base;
 }
 
 @utility reel-sheet-facts {
-  @apply mb-2 grid gap-1.5;
+  @apply mb-3 grid gap-2;
 }
 @utility reel-sheet-fact {
   @apply flex items-baseline justify-between gap-4;
 
   & dt {
-    @apply flex-none text-[11px];
+    @apply flex-none text-xs;
   }
   & dd {
-    @apply m-0 text-right text-sm text-pretty;
+    @apply m-0 text-right text-base text-pretty;
   }
 }
 
 @utility reel-sheet-operator {
-  @apply border-cream/14 border-t pt-2.5;
+  @apply border-cream/14 border-t pt-3;
 }
 @utility reel-sheet-operator-name {
-  @apply text-cream text-sm font-bold;
+  @apply text-cream text-base font-bold;
 }
 @utility reel-sheet-evidence {
-  @apply text-terra-soft mt-0.5 flex items-center gap-1.5 text-[13px];
+  @apply text-terra-soft mt-1 flex items-center gap-1.5 text-sm;
 }
 
-/* `md`. One rung above the card's controls, which is right: this is the panel's
-   only action and the heaviest control in the screen. */
+/* `lg`. One rung above the card's controls, which is the relationship that
+   matters rather than the number: this is the panel's only action and the
+   heaviest control on the screen. Both moved up together on 15 September when
+   the owner reversed the "looks large" call. */
 @utility reel-sheet-cta {
-  @apply ease-interaction tracking-label flex h-11 w-full items-center justify-center gap-2 rounded-full text-[11px] font-bold uppercase no-underline transition-[background-color,transform] duration-200;
+  @apply ease-interaction tracking-label flex h-13 w-full items-center justify-center gap-2 rounded-full text-xs font-bold uppercase no-underline transition-[background-color,transform] duration-200;
   background-color: var(--color-cream);
   color: var(--color-forest);
 

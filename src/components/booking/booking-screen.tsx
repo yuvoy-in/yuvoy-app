@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useDocumentTitle } from "@/lib/site/use-document-title";
 import { useMutation } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
@@ -8,6 +9,7 @@ import { useBookingStatus } from "@/lib/booking/use-booking-status";
 import { useFragmentToken } from "@/lib/booking/use-fragment-token";
 import { formatMoney } from "@/lib/format/money";
 import { formatCountdown, msUntil, formatAge } from "@/lib/format/time";
+import { civilInZone, weekdayDayMonth, clockTime } from "@/lib/format/date";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import {
   describeError,
@@ -22,6 +24,10 @@ import { CancelSheet } from "./cancel-sheet";
 import { BookingQuestions } from "./booking-questions";
 import { MessageThread } from "./message-thread";
 import { ShareButton } from "./share-button";
+import { InviteGuests } from "./invite-guests";
+import { AddToCalendar } from "./add-to-calendar";
+import { KeepBooking } from "./keep-booking";
+import { HelpSection } from "@/components/support/help-section";
 import {
   amountToBring,
   isBooked,
@@ -82,7 +88,7 @@ export function BookingScreen() {
           up from a name.
         </p>
         <ButtonLink href="/trips" className="mt-6">
-          Bookings on this device
+          Go to my trips
         </ButtonLink>
       </Shell>
     );
@@ -190,10 +196,20 @@ function StatusBody({
   useDocumentTitle(identity ? `${identity} · Yuvoy` : null);
   const [cancelling, setCancelling] = useState(false);
 
-  // Read the clock ONCE, outside the render path. Reading it during render is
-  // impure and the React compiler refuses it — and "is this trip still ahead"
-  // does not need to be re-evaluated between frames.
-  const [now] = useState(() => Date.now());
+  /*
+    Read ONCE, outside the render path, and against the SERVER's clock.
+
+    Reading it during render is impure and the React compiler refuses it, and
+    "is this trip still ahead" does not need re-evaluating between frames.
+
+    `clockOffsetMs()` is the half that was missing (yuvoy-app#69). `upcoming`
+    below gates Share and "I need to cancel", so a phone running fast HID the
+    cancel button on a trip that had not happened, and a hidden control has no
+    server backstop: no request is made for anyone to refuse. The offset is
+    recorded from the `Date` header on every response, so it costs nothing to
+    read and this file already uses it for the hold countdown.
+  */
+  const [now] = useState(() => Date.now() + clockOffsetMs());
 
   // Confirmed and still ahead of us: sharing and cancelling both make sense.
   // A trip that has already left can do neither.
@@ -344,7 +360,28 @@ function StatusBody({
               </p>
             </Row>
           ) : null}
-          <Row label="Experience">{status.experience.title}</Row>
+          {/*
+            The title as a link to the listing (#38 item 3).
+
+            Somebody on this page a week before their trip wants to re-read
+            what they booked: what is included, what to bring, how long it
+            takes. None of that is here and all of it is one tap away, and
+            without the link the only route is searching for it again by name.
+
+            `slug` is required on the response and is guarded anyway, in line
+            with the standing rule that a pinned contract states what an API
+            WILL send. A missing slug renders the title as plain text rather
+            than a link to `/e/undefined`.
+          */}
+          <Row label="Experience">
+            {status.experience.slug ? (
+              <Link href={`/e/${status.experience.slug}`} className="underline">
+                {status.experience.title}
+              </Link>
+            ) : (
+              status.experience.title
+            )}
+          </Row>
           {/*
             The booking carries an instant plus the MARKET's zone, not the
             pre-formatted local fields the catalog slots have. Rendering it in
@@ -470,7 +507,73 @@ function StatusBody({
       {status.refund ? <RefundProgress refund={status.refund} /> : null}
 
       {/* Actions need the network, so they are absent on an offline snapshot. */}
+      {/*
+        KEEP YOUR BOOKING, right under the heading (yuvoy-app#61 item 1).
+
+        The panel is the one with Skip; the row below is always there, for any
+        booking still happening, "after Skip too". Two variants rather than two
+        components, because they are the same three actions and a second copy
+        would drift.
+
+        This exists because #60 removed the device's own copy of a booking. A
+        traveller on a jetty with no signal had nothing; an image in Photos
+        survives a cleared browser, a new phone and a flat battery.
+      */}
+      {token ? (
+        <KeepBooking status={status} token={token} variant="panel" />
+      ) : null}
+
       {token && upcoming ? <ShareButton token={token} /> : null}
+
+      {/*
+        Offering a PLACE, which is a different thing from sharing a link
+        (#38 items 6 and 12). Share reveals the meeting point to anybody it is
+        pasted to; this gives somebody their own seat in the party.
+
+        "Invitations are taken for a trip that is confirmed, or a request still
+        waiting on the operator, and that has not ended." `upcoming` covers the
+        confirmed half and `awaiting_operator` the other, and the server
+        refuses anything else with a 409 regardless.
+      */}
+      {token && (upcoming || status.state === "awaiting_operator") ? (
+        <InviteGuests token={token} />
+      ) : null}
+
+      {/*
+        The trip in the traveller's own calendar (#38 item 5).
+
+        Not gated on `upcoming` like Share is. Share mints a link for people
+        coming along, which is meaningless once a trip has left; adding a past
+        trip to a calendar is merely pointless rather than wrong, and the real
+        exclusions are the states where an entry would be a lie. The component
+        owns that list, since it is the one that knows what it would write.
+      */}
+      <AddToCalendar status={status} />
+
+      {token ? (
+        <KeepBooking status={status} token={token} variant="row" />
+      ) : null}
+
+      {/*
+        A person, two ways (#38 item 4).
+
+        Placed after the actions and before the live-updates note, which is
+        where somebody scrolls when the page has not answered their question.
+        The WhatsApp message names the booking, so nobody has to explain which
+        trip they mean; when there is no reference yet, it names the experience
+        instead, because a request the operator has not answered is exactly the
+        thing somebody chases.
+      */}
+      <HelpSection
+        support={status.support}
+        bookingReference={status.bookingReference}
+        token={token}
+        whatsappMessage={
+          status.bookingReference
+            ? `Hi, I need help with booking ${status.bookingReference}.`
+            : `Hi, I need help with my request for ${status.experience?.title ?? "my trip"}.`
+        }
+      />
 
       {token && upcoming && !cancelling ? (
         <Button
@@ -494,9 +597,42 @@ function StatusBody({
         />
       ) : null}
 
-      {/* Reviews unlock only on a trip that actually happened. */}
-      {token && status.state === "completed" ? (
-        <ReviewForm token={token} />
+      {/*
+        WHO DECIDES A REVIEW IS POSSIBLE, AND IT IS NOT THIS SCREEN.
+
+        This read `status.state === "completed"`, which is the client deriving
+        a rule the server owns, and it was wrong in both directions (#38 item
+        3). `leaveReview` also refuses a trip whose 30 day window has closed
+        and one already reviewed, so a completed trip could offer a button that
+        could never succeed. That is exactly the trap yuvoy-app#53 was filed
+        about.
+
+        `review.canReview` is the server's own answer to the same question:
+        "true for a completed trip with no review that ended no more than 30
+        days ago, which is exactly when `leaveReview` accepts one". One rule,
+        one place.
+
+        `review` is required on the response and is read defensively anyway, in
+        line with the standing rule here that a pinned contract states what an
+        API WILL send rather than what it does send today.
+      */}
+      {token && status.review?.canReview ? <ReviewForm token={token} /> : null}
+
+      {/*
+        Already rated. The stars are said back, because a traveller who returns
+        to this page wants to know their rating landed, and an absent form is
+        indistinguishable from a broken one.
+      */}
+      {status.review?.reviewed ? (
+        <Panel className="mt-8">
+          <p className="text-sm font-bold">How was it?</p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            {status.review.rating
+              ? `Thanks, you rated this ${status.review.rating} ${status.review.rating === 1 ? "star" : "stars"}.`
+              : "Thanks, your rating is recorded."}{" "}
+            Reviews cannot be changed once left, so it stands as written.
+          </p>
+        </Panel>
       ) : null}
 
       {live && !status.final ? (
@@ -1042,20 +1178,23 @@ function OperatorUpdates({
           From the operator
         </h2>
         <ul className="mt-3 space-y-3">
-          {updates.map((u, i) => (
-            <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
-              <p className="font-bold">
-                {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
-                {u.detail ? `: ${u.detail}` : ""}
-              </p>
-              {u.note ? <p className="text-forest/80 mt-1">{u.note}</p> : null}
-              {u.sentAt ? (
-                <p className="text-forest/70 mt-1 text-xs">
-                  {formatSentAt(u.sentAt, timezone)}
+          {updates.map((u, i) => {
+            const sentAt = u.sentAt ? formatSentAt(u.sentAt, timezone) : null;
+            return (
+              <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
+                <p className="font-bold">
+                  {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
+                  {u.detail ? `: ${u.detail}` : ""}
                 </p>
-              ) : null}
-            </li>
-          ))}
+                {u.note ? (
+                  <p className="text-forest/80 mt-1">{u.note}</p>
+                ) : null}
+                {sentAt ? (
+                  <p className="text-forest/70 mt-1 text-xs">{sentAt}</p>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
         <p className="text-forest/70 mt-3 text-xs">
           Shown here and not sent to your phone. This page is the place to
@@ -1066,17 +1205,29 @@ function OperatorUpdates({
   );
 }
 
-/** When an update was sent, in the MARKET's zone. */
-function formatSentAt(iso: string, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    timeZone,
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(iso));
+/**
+ * When an update was sent, in the MARKET's zone.
+ *
+ * Assembled from civil fields rather than formatted, which fixes two separate
+ * things (yuvoy-app#67). `Intl` with these options rendered `Wed, 16 Sept,
+ * 17:30` in node and Chromium and `Wed, 16 Sep at 17:30` in WebKit, so an
+ * iPhone and an Android read the same update differently, and a server render
+ * would disagree with either.
+ *
+ * This screen cannot currently server render at all: its data hangs off a
+ * status token in the URL fragment, and `useFragmentToken`'s server snapshot
+ * is `null` because a fragment is never sent to a server. So the hydration
+ * half is structural today. The cross-browser half was live regardless, and is
+ * the reason this was worth changing rather than commenting.
+ *
+ * An unreadable instant or an unknown zone answers `null`, so the caller drops
+ * the whole line rather than printing `Invalid Date`, or an empty paragraph
+ * still carrying its margin, beside an operator's message.
+ */
+function formatSentAt(iso: string, timeZone: string): string | null {
+  const civil = civilInZone(iso, timeZone);
+  if (!civil) return null;
+  return `${weekdayDayMonth(civil)}, ${clockTime(civil)}`;
 }
 
 function RefundProgress({
