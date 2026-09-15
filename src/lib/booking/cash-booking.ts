@@ -140,26 +140,3 @@ export function cashOwedPaise(status: {
 }): number | null {
   return cashOwed(status) ? (status.payment?.amountPaise ?? null) : null;
 }
-
-/**
- * The raw state a cash booking sits in on `GET /me/bookings`.
- *
- * ## Why this survives D-034 while the booking screen's copy did not
- *
- * The projection change above is `GET /bookings/status`'s alone. Hima's
- * comment on yuvoy-app#29 is explicit: "`GET /me/bookings` still carries the
- * raw `paid_pending_ops` for a cash booking, as before." Two endpoints, two
- * shapes, and the trips list has no `payment` object to read instead.
- *
- * It is not in `BookingStatus.state`'s enum — the traveller contract declares
- * `paid_pending_ops` only on `CashBooking` — which is why this takes a string.
- * TypeScript would refuse the comparison as having "no overlap", which is the
- * type system correctly reporting that the document disagrees with the API.
- * Still open on yuvoy-app#29.
- *
- * **`confirmed` is not this.** On the trips list that is the operator having
- * recorded the cash, and the traveller owes nothing on arrival.
- */
-export function isCashDueState(state: string): boolean {
-  return state === "paid_pending_ops";
-}
