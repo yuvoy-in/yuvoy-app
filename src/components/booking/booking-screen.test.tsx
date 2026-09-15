@@ -1313,3 +1313,119 @@ describe("finishing a booking in cash", () => {
     expect(await screen.findByText("YV-4K2M9P7Q")).toBeInTheDocument();
   });
 });
+
+/**
+ * Whether to offer "how was it" is the SERVER's answer (#38 item 3).
+ *
+ * This screen used to read `state === "completed"`, which is the client
+ * deriving a rule the API owns, and it was wrong in both directions.
+ * `leaveReview` also refuses a trip already reviewed and one whose 30 day
+ * window has closed, so a completed trip could show a button that could never
+ * succeed. That is the trap yuvoy-app#53 was filed about, rebuilt.
+ */
+describe("the review offer", () => {
+  it("offers the form when the server says it will accept one", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: false, canReview: true },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(await screen.findByText("How was it?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /leave this review/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers NOTHING on a completed trip the server will refuse", async () => {
+    /*
+      The case the old check got wrong: completed, so the state test passed,
+      but outside the window, so the POST could only ever 409. A button that
+      cannot succeed is worse than no button.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: false, canReview: false },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(
+      screen.queryByRole("button", { name: /leave this review/i }),
+    ).toBeNull();
+  });
+
+  it("says the rating back once one is recorded", async () => {
+    // A traveller returning to this page wants to know their rating landed.
+    // An absent form alone is indistinguishable from a broken one.
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: true, canReview: false, rating: 5 },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText(/Thanks, you rated this 5 stars/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /leave this review/i }),
+    ).toBeNull();
+  });
+
+  it("says star, not stars, for one", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "completed",
+            review: { reviewed: true, canReview: false, rating: 1 },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText(/Thanks, you rated this 1 star\./),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing at all when the server sends no review block", async () => {
+    /*
+      `review` is required on the response and is read defensively anyway: the
+      standing rule here is that a pinned contract states what an API WILL
+      send, never what it does send today. Absent means offer nothing, which is
+      the only safe reading of "we do not know".
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ state: "completed" })),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(
+      screen.queryByRole("button", { name: /leave this review/i }),
+    ).toBeNull();
+    expect(screen.queryByText(/Thanks, you rated/)).toBeNull();
+  });
+});

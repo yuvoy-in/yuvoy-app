@@ -743,6 +743,17 @@ export const bookingHandlers = [
     if (scenario === "cancelled") state = "cancelled";
     if (scenario === "expired") state = "expired";
     /*
+      A trip that has already happened (yuvoy-app#38 item 3). Needed so the
+      review form is reachable at all: `canReview` below is the server's
+      "completed, unreviewed, inside 30 days", and with no completed scenario
+      every test of that form would silently be a test of its absent branch.
+
+      `reviewed` is the same trip on the other side of leaving one.
+    */
+    if (scenario === "completed" || scenario === "reviewed") {
+      state = "completed";
+    }
+    /*
       COMMITTED IN CASH — yuvoy-app#29, and the projection changed under us.
 
       This used to answer `paid_pending_ops`, which is what the API returned
@@ -836,6 +847,27 @@ export const bookingHandlers = [
                 new Date(SLOT_STARTS_AT).getTime() > mockNow(),
             }
           : {}),
+        /*
+          WHETHER TO OFFER "HOW WAS IT" - yuvoy-app#38 item 3.
+
+          "Always sent", and the mock now sends it, because the screen reads
+          `review.canReview` instead of deriving the rule from `state`
+          (yuvoy-app#53). Without this the booking page could never show the
+          form against the mock, and every test of it would have been a test of
+          the absent branch.
+
+          `canReview` is the server's own definition: a completed trip with no
+          review that ended no more than 30 days ago, which is exactly when
+          `leaveReview` accepts one. `?__scenario=reviewed` is the other side,
+          a trip already rated, so the thanks line can be proven too.
+        */
+        review:
+          scenario === "reviewed"
+            ? { reviewed: true, canReview: false, rating: 5 }
+            : {
+                reviewed: false,
+                canReview: state === "completed",
+              },
         ...(scenario === "operator-updates"
           ? {
               /*

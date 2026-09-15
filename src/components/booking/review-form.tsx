@@ -23,9 +23,34 @@ import { cn } from "@/lib/cn";
  * The comment is optional. Plenty of people tap five stars and nothing else,
  * and a required comment box turns a two-second act into an abandoned one.
  */
+/**
+ * What was good, from the server's closed list (#38 item 3).
+ *
+ * The KEYS are the contract's and the words are ours: the enum is
+ * `guide, safety, value, organisation, punctuality, equipment`, and "A value
+ * outside the list, or more than six entries, is refused with
+ * `invalid_input`". Written out here rather than derived from anything,
+ * because a tag the API does not know is a submission that fails after the
+ * traveller has chosen it.
+ *
+ * Order is the order they are offered. The contract keeps the order it is
+ * sent, so this is also the order they are stored in.
+ */
+const TAGS = [
+  { key: "guide", label: "The guide" },
+  { key: "safety", label: "Safety" },
+  { key: "value", label: "Value for money" },
+  { key: "organisation", label: "Organisation" },
+  { key: "punctuality", label: "On time" },
+  { key: "equipment", label: "Equipment" },
+] as const;
+
+type TagKey = (typeof TAGS)[number]["key"];
+
 export function ReviewForm({ token }: { token: string }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
+  const [tags, setTags] = useState<TagKey[]>([]);
 
   /**
    * The same synchronous guard checkout uses. `isPending` is React state and
@@ -45,6 +70,14 @@ export function ReviewForm({ token }: { token: string }) {
         body: {
           rating,
           ...(comment.trim() ? { comment: comment.trim() } : {}),
+          /*
+            Omitted entirely when nothing is chosen, rather than sent as `[]`.
+            The field is optional and an empty array is a different statement
+            from an absent one: "I picked nothing" rather than "I did not
+            answer". Nothing downstream distinguishes them today, and the
+            absent form is the one that stays correct if something ever does.
+          */
+          ...(tags.length ? { tags } : {}),
         },
       });
       if (error) throw error;
@@ -152,14 +185,53 @@ export function ReviewForm({ token }: { token: string }) {
           </div>
         </fieldset>
 
-        <label className="mt-4 block">
+        {/*
+          Choose any, including none. A group of toggles rather than a
+          multi-select: six options is few enough to show at once, and a select
+          on a phone is a modal over a form the traveller is already in.
+        */}
+        <fieldset className="mt-5">
+          <legend className="label text-forest/75">What was good?</legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {TAGS.map((tag) => {
+              const on = tags.includes(tag.key);
+              return (
+                <button
+                  key={tag.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    setTags((chosen) =>
+                      chosen.includes(tag.key)
+                        ? chosen.filter((k) => k !== tag.key)
+                        : [...chosen, tag.key],
+                    )
+                  }
+                  className={cn(
+                    "rounded-control ease-interaction tap-target border px-3 py-2 text-sm transition-colors duration-200",
+                    on
+                      ? "border-forest bg-forest text-cream"
+                      : "border-cream-line bg-cream text-forest hover:border-forest/40",
+                  )}
+                >
+                  {tag.label}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <label className="mt-5 block">
           <span className="label text-forest/75">
-            Anything you would tell a friend (optional)
+            Anything else? (optional)
           </span>
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={3}
+            /* The contract's own bound. Refused with `invalid_input` past it,
+               so the field stops rather than the submission failing. */
+            maxLength={2000}
             className="rounded-control border-cream-line bg-cream focus:border-forest/60 ease-interaction mt-2 w-full border px-4 py-3 text-base transition-colors duration-200 outline-none"
           />
         </label>

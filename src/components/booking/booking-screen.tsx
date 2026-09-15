@@ -495,9 +495,42 @@ function StatusBody({
         />
       ) : null}
 
-      {/* Reviews unlock only on a trip that actually happened. */}
-      {token && status.state === "completed" ? (
-        <ReviewForm token={token} />
+      {/*
+        WHO DECIDES A REVIEW IS POSSIBLE, AND IT IS NOT THIS SCREEN.
+
+        This read `status.state === "completed"`, which is the client deriving
+        a rule the server owns, and it was wrong in both directions (#38 item
+        3). `leaveReview` also refuses a trip whose 30 day window has closed
+        and one already reviewed, so a completed trip could offer a button that
+        could never succeed. That is exactly the trap yuvoy-app#53 was filed
+        about.
+
+        `review.canReview` is the server's own answer to the same question:
+        "true for a completed trip with no review that ended no more than 30
+        days ago, which is exactly when `leaveReview` accepts one". One rule,
+        one place.
+
+        `review` is required on the response and is read defensively anyway, in
+        line with the standing rule here that a pinned contract states what an
+        API WILL send rather than what it does send today.
+      */}
+      {token && status.review?.canReview ? <ReviewForm token={token} /> : null}
+
+      {/*
+        Already rated. The stars are said back, because a traveller who returns
+        to this page wants to know their rating landed, and an absent form is
+        indistinguishable from a broken one.
+      */}
+      {status.review?.reviewed ? (
+        <Panel className="mt-8">
+          <p className="text-sm font-bold">How was it?</p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            {status.review.rating
+              ? `Thanks, you rated this ${status.review.rating} ${status.review.rating === 1 ? "star" : "stars"}.`
+              : "Thanks, your rating is recorded."}{" "}
+            Reviews cannot be changed once left, so it stands as written.
+          </p>
+        </Panel>
       ) : null}
 
       {live && !status.final ? (
