@@ -1,0 +1,1528 @@
+/*
+  The Column family: concepts 06 to 09, plus the frame-reading layer that 04 and
+  08 share.
+
+  Sections are sealed the same way `concepts.css` is. Anything true of all four
+  concepts is in COMMON below; anything true of one is in its own section. A
+  rule that wants to live in two sections has failed that test and moves up.
+*/
+
+/* ========================================================================
+   COMMON  the screen every concept in this family draws
+   ======================================================================== */
+
+.col-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.col-root > * {
+  pointer-events: auto;
+}
+
+/*
+  The foot: the caption on the left, the rail on the right, bottom aligned.
+
+  The alignment is the composition's one real decision. The two halves are the
+  two halves of a decision, so the arrow sits level with the line that says
+  whether the tap is worth making, rather than floating higher up the frame.
+*/
+.col-bottom {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  padding: 0 1.25rem var(--tabbar-clearance);
+}
+
+.col-foot {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.col-eyebrow {
+  margin: 0 0 0.5rem;
+}
+
+.col-title {
+  /* inherits the clamp and the display face from .reel-title */
+  margin-bottom: 0.625rem;
+}
+
+.col-when {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+.col-when.is-open {
+  color: var(--cream);
+}
+/* Nothing bookable in ninety days is the most useful thing this card can say,
+   and it is said quietly rather than as a warning. */
+.col-when.is-closed {
+  color: color-mix(in srgb, var(--cream) 60%, transparent);
+}
+/*
+  The availability line as a control.
+
+  44px tall, which is the app's own `md`, and the whole line is the target
+  because a 16px chevron is a 16px target and the line is what a thumb aims at
+  anyway. It also fixes an alignment that was wrong before it became a control:
+  as a 20px paragraph bottom-aligned against a 44px disc, the words sat twelve
+  pixels below the arrow's centre. Two 44px boxes sharing a bottom edge share a
+  centre.
+
+  No rotation on the chevron. The panel covers this line while it is open, so a
+  turned glyph would be a state nobody can observe, which is the same trap the
+  arrow's rotation fell into. `aria-expanded` carries the state for anything
+  that can still perceive it.
+*/
+.col-when-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  /*
+    NOT `font: inherit`.
+
+    The shorthand resets `font-family` along with everything else, and it sits
+    after `.col-when` in this file, so it quietly won: the line rendered in the
+    laboratory's own monospace chrome font rather than in Satoshi. A button's UA
+    font is beaten by `.col-when` on its own, so the reset is not needed at all.
+    Only the size and the line box need restating, because `font-size` on a
+    button is a UA style this element must not inherit from.
+  */
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.col-when-chevron {
+  height: 1rem;
+  width: 1rem;
+  flex: none;
+  margin-left: 0.5rem;
+  opacity: 0.7;
+}
+
+.col-seats {
+  color: var(--terra-soft);
+}
+/*
+  The middot, spaced by margin rather than by spaces inside `content`.
+
+  A leading space in generated content is subject to the same white-space
+  collapsing as any other inline whitespace, and here it followed a text node
+  ending in a letter, so it was dropped: the line read "17 Sep· 3 seats left",
+  tight on one side and loose on the other. A margin is not collapsible and is
+  symmetric by construction.
+
+  The middot is the design system's own pairing separator, which is why this is
+  worth getting right rather than reaching for a hyphen.
+*/
+.col-seats::before {
+  content: "·";
+  margin: 0 0.4em;
+  opacity: 0.6;
+}
+
+/*
+  The foot steps aside when the panel opens.
+
+  Not a polish pass. The panel is bottom anchored and up to 54% tall, so it
+  necessarily covers the caption and the rail, and leaving them there left three
+  controls a keyboard could still reach and a screen reader still announced
+  behind a panel nobody could see through. The laboratory's audit found it by
+  failing to click the save control.
+
+  `visibility` as well as `opacity`, because opacity alone hides something from
+  eyes and from nothing else: a hidden control that is still in the tab order is
+  the same defect wearing a different coat.
+
+  Concept 03 settled this shape already. What the foot was saying, the panel is
+  now saying at greater length, so there is nothing lost behind it: the title's
+  route to the listing is the panel's own call to action, and saving is one
+  dismissal away.
+*/
+.col-bottom,
+.ca-caption,
+.ca-root .col-rail {
+  transition:
+    opacity var(--dur-interaction) var(--ease-interaction),
+    visibility var(--dur-interaction) var(--ease-interaction);
+}
+[data-sheet="open"] .col-bottom,
+[data-detent="facts"] .col-bottom,
+[data-detent="dates"] .col-bottom,
+[data-sheet="open"] .ca-caption,
+[data-sheet="open"] .ca-root .col-rail,
+.cc-open .col-bottom {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- the rail */
+
+/*
+  Save, share, then the arrow at the foot of the column.
+
+  Icon only, as asked. The gap is 12px rather than the caption's rhythm because
+  three 44px targets in a vertical stack need to read as three targets and not
+  as one strip; below about 10px they stop being separable by thumb.
+*/
+.col-rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Saved is accent TYPE on a dark ground, which measures 7.86:1. It is never an
+   accent FILL: that composite is 4.05:1 and is banned outright. */
+.col-save.is-saved {
+  color: var(--terra-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--terra-soft) 45%, transparent);
+}
+.col-save .icon {
+  transition: transform var(--dur-interaction) var(--ease-interaction);
+}
+.col-save.is-saved .icon {
+  transform: scale(1.08);
+}
+
+/*
+  The arrow does NOT change state, and that is on purpose.
+
+  It was written to turn and point up while its panel was showing, which read
+  well in isolation and could never be seen: the foot steps aside when the panel
+  opens, so the control that opened it is hidden the entire time it is
+  "expanded". A state nobody can observe is not a state, it is dead CSS with a
+  confident comment over it.
+
+  `aria-expanded` stays, because a screen reader CAN observe it, and the visible
+  way to close the panel is its own handle.
+*/
+
+/* ------------------------------------------------------------ the sheet */
+
+/*
+  Non-modal, and that is the whole design. A modal sheet brings a scrim and a
+  focus trap, and both of those stop the video being watched.
+
+  54% is a ceiling, not a size: the panel is as tall as its contents and never
+  taller than this, so the clip is always the majority of the screen.
+*/
+.col-sheet {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  max-height: 54%;
+  overflow: hidden;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background-color: color-mix(in srgb, var(--abyss) 94%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cream) 14%, transparent);
+  transform: translateY(100%);
+  transition: transform 240ms var(--ease-interaction);
+  /* The sheet's own vertical axis, and nothing else's. */
+  touch-action: none;
+}
+[data-sheet="open"] .col-sheet,
+[data-detent="facts"] .col-sheet,
+[data-detent="dates"] .col-sheet,
+.cc-sheet[data-open="open"] {
+  transform: none;
+}
+
+/* The 4px bar is the affordance; the control is 44px tall and full width,
+   because a 4px target is not a target. */
+.col-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.col-handle::before {
+  content: "";
+  width: 2.25rem;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--cream) 30%, transparent);
+  transition: background-color var(--dur-interaction) var(--ease-interaction);
+}
+.col-handle:hover::before {
+  background-color: color-mix(in srgb, var(--cream) 45%, transparent);
+}
+
+/*
+  The body scrolls; the foot does not.
+
+  The 54% ceiling is a promise about the picture: at least 46% of the clip is
+  visible and playing at every moment the panel is open, on every phone. (It is
+  NOT a promise that the video stays the majority of the screen, which an
+  earlier version of this comment claimed and the measurements never supported.)
+  So when the content does not fit, the content gives way rather than the
+  ceiling. The call to action is the one thing a traveller came here for, so it
+  is the one thing that never moves off screen.
+
+  `overscroll-behavior: contain` so reaching the end of this does not hand the
+  gesture to the feed behind it, which would scroll to the next reel in the
+  middle of reading.
+*/
+.col-sheet {
+  display: flex;
+  flex-direction: column;
+}
+.col-sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 1.25rem 0;
+  scrollbar-width: none;
+  touch-action: pan-y;
+}
+.col-sheet-scroll::-webkit-scrollbar {
+  display: none;
+}
+/*
+  The last 28px fade while there is more below, and stop the moment there is
+  not. The fade acts on the content that is already being cut, so what is going
+  out of view visibly goes out of view. Nothing is drawn on a panel that fits.
+*/
+.col-sheet-scroll[data-more="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 1.75rem),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 1.75rem),
+    transparent 100%
+  );
+}
+/*
+  The foot clears the BAR, not a screen.
+
+  `--tabbar-clearance` is 92px because a screen leaves the bar's 56px, its 12px
+  foot and 24px of breath. A panel's own edge is a surface: it needs to clear
+  the bar's top edge and nothing more. Twelve pixels recovered by noticing the
+  number was borrowed, and on a panel with a ceiling that is twelve pixels of
+  content rather than twelve pixels of nothing.
+*/
+.col-sheet-foot {
+  flex: none;
+  padding: 0 1.25rem calc(var(--tabbar-height) + var(--tabbar-foot) + 0.75rem);
+}
+
+/* Kept for the concepts that still pass one block. */
+.col-sheet-body {
+  padding: 0.25rem 1.25rem var(--tabbar-clearance);
+}
+
+/*
+  Price leads the panel and appears nowhere else on the card.
+
+  Set as display type, because it is the one number on this screen and the one
+  thing a traveller is looking for when they open this. The unit phrase beside
+  it is the server's own and is printed verbatim.
+*/
+/*
+  The panel's own label.
+
+  Two lines at most: it is naming something the reel above is already showing,
+  so it has to be unmistakable and does not have to be large. Clamped because an
+  operator-written title is unbounded and this panel has a ceiling it may not
+  break.
+*/
+.col-sheet-titlerow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.625rem;
+}
+.col-sheet-title {
+  min-width: 0;
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--cream);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-wrap: pretty;
+  transition: opacity var(--dur-interaction) var(--ease-interaction);
+}
+.col-sheet-title:hover {
+  opacity: 0.8;
+}
+
+.col-price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.col-price-amount {
+  font-family: var(--font-display);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 75,
+    "WONK" 0;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  font-size: 1.75rem;
+  line-height: 1;
+  color: var(--cream);
+}
+.col-price-absent {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+.col-price-unit {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.col-facts {
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.625rem;
+}
+.col-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.col-fact dt {
+  flex: none;
+}
+.col-fact dd {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  text-align: right;
+  text-wrap: pretty;
+}
+
+.col-operator {
+  border-top: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+  padding-top: 0.875rem;
+}
+.col-operator-name {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--cream);
+  margin: 0;
+}
+.col-evidence {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--terra-soft);
+  margin: 0.25rem 0 0;
+}
+.col-check {
+  height: 0.875rem;
+  width: 0.875rem;
+  flex: none;
+}
+
+/* The solid cream control. CTAs are monochrome: terracotta is never a fill. */
+.col-cta {
+  display: flex;
+  /*
+    Stated, because this class is worn by both an `<a>` and a `<button>` and
+    they do not size alike: a button keeps intrinsic width under `display: flex`
+    in WebKit, so Concept 07's action rendered at the width of the words
+    "Full listing" while every other concept's filled the panel.
+  */
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 3.25rem;
+  margin-top: 1.125rem;
+  border-radius: 9999px;
+  background-color: var(--cream);
+  color: var(--forest);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+.col-cta:hover {
+  background-color: var(--cream-deep);
+}
+.col-cta:active {
+  transform: scale(0.99);
+}
+.col-cta-arrow {
+  transition: transform var(--dur-interaction) var(--ease-interaction);
+}
+.col-cta:hover .col-cta-arrow {
+  transform: translateX(0.25rem);
+}
+
+/*
+  The short phone.
+
+  An iPhone SE is 667px tall and the panel has a ceiling it may not break, so
+  the content fits in what is left rather than asking for more room. What gives
+  way is spacing, never a fact.
+
+  A CONTAINER query, not a media query: in this laboratory the phone is a div
+  inside a desktop window, and a height media query would measure the browser
+  and do nothing at all.
+*/
+@container reel (max-height: 700px) {
+  .col-sheet-body,
+  .col-sheet-foot {
+    padding-bottom: calc(var(--tabbar-height) + var(--tabbar-foot) + 0.5rem);
+  }
+  /*
+    Tightened until the EVIDENCE line fits.
+
+    On an iPhone SE the panel scrolls, which is by design, and what fell below
+    the fold was the operator's credential line: the one thing in this panel
+    that no competitor can show, and the whole of this product's answer to not
+    having star ratings. Everything above it gives up a few pixels so it does
+    not.
+  */
+  .col-sheet-titlerow {
+    margin-bottom: 0.375rem;
+  }
+  .col-sheet-title {
+    font-size: 0.875rem;
+  }
+  .col-price-amount {
+    font-size: 1.375rem;
+  }
+  .col-facts {
+    gap: 0.25rem;
+  }
+  .col-evidence {
+    margin-top: 0.125rem;
+  }
+  .col-sheet-scroll {
+    padding-top: 0;
+  }
+  .col-price {
+    margin-bottom: 0.5rem;
+  }
+  .col-facts {
+    margin-bottom: 0.5rem;
+  }
+  .col-operator {
+    padding-top: 0.5rem;
+  }
+  /* The foot clears the bar's top edge and nothing more. On this screen every
+     pixel above it is a fact that fits. */
+  .col-sheet-body,
+  .col-sheet-foot {
+    padding-bottom: calc(var(--tabbar-height) + var(--tabbar-foot) + 0.25rem);
+  }
+  .col-price {
+    margin-bottom: 0.75rem;
+  }
+  .col-price-amount {
+    font-size: 1.5rem;
+  }
+  .col-facts {
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+  }
+  .col-fact dd {
+    font-size: 0.875rem;
+  }
+  .col-operator {
+    padding-top: 0.625rem;
+  }
+  .col-cta {
+    height: 2.75rem;
+    margin-top: 0.875rem;
+  }
+}
+
+/* ========================================================================
+   06  COLUMN: the lighter chassis
+   Owner, 14 September: "the darkness shade under header and bottom bar is too
+   heavy, this making feel the actual reel is cropped kind of feel."
+   ======================================================================== */
+
+/*
+  They were right, and the measurements say by how much.
+
+  The shipped caption scrim reaches **100% abyss** at the foot and holds 16.75:1
+  against cream where the floor for small text is 4.5:1. A fully opaque band
+  across the bottom of a picture is not shade, it is a crop, and that is exactly
+  what it was reading as. The top scrim was 80% flat to carry a 28px logo and a
+  sound disc, both of which are GRAPHICS with a 3:1 floor: 10.08:1 for something
+  that needs 3.
+
+  ## What decides how light it can go
+
+  Every number below is solved rather than chosen, over `#E8E2D4`, the palest
+  surf highlight the design system measures against, at the position each piece
+  of type actually occupies on an **iPhone SE**, which is the worst case because
+  its scrim is the shortest so everything sits higher up the ramp.
+
+      seats, terra-soft 14px    at 28.1%   needs 79% abyss
+      availability, cream 14px  at 30.9%   needs 56%
+      title, cream 32px         at 48.4%   needs 43%
+      eyebrow, 12px             at 53.8%   needs 71% at cream/70, 56% at cream
+      the foot                  at 0%      needs nothing: no type is written there
+
+  Two consequences worth stating plainly.
+
+  **The accent on the seats is what holds the foot dark.** `terra-soft` needs
+  79% abyss to clear 4.5:1, the ramp cannot rise going upward, and the seats sit
+  at 28%, so everything below them is pinned at 79% or more. The foot is 82%
+  because of one coloured phrase. Rendering the seats in cream instead would let
+  the whole lower half drop to about 65%, and that is the lever to pull if this
+  is still too heavy.
+
+  **The eyebrow had to stop being `cream/70`.** At its position this ramp gives
+  it 3.22:1, and even the SHIPPED scrim only gave it 4.42:1, which is under the
+  4.5 floor: a real failure that predates this change and that nothing had
+  measured. Full cream reads quiet anyway at 12px with 0.18em of tracking, where
+  the hierarchy comes from size and letterspacing rather than from opacity.
+*/
+.concept-06 .reel-scrim {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--abyss) 82%, transparent) 0%,
+    color-mix(in srgb, var(--abyss) 82%, transparent) 12%,
+    color-mix(in srgb, var(--abyss) 82%, transparent) 22%,
+    color-mix(in srgb, var(--abyss) 81%, transparent) 31%,
+    color-mix(in srgb, var(--abyss) 72%, transparent) 41%,
+    color-mix(in srgb, var(--abyss) 66%, transparent) 50%,
+    color-mix(in srgb, var(--abyss) 48%, transparent) 60%,
+    color-mix(in srgb, var(--abyss) 34%, transparent) 70%,
+    color-mix(in srgb, var(--abyss) 20%, transparent) 80%,
+    color-mix(in srgb, var(--abyss) 9%, transparent) 89%,
+    color-mix(in srgb, var(--abyss) 3%, transparent) 95%,
+    transparent 100%
+  );
+}
+
+/*
+  The top, cut by more than half.
+
+  It carries the mark and the sound control and nothing else, and both are
+  graphics: 3:1, not 4.5:1. At 52% the mark still holds 3.95:1 at its top edge
+  and 3.28:1 at its lowest, which is a comfortable margin for a thin brush
+  stroke and a third of what it was paying.
+*/
+.concept-06 .masthead {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--abyss) 52%, transparent) 0%,
+    color-mix(in srgb, var(--abyss) 51%, transparent) 12%,
+    color-mix(in srgb, var(--abyss) 48%, transparent) 25%,
+    color-mix(in srgb, var(--abyss) 41%, transparent) 38%,
+    color-mix(in srgb, var(--abyss) 31%, transparent) 50%,
+    color-mix(in srgb, var(--abyss) 19%, transparent) 62%,
+    color-mix(in srgb, var(--abyss) 9%, transparent) 74%,
+    color-mix(in srgb, var(--abyss) 2%, transparent) 86%,
+    transparent 100%
+  );
+}
+
+/* See above: `cream/70` cannot clear 4.5:1 at this position on any ramp light
+   enough to answer the note, and it did not clear it on the old one either. */
+.concept-06 .col-eyebrow {
+  color: var(--cream);
+}
+
+/*
+  The bar, at 78% rather than solid.
+
+  Owner, same note: "the bottom nav bar is looking weird with the background
+  that I have... can we try something like with less opacity."
+
+  78% is the number, not a feeling. The inactive glyphs are `cream/70` ON the
+  bar, which makes them graphics at a 3:1 floor, and 78% holds 4.04:1 for them
+  over the palest surf a clip can show. The bar itself still reads as an object
+  at 5.61:1 against that same highlight, and the active destination is unchanged
+  because its cream pill carries its own fill: 11.44:1 whatever is behind it.
+  Below about 65% the glyphs fall under 3:1 and the bar stops being a surface.
+
+  ## The blur, and the rule it bends
+
+  v2.7 refused glass outright, on GPU cost on a mid-range Android. This brings
+  back a small amount of it, because translucency over MOVING video without a
+  blur is not a surface: the picture reads through it, the glyphs sit on
+  whatever frame happens to be behind them, and the contrast above stops being a
+  number anybody can hold.
+
+  The blur is a fallback rather than the mechanism. The 78% is measured WITHOUT
+  it, so a browser that drops `backdrop-filter`, or a device where it is
+  disabled for power, still clears every floor. The system already ships exactly
+  one backdrop blur, on the play disc, so this is a second rather than a first.
+*/
+.concept-06 .tabbar-pill {
+  background-color: color-mix(in srgb, var(--forest) 78%, transparent);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  /*
+    Two hairlines, because one cannot work on both.
+
+    The solid bar is separated from the picture by a `cream/12` ring, which is
+    correct while the bar is opaque and a dark object. A translucent bar over
+    bright sand is neither: the light ring disappears into the sand and the pill
+    loses its edge exactly where it most needs one.
+
+    So the inner hairline keeps lifting it off dark footage and an outer one in
+    `abyss` holds the edge on pale footage. Still hairlines, which is what this
+    system uses where others reach for a shadow, and one pixel each.
+  */
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--cream) 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--abyss) 24%, transparent);
+}
+
+/* ========================================================================
+   FRAME READING  shared by 04 and 08
+   ======================================================================== */
+
+/*
+  The veil.
+
+  The gradient SHAPE is fixed and the element's opacity carries the
+  measurement, which is what lets a solved alpha drive a twelve-stop ramp
+  without rewriting the stops. Multiplying a ramp that is safe at every stop by
+  a constant leaves it safe at every stop, in proportion.
+*/
+.frame-veil {
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: none;
+  opacity: var(--frame-text-veil, 0.88);
+  transition: opacity 240ms var(--ease-interaction);
+}
+[data-zone="foot"] .frame-veil,
+[data-zone="footWide"] .frame-veil {
+  bottom: 0;
+  height: 66%;
+  background: linear-gradient(
+    to top,
+    var(--abyss) 0%,
+    color-mix(in srgb, var(--abyss) 92%, transparent) 18%,
+    color-mix(in srgb, var(--abyss) 79%, transparent) 42%,
+    color-mix(in srgb, var(--abyss) 61%, transparent) 62%,
+    color-mix(in srgb, var(--abyss) 30%, transparent) 82%,
+    color-mix(in srgb, var(--abyss) 4%, transparent) 96%,
+    transparent 100%
+  );
+}
+[data-zone="head"] .frame-veil {
+  top: 0;
+  height: 54%;
+  background: linear-gradient(
+    to bottom,
+    var(--abyss) 0%,
+    color-mix(in srgb, var(--abyss) 88%, transparent) 26%,
+    color-mix(in srgb, var(--abyss) 62%, transparent) 52%,
+    color-mix(in srgb, var(--abyss) 28%, transparent) 78%,
+    transparent 100%
+  );
+}
+[data-zone="midLeft"] .frame-veil {
+  inset-block: 0;
+  left: 0;
+  right: 25%;
+  background: linear-gradient(
+    to right,
+    var(--abyss) 0%,
+    color-mix(in srgb, var(--abyss) 86%, transparent) 30%,
+    color-mix(in srgb, var(--abyss) 55%, transparent) 62%,
+    color-mix(in srgb, var(--abyss) 18%, transparent) 86%,
+    transparent 100%
+  );
+}
+
+/*
+  A control gets a HAIRLINE, never a patch of darkening.
+
+  It had a soft radial veil first, solved to the same 3:1 floor. Over deep water
+  it was invisible and over pale sand it was a grey smudge on the one part of
+  the frame with no detail to hide it. A hairline is what the rest of the system
+  already uses: the tab bar is separated from the picture by a `cream/12` ring
+  rather than by a shadow.
+*/
+.frame-control .disc-paper,
+.disc-paper.frame-control {
+  box-shadow: 0 0 0 1px
+    color-mix(
+      in srgb,
+      var(--abyss) calc(var(--frame-control-ring, 0) * 100%),
+      transparent
+    );
+}
+
+.frame-debug {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+}
+.show-frame-debug .frame-debug {
+  display: block;
+}
+.frame-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(16, 1fr);
+}
+.frame-cell {
+  outline: 0.5px solid rgba(244, 239, 228, 0.12);
+}
+.frame-cell.is-chosen {
+  outline: 1px solid var(--terra-soft);
+}
+.frame-readout {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  margin: 0;
+  padding: 0.375rem 0.5rem;
+  background-color: var(--abyss);
+  color: var(--terra-soft);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  text-align: center;
+}
+
+/* ========================================================================
+   07  COLUMN DEEP  the second detent and the departures
+   ======================================================================== */
+
+/*
+  The second detent REPLACES the first rather than extending it.
+
+  In DATES the facts have been read and the departures are the whole subject, so
+  everything but the price steps out of the way. The price stays because it is
+  what a traveller is weighing each day against.
+
+  The panel's ceiling does not move between detents. A traveller here is booking
+  rather than watching, and the clip still runs above them either way.
+*/
+[data-detent="dates"] .cd-facts .col-facts,
+[data-detent="dates"] .cd-facts .col-operator {
+  display: none;
+}
+[data-detent="dates"] .cd-facts .col-price {
+  margin-bottom: 0;
+}
+
+/* Closed by default, and it costs nothing until it is asked for: the request
+   rides the detent, not the render. */
+.cd-dates {
+  display: none;
+  margin-top: 0.25rem;
+}
+[data-detent="dates"] .cd-dates {
+  display: block;
+}
+.cd-dates-head {
+  margin: 0 0 0.625rem;
+}
+
+/*
+  The departures, as a horizontal rail.
+
+  It scrolls inside its own box, which is the rule for anything wide on a phone:
+  the sheet must never scroll sideways and the page under it certainly must not.
+*/
+.cd-rail {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.cd-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.cd-chip {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-width: 4.5rem;
+  min-height: 4rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-control);
+  background-color: color-mix(in srgb, var(--cream) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 14%, transparent);
+  color: var(--cream);
+  text-decoration: none;
+  scroll-snap-align: start;
+  transition:
+    background-color var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+.cd-chip:hover {
+  background-color: color-mix(in srgb, var(--cream) 14%, transparent);
+}
+.cd-chip:active {
+  transform: scale(0.97);
+}
+.cd-chip-day {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+.cd-chip-date {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cd-chip-seats {
+  font-family: var(--font-sans);
+  font-size: 0.625rem;
+  color: var(--terra-soft);
+  white-space: nowrap;
+}
+.cd-chip-skeleton {
+  min-width: 4.5rem;
+  border-radius: var(--radius-control);
+  box-shadow: none;
+}
+
+.cd-note {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  text-wrap: pretty;
+}
+.cd-retry {
+  min-height: 2.75rem;
+  margin-top: 0.5rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--cream) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 18%, transparent);
+  color: var(--cream);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  cursor: pointer;
+}
+
+/*
+  A slow shimmer rather than a spinner.
+
+  A spinner says "wait"; a skeleton says "here is the shape of what is coming",
+  and on a 0.5 Mbps island link the second is the honest message. Killed by the
+  global reduced-motion rule in `tokens.css`.
+*/
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--cream) 8%, transparent) 25%,
+    color-mix(in srgb, var(--cream) 16%, transparent) 37%,
+    color-mix(in srgb, var(--cream) 8%, transparent) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.6s var(--ease-interaction) infinite;
+}
+@keyframes skeleton-sweep {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+
+@container reel (max-height: 700px) {
+  .cd-chip {
+    min-height: 3.5rem;
+    min-width: 4rem;
+  }
+  .cd-dates {
+    margin-top: 0.25rem;
+  }
+}
+
+/* ========================================================================
+   08  COLUMN AWARE  the caption moves, the rail does not
+   ======================================================================== */
+
+.ca-root {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+  The caption, positioned by the region the engine picked.
+
+  `right` clears the rail's column in every region, so the words and the
+  controls can never collide however the composition moves.
+*/
+.ca-caption {
+  position: absolute;
+  left: 1.25rem;
+  right: 5.25rem;
+  transition:
+    top 260ms var(--ease-interaction),
+    bottom 260ms var(--ease-interaction);
+}
+[data-zone="foot"] .ca-caption,
+[data-zone="footWide"] .ca-caption {
+  bottom: var(--tabbar-clearance);
+}
+[data-zone="midLeft"] .ca-caption {
+  bottom: 36%;
+}
+[data-zone="head"] .ca-caption {
+  top: 5.5rem;
+}
+
+/* Fixed, in every region, on every frame. Information moves; controls do not. */
+.ca-root .col-rail {
+  position: absolute;
+  right: 1.25rem;
+  bottom: var(--tabbar-clearance);
+}
+
+/* ========================================================================
+   09  COLUMN COMPARE  one panel, mounted at the frame
+   ======================================================================== */
+
+.cc-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cc-layer > * {
+  pointer-events: auto;
+}
+
+.cc-sheet {
+  transform: translateY(100%);
+}
+
+/*
+  The only count in the product, and it is yours.
+
+  It is the number of things this device is holding. Nothing here is published,
+  aggregated or shown to an operator, which is what keeps it on the right side
+  of the rule that there are no ratings and no review counts.
+*/
+/*
+  `cream/70`, not `cream/45`.
+
+  The opacity ladder is measured, not chosen: anything below `cream/60` on a
+  dark ground is decoration and never text. This was set at 45% because the
+  empty state wanted to recede, and axe caught it as a serious contrast failure
+  in the laboratory's own run. Receding is what the 70 rung is for.
+*/
+.cc-count {
+  margin: 0;
+  flex: none;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+.cc-count.is-some {
+  color: var(--terra-soft);
+}
+
+/*
+  The facts cross-fade; the panel does not move.
+
+  The eye tracks one object changing rather than two objects trading places.
+  Re-mounting the sheet would read as a page load, which is the feeling this
+  concept exists to remove.
+*/
+.cc-body,
+.cc-foot {
+  transition: opacity 120ms var(--ease-interaction);
+}
+.cc-body.is-swapping {
+  opacity: 0;
+}
+
+/* ========================================================================
+   06  COLUMN: the lighter scrims and the translucent bar
+   Owner, 14 September: "the darkness shade under header and bottom bar is
+   too heavy, this making feel the actual reel is cropped", and the bar
+   "is looking weird with the background, can we try something with less
+   opacity".
+
+   Scoped to this concept alone. The other eight keep the shipping chrome, so
+   the two can be compared side by side rather than remembered.
+   ======================================================================== */
+
+/*
+  ## What was actually wrong, measured rather than eyeballed
+
+  The caption occupies the bottom 36% of a scrim that covers 67% of the frame.
+  **Two thirds of the scrim carried no text at all** and was pure darkening, and
+  where text did sit the contrast ran 10.8:1 to 13.2:1 against floors of 4.5 and
+  3. The scrim was paying for a worst case it had already cleared three times
+  over, and paying for it across most of the picture. That is the cropped
+  feeling: a dark band climbing two thirds of the frame.
+
+  ## How these numbers were chosen
+
+  Not by taste. The text bands were measured off the live screen (92 to 203px
+  from the foot), each composited per channel in sRGB over `#E8E2D4`, the palest
+  surf highlight the design system already measures its scrims against, and the
+  search was for the least darkening that still clears every floor at 1.35x.
+
+  The first search minimised total ink and produced the wrong answer: a flat
+  slab with a cliff above it. That satisfies every number and is a WORSE version
+  of the complaint, because a change in slope is exactly what an eye reads as an
+  edge. So the ramp's SHAPE is held at the shipping sigmoid, which has no knot
+  anywhere in it, and only the two things being complained about are varied:
+  how dark it gets, and how far it reaches.
+
+  ## The result
+
+  Reach 67% -> 52% of the frame. Foot 100% -> 86%. Darkening down 33%.
+  Measured, after: availability 7.7:1, title 6.9:1, eyebrow 6.1:1, against
+  floors of 4.5, 3 and 4.5. The slopes are the shipping ones scaled, so no new
+  edge is introduced anywhere.
+*/
+.concept-06 .reel-scrim {
+  height: 52%;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--abyss) 86%, transparent) 0%,
+    color-mix(in srgb, var(--abyss) 83%, transparent) 8%,
+    color-mix(in srgb, var(--abyss) 79%, transparent) 18%,
+    color-mix(in srgb, var(--abyss) 74%, transparent) 30%,
+    color-mix(in srgb, var(--abyss) 68%, transparent) 42%,
+    color-mix(in srgb, var(--abyss) 61%, transparent) 52%,
+    color-mix(in srgb, var(--abyss) 52%, transparent) 62%,
+    color-mix(in srgb, var(--abyss) 40%, transparent) 72%,
+    color-mix(in srgb, var(--abyss) 26%, transparent) 82%,
+    color-mix(in srgb, var(--abyss) 11%, transparent) 91%,
+    color-mix(in srgb, var(--abyss) 3%, transparent) 96%,
+    transparent 100%
+  );
+}
+
+/*
+  The top band carries a cream GRAPHIC: the mark, and one control's glyph.
+
+  Its floor is the 3:1 non-text minimum, not the 4.5:1 body-text one, and it was
+  sitting at 7.8:1 to 10.1:1. That is a lot of darkened sky to carry a 28px
+  logo. The block loses its long tail (140px to 92px) and the peak comes down
+  from 80% to 76%, which leaves the mark at 4.1:1, still 1.4x its floor.
+
+  The block's HEIGHT is part of the measurement, not a layout detail: the stops
+  are percentages of it, so moving the padding without moving the stops slides
+  the mark into a lighter band with every contrast check still passing. Both are
+  changed here together, which is the only safe way to touch either.
+*/
+.concept-06 .masthead {
+  padding-bottom: 3rem;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--abyss) 76%, transparent) 0%,
+    color-mix(in srgb, var(--abyss) 76%, transparent) 12%,
+    color-mix(in srgb, var(--abyss) 73%, transparent) 25%,
+    color-mix(in srgb, var(--abyss) 64%, transparent) 38%,
+    color-mix(in srgb, var(--abyss) 49%, transparent) 50%,
+    color-mix(in srgb, var(--abyss) 31%, transparent) 62%,
+    color-mix(in srgb, var(--abyss) 14%, transparent) 74%,
+    color-mix(in srgb, var(--abyss) 3%, transparent) 86%,
+    transparent 100%
+  );
+}
+
+/*
+  The bar, translucent.
+
+  ## What it can afford
+
+  The active tab is a solid cream pill with forest text: 11.44:1 whatever is
+  behind it, so it is never the constraint. The constraint is the three inactive
+  glyphs, `cream/70` strokes on the bar's own fill. At 72% forest they measure
+  3.5:1 over the palest surf with NO scrim under them at all, clearing the 3:1
+  non-text floor on the bar's own merits. In practice the caption scrim is under
+  them too and they measure about 7:1. The bar is no longer leaning on the scrim
+  to be legible, which is what let the scrim's foot come down in the first
+  place.
+
+  ## The blur, and the rule it bends
+
+  v2.7 rejected glass and blur for the app on GPU cost on a mid-range Android,
+  and that reasoning has not changed. This is one 56px pill rather than a
+  surface treatment, it is the only blurred element on the screen, and it is
+  here because the owner asked for the bar to sit back into the picture rather
+  than on top of it. **Worth re-testing on a real mid-range device before this
+  goes anywhere near production.** Without the blur the bar still works, just
+  more literally: the video shows through it sharply rather than as a wash.
+*/
+.concept-06 .tabbar-pill {
+  background-color: color-mix(in srgb, var(--forest) 72%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 16%, transparent);
+}
+
+/*
+  The accent leaves the caption, and that is a direct consequence of the
+  lighter scrim rather than a taste change.
+
+  `terra-soft` needs 79% abyss under it to clear 4.5:1 over the palest surf.
+  The shipping ramp held 85%+ across the bottom band, which is exactly why the
+  design system says the accent "sits in the bottom band of the caption and
+  never above the title". The lighter ramp only reaches 79% below 18% of its
+  height, and the caption starts at 28%: there is no band left for it. Measured
+  at the seats line it came to 3.97:1, under the floor.
+
+  So the seats sentence is cream here: 8.46:1 in the same place. It is the same
+  words in the same position, carrying the same meaning, and the scarcity is
+  said by the sentence rather than by the colour. The other eight concepts keep
+  their darker scrims and keep the accent.
+
+  If the accent is wanted back on this screen, the scrim has to come back up,
+  and the two cannot be argued separately.
+*/
+.concept-06 .col-seats {
+  color: var(--cream);
+}
+
+/*
+  A narrow phone needs a taller scrim, and that is arithmetic rather than a
+  retreat.
+
+  The reach was solved at 52% against a standard phone, where the title fits on
+  one line. On an iPhone SE the caption column is about 275px wide, the title
+  wraps to two, and the whole caption rises by roughly a line: the eyebrow moves
+  from 47% of the scrim to 69% of it, where the lighter ramp has fallen to 44%
+  abyss and cream measures 3.17:1 against a 4.5 floor.
+
+  Caught by the laboratory's own contrast guard, which measures the SE
+  deliberately for exactly this reason: the shortest screen is where type sits
+  highest in the scrim. It is the one case the optimisation missed, because the
+  optimisation was handed one phone's geometry.
+
+  So the scrim grows where the caption grows. 64% on a narrow container puts the
+  eyebrow back near 56% of the ramp, at about 5:1. The foot stays at 86%, so
+  even here it is lighter than the shipping scrim, which reached 67% at a solid
+  100%.
+*/
+@container reel (max-width: 400px) {
+  .concept-06 .reel-scrim {
+    height: 64%;
+  }
+}
+
+/*
+  The word instead of the glyph (owner, 14 September).
+
+  The system's `paper` control: solid cream, forest ink, 44px, uppercase at
+  `tracking-label`. 11.44:1 either way round, so it needs nothing from the scrim
+  and nothing from the frame behind it. CTAs are monochrome here: terracotta is
+  never a fill.
+
+  No trailing arrow. The instruction was the word INSTEAD of the arrow, and a
+  label plus the glyph it replaced is the glyph surviving its own removal.
+*/
+.col-book {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.75rem;
+  padding: 0 1.125rem;
+  border-radius: 9999px;
+  background-color: var(--cream);
+  color: var(--forest);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+.col-book:hover {
+  background-color: var(--cream-deep);
+}
+.col-book:active {
+  transform: scale(0.97);
+}
+
+/* A labelled control is wider than a disc, so the column shares a right edge
+   rather than a centre line. */
+.col-rail.has-book {
+  align-items: flex-end;
+}
+
+/*
+  The bar, lighter still (owner, 14 September: "a little more reduction").
+
+  ## Why this is nearly free on the feed
+
+  It reads as a big change and measures as almost none: the inactive glyphs come
+  to 6.55:1 at 72% and 6.59:1 at 60%, because the caption scrim's foot is
+  already dark under the bar and a more transparent pill simply lets more of
+  that same darkness through. The bar is not fighting the video here; it is
+  sitting on the scrim.
+
+  ## The case this does NOT cover, and it matters for production
+
+  The same bar is on `/search`, `/trips` and `/account`, where it floats over a
+  CREAM sheet rather than a dark reel. There the arithmetic inverts: at 72% the
+  glyphs measure 3.40:1 and at 60% they measure 2.62:1, under the 3:1 floor. So
+  translucency is a property of the bar ON THE FEED, not of the bar. Anything
+  that ports this has to keep the pill solid on the cream tabs, which is one
+  conditional and is cheap, and is the kind of thing that is invisible until
+  somebody opens Trips in sunlight.
+*/
+.concept-06 .tabbar-pill {
+  background-color: color-mix(in srgb, var(--forest) 60%, transparent);
+}
+
+/* ------------------------------------------------- 06: a smaller foot */
+
+/*
+  The bottom cluster, scaled down (owner, 14 September: the texts, the buttons
+  and the bar "are looking little large").
+
+  ## What sets the floor, so this can be argued with rather than nudged
+
+  Three things, and only three:
+
+  1. **Controls stop at the system's `sm`, 36px.** WCAG 2.5.8 allows 24px and
+     the app's own scale is 36 / 44 / 52. Going below 36 would leave the design
+     system rather than move within it, and 36px is already the size the app
+     uses for its smallest real control.
+  2. **The title stops at 24px.** Above that it is "large text" and its contrast
+     floor is 3:1; below it, the floor becomes 4.5:1 and the scrim that was just
+     lightened would have to come back up. 26px keeps a margin over that cliff,
+     and the cliff is the reason this is not simply "a bit smaller".
+  3. **The bar's own metrics are tokens, not numbers.** `--tabbar-height` and
+     `--tabbar-clearance` are re-declared here rather than hand-patched at each
+     call site, so the caption's foot, the panel's foot and the feed's tail all
+     move together. They were one number seen from three places and they stay
+     that way.
+
+  Everything gets smaller and nothing gets tighter than the system allows. The
+  caption also ends up sitting LOWER in the scrim, where it is darker, so every
+  contrast measurement improves rather than degrades.
+*/
+.concept-06 .reel-frame {
+  /* 36px item in 5px of padding. Was 3.5rem: 44px in 6px. */
+  --tabbar-height: 2.875rem;
+  /* The bar's 46px, its 12px foot, and a breath. Was 5.75rem. */
+  --tabbar-clearance: 4.75rem;
+}
+
+/* -------------------------------------------------------------- the bar */
+
+.concept-06 .tabbar-pill {
+  padding: 0.3125rem;
+}
+.concept-06 .tabbar-item {
+  height: 2.25rem;
+  width: 2.25rem;
+}
+.concept-06 .tabbar-item.is-active {
+  width: auto;
+  gap: 0.4375rem;
+  padding: 0 0.875rem 0 0.75rem;
+}
+.concept-06 .tabbar-item .icon {
+  height: 1.125rem;
+  width: 1.125rem;
+}
+.concept-06 .tabbar-label {
+  font-size: 10px;
+}
+
+/* ---------------------------------------------------------- the caption */
+
+.concept-06 .col-eyebrow {
+  font-size: 0.6875rem;
+  margin-bottom: 0.375rem;
+}
+.concept-06 .col-title {
+  /* 26px. Two above the 24px large-text cliff, deliberately. */
+  font-size: 1.625rem;
+  margin-bottom: 0.4375rem;
+}
+.concept-06 .col-when {
+  font-size: 0.8125rem;
+}
+/* Still a control, so still on the system's scale: `sm` rather than `md`. */
+.concept-06 .col-when-button {
+  min-height: 2.25rem;
+}
+.concept-06 .col-when-chevron {
+  height: 0.875rem;
+  width: 0.875rem;
+  margin-left: 0.4375rem;
+}
+
+/* ------------------------------------------------------------- the rail */
+
+.concept-06 .col-rail {
+  gap: 0.5rem;
+}
+.concept-06 .col-rail .disc {
+  height: 2.25rem;
+  width: 2.25rem;
+}
+.concept-06 .col-rail .disc .icon {
+  height: 1.125rem;
+  width: 1.125rem;
+}
+.concept-06 .col-book {
+  height: 2.25rem;
+  padding: 0 0.875rem;
+  font-size: 0.6875rem;
+}
+
+/*
+  The sound control comes with them.
+
+  It was not in the instruction, which named the bottom, and it is here because
+  it is the same object as the two discs in the rail: a 44px disc opposite a
+  pair of 36px ones reads as a mistake rather than as a hierarchy. Easy to put
+  back on its own if the top is meant to keep its weight.
+*/
+.concept-06 .masthead .disc {
+  height: 2.25rem;
+  width: 2.25rem;
+}
+.concept-06 .masthead .disc .icon {
+  height: 1.125rem;
+  width: 1.125rem;
+}
+
+/* --------------------------------------- 06: the panel, to the same scale */
+
+/*
+  The panel the chevron opens kept the sizes the screen had before it was scaled
+  down, so it read as a bigger product sliding over a smaller one. Owner, 14
+  September: the two should match.
+
+  ## Not "everything to 36px": one rung down the system's own scale
+
+  The scale is 36 / 44 / 52. The screen's controls moved `md` to `sm`, so the
+  panel's move the same distance: its action was `lg` and becomes `md`, its
+  handle was `md` and becomes `sm`. That keeps the hierarchy the sizes were
+  expressing (the panel's action is still the heaviest control in the concept)
+  while removing the mismatch, which is what "match" has to mean when the screen
+  itself uses four different sizes.
+
+  Type follows the caption's own shift rather than a blanket multiplier: the
+  panel's title sits with the availability line, its labels with the eyebrow.
+
+  A full width control at 36px reads as a strip rather than a button, which is
+  the one place going all the way down would have cost something. 44px is
+  flagged rather than assumed.
+*/
+
+.concept-06 .col-sheet-titlerow {
+  margin-bottom: 0.5rem;
+}
+.concept-06 .col-sheet-title {
+  font-size: 0.875rem;
+}
+
+.concept-06 .col-price {
+  margin-bottom: 0.75rem;
+}
+.concept-06 .col-price-amount {
+  /* 24px, down from 28. Still the largest thing in the panel, which is right:
+     it is the question the panel exists to answer. */
+  font-size: 1.5rem;
+}
+.concept-06 .col-price-unit {
+  font-size: 0.75rem;
+}
+.concept-06 .col-price-absent {
+  font-size: 0.9375rem;
+}
+
+.concept-06 .col-facts {
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.concept-06 .col-fact dt {
+  font-size: 0.6875rem;
+}
+.concept-06 .col-fact dd {
+  font-size: 0.875rem;
+}
+
+.concept-06 .col-operator {
+  padding-top: 0.75rem;
+}
+.concept-06 .col-operator-name {
+  font-size: 0.875rem;
+}
+.concept-06 .col-evidence {
+  font-size: 0.75rem;
+}
+.concept-06 .col-check {
+  height: 0.8125rem;
+  width: 0.8125rem;
+}
+
+/* `sm`, matching the discs on the screen behind it. */
+.concept-06 .col-handle {
+  height: 2.25rem;
+}
+/* `md`. One rung above the screen's controls, one rung below where it was. */
+.concept-06 .col-cta {
+  height: 2.75rem;
+  margin-top: 0.875rem;
+  font-size: 0.6875rem;
+}
