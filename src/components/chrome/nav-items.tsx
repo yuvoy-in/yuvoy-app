@@ -45,29 +45,30 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
               aria-current={active ? "page" : undefined}
               className={cn(
                 /*
-                  `h-9` in the bar, `h-11` in the rail.
+                  `h-11` in both, which is the system's `md` rung (36 / 44 / 52).
 
-                  The bar came down a rung on the system's scale (36 / 44 / 52)
-                  with the rest of the feed's foot, which is what
-                  `tabbar-clearance` follows. The desktop rail is not on a
-                  phone and keeps the larger target.
+                  It went to `h-9` on 15 September because the owner said the
+                  foot looked large on a real screen, and they reversed that the
+                  same day: "they are not really looked large, its my mistake".
+                  So this is back where it was, and the note is here so the next
+                  person does not shrink it again on the strength of a comment
+                  that no longer describes anything.
                 */
-                "ease-interaction flex items-center rounded-full transition-[background-color,color] duration-200",
-                bar ? "h-9" : "h-11",
+                "ease-interaction flex h-11 items-center rounded-full transition-[background-color,color] duration-200",
                 bar
                   ? active
-                    ? "bg-cream text-forest gap-1.5 pr-3.5 pl-3"
-                    : "text-cream/70 hover:text-cream w-9 justify-center"
+                    ? "bg-cream text-forest gap-2 pr-4 pl-3.5"
+                    : "text-cream/70 hover:text-cream w-11 justify-center"
                   : active
                     ? "bg-cream text-forest gap-3 px-4"
                     : "text-cream/70 hover:bg-cream/8 hover:text-cream gap-3 px-4",
               )}
             >
-              <Icon className={cn(bar ? "size-[1.125rem]" : "size-5")} />
+              <Icon className="size-5" />
               <span
                 className={cn(
                   "label font-bold",
-                  bar && "text-[10px]",
+                  bar && "text-[11px]",
                   bar && !active && "sr-only",
                 )}
               >

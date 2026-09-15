@@ -29,6 +29,8 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { ChipButton } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
 import { TripCard, InvitedTripCard } from "./trip-card";
+import { clockOffsetMs } from "@/lib/booking/clock";
+import { marketDayOf } from "@/lib/booking/availability-window";
 import {
   DateFilterSheet,
   DateFilterButton,
@@ -123,9 +125,32 @@ export function TripsScreen() {
   */
   const bookings = server.data?.pages.flatMap((page) => page.bookings) ?? [];
 
+  /*
+    The market's day as the SERVER sees it (yuvoy-app#69).
+
+    `invitedTripTab` defaults to `marketToday()`, which reads the device clock,
+    and it decides whether a guest's trip is Upcoming or Past. A phone a day out
+    files it under the tab they will not look in.
+
+    Anchored to `dataUpdatedAt`, the instant this list resolved, corrected by the
+    measured offset. NOT `Date.now() + clockOffsetMs()` read on first render:
+    `clockOffsetMs` is recorded from response headers, so before any response has
+    landed it is still 0, and a first-render read would use the uncorrected
+    device clock on every load, which is the bug rather than the fix. Tying it to
+    the response means the offset is known by definition, because the response
+    that set `dataUpdatedAt` is the one that recorded it.
+
+    No fallback for `dataUpdatedAt` being 0, and none is reachable: it is only 0
+    before the query has ever resolved, and then `invited.data` is undefined, so
+    the list this value places is empty and nothing reads it. A `Date.now()`
+    fallback would also be an impure read during render, which the React
+    compiler refuses.
+  */
+  const invitedToday = marketDayOf(invited.dataUpdatedAt + clockOffsetMs());
+
   const invitedForTab = sortForTab(
     (invited.data?.trips ?? [])
-      .filter((trip) => invitedTripTab(trip) === tab)
+      .filter((trip) => invitedTripTab(trip, invitedToday) === tab)
       .filter((trip) => withinDateFilter(trip.localDate, range)),
     tab,
   );

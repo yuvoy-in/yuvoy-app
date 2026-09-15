@@ -252,7 +252,7 @@ export function ExperienceCard({
         <div className="feed-foot tabbar-clearance absolute inset-x-0 bottom-0 flex items-end gap-4 px-5">
           <div className="min-w-0 flex-1">
             {experience.activityTypeLabel || experience.location ? (
-              <p className="label text-cream/70 mb-1.5 text-[11px]">
+              <p className="label text-cream/70 mb-2">
                 {[experience.activityTypeLabel, experience.location]
                   .filter(Boolean)
                   .join(" · ")}
@@ -267,10 +267,10 @@ export function ExperienceCard({
               and a five-line headline over a reel is the complaint this screen
               started from.
             */}
-            <h2 className="mb-1.5 min-w-0">
+            <h2 className="mb-2 min-w-0">
               <Link
                 href={href}
-                className="font-display text-cream tracking-display ease-interaction line-clamp-3 text-[1.625rem] leading-[1.05] transition-opacity duration-200 hover:opacity-80"
+                className="font-display text-cream tracking-display ease-interaction line-clamp-3 text-3xl leading-[1.05] transition-opacity duration-200 hover:opacity-80"
               >
                 {experience.title}
               </Link>
@@ -279,16 +279,18 @@ export function ExperienceCard({
             {/*
               When you could go, and the way to everything else.
 
-              The whole line is the control, not the chevron alone: a 14px glyph
-              is a 14px target, well under the 24px floor, and the line is what a
-              thumb is aiming at anyway. 36px tall, which is the system's `sm`.
+              The whole line is the control, not the chevron alone: a 16px glyph
+              is a 16px target, well under the 24px floor, and the line is what a
+              thumb is aiming at anyway. 44px tall, the system's `md`, which is
+              where it returned on 15 September when the owner reversed the
+              "looks large" call.
             */}
             <button
               type="button"
               aria-expanded={detailsOpen}
               aria-controls={panelId}
               onClick={() => setDetailsOpen((open) => !open)}
-              className="ease-interaction flex min-h-9 items-center text-left text-[13px] transition-opacity duration-200 hover:opacity-80"
+              className="ease-interaction flex min-h-11 items-center text-left text-sm transition-opacity duration-200 hover:opacity-80"
             >
               <span
                 className={departure.bookable ? "text-cream" : "text-cream/60"}
@@ -309,7 +311,7 @@ export function ExperienceCard({
                   {departure.seats}
                 </span>
               ) : null}
-              <ChevronUpIcon className="text-cream/70 ml-2 size-3.5 shrink-0" />
+              <ChevronUpIcon className="text-cream/70 ml-2 size-4 shrink-0" />
             </button>
           </div>
 
@@ -321,12 +323,12 @@ export function ExperienceCard({
             discs would say that leaving the feed is worth exactly as much as
             muting it, and Book is the only one of the four that goes anywhere.
           */}
-          <div className="flex shrink-0 flex-col items-end gap-2">
+          <div className="flex shrink-0 flex-col items-end gap-3">
             {playable ? (
               <IconButton
                 label={muted ? "Unmute" : "Mute"}
                 variant="onDark"
-                size="sm"
+                size="md"
                 onClick={toggleMuted}
               >
                 {muted ? <VolumeOffIcon /> : <VolumeIcon />}
@@ -348,7 +350,7 @@ export function ExperienceCard({
                   : `Save ${experience.title}`
               }
               variant="onDark"
-              size="sm"
+              size="md"
               aria-pressed={saved}
               className={
                 saved ? "text-terra-soft ring-terra-soft/45" : undefined
@@ -369,7 +371,7 @@ export function ExperienceCard({
               title={experience.title}
               label={media ? "Share this reel" : "Share this experience"}
               variant="onDark"
-              size="sm"
+              size="md"
             />
 
             <Link href={href} className="feed-book">

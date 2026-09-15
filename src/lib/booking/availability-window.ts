@@ -57,6 +57,20 @@ export interface DateRange {
   to: string;
 }
 
+/**
+ * The market's day for a given instant.
+ *
+ * `marketToday()` answers for NOW as this device believes it. This answers for
+ * an instant the caller chose, which is how a screen asks "what day was it when
+ * the server sent me this" rather than "what day does this phone think it is"
+ * (yuvoy-app#69). Pair it with `clockOffsetMs()`.
+ */
+export function marketDayOf(instant: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
+    new Date(instant),
+  );
+}
+
 /** Today in the MARKET's timezone, not the device's. */
 export function marketToday(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(
