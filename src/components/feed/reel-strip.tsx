@@ -83,13 +83,19 @@ export function ReelFrame({
  *
  * ## The geometry is measured, not chosen
  *
- * The block is 16px above the mark, 28px of mark and 80px of tail — 124px, and
- * `feed-scrim-top`'s stops are percentages of exactly that. So the mark sits
- * between 13% and 35% of the gradient, inside the band `palette.test.ts`
- * measures for contrast. Changing the padding or the height without changing
- * the stops slides the mark into a lighter band with every contrast test still
- * passing, which is the quietest possible way to break this; the test pins all
- * three together.
+ * The block is 16px above the row, a 44px row, and 48px of tail: 108px, and
+ * `feed-scrim-top`'s stops are percentages of exactly that. The mark is `h-7`
+ * centred in the row, so it occupies 24px to 52px, which is 22% to 48% of the
+ * gradient. Changing the padding or the height without changing the stops
+ * slides the mark into a lighter band with every contrast test still passing,
+ * which is the quietest way to break this; `palette.test.ts` pins all of it.
+ *
+ * The row is 44px because `LoginButton` is `size="md"` and is the tallest thing
+ * in it (yuvoy-app#56). It was 28px, the mark alone, until 14 September, and
+ * this arithmetic did not follow at the time: both the comment and the test
+ * still described a 124px block that had become 140px. Both are corrected here
+ * along with the tail, which came down from 80px to 48px when the owner asked
+ * for less shade over the picture.
  *
  * `h-7` rather than the lockup's `h-9`: the ensō is 70% of the delivered
  * drawing's height and 95% of the compact one, so the same class would have
@@ -116,7 +122,7 @@ export function ReelMasthead({ href }: { href?: string }) {
       (yuvoy-app#56 item 2). Getting that wrong makes a two-inch band at the
       top of every reel dead to a swipe, which is where a thumb rests.
     */
-    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-5 pt-4 pb-20 lg:hidden">
+    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-5 pt-4 pb-12 lg:hidden">
       {href ? (
         <Link
           href={href}

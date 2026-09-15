@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { cleanup } from "@testing-library/react";
+import { renderWithQuery } from "@/test/render";
 import { ExperienceCard } from "./experience-card";
 import { EXPERIENCES } from "../../../mocks/fixtures";
 
@@ -56,7 +57,9 @@ beforeEach(() => {
 
 describe("feed card", () => {
   it("carries its index on the node, so one observer can serve the whole feed", () => {
-    const { container } = render(
+    /* Wrapped: the card reads the saved set through a QueryClient. See
+       `use-saved` for why that is where it belongs. */
+    const { container } = renderWithQuery(
       <ExperienceCard
         experience={EXPERIENCES[0]}
         index={2}
@@ -77,7 +80,7 @@ describe("feed card", () => {
   });
 
   it("announces its position in a set, so the feed reads as a list", () => {
-    const { container } = render(
+    const { container } = renderWithQuery(
       <ExperienceCard
         experience={EXPERIENCES[0]}
         index={2}
@@ -105,7 +108,6 @@ describe("the feed's observer", () => {
     // next/image creates its own IntersectionObserver for lazy loading, so the
     // measurement is the DELTA around the feed rather than an absolute count.
     const { Feed } = await import("./feed");
-    const { renderWithQuery } = await import("@/test/render");
     const { screen, waitFor } = await import("@testing-library/react");
 
     const before = constructed.mock.calls.length;

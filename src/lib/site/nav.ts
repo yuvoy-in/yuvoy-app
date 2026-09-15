@@ -94,6 +94,45 @@ export const FOCUSED_ROUTE_PREFIXES = [
   "/search/r/",
 ] as const;
 
+/**
+ * Routes whose ground is the MEDIA rather than a cream sheet.
+ *
+ * The feed, a shared reel, a search result played in place, and a business's
+ * own reels: on all four the bar floats over `abyss` and a moving picture.
+ * Everywhere else it floats over a cream sheet.
+ *
+ * ## Why this exists, and why it is not `pathname === "/"`
+ *
+ * The bar is translucent so it sits INTO the picture rather than on top of it,
+ * and translucency is a property of the bar on a dark ground, not of the bar.
+ * Over a cream sheet the arithmetic inverts: the inactive glyphs are `cream/70`
+ * on a pill that is now letting the sheet through, and they measure **2.62:1**
+ * against the 3:1 non-text floor. On the media ground the same glyphs measure
+ * about 6.6:1, because what shows through is the caption scrim's own dark foot.
+ *
+ * So the pill is translucent here and solid everywhere else, and the list is
+ * the four routes rather than the one, because all four have the same ground
+ * and would otherwise disagree with each other.
+ *
+ * `palette.test.ts` pins the measurement; this pins which routes it applies to.
+ */
+export const MEDIA_GROUND_ROUTES = [
+  "/",
+  "/r/",
+  "/search/r/",
+  "/o/*/r/",
+] as const;
+
+export function isMediaGroundRoute(
+  pathname: string | null | undefined,
+): boolean {
+  if (!pathname) return false;
+  if (pathname === "/") return true;
+  return MEDIA_GROUND_ROUTES.some(
+    (prefix) => prefix !== "/" && matches(prefix, pathname),
+  );
+}
+
 export function isFocusedRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
   return FOCUSED_ROUTE_PREFIXES.some((prefix) => matches(prefix, pathname));

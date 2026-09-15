@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yuvoy reel screen: design laboratory</title>
+    <meta
+      name="description"
+      content="Five design hypotheses for the Yuvoy reels feed, side by side in a real phone viewport."
+    />
+    <!--
+      Opens straight off the filesystem. No build step, no server, no network.
+
+      Scripts are CLASSIC, not modules, and that is a deliberate constraint
+      rather than an oversight: an ES module loaded from a `file://` URL is
+      blocked as cross-origin in Chrome, which would mean this folder only
+      worked behind a server. Classic scripts execute in order and share one
+      `Lab` namespace, which buys the same separation with none of that.
+    -->
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/lab.css" />
+    <link rel="stylesheet" href="css/reel.css" />
+    <link rel="stylesheet" href="css/family-column.css" />
+    <link rel="stylesheet" href="css/concepts.css" />
+  </head>
+  <body>
+    <div class="lab">
+      <aside class="panel">
+        <header class="panel-head">
+          <h1 class="panel-title">Reel screen laboratory</h1>
+          <p class="panel-sub">
+            Five hypotheses for the feed at
+            <code>/</code>. Real tokens, real fonts, real gesture constants.
+            Press 1 to 9 to switch.
+          </p>
+        </header>
+
+        <section class="panel-group">
+          <h2 class="panel-legend">Concepts</h2>
+          <div id="switcher" role="tablist" aria-label="Design concepts"></div>
+        </section>
+
+        <section class="panel-group">
+          <h2 class="panel-legend">Hypothesis</h2>
+          <div id="hypothesis"></div>
+        </section>
+
+        <section class="panel-group">
+          <h2 class="panel-legend">Viewport</h2>
+          <div class="row" id="devices"></div>
+          <p id="device-note"></p>
+        </section>
+
+        <section class="panel-group">
+          <h2 class="panel-legend">Jump to a hard case</h2>
+          <div class="row" id="stress"></div>
+        </section>
+
+        <section class="panel-group">
+          <h2 class="panel-legend">Departures fetch (concept 07)</h2>
+          <div class="row" id="fetchmode"></div>
+        </section>
+
+        <section class="panel-group">
+          <h2 class="panel-legend">Instruments</h2>
+          <label class="check" for="toggle-debug">
+            <input type="checkbox" id="toggle-debug" />
+            Frame luminance grid (concepts 04 and 08, or press D)
+          </label>
+          <label class="check" for="toggle-zones">
+            <input type="checkbox" id="toggle-zones" />
+            Thumb reach bands
+          </label>
+          <label class="check" for="toggle-still">
+            <input type="checkbox" id="toggle-still" />
+            Freeze the clip on its poster
+          </label>
+        </section>
+
+        <section class="panel-group">
+          <h2 class="panel-legend">How to drive it</h2>
+          <p class="panel-sub">
+            Scroll the reel. Tap the picture to pause. Swipe right to left to
+            open the listing.
+          </p>
+          <p class="panel-sub">
+            In the Column family the arrow opens the panel rather than
+            navigating: 07 has a second detent that fetches departures, 08 moves
+            the caption to the quiet part of the frame, 09 keeps the panel open
+            across swipes. Of the earlier five, 01 responds to a press and hold,
+            03 to stopping on a reel for a moment, 05 to a double tap.
+          </p>
+        </section>
+      </aside>
+
+      <main class="stage" id="stage">
+        <div class="device">
+          <div class="screen" id="screen"></div>
+        </div>
+      </main>
+    </div>
+
+    <output class="toast" id="toast" aria-live="polite"></output>
+
+    <script src="js/ui.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/posters.js"></script>
+    <script src="js/frame-read.js"></script>
+    <script src="js/strip.js"></script>
+    <script src="js/column.js"></script>
+    <script src="js/lab.js"></script>
+    <script src="js/concepts/01-quiet-frame.js"></script>
+    <script src="js/concepts/02-field-notes.js"></script>
+    <script src="js/concepts/03-two-detents.js"></script>
+    <script src="js/concepts/04-reading-the-frame.js"></script>
+    <script src="js/concepts/05-the-shortlist.js"></script>
+    <script src="js/concepts/06-column.js"></script>
+    <script src="js/concepts/07-column-deep.js"></script>
+    <script src="js/concepts/08-column-aware.js"></script>
+    <script src="js/concepts/09-column-compare.js"></script>
+    <script>
+      window.Lab.boot();
+    </script>
+  </body>
+</html>

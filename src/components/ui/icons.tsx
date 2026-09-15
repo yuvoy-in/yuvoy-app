@@ -58,6 +58,15 @@ export function ChevronRightIcon(props: IconProps) {
   );
 }
 
+/** Points at what it reveals: the panel rises from the foot of the screen. */
+export function ChevronUpIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m6 15 6-6 6 6" />
+    </Icon>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -176,6 +185,34 @@ export function CloseIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </Icon>
+  );
+}
+
+/**
+ * Save. A bookmark, deliberately not a heart.
+ *
+ * A heart means "like" to anybody who has used a phone, and a like is a social
+ * gesture this product does not have: nothing here is counted, published or
+ * shown to an operator. A bookmark means "keep this to come back to", which is
+ * exactly what saving an experience is on a trip somebody is still planning.
+ */
+export function BookmarkIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6.5 4.5h11a1 1 0 0 1 1 1v14l-6.5-4-6.5 4v-14a1 1 0 0 1 1-1z" />
+    </Icon>
+  );
+}
+
+/** The same shape, filled: saved. */
+export function BookmarkFilledIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path
+        d="M6.5 4.5h11a1 1 0 0 1 1 1v14l-6.5-4-6.5 4v-14a1 1 0 0 1 1-1z"
+        fill="currentColor"
+      />
     </Icon>
   );
 }

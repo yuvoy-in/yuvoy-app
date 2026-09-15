@@ -1,0 +1,931 @@
+/*
+  Concept styles, one section each.
+
+  Sections are sealed: nothing in `01` may be depended on by `03`. Anything two
+  concepts share belongs in `reel.css`, and the moment a rule wants to live in
+  two sections it has failed that test and should move. That is what makes a
+  concept extractable: the section below is the stylesheet its component takes
+  with it.
+*/
+
+/* ========================================================================
+   01  QUIET FRAME
+   Type instead of controls. One disc. A hold that adds rather than hides.
+   ======================================================================== */
+
+.qf-foot {
+  z-index: 2;
+}
+
+.qf-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.qf-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.qf-eyebrow {
+  margin: 0 0 0.5rem;
+}
+.qf-dot {
+  margin: 0 0.45em;
+  opacity: 0.6;
+}
+
+/*
+  NOT `display: block`.
+
+  `.reel-title` clamps with `display: -webkit-box` plus `-webkit-line-clamp`, and
+  the clamp only exists while that display value survives. Setting `block` here
+  read as a harmless restatement of a block element and silently unclamped every
+  title in this concept: the five line operator-written title ran the full height
+  of an iPhone SE before the laboratory's screenshots caught it. `-webkit-box` is
+  already block-level, so there is nothing to restate.
+*/
+.qf-title {
+  /* inherits the clamp from .reel-title */
+}
+
+/*
+  The disclosure control, and the scent.
+
+  A 44px target because it is a standalone control, and a real sentence rather
+  than a chevron alone: a well scented control communicates the topic AND the
+  granularity of what is behind it, so "Thu 18 Sep, 2 seats left" predicts a
+  panel about this departure and a bare glyph predicts nothing.
+*/
+.qf-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  min-height: 2.75rem;
+  margin-top: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--cream);
+  text-align: left;
+}
+.qf-chevron {
+  height: 1rem;
+  width: 1rem;
+  margin-left: 0.375rem;
+  opacity: 0.7;
+  transition: transform var(--dur-interaction) var(--ease-interaction);
+}
+.qf-open .qf-chevron {
+  transform: rotate(180deg);
+}
+
+/*
+  The readability layer for the panel. A flat veil, not a card and not a second
+  gradient: the design system allows a scrim over artwork and does not allow a
+  panel drawn on top of it. At 45% abyss over the palest surf the panel's body
+  text clears the 4.5 floor with the caption scrim already under it.
+*/
+.qf-veil {
+  position: absolute;
+  inset: 0;
+  background-color: var(--abyss);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-interaction) var(--ease-interaction);
+  z-index: 1;
+}
+.qf-open .qf-veil {
+  opacity: 0.45;
+}
+
+.qf-facts {
+  opacity: 0;
+  transform: translateY(0.5rem);
+  pointer-events: none;
+  margin-bottom: 1.25rem;
+  transition:
+    opacity var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+.qf-open .qf-facts {
+  opacity: 1;
+  transform: none;
+}
+
+.qf-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.25rem;
+  row-gap: 0.5rem;
+  margin: 0 0 1rem;
+  align-items: baseline;
+}
+.qf-grid dt {
+  white-space: nowrap;
+}
+.qf-value {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.qf-operator {
+  border-top: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+  padding-top: 0.75rem;
+}
+.qf-operator-name {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  margin: 0;
+}
+.qf-evidence {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  margin: 0.25rem 0 0;
+}
+.qf-check {
+  height: 0.875rem;
+  width: 0.875rem;
+}
+
+/* ========================================================================
+   02  FIELD NOTES
+   The clip is a plate on a page. Nothing is written on the picture.
+   ======================================================================== */
+
+.fn-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  /* The stage, not the media ground. This is the one concept where the card is
+     a page rather than a screen filled by a clip. */
+  background-color: var(--forest);
+  padding: 0 1rem calc(var(--tabbar-clearance) - 1rem);
+}
+
+.fn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0.25rem 0.875rem;
+  flex: none;
+}
+.fn-mark {
+  height: 1.5rem;
+  width: auto;
+}
+.fn-folio {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  The plate.
+
+  `flex: 1 1 auto; min-height: 0` is what lets the picture give way on a short
+  phone instead of pushing the notes under the bar. The notes are what the
+  reader needs; the plate is what they want, and on a 568px screen the
+  difference has to resolve somewhere.
+*/
+.fn-well {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 6rem;
+  border-radius: var(--radius-sheet);
+  overflow: hidden;
+  background-color: var(--abyss);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 10%, transparent);
+}
+.fn-well .reel-media {
+  border-radius: inherit;
+}
+.fn-sound {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+}
+
+.fn-notes {
+  flex: none;
+  padding: 1.125rem 0.25rem 0;
+}
+
+/* The section-opening gesture: a label preceded by a terracotta square. Once
+   per section, at the top. */
+.fn-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.625rem;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+.fn-marker {
+  height: 0.25rem;
+  width: 0.25rem;
+  flex: none;
+  background-color: var(--terra);
+}
+
+.fn-title {
+  /* Two lines here rather than three: the notes below are the point of this
+     concept and a three line title on an SE eats the plate to pay for them. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 75,
+    "WONK" 0;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  font-size: 1.75rem;
+  line-height: 1.06;
+  color: var(--cream);
+  text-decoration: none;
+  text-wrap: pretty;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.fn-title:hover {
+  opacity: 0.85;
+}
+
+/*
+  Three facts as a typographic row with hairlines between them. Not three chips:
+  a chip is a container, and this system uses type where other systems reach for
+  a box.
+*/
+.fn-facts {
+  display: flex;
+  margin: 1rem 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+}
+.fn-fact {
+  flex: 1 1 0;
+  padding: 0.75rem 0.875rem 0.75rem 0;
+  min-width: 0;
+}
+.fn-fact + .fn-fact {
+  padding-left: 0.875rem;
+  border-left: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+}
+.fn-fact dt {
+  color: color-mix(in srgb, var(--cream) 60%, transparent);
+  margin-bottom: 0.25rem;
+}
+.fn-fact dd {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--cream);
+  text-wrap: pretty;
+}
+.fn-fact.is-closed dd {
+  color: color-mix(in srgb, var(--cream) 60%, transparent);
+}
+
+.fn-operator {
+  margin-top: 0.875rem;
+}
+.fn-operator-name {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--cream);
+  margin: 0;
+}
+.fn-evidence {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--terra-soft);
+  margin: 0.1875rem 0 0;
+}
+.fn-check {
+  height: 0.875rem;
+  width: 0.875rem;
+  flex: none;
+}
+
+/* The way forward as a line of type, not a filled bar. */
+.fn-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.75rem;
+  margin-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+  padding-top: 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--cream);
+  text-decoration: none;
+}
+.fn-open-arrow {
+  transition: transform var(--dur-interaction) var(--ease-interaction);
+}
+.fn-open:hover .fn-open-arrow {
+  transform: translateX(0.25rem);
+}
+
+/* ========================================================================
+   03  TWO DETENTS
+   Rest, peek, open. Dwell is the signal.
+   ======================================================================== */
+
+.td-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.td-root > * {
+  pointer-events: auto;
+}
+
+.td-rest {
+  transition:
+    transform var(--dur-interaction) var(--ease-interaction),
+    opacity var(--dur-interaction) var(--ease-interaction);
+}
+.td-rest-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+}
+.td-rest-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.td-eyebrow {
+  margin: 0 0 0.5rem;
+}
+
+/* The caption makes room when the peek arrives. Motion as feedback: something
+   turned up, and the thing above it moved out of its way. */
+[data-detent="peek"] .td-rest {
+  transform: translateY(-3.5rem);
+}
+[data-detent="open"] .td-rest {
+  transform: translateY(-3.5rem);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.td-arrow {
+  transition:
+    opacity var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+/* The CTA transforms rather than multiplying: the disc leaves as the labelled
+   control takes the same band. There is one way forward at all times. */
+[data-detent="open"] .td-arrow {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+/* ------------------------------------------------------------------ peek */
+
+.td-peek {
+  position: absolute;
+  inset-inline: 1.25rem;
+  bottom: calc(var(--tabbar-clearance) - 0.75rem);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.875rem 0 1rem;
+  border: 0;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--abyss) 72%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 14%, transparent);
+  color: var(--cream);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: left;
+  /* Arrives from under the bar, which is where it lives when it is not needed. */
+  opacity: 0;
+  transform: translateY(0.75rem);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+[data-detent="peek"] .td-peek,
+[data-detent="open"] .td-peek {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.td-peek-price {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.td-peek-sep {
+  height: 0.875rem;
+  width: 1px;
+  flex: none;
+  background-color: color-mix(in srgb, var(--cream) 25%, transparent);
+}
+.td-peek-chevron {
+  height: 1rem;
+  width: 1rem;
+  margin-left: auto;
+  flex: none;
+  opacity: 0.7;
+  transition: transform var(--dur-interaction) var(--ease-interaction);
+}
+[data-detent="open"] .td-peek-chevron {
+  transform: rotate(180deg);
+}
+
+/* ------------------------------------------------------------------ sheet */
+
+/*
+  Non-modal, and that is the whole design.
+
+  A modal sheet brings a scrim and a focus trap, and both of those stop the
+  video being watched. This one covers a stated ceiling of the frame and no
+  more, leaves the picture running above it, and is dismissed by scrolling on.
+*/
+.td-sheet {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  max-height: 54%;
+  overflow: hidden;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background-color: color-mix(in srgb, var(--abyss) 94%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cream) 14%, transparent);
+  transform: translateY(100%);
+  transition: transform 240ms var(--ease-interaction);
+  touch-action: none;
+}
+[data-detent="open"] .td-sheet {
+  transform: none;
+}
+
+/*
+  The handle.
+
+  The 4px bar is the affordance; the CONTROL is 44px tall and the full width of
+  the sheet, because a 4px target is not a target. It was drawn the other way
+  round first, with the bar as the button and a 44px pseudo-element standing in
+  for its hit area, and the laboratory's own audit reported a 36 by 4 control:
+  the pseudo-element worked by accident and measured as nothing. A target that
+  an audit cannot see is a target the next audit will lose.
+*/
+.td-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.td-handle::before {
+  content: "";
+  width: 2.25rem;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--cream) 30%, transparent);
+  transition: background-color var(--dur-interaction) var(--ease-interaction);
+}
+.td-handle:hover::before {
+  background-color: color-mix(in srgb, var(--cream) 45%, transparent);
+}
+
+.td-sheet-body {
+  padding: 0.25rem 1.25rem var(--tabbar-clearance);
+}
+
+.td-facts {
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.625rem;
+}
+.td-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.td-fact dt {
+  flex: none;
+}
+.td-fact dd {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  text-align: right;
+  text-wrap: pretty;
+}
+
+.td-operator {
+  border-top: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+  padding-top: 0.875rem;
+}
+.td-operator-name {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--cream);
+  margin: 0;
+}
+.td-evidence {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  color: var(--terra-soft);
+  margin: 0.25rem 0 0;
+}
+.td-check {
+  height: 0.875rem;
+  width: 0.875rem;
+  flex: none;
+}
+
+/* The solid cream control, which is what the app's `paper` variant is. CTAs are
+   monochrome: terracotta is never a button fill. */
+.td-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 3.25rem;
+  margin-top: 1.125rem;
+  border-radius: 9999px;
+  background-color: var(--cream);
+  color: var(--forest);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+.td-cta:hover {
+  background-color: var(--cream-deep);
+}
+.td-cta:active {
+  transform: scale(0.99);
+}
+.td-cta-arrow {
+  transition: transform var(--dur-interaction) var(--ease-interaction);
+}
+.td-cta:hover .td-cta-arrow {
+  transform: translateX(0.25rem);
+}
+
+/* --------------------------------------------------- the short phone */
+
+/*
+  An iPhone SE is 667px tall and the sheet has a 54% ceiling it may not break,
+  so on that screen the content has to fit in 360px rather than ask for more
+  room. Caught by the laboratory's own audit, which reported the call to action
+  running under the bar and the sheet clipping its own overflow.
+
+  What gives way is spacing, never a fact. The three facts, the operator and the
+  evidence line all survive; the gaps close, the control drops from 52px to the
+  system's 44px, and the foot stops leaving the full 92px screen clearance.
+
+  That last one is the real find. `--tabbar-clearance` is 92px because a SCREEN
+  leaves the bar's 56px, its 12px foot and 24px of breath. A sheet's own edge is
+  a surface, not a gap: it needs to clear the bar's top edge and nothing more.
+  Sixteen pixels, recovered by noticing the number was borrowed.
+*/
+@container reel (max-height: 700px) {
+  .td-sheet-body {
+    padding-bottom: calc(var(--tabbar-height) + var(--tabbar-foot) + 0.5rem);
+  }
+  .td-facts {
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+  }
+  .td-fact dd {
+    font-size: 0.875rem;
+  }
+  .td-operator {
+    padding-top: 0.625rem;
+  }
+  .td-operator-name {
+    font-size: 0.875rem;
+  }
+  .td-cta {
+    height: 2.75rem;
+    margin-top: 0.875rem;
+  }
+  /* The caption above it has less room to give, so it gives less. */
+  [data-detent="peek"] .td-rest,
+  [data-detent="open"] .td-rest {
+    transform: translateY(-3rem);
+  }
+}
+
+/* ========================================================================
+   04  READING THE FRAME
+   Information moves to the quiet part of the picture. Controls never move.
+
+   The veils, the grid and the readout are `frame-*` and live in
+   `family-column.css`, because Concept 08 runs the same engine. What is left
+   here is the part that is genuinely this layout's own: where the caption goes
+   in each region.
+   ======================================================================== */
+
+.rf-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rf-root > *:not(.frame-veil):not(.frame-debug) {
+  pointer-events: auto;
+}
+
+.rf-caption {
+  position: absolute;
+  left: 1.25rem;
+  /* Clear of the arrow's column in every region, so the two can never collide
+     however the caption moves. */
+  right: 5.25rem;
+  transition:
+    top 260ms var(--ease-interaction),
+    bottom 260ms var(--ease-interaction),
+    opacity 200ms var(--ease-interaction);
+}
+[data-zone="foot"] .rf-caption,
+[data-zone="footWide"] .rf-caption {
+  bottom: var(--tabbar-clearance);
+}
+[data-zone="midLeft"] .rf-caption {
+  bottom: 38%;
+}
+[data-zone="head"] .rf-caption {
+  top: 5.5rem;
+  right: 4.5rem;
+}
+
+.rf-eyebrow {
+  margin: 0 0 0.5rem;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+/*
+  NOT `display: block`.
+
+  `.reel-title` clamps with `display: -webkit-box` plus `-webkit-line-clamp`, and
+  the clamp only exists while that display value survives. Setting `block` here
+  read as a harmless restatement of a block element and silently unclamped every
+  title in this concept: the five line operator-written title ran the full height
+  of an iPhone SE before the laboratory's screenshots caught it. `-webkit-box` is
+  already block-level, so there is nothing to restate.
+*/
+.rf-title {
+  /* inherits the clamp from .reel-title */
+}
+.rf-line {
+  margin: 0.625rem 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+/* Fixed, in every region, on every frame. Information moves; controls do not. */
+.rf-arrow {
+  position: absolute;
+  right: 1.25rem;
+  bottom: var(--tabbar-clearance);
+}
+
+/* ========================================================================
+   05  THE SHORTLIST
+   Availability leads. A verb between watching and booking.
+   ======================================================================== */
+
+.sl-foot {
+  z-index: 2;
+  transition: padding-bottom var(--dur-interaction) var(--ease-interaction);
+}
+
+/*
+  The tray takes room, so the caption gives it.
+
+  Without this the Hold control and the tray sat in the same band and read as
+  one cluttered row: the tray is docked above the bar and the caption clears the
+  bar, so by default they occupy the same 92px. The caption moving up is the
+  same gesture Concept 03's peek uses, and it says the right thing: something
+  arrived at the foot of the screen and the content stepped out of its way.
+*/
+.reel-frame.sl-has-tray .sl-foot {
+  padding-bottom: calc(var(--tabbar-clearance) + 3.25rem);
+}
+
+/*
+  The first line, and the concept's argument.
+
+  On a planning surface "when could I go" outranks "what is it called", which is
+  the opposite of every other concept here and the reason this one is the bold
+  one.
+*/
+.sl-when {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  margin: 0 0 0.625rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.sl-when.is-open {
+  color: var(--cream);
+}
+.sl-when.is-closed {
+  color: color-mix(in srgb, var(--cream) 60%, transparent);
+  font-weight: 400;
+}
+.sl-when-icon {
+  height: 1rem;
+  width: 1rem;
+  flex: none;
+  opacity: 0.85;
+}
+/* The server's own sentence, printed verbatim, in the bottom band of the scrim
+   where `terra-soft` measures 5.5:1 or better. */
+.sl-seats {
+  color: var(--terra-soft);
+  font-weight: 400;
+}
+/* Spaced by margin, not by a space inside `content`: see `.col-seats`. */
+.sl-seats::before {
+  content: "·";
+  margin: 0 0.4em;
+  opacity: 0.6;
+}
+
+/*
+  NOT `display: block`.
+
+  `.reel-title` clamps with `display: -webkit-box` plus `-webkit-line-clamp`, and
+  the clamp only exists while that display value survives. Setting `block` here
+  read as a harmless restatement of a block element and silently unclamped every
+  title in this concept: the five line operator-written title ran the full height
+  of an iPhone SE before the laboratory's screenshots caught it. `-webkit-box` is
+  already block-level, so there is nothing to restate.
+*/
+.sl-title {
+  /* inherits the clamp from .reel-title */
+}
+
+.sl-meta {
+  margin: 0.625rem 0 0;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+.sl-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* A text control, not a disc: two discs at the foot would rebuild the rail this
+   whole study is trying to leave behind. */
+.sl-hold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem;
+  padding: 0 1rem 0 0.875rem;
+  border: 0;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--cream) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 16%, transparent);
+  color: var(--cream);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-interaction) var(--ease-interaction),
+    color var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction);
+}
+.sl-hold:active {
+  transform: scale(0.97);
+}
+/* Held reads as accent type on a dark ground, which measures 7.86:1. It is
+   never an accent FILL: that composite is 4.05:1 and is banned. */
+.sl-hold.is-held {
+  color: var(--terra-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--terra-soft) 45%, transparent);
+}
+.sl-hold-icon {
+  height: 1rem;
+  width: 1rem;
+  flex: none;
+}
+
+/* One-shot confirmation. The card's own edge draws once and stops. */
+@keyframes sl-pulse {
+  from {
+    box-shadow: inset 0 0 0 2px
+      color-mix(in srgb, var(--terra-soft) 85%, transparent);
+  }
+  to {
+    box-shadow: inset 0 0 0 2px
+      color-mix(in srgb, var(--terra-soft) 0%, transparent);
+  }
+}
+.sl-pulse {
+  animation: sl-pulse 320ms var(--ease-interaction) 1;
+}
+
+/* ------------------------------------------------------------- the tray */
+
+/*
+  Docked above the bar, in the band every other screen leaves empty.
+
+  Not drawn until something is held: an empty tray would be a permanent strip of
+  chrome advertising a feature nobody had used, on the screen whose entire
+  complaint was that too much was drawn on it.
+*/
+.sl-tray {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  max-width: 100%;
+  padding: 0.4375rem 0.75rem 0.4375rem 0.875rem;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--abyss) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 14%, transparent);
+}
+.sl-tray[hidden] {
+  display: none;
+}
+.sl-tray-count {
+  margin: 0;
+  flex: none;
+  color: var(--terra-soft);
+  font-size: 0.625rem;
+}
+.sl-tray-strip {
+  display: flex;
+  gap: 0.375rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sl-tray-strip::-webkit-scrollbar {
+  display: none;
+}
+.sl-thumb {
+  height: 2.25rem;
+  width: 1.75rem;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cream) 20%, transparent);
+}
+.sl-thumb-img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
