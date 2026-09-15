@@ -10,10 +10,10 @@ import { cn } from "@/lib/cn";
  * what a screen reader announces, so a circle with no label is a control with
  * no name. `pnpm qa` cannot see inside an SVG, which is why the type does.
  *
- *   chrome  — the forest disc that floats over media and cream alike
+ *   chrome  — the forest disc that floats over media and paper alike
  *   onDark  — a translucent disc on the stage, where a forest disc would vanish
- *   onCream — a raised disc on a sheet (steppers, dismiss)
- *   paper   — a solid cream disc on the stage
+ *   onPaper — a raised disc on a sheet (steppers, dismiss)
+ *   paper   — a solid paper disc on the stage
  */
 export const iconButtonVariants = cva(
   [
@@ -24,11 +24,11 @@ export const iconButtonVariants = cva(
   {
     variants: {
       variant: {
-        chrome: "app-chrome ring-1 ring-cream/12 hover:bg-forest/90",
-        onDark: "bg-cream/10 text-cream ring-1 ring-cream/12 hover:bg-cream/15",
-        onCream:
-          "border border-cream-line bg-cream-deep text-forest hover:border-forest/40",
-        paper: "bg-cream text-forest hover:bg-cream-deep",
+        chrome: "app-chrome ring-1 ring-paper/12 hover:bg-forest/90",
+        onDark: "bg-paper/10 text-paper ring-1 ring-paper/12 hover:bg-paper/15",
+        onPaper:
+          "border border-paper-line bg-paper-deep text-forest hover:border-forest/40",
+        paper: "bg-paper text-forest hover:bg-paper-deep",
       },
       size: {
         sm: "size-9",

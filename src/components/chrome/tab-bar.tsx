@@ -31,11 +31,11 @@ export function TabBar() {
   if (isFocusedRoute(pathname)) return null;
 
   /*
-    Translucent over a moving picture, solid over a cream sheet.
+    Translucent over a moving picture, solid over a paper sheet.
 
     See `isMediaGroundRoute` for the measurement. In short: on the reel screens
     the pill lets the caption scrim's dark foot through and the inactive glyphs
-    measure about 6.6:1; over a cream sheet the same pill puts them at 2.62:1,
+    measure about 6.6:1; over a paper sheet the same pill puts them at 2.62:1,
     under the 3:1 floor. It is one conditional and it is the difference between
     a bar that sits into the feed and a regression on Trips in sunlight.
   */
@@ -48,7 +48,7 @@ export function TabBar() {
     >
       <div
         className={cn(
-          "ring-cream/12 pointer-events-auto rounded-full p-1.5 ring-1",
+          "ring-paper/12 pointer-events-auto rounded-full p-1.5 ring-1",
           onMedia ? "tabbar-on-media" : "app-chrome",
         )}
       >

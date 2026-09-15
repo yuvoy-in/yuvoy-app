@@ -63,7 +63,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${fraunces.variable} ${satoshi.variable}`}>
-      <body className="bg-forest text-cream">
+      <body className="bg-forest text-paper">
         {/* Emitted once for the whole site. Interior pages add their own
             breadcrumb and article nodes, linked to these by @id. */}
         <JsonLd node={organizationJsonLd()} />
@@ -71,7 +71,7 @@ export default function RootLayout({
         {/* First focusable element on every page. */}
         <a
           href="#main"
-          className="label bg-cream text-forest sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-3"
+          className="label bg-paper text-forest sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-3"
         >
           Skip to content
         </a>

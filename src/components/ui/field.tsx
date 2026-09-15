@@ -65,9 +65,9 @@ export function Field({
           aria-describedby={cn(hintId, errorId) || undefined}
           aria-invalid={error ? true : undefined}
           className={cn(
-            "border-cream-line bg-cream-deep text-forest w-full border text-base outline-none",
+            "border-paper-line bg-paper-deep text-forest w-full border text-base outline-none",
             "ease-interaction transition-[border-color,background-color] duration-200",
-            "focus:border-forest/60 focus:bg-cream",
+            "focus:border-forest/60 focus:bg-paper",
             "placeholder:text-forest/70",
             // 48px — the system's input height.
             "h-12",

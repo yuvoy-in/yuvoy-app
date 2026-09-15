@@ -175,8 +175,8 @@ export function ReviewForm({ token }: { token: string }) {
                 className={cn(
                   "ease-interaction inline-flex size-11 items-center justify-center rounded-full border transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.96]",
                   rating >= n
-                    ? "border-forest bg-forest text-cream"
-                    : "border-cream-line bg-cream text-forest/70 hover:border-forest/40",
+                    ? "border-forest bg-forest text-paper"
+                    : "border-paper-line bg-paper text-forest/70 hover:border-forest/40",
                 )}
               >
                 <StarIcon filled={rating >= n} className="size-5" />
@@ -210,8 +210,8 @@ export function ReviewForm({ token }: { token: string }) {
                   className={cn(
                     "rounded-control ease-interaction tap-target border px-3 py-2 text-sm transition-colors duration-200",
                     on
-                      ? "border-forest bg-forest text-cream"
-                      : "border-cream-line bg-cream text-forest hover:border-forest/40",
+                      ? "border-forest bg-forest text-paper"
+                      : "border-paper-line bg-paper text-forest hover:border-forest/40",
                   )}
                 >
                   {tag.label}
@@ -232,7 +232,7 @@ export function ReviewForm({ token }: { token: string }) {
             /* The contract's own bound. Refused with `invalid_input` past it,
                so the field stops rather than the submission failing. */
             maxLength={2000}
-            className="rounded-control border-cream-line bg-cream focus:border-forest/60 ease-interaction mt-2 w-full border px-4 py-3 text-base transition-colors duration-200 outline-none"
+            className="rounded-control border-paper-line bg-paper focus:border-forest/60 ease-interaction mt-2 w-full border px-4 py-3 text-base transition-colors duration-200 outline-none"
           />
         </label>
 

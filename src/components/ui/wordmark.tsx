@@ -20,7 +20,7 @@ import { cn } from "@/lib/cn";
  * caps against the ensō. It is never hand-edited: a hand-edit is invisible in
  * review and is silently lost the next time the brand redelivers.
  *
- * Two tone variants, because a cream ensō is invisible on cream and a forest
+ * Two tone variants, because a paper ensō is invisible on paper and a forest
  * one is invisible on forest. That is the §1 tone pairing, and it is why there
  * are two files rather than one recoloured at runtime.
  *
@@ -40,17 +40,17 @@ const ART = { width: 1007, height: 253 } as const;
 
 /** Keyed by the colour of the MARK, not of the surface. */
 const SRC = {
-  cream: "/brand/yuvoy-mark-compact-on-dark.svg",
+  paper: "/brand/yuvoy-mark-compact-on-dark.svg",
   forest: "/brand/yuvoy-mark-compact-on-light.svg",
 } as const;
 
 export function Wordmark({
-  tone = "cream",
+  tone = "paper",
   className,
   priority = false,
 }: {
   /** The colour of the MARK, chosen to contrast with the surface behind it. */
-  tone?: "cream" | "forest";
+  tone?: "paper" | "forest";
   className?: string;
   priority?: boolean;
 }) {
@@ -74,10 +74,10 @@ export function Wordmark({
  * two-file reasoning as above.
  */
 export function Mark({
-  tone = "cream",
+  tone = "paper",
   className,
 }: {
-  tone?: "cream" | "forest";
+  tone?: "paper" | "forest";
   className?: string;
 }) {
   return (

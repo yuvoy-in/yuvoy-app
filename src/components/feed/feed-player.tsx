@@ -267,10 +267,10 @@ export function FeedPlayer({
           className={cn(
             "absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2",
             "grid size-16 place-items-center rounded-full",
-            "bg-abyss/55 text-cream backdrop-blur-sm",
+            "bg-abyss/55 text-paper backdrop-blur-sm",
             "ease-interaction transition-[transform,background-color] duration-200",
             "hover:bg-abyss/70 active:scale-95",
-            "focus-visible:ring-cream focus-visible:ring-2 focus-visible:outline-none",
+            "focus-visible:ring-paper focus-visible:ring-2 focus-visible:outline-none",
           )}
         >
           {/*

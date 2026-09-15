@@ -49,7 +49,7 @@ proposing a new one.
 - **One href**, shared by the arrow, the title and the swipe.
 - **No rating, no review count, no like, no follower.** None exists in the API,
   and all of them would be fabricated claims.
-- **Fraunces at 400, Satoshi, forest, cream, terra, abyss.** No shadow, no
+- **Fraunces at 400, Satoshi, forest, paper, terra, abyss.** No shadow, no
   glass, no accent fill, no chip over video.
 
 ---

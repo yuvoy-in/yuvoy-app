@@ -150,7 +150,7 @@ export function InviteGuests({ token }: { token: string }) {
             )}
 
             {invited ? (
-              <div className="border-cream-line mt-4 border-t pt-4">
+              <div className="border-paper-line mt-4 border-t pt-4">
                 <p className="text-sm" role="status">
                   {/*
                     The contract's own three deliveries. `not_sent_no_channel`

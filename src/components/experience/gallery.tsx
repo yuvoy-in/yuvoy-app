@@ -148,7 +148,7 @@ export function Gallery({
                   key={media.id}
                   className={cn(
                     "ease-interaction size-1.5 rounded-full transition-colors duration-200",
-                    i === active ? "bg-cream" : "bg-cream/40",
+                    i === active ? "bg-paper" : "bg-paper/40",
                   )}
                 />
               ))}
@@ -192,7 +192,7 @@ export function Gallery({
 
 function ClipBadge() {
   return (
-    <span className="label bg-abyss/70 text-cream absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px]">
+    <span className="label bg-abyss/70 text-paper absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px]">
       <PlayIcon className="size-3" />
       Clip
     </span>
@@ -287,7 +287,7 @@ function Lightbox({
             >
               <ArrowLeftIcon />
             </IconButton>
-            <p className="label text-cream/70">
+            <p className="label text-paper/70">
               {at + 1} of {items.length}
             </p>
             <IconButton

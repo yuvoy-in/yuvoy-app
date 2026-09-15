@@ -66,7 +66,7 @@ const TOKEN = {
   abyss: "#0a100e",
   forest: "#16362e",
   terra: "#be7149",
-  cream: "#f4efe4",
+  paper: "#ffffff",
 } as const;
 
 /** Each listing gets a different depth, so the feed does not look duplicated. */
@@ -83,7 +83,7 @@ const poster = (seed: string, variant = 0): Media => {
 <stop offset="1" stop-color="${TOKEN.abyss}"/>
 </linearGradient></defs>
 <rect width="360" height="640" fill="url(#g)"/>
-<circle cx="180" cy="${Math.round(200 + variant * 24)}" r="52" fill="none" stroke="${TOKEN.cream}" stroke-opacity="0.14" stroke-width="1.5"/>
+<circle cx="180" cy="${Math.round(200 + variant * 24)}" r="52" fill="none" stroke="${TOKEN.paper}" stroke-opacity="0.14" stroke-width="1.5"/>
 <rect x="176" y="${Math.round(196 + variant * 24)}" width="7" height="7" fill="${TOKEN.terra}"/>
 </svg>`;
 
@@ -325,7 +325,7 @@ const photo = (variant: number): string => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360">
 <rect width="480" height="360" fill="${TOKEN.forest}"/>
 <rect y="${waterline}" width="480" height="${360 - waterline}" fill="${TOKEN.abyss}"/>
-<line x1="0" y1="${waterline}" x2="480" y2="${waterline}" stroke="${TOKEN.cream}" stroke-opacity="0.18"/>
+<line x1="0" y1="${waterline}" x2="480" y2="${waterline}" stroke="${TOKEN.paper}" stroke-opacity="0.18"/>
 <rect x="${220 + variant * 16}" y="150" width="9" height="9" fill="${TOKEN.terra}"/>
 </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

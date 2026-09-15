@@ -114,7 +114,7 @@ export function PhoneField({
           aria-label="Country code"
           value={code}
           onChange={(e) => emit(e.target.value, national)}
-          className="rounded-control border-cream-line bg-cream-deep text-forest focus:border-forest/60 ease-interaction h-12 w-24 shrink-0 border px-3 text-base transition-colors duration-200 outline-none"
+          className="rounded-control border-paper-line bg-paper-deep text-forest focus:border-forest/60 ease-interaction h-12 w-24 shrink-0 border px-3 text-base transition-colors duration-200 outline-none"
         >
           {DIAL_CODES.map((d) => (
             <option key={d.code} value={d.code} label={d.label}>
@@ -133,9 +133,9 @@ export function PhoneField({
           value={national}
           onChange={(e) => emit(code, digits(e.target.value))}
           className={cn(
-            "border-cream-line bg-cream-deep text-forest rounded-control h-12 min-w-0 flex-1 border px-4 text-base outline-none",
+            "border-paper-line bg-paper-deep text-forest rounded-control h-12 min-w-0 flex-1 border px-4 text-base outline-none",
             "ease-interaction transition-[border-color,background-color] duration-200",
-            "focus:border-forest/60 focus:bg-cream placeholder:text-forest/70",
+            "focus:border-forest/60 focus:bg-paper placeholder:text-forest/70",
             error && "border-terra-deep",
           )}
           placeholder="90000 00000"

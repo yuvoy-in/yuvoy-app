@@ -187,7 +187,7 @@
    * The right-hand column: save, share, then the arrow at the foot of it.
    *
    * Icon only, as asked. The two above are `onDark`, the translucent disc that
-   * survives on a picture; the arrow is `paper`, the system's solid cream one.
+   * survives on a picture; the arrow is `paper`, the system's solid paper one.
    * That difference is doing real work: three identical discs would say that
    * knowing more about this experience is worth exactly as much as saving it,
    * and the arrow is the only one of the three that leads anywhere.

@@ -121,7 +121,7 @@ export default async function GuidePage({
               photograph it is.
             */}
             {/*
-              `/70`, not `/60`. §1's opacity ladder: below `forest/70` (4.77:1)
+              `/70`, not `/60`. §1's opacity ladder: below `forest/70` (5.14:1)
               text is decoration, and a rights credit is the one caption on the
               page somebody may genuinely need to read.
             */}
@@ -137,7 +137,7 @@ export default async function GuidePage({
 
         {/* Every factual claim traceable to something we can point at. */}
         {guide.sources?.length ? (
-          <section className="border-cream-line mt-12 border-t pt-6">
+          <section className="border-paper-line mt-12 border-t pt-6">
             <h2 className="label text-forest/75">Where this comes from</h2>
             <ul className="text-forest/70 mt-3 space-y-1.5 text-sm">
               {guide.sources.map((s) => (
@@ -156,7 +156,7 @@ export default async function GuidePage({
         {related.length ? (
           <nav
             aria-label="Related guides"
-            className="border-cream-line mt-10 border-t pt-6"
+            className="border-paper-line mt-10 border-t pt-6"
           >
             <h2 className="label text-forest/75">Read next</h2>
             <ul className="mt-3 flex flex-wrap gap-2">

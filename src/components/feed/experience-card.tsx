@@ -205,7 +205,7 @@ export function ExperienceCard({
                 decoding="async"
               />
             ) : null}
-            <p className="font-display text-cream/60 text-center text-3xl leading-tight">
+            <p className="font-display text-paper/60 text-center text-3xl leading-tight">
               {experience.title}
             </p>
           </div>
@@ -252,7 +252,7 @@ export function ExperienceCard({
         <div className="feed-foot tabbar-clearance absolute inset-x-0 bottom-0 flex items-end gap-4 px-5">
           <div className="min-w-0 flex-1">
             {experience.activityTypeLabel || experience.location ? (
-              <p className="label text-cream/70 mb-2">
+              <p className="label text-paper/70 mb-2">
                 {[experience.activityTypeLabel, experience.location]
                   .filter(Boolean)
                   .join(" · ")}
@@ -270,7 +270,7 @@ export function ExperienceCard({
             <h2 className="mb-2 min-w-0">
               <Link
                 href={href}
-                className="font-display text-cream tracking-display ease-interaction line-clamp-3 text-3xl leading-[1.05] transition-opacity duration-200 hover:opacity-80"
+                className="font-display text-paper tracking-display ease-interaction line-clamp-3 text-3xl leading-[1.05] transition-opacity duration-200 hover:opacity-80"
               >
                 {experience.title}
               </Link>
@@ -293,25 +293,25 @@ export function ExperienceCard({
               className="ease-interaction flex min-h-11 items-center text-left text-sm transition-opacity duration-200 hover:opacity-80"
             >
               <span
-                className={departure.bookable ? "text-cream" : "text-cream/60"}
+                className={departure.bookable ? "text-paper" : "text-paper/60"}
               >
                 {departure.short}
               </span>
               {/*
-                The server's own sentence, printed verbatim, and cream rather
+                The server's own sentence, printed verbatim, and paper rather
                 than the accent: `terra-soft` needs 79% abyss under it to clear
                 4.5:1 over the palest surf, and the lighter scrim only reaches
                 that below the caption. The scarcity is said by the words.
               */}
               {departure.seats ? (
-                <span className="text-cream/70">
+                <span className="text-paper/70">
                   <span aria-hidden="true" className="mx-[0.4em] opacity-60">
                     ·
                   </span>
                   {departure.seats}
                 </span>
               ) : null}
-              <ChevronUpIcon className="text-cream/70 ml-2 size-4 shrink-0" />
+              <ChevronUpIcon className="text-paper/70 ml-2 size-4 shrink-0" />
             </button>
           </div>
 
@@ -319,7 +319,7 @@ export function ExperienceCard({
             The rail: sound, save, share, then the way out at the foot of it.
 
             The first three are translucent discs; Book is the system's solid
-            cream control. That difference is doing real work: four identical
+            paper control. That difference is doing real work: four identical
             discs would say that leaving the feed is worth exactly as much as
             muting it, and Book is the only one of the four that goes anywhere.
           */}

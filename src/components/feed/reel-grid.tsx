@@ -121,7 +121,7 @@ function PlayBadge() {
   return (
     <span
       aria-hidden="true"
-      className="text-cream absolute right-1.5 bottom-1.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
+      className="text-paper absolute right-1.5 bottom-1.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
     >
       <PlayIcon className="size-4" />
     </span>

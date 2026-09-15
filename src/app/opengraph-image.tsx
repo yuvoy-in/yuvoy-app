@@ -39,7 +39,7 @@ export default function OpengraphImage() {
         <div style={{ width: 12, height: 12, background: "#be7149" }} />
         <div
           style={{
-            color: "#f4efe4",
+            color: "#ffffff",
             fontSize: 26,
             letterSpacing: "0.34em",
             fontWeight: 700,
@@ -50,7 +50,7 @@ export default function OpengraphImage() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ color: "#f4efe4", fontSize: 78, lineHeight: 1.05 }}>
+        <div style={{ color: "#ffffff", fontSize: 78, lineHeight: 1.05 }}>
           Don&apos;t be a tourist.
         </div>
         <div style={{ color: "#d89772", fontSize: 30, marginTop: 24 }}>

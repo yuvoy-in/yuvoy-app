@@ -22,7 +22,7 @@
   ## Why it does not read as a downgrade
 
   Because the stage is already the app's own ground. v2.7 made the whole
-  application a dark stage with cream sheets rising out of it; the feed is the
+  application a dark stage with paper sheets rising out of it; the feed is the
   one screen that opted out. This concept opts it back in, and the reel becomes
   a plate on a page rather than a video with writing on it. The marketing site's
   destination panels are the same gesture.

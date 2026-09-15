@@ -50,7 +50,7 @@ export default function GuidesIndexPage() {
             <li key={g.slug}>
               <Link
                 href={`/guides/${g.slug}`}
-                className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-5 transition-colors duration-200"
+                className="rounded-card border-paper-line bg-paper-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-5 transition-colors duration-200"
               >
                 <div className="min-w-0 flex-1">
                   <h2 className="font-display text-2xl leading-tight">

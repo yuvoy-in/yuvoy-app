@@ -272,7 +272,7 @@ export function AccountScreen() {
         one only, and almost nobody is signed in: this product has no account
         to make, so the signed-out form is what a traveller meets here.
       */}
-      <LegalLinks className="border-cream-line mt-10 border-t pt-6 text-xs" />
+      <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
     </Screen>
   );
 }
@@ -490,7 +490,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         carries it at the moment of asking and then never appears again; this
         is where somebody comes looking for it a week later.
       */}
-      <LegalLinks className="border-cream-line mt-10 border-t pt-6 text-xs" />
+      <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
 
       {editing && me ? (
         <EditProfileSheet account={me} onClose={() => setEditing(false)} />

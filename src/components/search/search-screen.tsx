@@ -155,7 +155,7 @@ export function SearchScreen() {
           {active > 0 ? (
             <span
               aria-hidden="true"
-              className="bg-forest text-cream ml-1.5 inline-flex size-5 items-center justify-center rounded-full text-xs font-bold"
+              className="bg-forest text-paper ml-1.5 inline-flex size-5 items-center justify-center rounded-full text-xs font-bold"
             >
               {active}
             </span>

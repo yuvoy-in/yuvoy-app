@@ -113,7 +113,7 @@ export function OperatorScreen({
           `logoUrl` is absent when they have not set one, so this falls back to
           a mark of our own rather than rendering a broken image.
         */}
-        <div className="rounded-tile bg-cream-deep border-cream-line relative size-20 shrink-0 overflow-hidden border">
+        <div className="rounded-tile bg-paper-deep border-paper-line relative size-20 shrink-0 overflow-hidden border">
           {profile.logoUrl ? (
             <Image
               src={profile.logoUrl}
@@ -124,7 +124,7 @@ export function OperatorScreen({
               unoptimized={profile.logoUrl.startsWith("data:")}
             />
           ) : (
-            /* `/70` is the documented floor for text on cream. This glyph is
+            /* `/70` is the documented floor for text on paper. This glyph is
                nearly decorative — the business's name is the h1 beside it —
                but it is still text, and the ladder has no exception for
                "large". */
@@ -147,7 +147,7 @@ export function OperatorScreen({
             */}
             {profile.verified ? (
               <span
-                className="bg-forest text-cream inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs"
+                className="bg-forest text-paper inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs"
                 role="img"
                 aria-label="Credentials verified by Yuvoy"
               >
@@ -179,7 +179,7 @@ export function OperatorScreen({
         Two counts, both real. No rating and no followers — see the module
         comment: a number nobody earned is a fabricated claim.
       */}
-      <dl className="border-cream-line mt-6 flex gap-8 border-y py-4">
+      <dl className="border-paper-line mt-6 flex gap-8 border-y py-4">
         <Count n={profile.listingCount} one="activity" many="activities" />
         <Count n={profile.reelCount} one="reel" many="reels" />
       </dl>
@@ -255,7 +255,7 @@ export function OperatorScreen({
       {profile.listings.length > 0 ? (
         <Link
           href={`/o/${profile.slug}/listings`}
-          className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction mt-8 flex items-center gap-4 border p-4 transition-colors duration-200"
+          className="rounded-card border-paper-line bg-paper-deep hover:border-forest/40 ease-interaction mt-8 flex items-center gap-4 border p-4 transition-colors duration-200"
         >
           <div className="min-w-0 flex-1">
             <p className="font-bold">What they run</p>
