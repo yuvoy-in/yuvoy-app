@@ -476,7 +476,15 @@ test("the conversation refuses a phone number and takes a date", async ({
 
   // A phone number is refused, and nothing lands in the thread.
   await box.fill("call me on 98765 43210");
-  await page.getByRole("button", { name: "Send" }).click();
+  /*
+    `exact` because Playwright matches an accessible name as a SUBSTRING by
+    default, and the booking page grew a "Send us a message" button under
+    "Need help?" (yuvoy-app#38 item 4). Without it this resolves to two
+    elements and fails strict mode, which is the test being imprecise rather
+    than the page being wrong: the two buttons are distinct and correctly
+    named.
+  */
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(
     page.getByText(/looks like it has a phone number/),
   ).toBeVisible();
@@ -489,7 +497,7 @@ test("the conversation refuses a phone number and takes a date", async ({
 
   // A date written like a date is not a phone number.
   await box.fill("see you on 14.09.2026");
-  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await expect(
     page.getByRole("listitem").filter({ hasText: "see you on 14.09.2026" }),
   ).toBeVisible();

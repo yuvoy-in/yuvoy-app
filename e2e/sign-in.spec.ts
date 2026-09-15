@@ -21,7 +21,9 @@ test("a number that has never booked can sign in", async ({ page }) => {
   await page.getByLabel("The code we sent").fill("123456");
   await page.getByRole("button", { name: "Show me my trips" }).click();
 
-  await expect(page.getByText("You are signed in")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toBeVisible();
 });
 
 test("the two ways out of the code step are buttons, and Change number works", async ({
@@ -123,7 +125,9 @@ test("signing out clears this phone, and Trips says so", async ({ page }) => {
     cancels the one in flight: the first version of this test was flaky for
     exactly that reason, not for anything it was asserting.
   */
-  await expect(page.getByText("You are signed in")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toBeVisible();
 
   // Signed in, the number's trips are there.
   await page.getByRole("link", { name: "Go to my trips" }).click();
@@ -132,7 +136,7 @@ test("signing out clears this phone, and Trips says so", async ({ page }) => {
 
   await page.goto("/account");
   await page.getByRole("button", { name: "Sign out on this device" }).click();
-  await expect(page.getByText("There is no account to make")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
   await page.goto("/trips");
   await expect(page.getByText("Sign in to see your trips")).toBeVisible();
