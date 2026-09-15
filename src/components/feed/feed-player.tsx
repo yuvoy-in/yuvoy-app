@@ -47,6 +47,7 @@ export function FeedPlayer({
   autoplayAllowed,
   onPlayableChange,
   onRequestPlay,
+  hidden,
   className,
 }: {
   media: Media;
@@ -57,6 +58,14 @@ export function FeedPlayer({
   muted: boolean;
   autoplayAllowed: boolean;
   onPlayableChange?: (playable: boolean) => void;
+  /**
+   * Draw no play control, whatever the clip is doing.
+   *
+   * For a caller that has put something over the picture: the control would be
+   * unreachable, and on a translucent surface it is also VISIBLE through what
+   * covers it. Playback itself is untouched, so a clip keeps running behind.
+   */
+  hidden?: boolean;
   /** The traveller asked for video. Lets the feed stop asking the connection. */
   onRequestPlay?: () => void;
   className?: string;
@@ -243,7 +252,7 @@ export function FeedPlayer({
         a target somebody hits by accident on a phone, and it would start a
         clip they cannot see.
       */}
-      {hasClip && active && !playing ? (
+      {hasClip && active && !playing && !hidden ? (
         <button
           type="button"
           onClick={() => {

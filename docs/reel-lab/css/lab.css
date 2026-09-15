@@ -1,0 +1,391 @@
+/*
+  The instrument's own chrome.
+
+  Neutral grey and one monospace face, deliberately. Everything inside the phone
+  is the product; everything outside it is a tool. Painting the tool in forest
+  and cream would make it impossible to tell at a glance which of the two you
+  were judging, and the point of the exercise is to judge the one inside.
+*/
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background-color: #141615;
+  color: #b8bcb8;
+  font-family:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lab {
+  display: grid;
+  grid-template-columns: 17rem 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ------------------------------------------------------------- the panel */
+
+.panel {
+  border-right: 1px solid #262a27;
+  padding: 1.25rem 1rem 3rem;
+  overflow-y: auto;
+  max-height: 100vh;
+  max-height: 100dvh;
+}
+
+.panel-head {
+  margin-bottom: 1.5rem;
+}
+.panel-title {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #e6e4dd;
+}
+.panel-sub {
+  margin: 0.375rem 0 0;
+  font-size: 11px;
+  color: #7d827d;
+  line-height: 1.5;
+}
+
+.panel-group {
+  margin-bottom: 1.5rem;
+}
+.panel-legend {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #6b706b;
+  margin: 0 0 0.5rem;
+}
+
+/* ---------------------------------------------------------- the switcher */
+
+#switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/*
+  A group heading in the switcher.
+
+  Two groups rather than nine flat rows: the Column family is one idea in four
+  versions and the earlier five are where it came from, and a flat list would
+  hide that relationship, which is the most useful thing about the set.
+*/
+.switch-group {
+  margin: 0.875rem 0 0.375rem;
+  padding: 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.switch-group:first-child {
+  margin-top: 0;
+}
+.switch-group-title {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #d89772;
+}
+.switch-group-note {
+  font-size: 10px;
+  color: #6b706b;
+}
+
+.switch-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: 0 0.5rem;
+  width: 100%;
+  padding: 0.625rem 2rem 0.625rem 0.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.switch-item:hover {
+  background-color: #1d211e;
+}
+.switch-item.is-on {
+  background-color: #232825;
+}
+.switch-id {
+  color: #6b706b;
+  font-variant-numeric: tabular-nums;
+}
+.switch-item.is-on .switch-id {
+  color: #d89772;
+}
+.switch-name {
+  color: #e6e4dd;
+}
+.switch-tag {
+  grid-column: 2;
+  font-size: 10.5px;
+  color: #7d827d;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.switch-key {
+  position: absolute;
+  top: 0.625rem;
+  right: 0.5rem;
+  font-size: 10px;
+  color: #4d524d;
+}
+
+/* ------------------------------------------------------------- the dials */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.device-item,
+.stress-item {
+  padding: 0.3125rem 0.5rem;
+  border: 1px solid #2c312d;
+  border-radius: 4px;
+  background: none;
+  color: #9aa09a;
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
+}
+.device-item:hover,
+.stress-item:hover {
+  border-color: #444a45;
+  color: #e6e4dd;
+}
+.device-item.is-on {
+  background-color: #e6e4dd;
+  border-color: #e6e4dd;
+  color: #141615;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 11px;
+  color: #9aa09a;
+  cursor: pointer;
+}
+.check input {
+  accent-color: #d89772;
+  margin: 0;
+}
+
+#device-note {
+  margin: 0.5rem 0 0;
+  font-size: 10px;
+  color: #6b706b;
+}
+
+/* --------------------------------------------------------- the hypothesis */
+
+.hyp-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.375rem;
+  color: #e6e4dd;
+}
+.hyp-id {
+  color: #d89772;
+}
+.hyp-badge {
+  padding: 1px 5px;
+  border: 1px solid #4a3b32;
+  border-radius: 3px;
+  color: #d89772;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.hyp-text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #8d928d;
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------- the stage */
+
+.stage {
+  --device-w: 390px;
+  --device-h: 844px;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.5rem;
+  position: relative;
+  overflow: auto;
+}
+
+/*
+  The phone.
+
+  A plain 3px dark rim, and that is all. It depicts a device and nothing more:
+  the marketing site owns the only lit, shadowed bezel in this system and it is
+  a product illustration, not a viewport. Anything more here would start
+  flattering the screenshot instead of showing the screen.
+*/
+.device {
+  position: relative;
+  width: var(--device-w);
+  height: var(--device-h);
+  max-height: calc(100dvh - 4rem);
+  border-radius: 2.5rem;
+  padding: 3px;
+  background-color: #0a100e;
+  box-shadow: 0 0 0 1px #2c312d;
+  flex: none;
+}
+
+.screen {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: calc(2.5rem - 3px);
+  overflow: hidden;
+  background-color: #0a100e;
+}
+
+/* --------------------------------------------------------- the overlays */
+
+/*
+  The thumb map.
+
+  Three bands rather than a gradient, because the finding it encodes is
+  categorical: comfortable, a stretch, and out of reach one-handed. On anything
+  over 6.5 inches the top corners are effectively unreachable, and the band
+  boundaries move with the device preset because that is the whole point.
+*/
+.show-thumb-zones .screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(216, 151, 114, 0.26) 0%,
+    rgba(216, 151, 114, 0.26) 30%,
+    rgba(216, 151, 114, 0.1) 30%,
+    rgba(216, 151, 114, 0.1) 62%,
+    rgba(120, 200, 150, 0.1) 62%,
+    rgba(120, 200, 150, 0.1) 100%
+  );
+}
+
+/* Stop the drift, to judge a composition on a still frame the way a poster
+   would actually load. */
+.freeze-motion .reel-media.is-running .reel-poster {
+  animation: none;
+}
+
+/* ------------------------------------------------------------- the toast */
+
+/*
+  There is no listing screen behind this laboratory, so a tap that WOULD have
+  navigated says where it would have gone. That is the only honest thing a
+  prototype can do with a route it does not contain, and it doubles as the proof
+  that the arrow, the title and the swipe all carry one href.
+*/
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translate(-50%, 1rem);
+  padding: 0.5rem 0.875rem;
+  border-radius: 6px;
+  background-color: #e6e4dd;
+  color: #141615;
+  font-size: 11px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  z-index: 200;
+}
+.toast.is-up {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ------------------------------------------------------------ small screens */
+
+/*
+  The laboratory itself has to work on a phone, because the owner reviews on
+  one. The panel stops being a sidebar and becomes a header, and the device
+  frame becomes the viewport it is standing in.
+*/
+@media (max-width: 60rem) {
+  .lab {
+    grid-template-columns: 1fr;
+  }
+  .panel {
+    border-right: 0;
+    border-bottom: 1px solid #262a27;
+    max-height: none;
+    padding-bottom: 1.25rem;
+  }
+  .stage {
+    padding: 1rem 0.75rem 2rem;
+  }
+  .device {
+    width: min(var(--device-w), 100%);
+    height: min(var(--device-h), calc(100dvh - 2rem));
+  }
+  .switch-tag {
+    display: none;
+  }
+  #switcher {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .switch-group {
+    flex: 1 0 100%;
+    margin: 0.5rem 0 0.125rem;
+  }
+  .switch-group-note {
+    display: none;
+  }
+  .switch-item {
+    width: auto;
+    padding-right: 0.75rem;
+  }
+  .switch-key {
+    display: none;
+  }
+}

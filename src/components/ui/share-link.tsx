@@ -33,6 +33,7 @@ export function ShareLink({
   title,
   label,
   variant = "chrome",
+  size,
 }: {
   /** Root-relative, e.g. `/e/dawn-kayak` or `/r/9acb347f`. */
   path: string;
@@ -41,6 +42,8 @@ export function ShareLink({
   /** The button's accessible name. Says what is being shared. */
   label: string;
   variant?: "chrome" | "onDark";
+  /** Matches the discs it sits with. The feed's rail is `sm`. */
+  size?: "sm" | "md" | "lg";
 }) {
   const [notice, setNotice] = useState<"copied" | "unavailable" | null>(null);
 
@@ -64,7 +67,12 @@ export function ShareLink({
 
   return (
     <div className="relative">
-      <IconButton label={label} variant={variant} onClick={() => void share()}>
+      <IconButton
+        label={label}
+        variant={variant}
+        size={size}
+        onClick={() => void share()}
+      >
         <ShareIcon />
       </IconButton>
       <span

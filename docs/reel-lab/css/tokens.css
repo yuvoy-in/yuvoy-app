@@ -1,0 +1,192 @@
+/*
+  The real design system, as plain custom properties.
+
+  Every value here is lifted verbatim from `src/app/globals.css` @theme and the
+  utilities beneath it. Nothing is approximated and nothing off-palette exists
+  in this laboratory, for the same reason `mocks/fixtures.ts` carries that rule:
+  a prototype drawn in adjacent colours is a prototype that cannot be judged.
+
+  The one thing that is NOT the production file is Tailwind. The lab is plain
+  CSS so it opens from `file://` with no build step, so the utilities the app
+  gets from `@utility` are written out longhand below under the same names.
+*/
+
+/* --------------------------------------------------------------- the fonts */
+/*
+  The delivered faces, copied into `assets/` rather than linked across the repo
+  so the folder opens from `file://` on its own. Fraunces is the variable Yuvoy
+  cut; its axes are pinned by `.font-display`, exactly as the @theme does it.
+*/
+@font-face {
+  font-family: "Fraunces Yuvoy";
+  src: url("../assets/Fraunces-Yuvoy.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: optional;
+}
+@font-face {
+  font-family: "Satoshi";
+  src: url("../assets/Satoshi-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Satoshi";
+  src: url("../assets/Satoshi-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Satoshi";
+  src: url("../assets/Satoshi-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  /* -------------------------------------------------------------- colour */
+  --cream: #f4efe4;
+  --cream-deep: #ece5d6;
+  --cream-line: #e5dcc9;
+  --forest: #16362e;
+  --terra: #be7149;
+  --terra-deep: #985028;
+  --terra-soft: #d89772;
+  /* The media ground. The ONLY surface allowed to paint it is the reel. */
+  --abyss: #0a100e;
+
+  /* ---------------------------------------------------------------- type */
+  --font-display: "Fraunces Yuvoy", Georgia, "Times New Roman", serif;
+  --font-sans:
+    "Satoshi", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-weight-turn: 480;
+
+  /* -------------------------------------------------------------- layout */
+  --container-feed: 30rem; /* 480px */
+
+  /* -------------------------------------------------------------- radius */
+  --radius-tile: 0.75rem; /* 12px */
+  --radius-control: 1rem; /* 16px */
+  --radius-card: 1.5rem; /* 24px */
+  --radius-sheet: 2rem; /* 32px */
+
+  /* -------------------------------------------------------------- motion */
+  --ease-cinematic: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-interaction: cubic-bezier(0.32, 0.72, 0, 1);
+  /* The app has ONE motion budget and this is it. */
+  --dur-interaction: 200ms;
+
+  /* ------------------------------------------------------------ tracking */
+  --tracking-label: 0.18em;
+  --tracking-display: -0.01em;
+
+  /* ------------------------------------------------- the bar's own metrics */
+  /*
+    Not invented here. The floating bar is 44px targets in a `p-1.5` pill, so
+    56px, and `tabbar-foot` leaves `max(0.75rem, safe-area)` under it.
+    `tabbar-clearance` is 5.75rem (92px), which every screen in the app leaves.
+    Stated as tokens so a concept can compose against the bar instead of
+    guessing at it.
+  */
+  --tabbar-height: 3.5rem; /* 56px */
+  --tabbar-foot: 0.75rem; /* 12px */
+  --tabbar-clearance: 5.75rem; /* 92px */
+}
+
+/* ------------------------------------------------------------- utilities */
+
+/*
+  Fraunces, with the Yuvoy cut's axes pinned. Display weight is 400 and only
+  400: `font-semibold` and `font-bold` must never appear with the display face.
+*/
+.font-display {
+  font-family: var(--font-display);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 75,
+    "WONK" 0;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+}
+
+/* The brand's editorial voice in the text face: uppercase, xs, tracked. */
+.label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+}
+
+/*
+  The caption scrim, stop for stop.
+
+  Twelve stops sampling a sigmoid rather than four, so the slope rises from ~0
+  at the foot to -1.9 in the middle and falls back toward 0 at the head. A
+  CHANGE in slope is the thing an eye reads as an edge, and over moving footage
+  a two-stop ramp shows a hard line across the frame.
+
+  Sized against the BRIGHTEST pixel a clip can show. Measured over the palest
+  surf highlight (#E8E2D4) it holds 7.9:1 at the 50% stop and 5.4:1 at 62%,
+  which is where the top of the longest caption lands.
+*/
+.feed-scrim {
+  background: linear-gradient(
+    to top,
+    var(--abyss) 0%,
+    color-mix(in srgb, var(--abyss) 97%, transparent) 8%,
+    color-mix(in srgb, var(--abyss) 92%, transparent) 18%,
+    color-mix(in srgb, var(--abyss) 86%, transparent) 30%,
+    color-mix(in srgb, var(--abyss) 79%, transparent) 42%,
+    color-mix(in srgb, var(--abyss) 71%, transparent) 52%,
+    color-mix(in srgb, var(--abyss) 61%, transparent) 62%,
+    color-mix(in srgb, var(--abyss) 47%, transparent) 72%,
+    color-mix(in srgb, var(--abyss) 30%, transparent) 82%,
+    color-mix(in srgb, var(--abyss) 13%, transparent) 91%,
+    color-mix(in srgb, var(--abyss) 4%, transparent) 96%,
+    transparent 100%
+  );
+}
+
+/* The same treatment mirrored, under the mark. 65% abyss or darker across the
+   band the mark occupies (12% to 39% of this block). */
+.feed-scrim-top {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--abyss) 80%, transparent) 0%,
+    color-mix(in srgb, var(--abyss) 80%, transparent) 12%,
+    color-mix(in srgb, var(--abyss) 77%, transparent) 25%,
+    color-mix(in srgb, var(--abyss) 67%, transparent) 38%,
+    color-mix(in srgb, var(--abyss) 52%, transparent) 50%,
+    color-mix(in srgb, var(--abyss) 33%, transparent) 62%,
+    color-mix(in srgb, var(--abyss) 15%, transparent) 74%,
+    color-mix(in srgb, var(--abyss) 3%, transparent) 86%,
+    transparent 100%
+  );
+}
+
+/*
+  Chrome. `forest`, never `abyss`: chrome stays chrome, and the 1.47:1 between
+  them is what separates the controls from the picture behind them.
+*/
+.app-chrome {
+  background-color: var(--forest);
+  color: var(--cream);
+}
+
+/*
+  Reduced motion, handled once and globally, exactly as `globals.css` does it.
+  No concept in this lab adds its own branch: if one needs to, this rule is
+  wrong and gets fixed here instead.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

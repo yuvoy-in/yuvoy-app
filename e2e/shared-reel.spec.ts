@@ -72,14 +72,15 @@ test.describe("a shared reel", () => {
     await page.waitForURL("**/");
   });
 
-  test("the arrow still opens the listing", async ({ page }) => {
+  test("Book still opens the listing", async ({ page }) => {
+    /* The arrow became a word on 15 September. A shared reel is the surface
+       where it matters most: whoever opened this has no context at all. */
     await page.goto(SHARED);
     const first = page.locator('article[aria-posinset="1"]');
     await expect(first).toBeVisible();
-    await expect(first.getByLabel(/^Open /)).toHaveAttribute(
-      "href",
-      "/e/try-dive-nemo-reef",
-    );
+    await expect(
+      first.getByRole("link", { name: /^(Book|View)$/ }),
+    ).toHaveAttribute("href", "/e/try-dive-nemo-reef");
   });
 
   test("a reel the feed would not show is not found", async ({ page }) => {

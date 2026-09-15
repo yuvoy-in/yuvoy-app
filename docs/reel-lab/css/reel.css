@@ -1,0 +1,468 @@
+/*
+  The shared reel surface: the scroller, the card, the scrims, the chrome and
+  the bar. Everything here is true of all five concepts; anything true of only
+  one lives in `concepts.css`.
+
+  Geometry that appears in the app is reproduced at the app's own numbers and
+  cited where it is not obvious.
+*/
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------- the frame */
+
+/*
+  The phone's whole screen. On a desktop the app caps this at 480px and sets it
+  into the forest stage as a 32px well; the laboratory does the capping in its
+  own shell instead, so this is simply "the viewport it was given".
+*/
+.reel-frame {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--abyss);
+  color: var(--cream);
+  isolation: isolate;
+  /*
+    The phone's own default face.
+
+    In the real app this comes free: the body is Satoshi, so anything that does
+    not ask for a face gets the right one. Here the body is the LABORATORY's
+    monospace chrome, so every control inside the phone was one missing
+    `font-family` away from rendering in the wrong typeface, and at least two
+    were: the availability control and every tab bar item.
+
+    Set here rather than patched per component, because the bug is structural.
+    A concept should be able to add a control without remembering this.
+  */
+  font-family: var(--font-sans);
+  /*
+    A size container, so a concept can adapt to the PHONE rather than to the
+    browser window.
+
+    In this laboratory the phone is a div inside a desktop window, so a height
+    media query would measure the wrong box entirely and every short-screen rule
+    would be silently dead. Concept 03's sheet was clipping on an iPhone SE and
+    a `@media (max-height: 700px)` fix would have looked correct and done
+    nothing.
+
+    It is not a laboratory workaround. The feed well is capped at 480px from
+    `lg` up in the real app, so it is not the viewport there either, and a
+    container query is the honest unit for a component whose box is set by its
+    parent. Safe here because the frame is explicitly sized by its parent, which
+    is what size containment requires.
+  */
+  container-type: size;
+  container-name: reel;
+}
+
+.reel-strip {
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-snap-type: y mandatory;
+  /* Scroll snapping is CSS, not JS. A scroll handler fighting the browser's own
+     momentum is what makes a JS-driven feed feel heavy on a mid-range Android. */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.reel-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------------------------------------- the card */
+
+.reel-card {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow: hidden;
+  background-color: var(--abyss);
+  /*
+    The gesture contract. The browser keeps the vertical pan (the feed's whole
+    scroll) and keeps pinch-zoom; the horizontal one is ours, which is what
+    makes swipe-to-open a stream of pointer events rather than a race against a
+    scroll the browser might decide to claim.
+  */
+  touch-action: pan-y pinch-zoom;
+}
+
+.reel-surface {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.reel-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.reel-poster {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  /* One compositor property, at rest. */
+  transform: scale(1.06);
+  will-change: transform;
+}
+
+/*
+  Standing in for playback.
+
+  No rights-cleared footage exists yet, and a still frame cannot answer the
+  question this laboratory is for: whether a caption survives MOVING imagery. A
+  slow drift on the active card alone is the cheapest honest stand-in. It is one
+  transform, it runs on nothing but the card in view, and the global
+  reduced-motion rule in `tokens.css` stops it outright.
+*/
+@keyframes reel-drift {
+  from {
+    transform: scale(1.06) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(-1.5%, -2%, 0);
+  }
+}
+
+.reel-media.is-running .reel-poster {
+  animation: reel-drift 14s var(--ease-cinematic) infinite alternate;
+}
+
+/* The scrim, absolute over the bottom two thirds. Stops live in tokens.css. */
+.reel-scrim {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 66.6667%;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------- the play */
+
+/*
+  A poster is never a dead end. 64px, the app's own size, with the only
+  backdrop-blur in the system: it already ships here and nowhere else.
+*/
+.reel-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  height: 4rem;
+  width: 4rem;
+  border: 0;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--abyss) 55%, transparent);
+  color: var(--cream);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition:
+    transform var(--dur-interaction) var(--ease-interaction),
+    background-color var(--dur-interaction) var(--ease-interaction);
+}
+.reel-play:hover {
+  background-color: color-mix(in srgb, var(--abyss) 70%, transparent);
+}
+.reel-play:active {
+  transform: translate(-50%, -50%) scale(0.95);
+}
+.reel-play[hidden] {
+  display: none;
+}
+/* An optically centred play glyph sits about 8% right of true centre, and the
+   difference reads as a wobble at this size. */
+.reel-play-glyph {
+  height: 1.75rem;
+  width: 1.75rem;
+  transform: translateX(2px);
+}
+
+/* ----------------------------------------------------------- the masthead */
+
+/*
+  The mark: 16px above it, 28px of mark, 80px of tail. `feed-scrim-top`'s stops
+  are percentages of exactly that 124px, so the mark sits between 13% and 35%
+  of the gradient, inside the band the palette test measures. Changing this
+  padding without changing those stops slides the mark into a lighter band with
+  every contrast test still passing, which is the quietest way to break it.
+*/
+.masthead {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem 1.25rem 5rem;
+  pointer-events: none;
+}
+.masthead-mark {
+  height: 1.75rem;
+  width: auto;
+}
+/* A concept may put one control opposite the mark. It has to opt back in to
+   pointer events; the rest of the top of a reel scrolls the strip. */
+.masthead > *:not(.masthead-mark) {
+  pointer-events: auto;
+}
+
+/* ------------------------------------------------------------ the tab bar */
+
+/*
+  The floating bar: a forest pill detached from the foot. 44px targets in 6px of
+  padding, so 56px, over a 12px foot. It is fixed in the app so the feed can be
+  truly full-bleed beneath it, and it is VISIBLE ON EVERY REEL. The retract was
+  built, shipped and ruled against by name on 13 September.
+
+  The wrapper is inert so the strip beside the pill still scrolls the feed.
+*/
+.tabbar {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem max(var(--tabbar-foot), env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+.tabbar-pill {
+  pointer-events: auto;
+  border-radius: 9999px;
+  padding: 0.375rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 12%, transparent);
+}
+.tabbar-list {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tabbar-item {
+  display: flex;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  border-radius: 9999px;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+  text-decoration: none;
+  transition:
+    background-color var(--dur-interaction) var(--ease-interaction),
+    color var(--dur-interaction) var(--ease-interaction);
+}
+.tabbar-item:hover {
+  color: var(--cream);
+}
+/* The active destination opens into a cream pill carrying its name; the other
+   three are discs holding only their glyph, named for a screen reader. */
+.tabbar-item.is-active {
+  width: auto;
+  gap: 0.5rem;
+  padding: 0 1rem 0 0.875rem;
+  background-color: var(--cream);
+  color: var(--forest);
+}
+.tabbar-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+}
+
+/*
+  A concept's frame-level chrome: above the strip, below the bar.
+
+  Inert by default so the strip beside it still scrolls the feed; whatever the
+  concept puts inside opts back in. The bar stays the top of the stack, which is
+  the rule that has not moved since 13 September.
+*/
+.reel-frame-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+}
+.reel-frame-layer > * {
+  pointer-events: auto;
+}
+
+/* --------------------------------------------------------------- controls */
+
+/*
+  A disc with a required name. 44px, which is the app's `md`. `paper` is the
+  system's solid cream disc; `onDark` is the translucent one that survives on a
+  picture where a forest disc would vanish.
+*/
+.disc {
+  display: grid;
+  place-items: center;
+  height: 2.75rem;
+  width: 2.75rem;
+  flex: none;
+  border: 0;
+  border-radius: 9999px;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color var(--dur-interaction) var(--ease-interaction),
+    transform var(--dur-interaction) var(--ease-interaction),
+    color var(--dur-interaction) var(--ease-interaction);
+}
+.disc:active {
+  transform: scale(0.95);
+}
+.disc-onDark {
+  background-color: color-mix(in srgb, var(--cream) 10%, transparent);
+  color: var(--cream);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 12%, transparent);
+}
+.disc-onDark:hover {
+  background-color: color-mix(in srgb, var(--cream) 15%, transparent);
+}
+.disc-paper {
+  background-color: var(--cream);
+  color: var(--forest);
+}
+.disc-paper:hover {
+  background-color: var(--cream-deep);
+}
+.disc-ghost {
+  background-color: transparent;
+  color: var(--cream);
+}
+.disc-ghost:hover {
+  background-color: color-mix(in srgb, var(--cream) 10%, transparent);
+}
+
+.icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  flex: none;
+}
+
+/* Focus. On the media ground the ring is `terra-soft`, which measures 7.86:1
+   on abyss; on cream it is `terra-deep`. */
+.reel-frame :focus-visible {
+  outline: 2px solid var(--terra-soft);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------- the caption */
+
+/*
+  The shared caption skeleton. Every concept that writes at the foot of a reel
+  starts here, so the clearance for the bar is stated once.
+
+  `--tabbar-clearance` is 92px: the bar's own 56px, its foot, and a breath above
+  it. It is the number every other screen in the app already leaves.
+*/
+.reel-foot {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 0 1.25rem var(--tabbar-clearance);
+}
+
+/* The title. Fraunces at 400 and only 400: the display system is two voices,
+   upright and the turn, and neither is bold. Operator-written and unbounded, so
+   it clamps rather than truncating to one line. */
+.reel-title {
+  font-family: var(--font-display);
+  font-variation-settings:
+    "opsz" 144,
+    "SOFT" 75,
+    "WONK" 0;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  color: var(--cream);
+  font-size: 2rem;
+  line-height: 1.05;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  text-decoration: none;
+  text-wrap: pretty;
+}
+a.reel-title {
+  transition: opacity var(--dur-interaction) var(--ease-interaction);
+}
+a.reel-title:hover {
+  opacity: 0.8;
+}
+
+/* The opacity ladder, measured. Body text on a dark ground floors at
+   `cream/60` (5.15:1); comfortable secondary is `cream/70` (6.45:1). Anything
+   below 60% is decoration and never text. */
+.ink-70 {
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+.ink-60 {
+  color: color-mix(in srgb, var(--cream) 60%, transparent);
+}
+.ink-full {
+  color: var(--cream);
+}
+/* `terra-soft` measures 7.86:1 on abyss and 5.5:1 from the scrim's 85% stop
+   downward, so accent type is allowed in the bottom band of a caption and never
+   above the title. A FILLED terra chip on a dark surface measures 4.05:1 and is
+   banned outright. */
+.ink-accent {
+  color: var(--terra-soft);
+}
+
+/* ------------------------------------------------------------- the tail */
+
+/*
+  Four things can be true here and they read differently: more is coming, more
+  failed, the list ended, or the server stopped without a cursor. Never a
+  spinner: the sentinel fires two screens early, so a spinner is a flicker at
+  the bottom of every scroll that nobody was meant to see.
+*/
+.reel-tail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: start;
+  padding: 3rem 2rem var(--tabbar-clearance);
+  text-align: center;
+  min-height: 40%;
+}
+.reel-tail-note {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--cream) 60%, transparent);
+  max-width: 22rem;
+  margin: 0;
+}

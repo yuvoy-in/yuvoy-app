@@ -205,7 +205,18 @@ describe("Feed", () => {
       per listing would return one.
     */
     renderWithQuery(<Feed />);
-    const cards = await screen.findAllByText("Try-dive at Nemo Reef");
+    /*
+      By ROLE and accessible name, not by text.
+
+      The card's name is its title, and counting the text instead counted the
+      details panel's own title too: the panel covers the caption when it opens,
+      so it names what it describes, and that name is a second copy of the same
+      string. The article's accessible name is unambiguous and is what a screen
+      reader counts as well.
+    */
+    const cards = await screen.findAllByRole("article", {
+      name: "Try-dive at Nemo Reef",
+    });
     expect(cards).toHaveLength(3);
 
     // And the whole feed is longer than the catalogue it is drawn from.

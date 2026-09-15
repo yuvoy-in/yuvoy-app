@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, screen, within, cleanup } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { Feed } from "./feed";
+import { ExperienceCard } from "./experience-card";
+import { EXPERIENCES } from "../../../mocks/fixtures";
 import { TabBar } from "@/components/chrome/tab-bar";
 import { useFeedStore } from "@/lib/feed/store";
 
@@ -63,19 +65,44 @@ describe("what is left on a reel", () => {
     expect(link).toHaveAttribute("href", "/e/try-dive-nemo-reef");
   });
 
-  it("keeps an arrow to the listing, above sound and share", async () => {
-    const card = await firstCard();
-    const rail = within(card).getByLabelText(/^Open /);
-    expect(rail).toHaveAttribute("href", "/e/try-dive-nemo-reef");
-
+  it("leads out of the feed with a word, not a glyph", async () => {
     /*
-      The ORDER is the ask, in the issue's own words: "a right-arrow button
-      above sound and share". Asserted through document position rather than by
-      reading classes, because a flex column's order is what a thumb meets.
+      The arrow became "Book" (owner, 14 Sep). It had been carrying two meanings
+      at once: it opened the listing, and before that it opened a details panel,
+      and a right-pointing glyph cannot say which. The word says one thing.
+
+      "View", not "Book", when nothing is bookable in the next ninety days. A
+      button offering to book a listing with no departures is a promise the
+      product cannot keep, and the tap that ends in "no dates" is the one this
+      whole screen exists to prevent.
     */
+    const card = await firstCard();
+    const out = within(card).getByRole("link", { name: "Book" });
+    expect(out).toHaveAttribute("href", "/e/try-dive-nemo-reef");
+  });
+
+  it("puts save between sound and share, and it is a save and not a like", async () => {
+    /*
+      The ORDER is what a thumb meets, so it is asserted through document
+      position rather than by reading classes. Book is last, nearest the thumb,
+      because it is the control used most.
+
+      The NAME matters as much as the order. This is a private wishlist:
+      nothing it records is counted, published or shown to an operator, which is
+      why the glyph is a bookmark and the word is "Save". A heart would say
+      "like", and a like is a gesture this product does not have.
+    */
+    const card = await firstCard();
+    const save = within(card).getByRole("button", { name: /^Save / });
     const share = within(card).getByLabelText(/^Share/);
+    const out = within(card).getByRole("link", { name: /^(Book|View)$/ });
+
+    expect(save).toHaveAttribute("aria-pressed", "false");
     expect(
-      rail.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING,
+      save.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      share.compareDocumentPosition(out) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -100,7 +127,9 @@ describe("what is left on a reel", () => {
     */
     const card = await firstCard();
     expect(within(card).queryByLabelText(/^(Unmute|Mute)$/)).toBeNull();
-    expect(within(card).getByLabelText(/^Open /)).toBeTruthy();
+    expect(
+      within(card).getByRole("link", { name: /^(Book|View)$/ }),
+    ).toBeTruthy();
   });
 });
 
@@ -111,11 +140,64 @@ describe("what a reel no longer carries", () => {
     expect(within(card).queryByText(/Reef Divers|HC Diving/)).toBeNull();
   });
 
-  it("does not print the activity type, the date or the seats", async () => {
+  it("says what the thing is, and whether it can be done", async () => {
+    /*
+      This test asserted the OPPOSITE until 15 September, and the reversal is
+      the point of the change rather than a relaxation of it.
+
+      The 13 September cutback removed the activity type and the departure along
+      with seven other things, on a complaint that was spatial: "I'm unable to
+      see reel fully, it is covered by lot of things". Deleting the two facts
+      that decide a swipe answered the complaint at the cost of the screen's
+      job. `nextAvailable` is the field the contract defines as "absent means
+      nothing is bookable in the next 90 days, not we did not check", and
+      between the cutback and this the feed sent travellers to listings with no
+      departures and gave them no way to know.
+
+      What was NOT brought back is everything else: no operator, no verified
+      tag, no price, no chip, no full-width call to action. Those are asserted
+      absent below and in the tests around this one.
+    */
     const card = await firstCard();
-    expect(within(card).queryByText(/Scuba diving/)).toBeNull();
-    expect(within(card).queryByText(/^Next /)).toBeNull();
-    expect(within(card).queryByText(/No dates in the next 90 days/)).toBeNull();
+    expect(within(card).getByText(/Scuba diving/)).toBeTruthy();
+    expect(within(card).getByText(/Havelock/)).toBeTruthy();
+    /* "Thu, 20 Aug": the weekday and the date, in the MARKET's zone. The
+       fixture's departures are in August, and the month is asserted rather than
+       a whole string so this does not break the day the fixtures move. */
+    expect(within(card).getByText(/\d{1,2} Aug/)).toBeTruthy();
+  });
+
+  it("states the absence of dates rather than staying quiet about it", async () => {
+    /*
+      The losing tap, named. A card that says nothing about availability makes
+      the traveller tap through to find out, and the tap that ends in "no dates"
+      is the one that loses them.
+
+      Rendered directly rather than through the feed, because the fixture with
+      no `nextAvailable` deliberately has no clip either, so `playableReels`
+      drops it and it can never reach a reel. That is correct of the feed and
+      would have made this assertion quietly vacuous: it would have found no
+      card and passed a `queryBy`. The card is the unit under test here.
+    */
+    const closed = EXPERIENCES.find((e) => !e.nextAvailable);
+    expect(closed, "no fixture without a departure").toBeTruthy();
+
+    renderWithQuery(
+      <ExperienceCard
+        experience={closed!}
+        index={0}
+        total={1}
+        active
+        mounted={false}
+        muted
+        autoplayAllowed={false}
+      />,
+    );
+
+    expect(screen.getByText("No dates in the next 90 days")).toBeTruthy();
+    /* "View", never "Book": there is nothing to book. */
+    expect(screen.getByRole("link", { name: "View" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Book" })).toBeNull();
   });
 
   it("does not print a price", async () => {
@@ -132,7 +214,7 @@ describe("what a reel no longer carries", () => {
     expect(within(card).queryByText("Ask the operator")).toBeNull();
   });
 
-  it("does not carry a full-width call to action, only the arrow", async () => {
+  it("does not carry a full-width call to action on the reel itself", async () => {
     const card = await firstCard();
     expect(within(card).queryByText("See dates")).toBeNull();
     expect(within(card).queryByText("Have a look")).toBeNull();
