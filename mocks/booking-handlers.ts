@@ -1546,6 +1546,75 @@ export const bookingHandlers = [
     return HttpResponse.json({ id: INVITED_TRIP.id });
   }),
 
+  /* --------------------------------------------- the booker's guests ---- */
+
+  /*
+    Inviting people onto a booking (yuvoy-app#38 items 6 and 12).
+
+    In-memory, so the panel can be walked end to end: invite, see the row
+    appear, remove it, see it go. A mock that answered a fixed list would let
+    the panel pass every test while never actually refetching.
+
+    `maxGuests` is the party size less the booker, which is the rule the client
+    is forbidden from deriving. `delivery: not_sent_no_channel` is what the API
+    answers today, because there is no WhatsApp sender yet, and it is the case
+    where the BOOKER has to deliver the link.
+  */
+  http.post(url("/bookings/invites"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "That link is not valid.", 401);
+    }
+    const scenario = scenarioOf(request);
+    if (scenario === "party-full") {
+      return envelope("conflict", "Every place is already offered.", 409);
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      phone?: string;
+    };
+    const id = `tgi_${guestSeq++}`;
+    mockGuests.push({
+      id,
+      ...(body.phone ? { phoneMasked: `••• ${body.phone.slice(-4)}` } : {}),
+      state: "invited" as const,
+      delivery: "not_sent_no_channel" as const,
+      createdAt: new Date(mockNow()).toISOString(),
+    });
+    return HttpResponse.json(
+      {
+        id,
+        state: "invited",
+        delivery: "not_sent_no_channel",
+        inviteUrl: `https://app.yuvoy.in/i/${id}`,
+      },
+      { status: 201, headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.get(url("/bookings/invites"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "That link is not valid.", 401);
+    }
+    return HttpResponse.json(
+      {
+        guests: mockGuests,
+        // A party of three: the booker plus two places to offer.
+        maxGuests: scenarioOf(request) === "party-of-one" ? 0 : 2,
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.delete(url("/bookings/invites/:id"), async ({ request, params }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "That link is not valid.", 401);
+    }
+    const at = mockGuests.findIndex((g) => g.id === params.id);
+    if (at >= 0) mockGuests.splice(at, 1);
+    // 204 "also when they were already removed".
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   /* ------------------------------------------------------ help ---------- */
 
   /*
@@ -1677,6 +1746,26 @@ const DEV_SIGN_IN_CODE = "123456";
  * that carried any of them would let a card render something a guest must
  * never see and no server would send.
  */
+/**
+ * The booker's guest list, in memory (yuvoy-app#38 item 6).
+ *
+ * Mutable on purpose. The panel invites, sees a row appear, removes it and
+ * sees it go, and none of that is provable against a fixed fixture: a list
+ * that never changes lets a panel that never refetches pass.
+ *
+ * Reset between tests by `__resetBookingMocks`, like the reservations store.
+ */
+type MockGuest = {
+  id: string;
+  phoneMasked?: string;
+  name?: string;
+  state: "invited" | "joined" | "declined";
+  delivery: "not_sent_no_channel" | "queued" | "not_applicable";
+  createdAt: string;
+};
+const mockGuests: MockGuest[] = [];
+let guestSeq = 1;
+
 const INVITED_TRIP = {
   id: "inv_joined",
   role: "guest" as const,
@@ -1736,4 +1825,7 @@ export function __resetBookingMocks(): void {
   reservations.clear();
   byToken.clear();
   idempotent.clear();
+  // The guest list too, or one test's invitation is the next one's fixture.
+  mockGuests.length = 0;
+  guestSeq = 1;
 }

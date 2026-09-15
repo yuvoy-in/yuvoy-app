@@ -23,6 +23,7 @@ import { CancelSheet } from "./cancel-sheet";
 import { BookingQuestions } from "./booking-questions";
 import { MessageThread } from "./message-thread";
 import { ShareButton } from "./share-button";
+import { InviteGuests } from "./invite-guests";
 import { AddToCalendar } from "./add-to-calendar";
 import { HelpSection } from "@/components/support/help-section";
 import {
@@ -474,6 +475,20 @@ function StatusBody({
 
       {/* Actions need the network, so they are absent on an offline snapshot. */}
       {token && upcoming ? <ShareButton token={token} /> : null}
+
+      {/*
+        Offering a PLACE, which is a different thing from sharing a link
+        (#38 items 6 and 12). Share reveals the meeting point to anybody it is
+        pasted to; this gives somebody their own seat in the party.
+
+        "Invitations are taken for a trip that is confirmed, or a request still
+        waiting on the operator, and that has not ended." `upcoming` covers the
+        confirmed half and `awaiting_operator` the other, and the server
+        refuses anything else with a 409 regardless.
+      */}
+      {token && (upcoming || status.state === "awaiting_operator") ? (
+        <InviteGuests token={token} />
+      ) : null}
 
       {/*
         The trip in the traveller's own calendar (#38 item 5).
