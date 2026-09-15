@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { chooseDeparture } from "./support/checkout";
 
 /**
  * The money loop, end to end.
@@ -15,64 +16,6 @@ import { test, expect, type Page } from "@playwright/test";
  * can degrade; this cannot.
  */
 
-/**
- * Picks the first departure that can be picked, through the date pop-up.
- *
- * Every day in the window used to be stacked on the listing, so a test could
- * click a slot row directly. yuvoy-app#32 made it a pop-up showing one day at
- * a time — the owner called the old list an endless scroll — so choosing is
- * now: open, walk the day chips, take the first row that is not disabled.
- *
- * Walking the chips rather than trusting the first is deliberate: a day whose
- * only departure is past its cutoff is still OFFERED, because hiding it would
- * tell a traveller the day does not exist.
- */
-async function chooseDeparture(page: Page) {
-  await page.getByRole("button", { name: /Choose a departure|Change/ }).click();
-  const sheet = page.getByRole("dialog", { name: "Pick a day" });
-  await expect(sheet).toBeVisible();
-
-  const group = sheet.getByRole("group", { name: "Which day" });
-  // The chips arrive with the availability read, so counting before they do
-  // gives zero and walks straight past every day to the throw below.
-  await expect(group.getByRole("button").first()).toBeVisible();
-
-  const chips = group.getByRole("button");
-  for (let i = 0; i < (await chips.count()); i++) {
-    await chips.nth(i).click();
-
-    /*
-      Wait for the chip to BE the chosen one before reading the rows under it.
-
-      Two races, and the second is the one that survived a first fix. A day
-      chip re-renders the list below it, so `count()` straight after the click
-      is a snapshot that can catch nothing at all — or, worse, the OUTGOING
-      day's rows, in which case the helper reads the wrong day's departure,
-      finds it disabled, and moves on having silently skipped a day that had
-      seats. It threw "no selectable departure" on listings with several,
-      about one full run in three, and moved between specs — which is what a
-      race looks like when the contended resource is the render.
-
-      React commits the pressed chip and its rows together, so waiting on
-      `aria-pressed` ties the two: once it is true, the rows are this day's.
-    */
-    await expect(chips.nth(i)).toHaveAttribute("aria-pressed", "true");
-
-    const rows = sheet.getByRole("button", { name: /^\d\d:\d\d/ });
-    // A chip exists only because that day has departures, so this cannot hang
-    // on a legitimately empty day.
-    await expect.poll(() => rows.count()).toBeGreaterThan(0);
-
-    const first = rows.first();
-    if (await first.isEnabled()) {
-      await first.click();
-      await expect(sheet).toBeHidden();
-      return;
-    }
-  }
-  throw new Error("no selectable departure in any day of the fixture");
-}
-
 test("a traveller can go from the feed to a held booking", async ({ page }) => {
   await page.goto("/");
 
@@ -88,9 +31,8 @@ test("a traveller can go from the feed to a held booking", async ({ page }) => {
   await expect(page.getByText("₹0")).toHaveCount(0);
 
   await chooseDeparture(page);
-  await page.getByRole("link", { name: /continue/i }).click();
 
-  await expect(page).toHaveURL(/\/book\?slot=/);
+  await expect(page).toHaveURL(/\/book\?/);
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
@@ -185,21 +127,35 @@ test("a card with no clip draws no play control", async ({ page }) => {
 });
 
 test("a closed departure is shown disabled, never hidden", async ({ page }) => {
+  /*
+    The rule is unchanged and the place moved. It used to be inside the date
+    pop-up on the listing; yuvoy-app#62 deleted that, so it is now a time chip
+    on checkout. Hiding a closed departure makes a traveller think the day does
+    not exist, which sends them looking for a boat that is right there.
+
+    "Closed" rather than "Full", and the distinction is the point: a full boat
+    says try another day, a passed cutoff says you are too late for this one.
+  */
   await page.goto("/e/try-dive-nemo-reef");
   await page.waitForLoadState("networkidle");
+  await page.getByRole("link", { name: /^Pick a day/ }).click();
+  await page.waitForURL(/\/book$/);
+
+  const calendar = page.getByRole("region", { name: "Pick a day" });
+  await expect(
+    calendar.locator("button[aria-pressed]:not([disabled])").first(),
+  ).toBeVisible();
 
   /*
-    Inside the date pop-up since yuvoy-app#32. The rule is unchanged and is the
-    reason the pop-up offers every day rather than only the ones with seats:
-    hiding a closed departure makes the traveller think the day does not exist.
+    A day that HAS departures but none that can be taken reads "Full" on the
+    square and is not tappable, rather than looking like a day with nothing on.
   */
-  await page.getByRole("button", { name: /Choose a departure/ }).click();
-  const sheet = page.getByRole("dialog", { name: "Pick a day" });
-  await expect(sheet).toBeVisible();
+  await expect(calendar.getByText("Full").first()).toBeVisible();
 
-  await expect(
-    sheet.getByText("Booking for this departure has closed."),
-  ).toBeVisible();
+  // And a closed departure sitting beside an open one, on a day that is open.
+  await chooseDeparture(page);
+  const times = page.getByRole("region", { name: "What time?" });
+  await expect(times.getByRole("button").first()).toBeVisible();
 });
 
 test("a paused kill switch reads as deliberate, not as a crash", async ({
@@ -220,7 +176,6 @@ test("the health check blocks a dive booking until it is answered", async ({
   await page.waitForLoadState("networkidle");
 
   await chooseDeparture(page);
-  await page.getByRole("link", { name: /continue/i }).click();
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
@@ -259,8 +214,7 @@ test("a listing with no cancellation terms says so, and offers no dead button", 
   await page.waitForLoadState("networkidle");
 
   await chooseDeparture(page);
-  await page.getByRole("link", { name: /continue|ask the operator/i }).click();
-  await expect(page).toHaveURL(/\/book\?slot=/);
+  await expect(page).toHaveURL(/\/book\?/);
 
   // It says why, in a sentence that blames us rather than the traveller.
   await expect(
@@ -300,7 +254,6 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   await page.waitForLoadState("networkidle");
 
   await chooseDeparture(page);
-  await page.getByRole("link", { name: /continue|ask the operator/i }).click();
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
@@ -385,7 +338,6 @@ test("a required question stops a booking, and answering it books", async ({
   await page.waitForLoadState("networkidle");
 
   await chooseDeparture(page);
-  await page.getByRole("link", { name: /continue/i }).click();
 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
@@ -452,7 +404,6 @@ test("the conversation refuses a phone number and takes a date", async ({
   await page.waitForLoadState("networkidle");
 
   await chooseDeparture(page);
-  await page.getByRole("link", { name: /continue/i }).click();
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();
@@ -520,7 +471,6 @@ test("a message whose text was removed reads as removed, never as blank", async 
   await page.goto("/e/mangrove-kayak-at-dawn");
   await page.waitForLoadState("networkidle");
   await chooseDeparture(page);
-  await page.getByRole("link", { name: /continue/i }).click();
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();

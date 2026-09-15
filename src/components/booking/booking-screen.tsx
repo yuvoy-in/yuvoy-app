@@ -26,6 +26,7 @@ import { MessageThread } from "./message-thread";
 import { ShareButton } from "./share-button";
 import { InviteGuests } from "./invite-guests";
 import { AddToCalendar } from "./add-to-calendar";
+import { KeepBooking } from "./keep-booking";
 import { HelpSection } from "@/components/support/help-section";
 import {
   amountToBring,
@@ -496,6 +497,22 @@ function StatusBody({
       {status.refund ? <RefundProgress refund={status.refund} /> : null}
 
       {/* Actions need the network, so they are absent on an offline snapshot. */}
+      {/*
+        KEEP YOUR BOOKING, right under the heading (yuvoy-app#61 item 1).
+
+        The panel is the one with Skip; the row below is always there, for any
+        booking still happening, "after Skip too". Two variants rather than two
+        components, because they are the same three actions and a second copy
+        would drift.
+
+        This exists because #60 removed the device's own copy of a booking. A
+        traveller on a jetty with no signal had nothing; an image in Photos
+        survives a cleared browser, a new phone and a flat battery.
+      */}
+      {token ? (
+        <KeepBooking status={status} token={token} variant="panel" />
+      ) : null}
+
       {token && upcoming ? <ShareButton token={token} /> : null}
 
       {/*
@@ -522,6 +539,10 @@ function StatusBody({
         owns that list, since it is the one that knows what it would write.
       */}
       <AddToCalendar status={status} />
+
+      {token ? (
+        <KeepBooking status={status} token={token} variant="row" />
+      ) : null}
 
       {/*
         A person, two ways (#38 item 4).
