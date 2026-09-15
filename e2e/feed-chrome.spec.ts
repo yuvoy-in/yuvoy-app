@@ -122,26 +122,77 @@ test.describe("the reel keeps the screen", () => {
     expect(mark.x).toBeLessThan(viewport.width / 4);
   });
 
-  test("the overlay is the name and three controls, and no more", async ({
+  test("the overlay says what it is and when, and nothing it cannot keep", async ({
     page,
   }) => {
     /*
       The owner's complaint, as an assertion: "I'm unable to see reel fully, it
-      is covered by lot of things." Nine things went; these are the ones a
-      traveller would notice by name.
+      is covered by lot of things." Nine things went on 13 September.
+
+      Two of them came back on the 15th, and this test now pins BOTH halves,
+      because the interesting claim is not "less" but "the right less". What is
+      on the picture is what decides the next swipe: what the thing is, and
+      whether it could be done at all. What is still gone is everything that
+      belongs on the listing, and the price most of all, which was the thing
+      most likely to be read as a promise about a seat.
     */
     const card = page.locator('article[aria-posinset="1"]');
 
+    // Still gone.
     await expect(card.getByText("Verified")).toHaveCount(0);
     await expect(card.getByText("Instant book")).toHaveCount(0);
     await expect(card.getByText("Ask the operator")).toHaveCount(0);
-    await expect(card.getByText(/See dates|Have a look/)).toHaveCount(0);
     await expect(card.getByText(/₹/)).toHaveCount(0);
+    await expect(card.getByText(/Sample .* Operator/)).toHaveCount(0);
 
-    // And what is left really is there and really works.
-    await expect(card.getByLabel(/^Open /)).toBeVisible();
+    // Back, and deliberately.
+    await expect(card.getByText(/Scuba diving/)).toBeVisible();
+    await expect(
+      card.getByRole("button", { name: /Aug|No dates/ }),
+    ).toBeVisible();
+
+    // And the rest of what is left really is there.
+    await expect(
+      card.getByRole("link", { name: /^(Book|View)$/ }),
+    ).toBeVisible();
     await expect(card.getByLabel("Share this reel")).toBeVisible();
+    await expect(card.getByRole("button", { name: /^Save / })).toBeVisible();
     await expect(card.getByRole("heading", { level: 2 })).toBeVisible();
+  });
+
+  test("the price and the operator are one tap away, not on the picture", async ({
+    page,
+  }) => {
+    /*
+      The middle this screen was missing. A feed that prices every card invites
+      comparison before understanding; a feed that never prices anything makes
+      every tap a coin flip. The panel is the answer and it costs no request:
+      every field in it came down with the reel.
+    */
+    const card = page.locator('article[aria-posinset="1"]');
+
+    await card.getByRole("button", { name: /Aug|No dates/ }).click();
+
+    const panel = card.getByRole("group", { name: /^Details, / });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText(/₹/)).toBeVisible();
+    await expect(panel.getByText(/Sample Dive Operator/)).toBeVisible();
+    await expect(
+      panel.getByRole("link", { name: /See dates|Have a look/ }),
+    ).toBeVisible();
+
+    /* The clip is still playing above it: the panel may not take the screen. */
+    const cardBox = (await card.boundingBox())!;
+    const panelBox = (await panel.boundingBox())!;
+    const covered = (cardBox.y + cardBox.height - panelBox.y) / cardBox.height;
+    expect(
+      covered,
+      "the panel covers more than its 54% ceiling",
+    ).toBeLessThanOrEqual(0.55);
+
+    // Tapping the picture puts it away.
+    await page.mouse.click(cardBox.x + cardBox.width / 2, cardBox.y + 80);
+    await expect(panel).not.toBeVisible();
   });
 
   test("the caption clears the bar rather than sitting under it", async ({
@@ -206,15 +257,18 @@ test.describe("swiping a reel open", () => {
     await page.waitForSelector('article[aria-posinset="1"]');
   });
 
-  test("right to left opens the experience the arrow points at", async ({
+  test("right to left opens the experience Book points at", async ({
     page,
     isMobile,
   }) => {
     test.skip(!isMobile, "a swipe needs a touchscreen");
 
+    /* The arrow became the word "Book" on 15 September, or "View" when nothing
+       is bookable in ninety days. Same href, and the swipe must still agree
+       with it: they are built from one string for exactly this reason. */
     const href = await page
       .locator('article[aria-posinset="1"]')
-      .getByLabel(/^Open /)
+      .getByRole("link", { name: /^(Book|View)$/ })
       .getAttribute("href");
 
     const viewport = page.viewportSize()!;

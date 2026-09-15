@@ -46,14 +46,22 @@ export function ReelDetails({
   href,
   open,
   onClose,
-  labelledBy,
+  id,
 }: {
   experience: ExperienceSummary;
   href: string;
   open: boolean;
   onClose: () => void;
-  /** The control that opened it, so the panel is named by what it describes. */
-  labelledBy: string;
+  /**
+   * So the control that opens this can point at it with `aria-controls`.
+   *
+   * NOT `aria-labelledby` pointing the other way, which is what this was first.
+   * `aria-labelledby` WINS over `aria-label` when both are present, so the
+   * panel ended up named by the availability line that opened it: a group
+   * called "Thu, 20 Aug · 3 seats left". `aria-controls` is the relationship
+   * that was actually meant, and it leaves the panel free to say what it is.
+   */
+  id: string;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -106,9 +114,9 @@ export function ReelDetails({
       ref={ref}
       className="reel-sheet"
       data-open={open ? "open" : "shut"}
+      id={id}
       role="group"
       aria-label={`Details, ${experience.title}`}
-      aria-labelledby={labelledBy}
     >
       {/*
         The handle. The 4px bar is the affordance; the CONTROL is 36px tall and

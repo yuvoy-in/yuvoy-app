@@ -117,7 +117,7 @@ export function ExperienceCard({
 
   const departure = nextDepartureSentence(experience);
   const saved = isSaved(experience.id);
-  const disclosureId = useId();
+  const panelId = useId();
 
   /*
     A card that scrolls out of view takes its panel with it.
@@ -274,8 +274,8 @@ export function ExperienceCard({
             */}
             <button
               type="button"
-              id={disclosureId}
               aria-expanded={detailsOpen}
+              aria-controls={panelId}
               onClick={() => setDetailsOpen((open) => !open)}
               className="ease-interaction flex min-h-9 items-center text-left text-[13px] transition-opacity duration-200 hover:opacity-80"
             >
@@ -385,7 +385,7 @@ export function ExperienceCard({
             href={href}
             open={detailsOpen}
             onClose={closeDetails}
-            labelledBy={disclosureId}
+            id={panelId}
           />
         ) : null}
       </div>

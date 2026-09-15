@@ -616,10 +616,32 @@
   box-shadow: inset 0 1px 0
     color-mix(in srgb, var(--color-cream) 14%, transparent);
   transform: translateY(100%);
-  transition: transform 240ms var(--ease-interaction);
+  /*
+    `visibility` as well as the transform, and the delay is the whole trick.
+
+    A panel translated off the bottom is still PAINTED and still in the
+    accessibility tree: it is merely somewhere you cannot see. `inert` handles
+    the tree, but nothing handles the paint, and nothing made the element
+    honestly say it was hidden, which is a fact about the document rather than
+    a test detail.
+
+    So visibility flips too, with a delay exactly the length of the slide: going
+    out it stays visible for the 240ms it takes to leave and hides at the end;
+    coming in it becomes visible on the same frame the transform starts, because
+    the open rule carries no delay. A transition on `visibility` steps rather
+    than interpolating, which is what makes this work at all.
+  */
+  visibility: hidden;
+  transition:
+    transform 240ms var(--ease-interaction),
+    visibility 0s linear 240ms;
 
   &[data-open="open"] {
     transform: none;
+    visibility: visible;
+    transition:
+      transform 240ms var(--ease-interaction),
+      visibility 0s linear 0s;
   }
 }
 
