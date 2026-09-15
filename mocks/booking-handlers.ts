@@ -848,6 +848,22 @@ export const bookingHandlers = [
             }
           : {}),
         /*
+          HOW TO REACH A PERSON - yuvoy-app#38 item 4.
+
+          "Always sent (since 2026-09-13)", and the same shape as on
+          `getMyAccount`, so a traveller on a booking link who never signed in
+          can still Chat with us. `?__scenario=no-support-number` is the other
+          half of the contract's own sentence: `whatsappE164` is null while
+          there is no number, and the button is hidden then. Without a scenario
+          for it the hidden branch would never be exercised, and this product
+          has shipped an unconfigured number before.
+        */
+        support: {
+          whatsappE164:
+            scenario === "no-support-number" ? null : "+919000000001",
+          hours: "9am to 7pm, every day",
+        },
+        /*
           WHETHER TO OFFER "HOW WAS IT" - yuvoy-app#38 item 3.
 
           "Always sent", and the mock now sends it, because the screen reads
@@ -1528,6 +1544,66 @@ export const bookingHandlers = [
       return envelope("unauthorized", "Sign in first.", 401);
     }
     return HttpResponse.json({ id: INVITED_TRIP.id });
+  }),
+
+  /* ------------------------------------------------------ help ---------- */
+
+  /*
+    The in-app help form (yuvoy-app#38 items 4 and 9).
+
+    Takes EITHER credential, which is the contract's own point: "a traveller
+    who booked without signing in can still ask for help". The mock refuses an
+    unauthenticated call and accepts both a `sess_` session and a booking
+    link's status token, because the two callers reach this from different
+    screens and only one of them has a session.
+
+    Two scenarios, both of which the form has a branch for and neither of which
+    is reachable without the mock producing it: `support-invalid` for the
+    per-field `400`, and `support-rate-limited` for the `429` after five in an
+    hour.
+  */
+  http.post(url("/support/requests"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    const scenario = scenarioOf(request);
+    if (scenario === "support-rate-limited") {
+      return envelope("rate_limited", "Too many messages.", 429);
+    }
+
+    const body = (await request.json()) as {
+      message?: string;
+      topic?: string;
+      bookingReference?: string;
+    };
+
+    /*
+      The contract's own floor, enforced here so the field-level branch is
+      exercised by something. `details` is a map of field to sentence, which is
+      what the form renders under the box rather than at the top.
+    */
+    if (scenario === "support-invalid" || (body.message ?? "").length < 10) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "invalid_input",
+            message: "That message is too short.",
+            details: {
+              message: "Tell us a little more, at least 10 characters.",
+            },
+          },
+        },
+        { status: 400, headers: mockHeaders(rid()) },
+      );
+    }
+
+    return HttpResponse.json(
+      {
+        reference: "SR-3F9A12C0",
+        message: "Thanks. We have your message and will reply on WhatsApp.",
+      },
+      { status: 201, headers: mockHeaders(rid()) },
+    );
   }),
 
   http.get(url("/me/interest-options"), async () =>

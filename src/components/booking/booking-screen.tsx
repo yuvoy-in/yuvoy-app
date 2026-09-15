@@ -24,6 +24,7 @@ import { BookingQuestions } from "./booking-questions";
 import { MessageThread } from "./message-thread";
 import { ShareButton } from "./share-button";
 import { AddToCalendar } from "./add-to-calendar";
+import { HelpSection } from "@/components/support/help-section";
 import {
   amountToBring,
   isBooked,
@@ -484,6 +485,27 @@ function StatusBody({
         owns that list, since it is the one that knows what it would write.
       */}
       <AddToCalendar status={status} />
+
+      {/*
+        A person, two ways (#38 item 4).
+
+        Placed after the actions and before the live-updates note, which is
+        where somebody scrolls when the page has not answered their question.
+        The WhatsApp message names the booking, so nobody has to explain which
+        trip they mean; when there is no reference yet, it names the experience
+        instead, because a request the operator has not answered is exactly the
+        thing somebody chases.
+      */}
+      <HelpSection
+        support={status.support}
+        bookingReference={status.bookingReference}
+        token={token}
+        whatsappMessage={
+          status.bookingReference
+            ? `Hi, I need help with booking ${status.bookingReference}.`
+            : `Hi, I need help with my request for ${status.experience?.title ?? "my trip"}.`
+        }
+      />
 
       {token && upcoming && !cancelling ? (
         <Button
