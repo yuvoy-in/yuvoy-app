@@ -23,6 +23,7 @@ import { CancelSheet } from "./cancel-sheet";
 import { BookingQuestions } from "./booking-questions";
 import { MessageThread } from "./message-thread";
 import { ShareButton } from "./share-button";
+import { AddToCalendar } from "./add-to-calendar";
 import {
   amountToBring,
   isBooked,
@@ -472,6 +473,17 @@ function StatusBody({
 
       {/* Actions need the network, so they are absent on an offline snapshot. */}
       {token && upcoming ? <ShareButton token={token} /> : null}
+
+      {/*
+        The trip in the traveller's own calendar (#38 item 5).
+
+        Not gated on `upcoming` like Share is. Share mints a link for people
+        coming along, which is meaningless once a trip has left; adding a past
+        trip to a calendar is merely pointless rather than wrong, and the real
+        exclusions are the states where an entry would be a lie. The component
+        owns that list, since it is the one that knows what it would write.
+      */}
+      <AddToCalendar status={status} />
 
       {token && upcoming && !cancelling ? (
         <Button

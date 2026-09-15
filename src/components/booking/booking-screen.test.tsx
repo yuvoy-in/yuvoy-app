@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { BookingScreen } from "./booking-screen";
@@ -1427,5 +1427,50 @@ describe("the review offer", () => {
       screen.queryByRole("button", { name: /leave this review/i }),
     ).toBeNull();
     expect(screen.queryByText(/Thanks, you rated/)).toBeNull();
+  });
+});
+
+/**
+ * Add to calendar (#38 item 5).
+ *
+ * The file itself is pinned line by line in `lib/booking/calendar.test.ts`.
+ * What is asserted here is the half that file cannot see: when the button is
+ * offered at all, and what the screen hands it.
+ */
+describe("add to calendar", () => {
+  it("is offered on a booking that is going ahead", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByRole("button", { name: /Add to calendar/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("is hidden on a trip that is not happening", async () => {
+    /*
+      A calendar entry for a cancelled trip is worse than none: it survives in
+      the traveller's phone long after this page is closed, and nothing here
+      will ever remove it.
+    */
+    for (const state of ["cancelled", "declined", "expired"]) {
+      cleanup();
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(statusBody({ state })),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText(/Try-dive at Nemo Reef/);
+      expect(
+        screen.queryByRole("button", { name: /Add to calendar/ }),
+        state,
+      ).toBeNull();
+    }
   });
 });
