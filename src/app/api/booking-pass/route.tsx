@@ -40,7 +40,7 @@ const HEIGHT = 1920;
   allowlists both files for exactly that reason.
 */
 const FOREST = "#16362e";
-const CREAM = "#f4efe4";
+const PAPER = "#ffffff";
 const TERRA = "#be7149";
 
 export async function POST(request: Request) {
@@ -151,7 +151,7 @@ function Pass({ status }: { status: BookingStatus }) {
         flexDirection: "column",
         justifyContent: "space-between",
         background: FOREST,
-        color: CREAM,
+        color: PAPER,
         padding: 96,
         fontFamily: "sans-serif",
       }}

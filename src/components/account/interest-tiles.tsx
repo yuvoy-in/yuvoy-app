@@ -68,8 +68,8 @@ export function InterestTiles({
               className={cn(
                 "rounded-control ease-interaction tap-target border px-3 py-2 text-sm transition-colors duration-200",
                 on
-                  ? "border-forest bg-forest text-cream"
-                  : "border-cream-line bg-cream text-forest hover:border-forest/40",
+                  ? "border-forest bg-forest text-paper"
+                  : "border-paper-line bg-paper text-forest hover:border-forest/40",
                 !on && full && "cursor-not-allowed opacity-40",
               )}
             >

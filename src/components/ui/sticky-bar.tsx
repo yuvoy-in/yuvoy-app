@@ -23,7 +23,7 @@ export function StickyBar({
   return (
     <div
       className={cn(
-        "border-cream-line bg-cream lg:rounded-b-sheet sticky bottom-0 z-20 -mx-6 mt-8 -mb-8 border-t px-6 py-4 sm:-mx-10 sm:px-10",
+        "border-paper-line bg-paper lg:rounded-b-sheet sticky bottom-0 z-20 -mx-6 mt-8 -mb-8 border-t px-6 py-4 sm:-mx-10 sm:px-10",
         className,
       )}
     >

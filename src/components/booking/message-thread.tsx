@@ -378,7 +378,7 @@ export function MessageThread({
                     zooms back out (yuvoy-app#35).
                   */
                   className={cn(
-                    "rounded-control border-cream-line bg-cream-deep text-forest focus:border-forest/60 focus:bg-cream ease-interaction w-full resize-y border px-4 py-3 text-base transition-[border-color,background-color] duration-200 outline-none",
+                    "rounded-control border-paper-line bg-paper-deep text-forest focus:border-forest/60 focus:bg-paper ease-interaction w-full resize-y border px-4 py-3 text-base transition-[border-color,background-color] duration-200 outline-none",
                     over && "border-terra-deep",
                   )}
                 />
@@ -423,7 +423,7 @@ export function MessageThread({
                 ) : null}
               </form>
             ) : messages.length > 0 ? (
-              <p className="text-forest/70 border-cream-line mt-5 border-t pt-4 text-sm">
+              <p className="text-forest/70 border-paper-line mt-5 border-t pt-4 text-sm">
                 {closedBecause(page!.closedReason)}
               </p>
             ) : null}
@@ -461,13 +461,13 @@ function Message({ message }: { message: BookingMessage }) {
       <div
         className={cn(
           "rounded-card max-w-[85%] px-4 py-3",
-          mine ? "bg-forest text-cream" : "bg-cream-deep text-forest",
+          mine ? "bg-forest text-paper" : "bg-paper-deep text-forest",
         )}
       >
         <p
           className={cn(
             "text-xs font-bold",
-            mine ? "text-cream/70" : "text-forest/70",
+            mine ? "text-paper/70" : "text-forest/70",
           )}
         >
           {message.senderName}
@@ -489,7 +489,7 @@ function Message({ message }: { message: BookingMessage }) {
           <p
             className={cn(
               "mt-1 text-sm italic",
-              mine ? "text-cream/70" : "text-forest/70",
+              mine ? "text-paper/70" : "text-forest/70",
             )}
           >
             The text of this message was removed.

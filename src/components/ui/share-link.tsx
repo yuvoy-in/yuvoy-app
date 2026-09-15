@@ -79,7 +79,7 @@ export function ShareLink({
         role="status"
         aria-live="polite"
         className={cn(
-          "label app-chrome ring-cream/12 absolute top-1/2 right-full mr-3 -translate-y-1/2 rounded-full px-3 py-1.5 text-[11px] whitespace-nowrap ring-1",
+          "label app-chrome ring-paper/12 absolute top-1/2 right-full mr-3 -translate-y-1/2 rounded-full px-3 py-1.5 text-[11px] whitespace-nowrap ring-1",
           !notice && "sr-only",
         )}
       >

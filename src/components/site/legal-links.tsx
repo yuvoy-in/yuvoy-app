@@ -43,7 +43,7 @@ export function LegalLinks({
 }) {
   const link =
     tone === "dark"
-      ? "text-cream/70 hover:text-cream underline underline-offset-2"
+      ? "text-paper/70 hover:text-paper underline underline-offset-2"
       : "text-forest/70 hover:text-forest underline underline-offset-2";
 
   return (

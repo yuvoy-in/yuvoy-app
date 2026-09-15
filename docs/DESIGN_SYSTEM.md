@@ -7,6 +7,90 @@
 > Sections describing marketing-only surfaces (the brand veil, the hero atmosphere, the device
 > preview, destination plates) are **retained for reference** — the app does not implement them,
 > but the reasoning in them is why the rules below are what they are.
+>
+> **Two light surfaces are named in this file and they are not the same colour.** Since v2.9
+> (below) the app and the operator portal paint `paper` (`#FFFFFF`); `yuvoy-web` is frozen on
+> `cream` (`#F4EFE4`). Retained marketing sections say `cream` and mean the marketing site's
+> token. Everything describing the app says `paper`. A ratio quoted beside `cream` is the
+> marketing site's and has not moved.
+
+## v2.9 (2026-09-15, product-directed) — the app and the portal are white
+
+**The change: the cream surface trio becomes a white one, and is renamed
+`paper`. Nothing else in the system moves — not the ink, not the accent, not
+the type, not the radius scale, not the chassis.**
+
+The product team's note was one line: every product except the marketing site
+should be white rather than cream. It applies to `yuvoy-app` and
+`yuvoy-operator`; `yuvoy-web` keeps `cream` under D-101's no-sync-back rule.
+
+### What the three tokens became
+
+| Was                    | Is                     | Role                           |
+| ---------------------- | ---------------------- | ------------------------------ |
+| `cream` `#F4EFE4`      | `paper` `#FFFFFF`      | Canvas                         |
+| `cream-deep` `#ECE5D6` | `paper-deep` `#F7F5F1` | Raised surfaces, cards, inputs |
+| `cream-line` `#E5DCC9` | `paper-line` `#EDEAE4` | Hairlines                      |
+
+**The separation was preserved, not the hue.** `paper-deep` sits 1.09:1 off the
+canvas and `paper-line` 1.20:1, which are the steps the cream trio had (1.09:1
+and 1.19:1). That is deliberate and it is the reason this is a token change and
+not a redesign: every card, input, panel and divider holds exactly the weight it
+held, on a white ground instead of a beige one.
+
+The two supports stay **warm-neutral rather than grey**. The ink is a green and
+the accent a terracotta; a neutral-grey panel between them reads as a third hue
+rather than as the absence of one. (Owner decision, 15 Sep 2026, over a
+cold-neutral ramp and over a softer off-white canvas.)
+
+### Why the name changed with the value
+
+A token called `cream` painting `#FFFFFF` is a lie every future reader has to
+re-check against the hex, and `bg-cream` is the first thing the next screen
+would have copied. `paper` was also already the system's word for this surface:
+it is the name of the `Button` and `IconButton` variant that paints the light
+control on the dark stage, which now paints `bg-paper` and reads correctly for
+the first time.
+
+Not `white`: Tailwind ships a built-in `white`, so `text-white/60` would have
+silently satisfied the off-palette scanner in `palette.test.ts`.
+
+### Every pairing gained contrast, by exactly 1.1467
+
+Only the light end of the palette moved, so against any fixed ground the ratio
+scales by `1.05 / (L_cream + 0.05)` = **1.1467**. Nothing needed re-sizing and
+no scrim, tint or opacity rung was re-cut: the floors that were tight are the
+same floors with more room. Every figure in this document and in `globals.css`
+was multiplied through and re-measured rather than left to drift.
+
+The one rule whose _justification_ changed is the terra rule (§1): `terra` on
+the raised surface was 2.96:1 and failed everything; it is 3.41:1 and clears the
+3:1 large-text floor. The rule is kept as a restraint rule, and says so.
+
+### What it is enforced by
+
+- `palette.test.ts` asserts the literals it measures **are** the `@theme`
+  tokens, so a value can never again change underneath the test that claims to
+  measure it.
+- It also pins the two surface steps. Nothing else would catch losing them:
+  every text pairing gets _better_ as the supports lighten, so a flattened ramp
+  passes every contrast assertion while the panels quietly vanish.
+- It holds `docs/reel-lab/css/tokens.css` to the promise its own header makes,
+  since the lab restates the palette longhand and had nothing tying it back.
+- `pnpm tokens:check` in `yuvoy-operator` diffs the `@theme` block against this
+  one, so the portal moved in the same change.
+
+### The brand marks moved too
+
+The lockup, the compact mark and the ensō are `paper` on dark surfaces now, and
+the favicon, app icon, Apple touch icon and OG mark were regenerated from the
+recoloured vector. A cream mark beside white text measures 1.15:1 — the "two
+whites" version of the failure v2.1 fixed when it merged two darks.
+
+`scripts/generate-icons.mjs` was ported from `yuvoy-web` for this (`pnpm
+icons`). It had always been web's, and the outputs here were copies — which
+stopped working the moment the two products' marks stopped being the same
+colour. The two copies differ only in `SRC`.
 
 ## v2.8 (2026-09-09, owner-directed) — the feed's chrome retracts
 
@@ -107,8 +191,8 @@ school, a nail studio, a social feed, two travel apps — and one sentence:
 _"everything should follow the design system we have, i.e. colours and fonts,
 but the designs should be coming from the expectations — and since this is an
 application we can actually have the rounded corners."_ Two decisions were
-taken with the owner the same day: **a dark stage with cream sheets** (over
-all-dark, or cream-only), and **focused screens hide the tab bar** behind a
+taken with the owner the same day: **a dark stage with paper sheets** (over
+all-dark, or paper-only), and **focused screens hide the tab bar** behind a
 back control and a sticky action bar. The same language ships in
 `yuvoy-operator`.
 
@@ -117,9 +201,9 @@ back control and a sticky action bar. The same language ships in
 | In every reference                                                            | In the app                                                                                               |
 | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | A dark, cinematic ground; photography as the hero                             | The forest **stage** on every viewport; the feed's abyss media ground, unchanged                         |
-| Transactional content on a light card rising over the picture                 | The cream **sheet**, 32px at the top, rising over the stage or the hero (`Screen`)                       |
+| Transactional content on a light card rising over the picture                 | The paper **sheet**, 32px at the top, rising over the stage or the hero (`Screen`)                       |
 | Cards at 20–28px, chips as pills, controls as circles                         | `--radius-card` 24px, `rounded-full` chips and discs                                                     |
-| A floating pill navigation with one destination highlighted                   | `TabBar`: a forest pill detached from the foot; the active tab opens into a cream pill carrying its name |
+| A floating pill navigation with one destination highlighted                   | `TabBar`: a forest pill detached from the foot; the active tab opens into a paper pill carrying its name |
 | Detail screens with no tab bar, a floating back disc and one sticky price bar | `FOCUSED_ROUTE_PREFIXES`, `BackButton`, `StickyBar`                                                      |
 | A serif display face, a sans for everything else                              | Fraunces + Satoshi, unchanged                                                                            |
 
@@ -155,8 +239,8 @@ MOBILE  (< 1024px)                           DESKTOP  (>= 1024px)
 +------------------------+                   +--------+----------------------------+
 | forest stage           |                   |        |  forest stage              |
 |  (<)      CHECKOUT     |                   |  rail  |    +------------------+    |
-| +----------------------+  <- 32px corners  | forest |    | cream panel 32px |    |
-| | cream sheet          |                   |        |    |                  |    |
+| +----------------------+  <- 32px corners  | forest |    | paper panel 32px |    |
+| | paper sheet          |                   |        |    |                  |    |
 | |                      |                   |        |    +------------------+    |
 | |   sticky action bar  |                   |        |                            |
 | +----------------------+                   +--------+----------------------------+
@@ -173,23 +257,23 @@ MOBILE  (< 1024px)                           DESKTOP  (>= 1024px)
   to edge with the masthead and the bar floating over it; on a desktop it is a
   32px well set into the stage, still capped at 480px.
 - **Chrome is still `forest`**, now as objects — the pill bar, the rail, the
-  discs — separated from a cream sheet by contrast and from the picture by a
-  `cream/12` hairline ring. There is still no shadow token.
+  discs — separated from a paper sheet by contrast and from the picture by a
+  `paper/12` hairline ring. There is still no shadow token.
 - **The back control is a link to a stated fallback, never `history.back()`.**
   A shared link opened in a fresh tab has no in-app history, and search keeps
   its results in component state, so a true back would restore nothing anyway.
 
 ### Measured, and one thing ruled out
 
-Every pairing inside a sheet is the cream table from §1, unchanged. The stage
-adds nothing new: cream and cream/70 on forest were already measured. One
+Every pairing inside a sheet is the paper table from §1, unchanged. The stage
+adds nothing new: paper and paper/70 on forest were already measured. One
 combination the chips wanted is recorded as failing: `terra-soft` over a
-`cream/10` tint on forest composites to **4.05:1**, so the accent chip on a
+`paper/10` tint on forest composites to **3.95:1**, so the accent chip on a
 dark surface is outline-only. `palette.test.ts` computes it.
 
 The feed caption's order is contrast, not taste: the accent chip sits beside
 the price in the bottom band of the scrim (85%+ abyss, where `terra-soft`
-measures 5.5:1) and the operator line above the title is cream.
+measures 5.5:1) and the operator line above the title is paper.
 
 ### The primitives (`src/components/ui`, `src/components/chrome`)
 
@@ -228,8 +312,8 @@ Computed, not estimated. `src/app/palette.test.ts` asserts every row.
 
 | Pairing                 | Ratio       | Verdict                                              |
 | ----------------------- | ----------- | ---------------------------------------------------- |
-| `cream` on `abyss`      | **16.75:1** | AAA                                                  |
-| `cream-deep` on `abyss` | **15.32:1** | AAA                                                  |
+| `paper` on `abyss`      | **19.21:1** | AAA                                                  |
+| `paper-deep` on `abyss` | **17.64:1** | AAA                                                  |
 | `terra-soft` on `abyss` | **7.86:1**  | AAA — a full rung better than its 5.36:1 on `forest` |
 | `terra` on `abyss`      | **5.17:1**  | **AA at body size**                                  |
 | `terra` on `forest`     | 3.53:1      | large text only                                      |
@@ -237,7 +321,7 @@ Computed, not estimated. `src/app/palette.test.ts` asserts every row.
 
 **Two consequences worth stating explicitly:**
 
-1. **`terra` becomes body-safe on `abyss`, and is not on `forest` or `cream`.** The terra rule in
+1. **`terra` becomes body-safe on `abyss`, and is not on `forest` or `paper`.** The terra rule in
    §1 is relaxed **on this ground only**. Stated here rather than assumed, because an accent that
    passes on one dark and fails on another is exactly the kind of thing that ships broken.
 2. **Every existing pairing gains headroom.** Nothing that passes on `forest` fails on `abyss`.
@@ -329,7 +413,7 @@ MOBILE  (< 1024px)                   DESKTOP  (>= 1024px)
 
 Single source of truth for visual design. **Every color, font, radius and tracking value used in the app must map to a token here.** Never invent a value that falls between tokens — add a token (with review) instead.
 
-Direction: **editorial, rectangular, confident.** Geometric display type against wide-tracked caps labels; cream editorial surfaces alternating with forest immersive ones; hairline rules doing the work that boxes and shadows do elsewhere. Generous space, fast interactions, slow entrances.
+Direction: **editorial, rectangular, confident.** Geometric display type against wide-tracked caps labels; paper editorial surfaces alternating with forest immersive ones; hairline rules doing the work that boxes and shadows do elsewhere. Generous space, fast interactions, slow entrances.
 
 > **Brand Kit v2** (ratified 2026-08-01) supersedes v1. v1 was Fraunces + pill geometry on a warmer cream; v2 moves to Poppins + IBM Plex Mono and a rectangular geometry, retuning the palette to match. Rationale and the full contrast table are in §1.
 >
@@ -355,12 +439,12 @@ Brand Kit v2. Every ratio below is measured (sRGB relative luminance, WCAG 2.2) 
 
 | Token        | Hex       | Role                                                           |
 | ------------ | --------- | -------------------------------------------------------------- |
-| `cream`      | `#F4EFE4` | Canvas — default page background                               |
-| `cream-deep` | `#ECE5D6` | Raised surfaces — cards, inputs, panels on cream               |
-| `cream-line` | `#E5DCC9` | Hairline borders on cream                                      |
-| `forest`     | `#16362E` | Primary ink **and** every dark surface (11.44:1 on cream)      |
-| `terra`      | `#BE7149` | Accent — decoration and LARGE display text only (3.24:1)       |
-| `terra-deep` | `#985028` | Text-capable accent (5.21:1 on cream); never a CTA fill        |
+| `paper`      | `#FFFFFF` | Canvas — default page background                               |
+| `paper-deep` | `#F7F5F1` | Raised surfaces — cards, inputs, panels on paper               |
+| `paper-line` | `#EDEAE4` | Hairline borders on paper                                      |
+| `forest`     | `#16362E` | Primary ink **and** every dark surface (13.11:1 on paper)      |
+| `terra`      | `#BE7149` | Accent — decoration and LARGE display text only (3.72:1)       |
+| `terra-deep` | `#985028` | Text-capable accent (5.98:1 on paper); never a CTA fill        |
 | `terra-soft` | `#D89772` | Accent text on forest (5.36:1)                                 |
 | `device`     | `#0A100E` | **The preview bezel only** — an object's colour, not a surface |
 
@@ -368,14 +452,17 @@ Brand Kit v2. Every ratio below is measured (sRGB relative luminance, WCAG 2.2) 
 
 | Pairing                      | Ratio   | Verdict                     |
 | ---------------------------- | ------- | --------------------------- |
-| `forest` on `cream`          | 11.44:1 | AA + AAA body               |
-| `terra-deep` on `cream`      | 5.21:1  | AA body                     |
-| `terra-deep` on `cream-deep` | 4.77:1  | AA body                     |
-| `terra` on `cream`           | 3.24:1  | **large text only** (≥24px) |
-| `terra` on `cream-deep`      | 2.96:1  | **fails everything**        |
-| `cream` on `terra-deep`      | 5.21:1  | AA body                     |
-| `cream` on `forest`          | 11.44:1 | AA + AAA body               |
+| `forest` on `paper`          | 13.11:1 | AA + AAA body               |
+| `terra-deep` on `paper`      | 5.98:1  | AA body                     |
+| `terra-deep` on `paper-deep` | 5.49:1  | AA body                     |
+| `terra` on `paper`           | 3.72:1  | **large text only** (≥24px) |
+| `terra` on `paper-deep`      | 3.41:1  | **large text only** (≥24px) |
+| `paper` on `terra-deep`      | 5.98:1  | AA body                     |
+| `paper` on `forest`          | 13.11:1 | AA + AAA body               |
+| `paper-deep` on `forest`     | 12.04:1 | AA + AAA body               |
 | `terra-soft` on `forest`     | 5.36:1  | AA body                     |
+| `paper-deep` off `paper`     | 1.09:1  | the raised-surface step     |
+| `paper-line` off `paper`     | 1.20:1  | the hairline step           |
 
 ### There is one dark surface
 
@@ -408,38 +495,46 @@ Where the scrim is a gradient, state the floor and show that the range is bounde
 
 ### The terra rule (read before using an accent on text)
 
-`terra` is **decoration and large display text only**. At 3.24:1 it clears AA
+`terra` is **decoration and large display text only**. At 3.72:1 it clears AA
 for large text (≥24px, or ≥18.66px bold) and nothing else. It may never be used
 for body copy, labels, nav, or button text.
 
-- Accent text at body/label size **on cream** → `terra-deep`.
+- Accent text at body/label size **on paper** → `terra-deep`.
 - Accent text **on forest** → `terra-soft`.
-- **`terra` text may only sit on `cream`, never on `cream-deep`.** Its headroom
-  over the large-text floor is 0.24, so the raised surface alone spends it:
-  3.24:1 becomes 2.96:1 and the same headline that passes on the canvas fails
-  on a panel. A section that paints `cream-deep` and then uses `SectionHeading`
-  gets a failing accent with no warning, which is exactly what happened to the
-  operators section — put the section on `cream` and raise its inner panels to
-  `cream-deep` instead, which is how that section is now built.
+- **`terra` text may only sit on `paper`, never on `paper-deep`** — and since
+  v2.9 that is a restraint rule rather than a contrast one. It used to be
+  arithmetic: on cream the headroom over the large-text floor was 0.24, the
+  raised surface alone spent it, and 3.24:1 became 2.96:1 — the same headline
+  passing on the canvas and failing on a panel, which is exactly what happened
+  to the marketing site's operators section. A white canvas buys that headroom
+  back: 3.72:1 on `paper` and **3.41:1 on `paper-deep`**, so the panel now
+  clears 3:1 too.
+
+  The rule is kept anyway. An accent that is legal everywhere is an accent that
+  spreads, the margin on a panel is still only 0.41, and the raised surface is
+  where cards and inputs live — which is small-text territory, where `terra`
+  fails whatever the ground. Put the section on `paper` and raise its inner
+  panels to `paper-deep`, which is how that section is built.
+
 - Accent **fills** are not a thing any more. CTAs are monochrome (§5): forest
-  on cream surfaces, cream on forest ones. A `terra` fill with text on it fails
+  on paper surfaces, paper on forest ones. A `terra` fill with text on it fails
   AA, and the `terra-deep` fill that used to carry the CTA was retired on
   2026-08-05 as a template tell.
 
 ### The opacity ladder (measured, not guessed)
 
-Muted and secondary text comes from **opacity modifiers on `forest` / `cream`**, not new tokens. The rendered composite decides whether it passes, so the safe floors are fixed:
+Muted and secondary text comes from **opacity modifiers on `forest` / `paper`**, not new tokens. The rendered composite decides whether it passes, so the safe floors are fixed:
 
 | Usage                         | Floor            | Composite ratio |
 | ----------------------------- | ---------------- | --------------- |
-| Body/secondary text on cream  | `text-forest/70` | 4.77:1          |
-| Labels + small text on cream  | `text-forest/75` | 5.55:1          |
-| Body text on forest           | `text-cream/60`  | 5.15:1          |
-| Comfortable secondary on dark | `text-cream/70`  | 6.45:1          |
+| Body/secondary text on paper  | `text-forest/70` | 5.14:1          |
+| Labels + small text on paper  | `text-forest/75` | 6.00:1          |
+| Body text on forest           | `text-paper/60`  | 5.78:1          |
+| Comfortable secondary on dark | `text-paper/70`  | 7.26:1          |
 
-**Anything below `forest/70` on cream, or `cream/60` on dark, is decoration only** — never text. Every rung above held when the darks merged: `forest` is deeper than the `teal` it replaced, so each pairing gained margin rather than losing it.
+**Anything below `forest/70` on paper, or `paper/60` on dark, is decoration only** — never text. Every rung above held when the darks merged: `forest` is deeper than the `teal` it replaced, so each pairing gained margin rather than losing it.
 
-Borders and fills are exempt from these floors — `border-forest/20`, `bg-forest/5`, `border-cream/12` are all fine.
+Borders and fills are exempt from these floors — `border-forest/20`, `bg-forest/5`, `border-paper/12` are all fine.
 
 ## 2. Typography
 
@@ -447,15 +542,15 @@ Borders and fills are exempt from these floors — `border-forest/20`, `bg-fores
 - **UI / body — Satoshi** (`font-sans`, the default), weights 400 / 500 / 700. There is no 600, so `font-semibold` must never appear on body text (the browser would synthesise it). Emphasis in running text is `font-bold`.
 - **Label — Satoshi** via the `label` utility: uppercase, `text-xs`, `font-medium`, `tracking-label` (0.18em). Eyebrows, nav, stats, metadata, button labels. The mono was retired in v2.3 — it read as terminal, not magazine.
 - **`eyebrow` utility** — the `label` preceded by a terracotta dot, the same square `size-1` marker the fact rows use (a hairline rule until 2026-08-05, replaced by owner direction). This is the section-opening gesture; **use it once per section**, at the top. Eyebrows are plain phrases: no act numbering (owner direction 2026-08-03). The one exception is the cover: the hero's opening line is a plain `label` with no marker (owner direction 2026-08-05).
-- **Wordmark** — ensō + terra dot and the tracked YUVOY caps, side by side. **No strapline, on any surface** (owner, 14 Sep 2026, yuvoy-app#36): it was on the feed, search, trips, account, every listing header, the desktop rail, the home-screen name and the share card's alt, and it is now on none of them. `<Wordmark />` takes a `tone` and nothing else; the second drawing was deleted rather than left behind a prop, because a default is how a removed thing comes back. Two tone variants because a cream ensō is invisible on cream (the §1 pairings). Generated by `scripts/generate-feed-lockup.mjs` from the delivered lockup **in yuvoy-web**, which this repo no longer keeps a copy of. Never hand-edit the generated SVGs; re-run the script after a redelivery. `src/components/ui/wordmark.guard.test.ts` fails the build if either the strapline or the delivered art comes back under `src` or `public`.
+- **Wordmark** — ensō + terra dot and the tracked YUVOY caps, side by side. **No strapline, on any surface** (owner, 14 Sep 2026, yuvoy-app#36): it was on the feed, search, trips, account, every listing header, the desktop rail, the home-screen name and the share card's alt, and it is now on none of them. `<Wordmark />` takes a `tone` and nothing else; the second drawing was deleted rather than left behind a prop, because a default is how a removed thing comes back. Two tone variants because a paper ensō is invisible on paper (the §1 pairings). Generated by `scripts/generate-feed-lockup.mjs` from the delivered lockup **in yuvoy-web**, which this repo no longer keeps a copy of. Never hand-edit the generated SVGs; re-run the script after a redelivery. `src/components/ui/wordmark.guard.test.ts` fails the build if either the strapline or the delivered art comes back under `src` or `public`.
 - **Punctuation** — rendered copy never uses an em dash. Prefer a period, a colon, a comma or a parenthetical; ranges and pairings use a middot (owner direction 2026-08-03). Code comments are exempt. Since 2026-09-12 the ban covers every long dash (em U+2014, en U+2013, horizontal bar U+2015) and a range takes a plain hyphen, enforced by `pnpm check:dashes`, which runs first in `pnpm lint` and blanks comments before it looks; text from the API is stripped at the boundary instead, in `src/lib/format/dedash.ts`.
 - **Launch timing** — never name a month. The hero states it plainly ("Opening soon", owner direction 2026-08-05); deeper copy may describe the season evocatively ("when the water clears", "when the sea turns to glass").
 - **The mark** — the official ensō (brush ring + terracotta dot), **cut out, never tiled**. The delivered source (`design/brand-source/yuvoy-logo.png`) is white strokes on an opaque black field, so every display asset is derived by `scripts/generate-brand-assets.py`; never hand-edit them, and re-run it if the source is replaced.
-  - `yuvoy-mark-on-light.png` / `yuvoy-mark-on-dark.png` — transparent cut-outs, forest and cream strokes. **These are what the UI uses.** Two files rather than one recoloured file because a cream ensō is invisible on cream and a forest one is invisible on forest. `WaveMark` renders both and cross-fades on opacity, so the header's colour change never waits on a fetch.
+  - `yuvoy-mark-on-light.png` / `yuvoy-mark-on-dark.png` — transparent cut-outs, forest and paper strokes. **These are what the UI uses.** Two files rather than one recoloured file because a paper ensō is invisible on paper and a forest one is invisible on forest. `WaveMark` renders both and cross-fades on opacity, so the header's colour change never waits on a fetch.
   - **Icons are generated from the vector by `scripts/generate-icons.mjs`** (2026-08-07): `src/app/icon.svg` (the primary favicon), `src/app/icon.png` (512, Android + the `Organization` logo), `src/app/apple-icon.png` (180), `src/app/favicon.ico` (16/32/48 PNG-in-ICO) and `public/brand/yuvoy-mark.png` (the OG card's mark). All carry the forest tile, because a favicon is drawn on a browser tab whose colour we do not control — **a tile must never appear in the page itself**; on a forest section it draws a green box around the mark. They previously came from the raster pipeline, which left a soft rectangular halo around the terracotta dot; the vector has none. Never hand-edit an output; re-run the script.
   - The script resamples by **area averaging, not bilinear**. Bilinear is a magnifying filter; shrinking with it discards most of the source pixels and is what made the mark look coarse and its brush strokes break up. Masks are measured off the source, not guessed.
   - **Delivered masters live in `design/brand-source/` and `design/photography-source/`, never under `public/`** (2026-08-07): anything in `public/` is deployed and publicly fetchable, and 4.6MB of print-weight PNGs were shipping on every deploy for no reason. Scripts read them from there.
-- **Vector assets** are derived from the delivered master `public/yuvoy-logo-vector.svg` by `scripts/generate-vector-brand.mjs`: `public/brand/yuvoy-mark-vector-{cream,forest}.svg`, `public/brand/yuvoy-lockup-vector-{cream,forest}.svg`, and the intro's per-letter module `src/components/brand/yuvoy-letter-paths.ts`. The tagline is stripped from all of them, and the delivered colours are re-expressed as tokens (cream or forest strokes, `terra` dot). Never hand-edit the outputs; re-run the script.
+- **Vector assets** are derived from the delivered master `public/yuvoy-logo-vector.svg` by `scripts/generate-vector-brand.mjs`: `public/brand/yuvoy-mark-vector-{paper,forest}.svg`, `public/brand/yuvoy-lockup-vector-{paper,forest}.svg`, and the intro's per-letter module `src/components/brand/yuvoy-letter-paths.ts`. The tagline is stripped from all of them, and the delivered colours are re-expressed as tokens (paper or forest strokes, `terra` dot). Never hand-edit the outputs; re-run the script.
 
 Scale: Tailwind's type scale. Headlines `font-display`; everything else inherits Satoshi unless it is a label.
 

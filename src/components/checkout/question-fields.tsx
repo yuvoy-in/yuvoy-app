@@ -189,7 +189,7 @@ function QuestionControl({
           viewport off mid-form.
         */
         className={cn(
-          "rounded-control border-cream-line bg-cream-deep focus:border-forest/60 ease-interaction mt-2 h-12 w-full border px-4 text-base transition-colors duration-200 outline-none",
+          "rounded-control border-paper-line bg-paper-deep focus:border-forest/60 ease-interaction mt-2 h-12 w-full border px-4 text-base transition-colors duration-200 outline-none",
           flagged && "border-terra-deep",
           disabled && "opacity-60",
         )}
@@ -235,8 +235,8 @@ function ChoiceCard({
         "rounded-card ease-interaction flex gap-3 border p-4 text-sm transition-[border-color,background-color,box-shadow] duration-200",
         disabled ? "cursor-default opacity-60" : "cursor-pointer",
         checked
-          ? "border-forest bg-cream-deep ring-forest ring-1"
-          : "border-cream-line",
+          ? "border-forest bg-paper-deep ring-forest ring-1"
+          : "border-paper-line",
         !checked && !disabled && "hover:border-forest/40",
       )}
     >

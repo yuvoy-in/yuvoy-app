@@ -82,7 +82,7 @@ test.describe("the filter sheet", () => {
       real: the sheet fades in over 250ms, axe was sampling a partly
       transparent element, and the colour it read (`#5e7269`) is the label
       blended with the page behind it at about two thirds opacity. The steady
-      state is `#4e645c` on cream, which measures 5.55:1 — comfortably AA, and
+      state is `#4e645c` on paper, which measures 6.36:1 — comfortably AA, and
       pinned as a token pairing in `palette.test.ts`.
 
       A flaky contrast result is always this: contrast does not vary. Waiting

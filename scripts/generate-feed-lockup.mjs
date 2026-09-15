@@ -34,8 +34,18 @@
  *   3. Crops the viewBox to the remaining art with the same ~6px margin the
  *      delivered files carry.
  *
- * Nothing is recoloured: each source file already carries its own tones, so
- * the dark variant stays cream/terra-soft and the light one forest/terra-deep.
+ * ONE recolour, and only on the dark variant (v2.9). The source files carry
+ * their own tones and the light one is forest/terra-deep here as there. The
+ * dark one is not: yuvoy-web's delivered lockup is drawn in `cream`, which is
+ * that site's canvas and no longer this one's, so its light tone is mapped to
+ * `--color-paper` on the way through.
+ *
+ * Without it this script is a loaded gun. It is the thing that runs after a
+ * brand redelivery, it writes into `public/brand`, and it would have written
+ * a cream mark back over the white one with nothing failing — the drawing is
+ * correct, the geometry is correct, and only the colour is a year out of
+ * date. The mapping reads BOTH hexes out of the two repos' own @theme blocks
+ * rather than naming either, so it cannot drift from either side.
  *
  * Reads from the sibling yuvoy-web checkout, which is where the delivered
  * files live. Writes into this repo's `public/brand`.
@@ -45,6 +55,16 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+/** A `--color-<name>` hex out of a repo's @theme block. */
+function token(globalsPath, name) {
+  const css = readFileSync(globalsPath, "utf8");
+  const hex = new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{6})`).exec(
+    css,
+  )?.[1];
+  if (!hex) throw new Error(`no --color-${name} in ${globalsPath}`);
+  return hex.toLowerCase();
+}
 
 const BRAND = join(process.cwd(), "public/brand");
 const MARGIN = 6;
@@ -200,11 +220,32 @@ function build(tone) {
     `</g>\n</svg>\n`;
 
   const dest = join(BRAND, `yuvoy-mark-compact-on-${tone}.svg`);
-  writeFileSync(dest, out);
+  writeFileSync(dest, tone === "dark" ? recolour(out) : out);
   return { tone, view, shift: round(shift), dest };
 }
 
 const round = (n) => Math.round(n * 100) / 100;
+
+/*
+  The delivered dark lockup's light tone, mapped to this repo's canvas.
+
+  Both ends are read rather than typed: the source's from yuvoy-web's @theme,
+  the destination's from ours. If either repo moves its canvas again this
+  follows it, and if yuvoy-web ever adopts `paper` too the mapping becomes the
+  identity and quietly stops mattering.
+*/
+function recolour(svg) {
+  const from = token(join(SOURCE, "../../src/app/globals.css"), "cream");
+  const to = token(join(process.cwd(), "src/app/globals.css"), "paper");
+  const swapped = svg.replace(new RegExp(from, "gi"), to);
+  if (from !== to && swapped === svg) {
+    throw new Error(
+      `the delivered dark lockup carries no ${from}; yuvoy-web's canvas token ` +
+        `and its brand files have diverged, so the recolour would be silent.`,
+    );
+  }
+  return swapped;
+}
 
 for (const tone of ["dark", "light"]) {
   const r = build(tone);

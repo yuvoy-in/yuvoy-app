@@ -81,7 +81,7 @@ export function ScreeningFields({
                     still at 14px, and it sits in checkout — the worst place to
                     throw somebody's viewport off mid-form.
                   */
-                  className="rounded-control border-cream-line bg-cream-deep focus:border-forest/60 ease-interaction h-12 flex-1 border px-4 text-base transition-colors duration-200 outline-none"
+                  className="rounded-control border-paper-line bg-paper-deep focus:border-forest/60 ease-interaction h-12 flex-1 border px-4 text-base transition-colors duration-200 outline-none"
                 >
                   <option value="" disabled>
                     Choose a range
@@ -178,8 +178,8 @@ function ScreenerChoice({
       className={cn(
         "rounded-card ease-interaction flex cursor-pointer gap-3 border p-4 text-sm transition-[border-color,background-color,box-shadow] duration-200",
         checked
-          ? "border-forest bg-cream-deep ring-forest ring-1"
-          : "border-cream-line hover:border-forest/40",
+          ? "border-forest bg-paper-deep ring-forest ring-1"
+          : "border-paper-line hover:border-forest/40",
       )}
     >
       <input

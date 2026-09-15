@@ -108,7 +108,7 @@ export function BookingScreen() {
       <Shell>
         <div
           role="status"
-          className="rounded-card border-cream-line bg-cream-deep mb-6 border px-4 py-3 text-xs"
+          className="rounded-card border-paper-line bg-paper-deep mb-6 border px-4 py-3 text-xs"
         >
           You are offline. This is what we saved on your device, last checked{" "}
           {formatAge(snapshot.fetchedAt)}.
@@ -349,7 +349,7 @@ function StatusBody({
       {/* Everything needed for the day, on the page. Not in a message that
           may never arrive. */}
       <Panel className="mt-8 p-0">
-        <dl className="divide-cream-line divide-y text-sm">
+        <dl className="divide-paper-line divide-y text-sm">
           {status.bookingReference ? (
             <Row label="Reference">
               <span className="font-mono text-lg font-bold tracking-wider">
@@ -641,7 +641,7 @@ function StatusBody({
         </p>
       ) : null}
 
-      <p className="text-forest/70 border-cream-line mt-8 border-t pt-6 text-xs">
+      <p className="text-forest/70 border-paper-line mt-8 border-t pt-6 text-xs">
         Something not right? Reply to the WhatsApp message we sent, or contact
         us from the link in it. Someone answers between 06:00 and 21:00.
       </p>
@@ -1474,7 +1474,7 @@ function CashBooked({
           us.
         </p>
 
-        <p className="border-cream-line text-forest/80 mt-5 border-t pt-4 text-sm">
+        <p className="border-paper-line text-forest/80 mt-5 border-t pt-4 text-sm">
           {formatDeparture(status.slot)}
           {meeting ? ` · ${meeting}` : null}
         </p>

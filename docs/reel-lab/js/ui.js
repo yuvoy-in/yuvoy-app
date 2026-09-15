@@ -300,7 +300,7 @@
    * **It is visible on every reel and it never retracts.** The retract was
    * built, shipped on 9 September and ruled against by the owner on the 13th by
    * name. It is reproduced here exactly, including the 56px height, the 12px
-   * foot and the `cream/12` hairline ring, because every concept has to compose
+   * foot and the `paper/12` hairline ring, because every concept has to compose
    * against it rather than around it.
    *
    * The wrapper is inert so the strip beside the pill still scrolls the feed.
@@ -380,7 +380,7 @@
     ]);
   }
 
-  /** A disc control. `paper` is the solid cream one; `onDark` is translucent. */
+  /** A disc control. `paper` is the solid paper one; `onDark` is translucent. */
   function disc(opts) {
     var node = el(
       opts.href ? "a" : "button",

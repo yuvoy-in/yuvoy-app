@@ -102,17 +102,17 @@ export function Sheet({
         if (e.target === ref.current) onClose();
       }}
       className={cn(
-        "app-sheet bg-cream text-forest w-full max-w-xl p-0",
+        "app-sheet bg-paper text-forest w-full max-w-xl p-0",
         "rounded-t-sheet sm:rounded-sheet",
         className,
       )}
     >
       <div className="flex max-h-[85dvh] flex-col">
-        <div className="border-cream-line flex items-start justify-between gap-3 border-b px-5 py-4">
+        <div className="border-paper-line flex items-start justify-between gap-3 border-b px-5 py-4">
           <h2 className="pt-1.5 font-bold">{title}</h2>
           <IconButton
             label="Close"
-            variant="onCream"
+            variant="onPaper"
             size="sm"
             onClick={onClose}
           >
@@ -126,7 +126,7 @@ export function Sheet({
         </div>
 
         {footer ? (
-          <div className="border-cream-line sheet-foot border-t px-5 py-4">
+          <div className="border-paper-line sheet-foot border-t px-5 py-4">
             {footer}
           </div>
         ) : null}

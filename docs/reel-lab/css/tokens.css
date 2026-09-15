@@ -45,9 +45,9 @@
 
 :root {
   /* -------------------------------------------------------------- colour */
-  --cream: #f4efe4;
-  --cream-deep: #ece5d6;
-  --cream-line: #e5dcc9;
+  --paper: #ffffff;
+  --paper-deep: #f7f5f1;
+  --paper-line: #edeae4;
   --forest: #16362e;
   --terra: #be7149;
   --terra-deep: #985028;
@@ -172,7 +172,7 @@
 */
 .app-chrome {
   background-color: var(--forest);
-  color: var(--cream);
+  color: var(--paper);
 }
 
 /*

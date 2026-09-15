@@ -9,7 +9,7 @@
   to whoever asked:
 
       choose(grid)              which region of this frame to write in
-      Lab.posters.veilFor(...)  the smallest veil that makes cream legible there
+      Lab.posters.veilFor(...)  the smallest veil that makes paper legible there
 */
 (function (Lab) {
   "use strict";
@@ -24,7 +24,7 @@
   /**
    * The floor a CONTROL is solved to.
    *
-   * A solid cream disc carries its own glyph at 11.44:1 whatever is behind it,
+   * A solid paper disc carries its own glyph at 13.11:1 whatever is behind it,
    * so the only thing at risk is the disc's edge dissolving into white surf.
    * 3:1 is the non-text contrast minimum and it is the right number.
    */
@@ -165,7 +165,7 @@
           Lab.el("span", {
             class: "frame-cell" + (inZone ? " is-chosen" : ""),
             style:
-              "background: rgba(244,239,228," +
+              "background: rgba(255,255,255," +
               (0.05 + l * 0.75).toFixed(3) +
               ")",
           }),

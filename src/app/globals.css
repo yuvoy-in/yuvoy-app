@@ -24,8 +24,8 @@
 
   Measured (sRGB relative luminance, WCAG 2.2), computed not estimated:
 
-    cream       on abyss   16.75:1   AAA
-    cream-deep  on abyss   15.32:1   AAA
+    paper       on abyss   19.21:1   AAA
+    paper-deep  on abyss   17.64:1   AAA
     terra-soft  on abyss    7.86:1   AAA   (5.36:1 on forest)
     terra       on abyss    5.17:1   AA    (3.53:1 on forest — large only)
     abyss       vs forest   1.47:1         reads as depth, not a second surface
@@ -33,15 +33,46 @@
   Note the second consequence: `terra` is BODY-SAFE on abyss and is not on
   forest. That relaxation applies to this ground only and is stated in §1 of
   docs/DESIGN_SYSTEM.md rather than assumed.
+
+  ── Brand Kit v2.9 (2026-09-15, product-directed) ────────────────────────
+  THE APP AND THE PORTAL ARE WHITE. `cream` is renamed `paper` and the trio
+  is re-cut on a pure-white canvas:
+
+    cream      #F4EFE4  ->  paper       #FFFFFF   canvas
+    cream-deep #ECE5D6  ->  paper-deep  #F7F5F1   raised surface
+    cream-line #E5DCC9  ->  paper-line  #EDEAE4   hairline
+
+  What was preserved is the SEPARATION, not the hue: 1.09:1 canvas-to-raised
+  and 1.20:1 canvas-to-hairline, the same two steps the cream trio had. No
+  card, input, panel or divider changes weight on any screen — they are the
+  same surfaces, on a white ground.
+
+  The supporting pair stays warm-neutral rather than going grey. The ink is a
+  green and the accent a terracotta; a neutral-grey panel between them reads
+  as a third hue rather than as an absence of one.
+
+  The NAME changed with the value on purpose. A token called `cream` that
+  paints #FFFFFF is a lie every future reader has to re-check against the hex,
+  and `bg-cream` would be the first thing a new screen copied. `paper` also
+  already meant this surface here: it is the name of the Button and IconButton
+  variant that paints the light disc on the dark stage.
+
+  `yuvoy-web` keeps `cream` and is untouched — D-101, no sync back.
+
+  Every pairing GAINED contrast, because only the light end moved. Against a
+  fixed ground the ratio scales by exactly 1.05 / (L_cream + 0.05) = 1.1467,
+  so every "light on dark" figure in this repo is the old one times 1.1467 —
+  the scrim numbers below included. Nothing needed re-sizing; the floors that
+  were tight are now the same floors with more room.
 */
 @theme {
   /* ---------------------------------------------------------------- color */
-  --color-cream: #f4efe4; /* canvas — editorial surfaces */
-  --color-cream-deep: #ece5d6; /* raised surface on cream — cards, inputs */
-  --color-cream-line: #e5dcc9; /* hairline borders on cream */
-  --color-forest: #16362e; /* primary ink AND every chrome surface (11.44:1) */
-  --color-terra: #be7149; /* accent — decoration + LARGE display text (3.24:1 on cream) */
-  --color-terra-deep: #985028; /* text-capable accent (5.21:1); never a CTA fill */
+  --color-paper: #ffffff; /* canvas — editorial surfaces */
+  --color-paper-deep: #f7f5f1; /* raised surface on paper — cards, inputs (1.09:1 off the canvas) */
+  --color-paper-line: #edeae4; /* hairline borders on paper (1.20:1 off the canvas) */
+  --color-forest: #16362e; /* primary ink AND every chrome surface (13.11:1) */
+  --color-terra: #be7149; /* accent — decoration + LARGE display text (3.72:1 on paper) */
+  --color-terra-deep: #985028; /* text-capable accent (5.98:1); never a CTA fill */
   --color-terra-soft: #d89772; /* accent text on forest (5.36:1) / abyss (7.86:1) */
 
   /*
@@ -51,7 +82,7 @@
     It is a ground and an object's colour, never a surface: it carries no
     section, no chrome, and no body text of its own. `palette.test.ts` pins
     both usages — the moment a section takes it, the site has two darks again.
-    Not pure #000, which sits harder than anything else and rims against cream.
+    Not pure #000, which sits harder than anything else and rims against paper.
   */
   --color-abyss: #0a100e;
 
@@ -152,13 +183,13 @@
   }
 
   body {
-    @apply bg-cream text-forest font-sans antialiased;
+    @apply bg-paper text-forest font-sans antialiased;
     text-rendering: optimizeLegibility;
     overflow-x: clip;
   }
 
   ::selection {
-    @apply bg-terra-deep text-cream;
+    @apply bg-terra-deep text-paper;
   }
 
   a:focus-visible {
@@ -169,7 +200,7 @@
 
   /*
     Focus rings follow the surface. The shell is the dark stage (`on-dark`),
-    where terra-soft is the legible ring; a cream sheet nested inside it
+    where terra-soft is the legible ring; a paper sheet nested inside it
     (`sheet`) switches back to terra-deep. Declared here, once, so no
     component carries its own focus colour.
   */
@@ -208,9 +239,9 @@
 
 /**
  * Wide-tracked uppercase label — the brand's editorial voice, in the text
- * face. On cream use `text-terra-deep` or `text-forest/75`; on forest use
- * `text-terra-soft` or `text-cream/70`. Never `text-terra` on cream at this
- * size (3.24:1, fails AA) — though on `abyss` it measures 5.17:1 and passes.
+ * face. On paper use `text-terra-deep` or `text-forest/75`; on forest use
+ * `text-terra-soft` or `text-paper/70`. Never `text-terra` on paper at this
+ * size (3.72:1, fails AA) — though on `abyss` it measures 5.17:1 and passes.
  */
 @utility label {
   @apply font-sans text-xs font-medium uppercase;
@@ -271,7 +302,7 @@
  */
 @utility media-ground {
   background-color: var(--color-abyss);
-  color: var(--color-cream);
+  color: var(--color-paper);
 }
 
 /**
@@ -299,25 +330,32 @@
  *
  * ## The floor, restated for the new curve
  *
- * The caption's top edge lands between 50% and 62% of the scrim's height —
- * 50% for a one-line title, 62% for the longest that fits with an activity
- * line under it — and the ramp holds **61% abyss or darker to the 62% mark**.
+ * The caption's top edge lands between 40% and 58% of the scrim's height —
+ * 40% for a one-line title, 58% for the longest that fits with an activity
+ * line under it — and the ramp holds **56% abyss or darker to the 58% mark**.
  * Composited over the palest surf highlight measured (#E8E2D4) that is
- * **7.9:1 at the 50% stop and 5.4:1 at the 62% one**: AAA where the caption
+ * **8.0:1 at the 40% stop and 5.2:1 at the 58% one**: AAA where the caption
  * usually starts, AA at body size at the very worst of it, and every stop
  * below is darker — so a scrim safe at the TOP of the caption is safe through
- * all of it. Above 62% nothing is written; that band is atmosphere.
+ * all of it. Above 58% nothing is written; that band is atmosphere.
  *
  * Those two numbers are not typed here on trust. `palette.test.ts` parses
- * these stops, composites them and recomputes both, so lightening the ramp
- * fails the suite rather than the next traveller in bright sun. (The figure
- * this replaces — 8.9:1 — did not survive being recomputed: it corresponds to
- * about 76% abyss, not to the 62% the sentence attached it to.)
+ * these stops, composites them and recomputes both at exactly those two
+ * positions, so lightening the ramp fails the suite rather than the next
+ * traveller in bright sun.
+ *
+ * Two corrections are recorded rather than quietly absorbed. The band was
+ * written as 50%–62% while the scrim still ran 67% of the frame; the re-cut
+ * below shortened it to 52%, which lifts the same caption to 40%–58% of a
+ * shorter ramp, and the prose had not followed. And the ratios are `paper`'s,
+ * not `cream`'s — v2.9 moved only the light end, so each is the old figure
+ * times 1.1467 (7.0 → 8.0, 4.5 → 5.2).
  *
  * Accent text is the exception and the caption's ORDER is load-bearing for
- * it: `terra-soft` measures 5.5:1 only from the 85% stop downward, so the
- * accent chip and the accent label sit in the bottom band of the caption and
- * never above the title. `palette.test.ts` records the failing composite.
+ * it: `terra-soft` needs 79% abyss under it to clear 4.5:1 and this ramp only
+ * carries that below its 20% stop, so the accent chip and the accent label sit
+ * in the bottom band of the caption and never above the title.
+ * `palette.test.ts` records the failing composite.
  */
 @utility feed-scrim {
   /*
@@ -349,8 +387,8 @@
 
     Reach 67% to 52% of the frame, foot 100% to 86%, about a third less
     darkening. Measured on the smallest phone, where a wrapped title lifts the
-    caption highest into the ramp: availability 8.7:1, title 7.7:1 against its
-    3:1 large-text floor, the activity line 7.0:1. `palette.test.ts` recomputes
+    caption highest into the ramp: availability 10.0:1, title 8.8:1 against its
+    3:1 large-text floor, the activity line 8.0:1. `palette.test.ts` recomputes
     these from the stops below, so lightening it further fails the suite rather
     than the next traveller in bright sun.
 
@@ -358,7 +396,7 @@
 
     `terra-soft` needs 79% abyss under it to clear 4.5:1, and this ramp only
     reaches that below the caption. **The accent can no longer carry body text
-    here**, which is why the seat sentence on the card is cream. The old rule
+    here**, which is why the seat sentence on the card is paper. The old rule
     that the accent "sits in the bottom band" was a consequence of the old ramp;
     change one and the other moves.
   */
@@ -383,7 +421,7 @@
     A narrow phone needs a taller ramp, and that is arithmetic rather than a
     retreat. Below about 400px the operator-written title wraps to two lines and
     lifts the whole caption roughly a line higher, from 47% of the ramp to 69%,
-    where 52% had fallen to 44% abyss and cream measured 3.17:1. The foot stays
+    where 52% had fallen to 44% abyss and paper measures 3.6:1. The foot stays
     at 86%, so even here it is lighter than what it replaced.
   */
   @media (max-width: 400px) {
@@ -394,11 +432,17 @@
 /**
  * The same treatment, mirrored, under the feed's floating masthead.
  *
- * The mark is cream on whatever the clip is showing, so it keeps the same
- * floor: it occupies 12%–39% of this gradient's height (16px to 52px of a
- * 132px block) and the ramp holds **65% abyss or darker across all of it** —
- * 10.1:1 at the mark's top edge and 6.2:1 at its lowest, over the same
- * highlight, recomputed by `palette.test.ts` from the stops below.
+ * The mark is paper on whatever the clip is showing, so it keeps the same
+ * floor: it occupies 22%–48% of this gradient's height (24px to 52px of a
+ * 108px block) and the ramp holds **52% abyss or darker across all of it** —
+ * 9.4:1 at the mark's top edge and 4.6:1 at its lowest, against a 3:1 graphic
+ * floor, over the same highlight and recomputed by `palette.test.ts` from the
+ * stops below.
+ *
+ * The band and the block are the test's, not this comment's: it was written
+ * for a 132px block and a 12%–39% band, and neither survived `LoginButton`
+ * joining the row or the tail coming down. Both were corrected here with the
+ * v2.9 ratios rather than left to drift a third time.
  *
  * The block's height is part of the measurement, not a layout detail: move
  * the masthead's padding and the mark lands in a different band. The test
@@ -417,7 +461,9 @@
     is the 3:1 non-text minimum rather than 4.5:1, and it was sitting at 7.8:1
     to 10.1:1: a great deal of darkened sky to carry a 28px logo. The peak comes
     down from 80% to 76% and the block loses its long tail (see the padding on
-    `ReelMasthead`), which leaves the mark at 4.1:1, still 1.4x its floor.
+    `ReelMasthead`), which leaves the mark at 4.6:1 in `paper`, still 1.5x its
+    floor. The range above it is the `cream` measurement of the ramp it
+    replaced and is left as what was actually measured then.
 
     The block's HEIGHT is part of the measurement, not a layout detail: these
     stops are percentages of it, so moving the masthead's padding without moving
@@ -442,11 +488,11 @@
  * The chrome surfaces — the floating tab bar, the rail, the circular controls
  * that float over media. `forest`, not `abyss`: chrome stays chrome, and the
  * 1.47:1 between them is what separates the controls from the picture behind
- * them. The hairline ring is what separates them from the cream sheet.
+ * them. The hairline ring is what separates them from the paper sheet.
  */
 @utility app-chrome {
   background-color: var(--color-forest);
-  color: var(--color-cream);
+  color: var(--color-paper);
 }
 
 /**
@@ -457,13 +503,13 @@
 /*
   The bar over a moving picture.
 
-  `app-chrome` is solid `forest`, which is right on a cream sheet and reads as a
+  `app-chrome` is solid `forest`, which is right on a paper sheet and reads as a
   slab on a reel. This lets the picture through and sits into it.
 
-  60% is not a taste number. The inactive glyphs are `cream/70` on whatever the
+  60% is not a taste number. The inactive glyphs are `paper/70` on whatever the
   pill composites to: over the caption scrim's own foot they measure about
-  6.6:1, and the value barely moves with opacity there, because what shows
-  through is already dark. Over a cream sheet the same 60% puts them at 2.62:1,
+  7.6:1, and the value barely moves with opacity there, because what shows
+  through is already dark. Over a paper sheet the same 60% puts them at 2.74:1,
   which is why `TabBar` only reaches for this on the media routes.
 
   The blur is the one in the app, and it bends the v2.7 ruling that rejected
@@ -474,24 +520,26 @@
 */
 @utility tabbar-on-media {
   background-color: color-mix(in srgb, var(--color-forest) 60%, transparent);
-  color: var(--color-cream);
+  color: var(--color-paper);
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
   backdrop-filter: blur(18px) saturate(1.15);
 }
 
 @utility stage {
   background-color: var(--color-forest);
-  color: var(--color-cream);
+  color: var(--color-paper);
 }
 
 /**
- * The content sheet: cream, rounded at the top, rising over the stage or the
+ * The content sheet: paper, rounded at the top, rising over the stage or the
  * hero photograph. It is the reading surface, so it resets the ink and the
- * focus ring (see the base layer) — everything the marketing site measured
- * on cream still holds here, unchanged.
+ * focus ring (see the base layer). Everything the marketing site measured on
+ * `cream` still holds here with MORE room, not the same: v2.9 moved the canvas
+ * to #FFFFFF and only the light end of every pairing with it, so each ratio is
+ * the old one times 1.1467.
  */
 @utility sheet {
-  background-color: var(--color-cream);
+  background-color: var(--color-paper);
   color: var(--color-forest);
 }
 
@@ -582,20 +630,20 @@
 /*
   The way out of the feed, as a word.
 
-  The system's `paper` control at `sm`: solid cream, forest ink, 36px, uppercase
-  at `tracking-label`. 11.44:1 either way round, so it needs nothing from the
+  The system's `paper` control at `sm`: solid paper, forest ink, 36px, uppercase
+  at `tracking-label`. 13.11:1 either way round, so it needs nothing from the
   scrim and nothing from the frame behind it. CTAs are monochrome here;
   terracotta is never a fill.
 */
 @utility feed-book {
   @apply ease-interaction tracking-label inline-flex h-11 items-center justify-center rounded-full px-4 text-xs font-bold uppercase transition-[background-color,transform] duration-200;
-  background-color: var(--color-cream);
+  background-color: var(--color-paper);
   color: var(--color-forest);
   text-decoration: none;
   white-space: nowrap;
 
   &:hover {
-    background-color: var(--color-cream-deep);
+    background-color: var(--color-paper-deep);
   }
   &:active {
     transform: scale(0.97);
@@ -616,7 +664,7 @@
   max-height: 54%;
   background-color: color-mix(in srgb, var(--color-abyss) 94%, transparent);
   box-shadow: inset 0 1px 0
-    color-mix(in srgb, var(--color-cream) 14%, transparent);
+    color-mix(in srgb, var(--color-paper) 14%, transparent);
   transform: translateY(100%);
   /*
     `visibility` as well as the transform, and the delay is the whole trick.
@@ -657,11 +705,11 @@
     width: 2.25rem;
     height: 0.25rem;
     border-radius: 9999px;
-    background-color: color-mix(in srgb, var(--color-cream) 30%, transparent);
+    background-color: color-mix(in srgb, var(--color-paper) 30%, transparent);
     transition: background-color 200ms var(--ease-interaction);
   }
   &:hover::before {
-    background-color: color-mix(in srgb, var(--color-cream) 45%, transparent);
+    background-color: color-mix(in srgb, var(--color-paper) 45%, transparent);
   }
 }
 
@@ -726,7 +774,7 @@
 }
 
 @utility reel-sheet-title {
-  @apply text-cream ease-interaction mb-2 line-clamp-2 block text-base font-bold no-underline transition-opacity duration-200;
+  @apply text-paper ease-interaction mb-2 line-clamp-2 block text-base font-bold no-underline transition-opacity duration-200;
 
   &:hover {
     opacity: 0.8;
@@ -738,13 +786,13 @@
   @apply mb-2 flex flex-wrap items-baseline gap-2;
 }
 @utility reel-sheet-amount {
-  @apply font-display text-cream tracking-display text-3xl leading-none;
+  @apply font-display text-paper tracking-display text-3xl leading-none;
 }
 @utility reel-sheet-unit {
-  @apply text-cream/60 text-sm;
+  @apply text-paper/60 text-sm;
 }
 @utility reel-sheet-absent {
-  @apply text-cream/70 text-base;
+  @apply text-paper/70 text-base;
 }
 
 @utility reel-sheet-facts {
@@ -762,10 +810,10 @@
 }
 
 @utility reel-sheet-operator {
-  @apply border-cream/14 border-t pt-3;
+  @apply border-paper/14 border-t pt-3;
 }
 @utility reel-sheet-operator-name {
-  @apply text-cream text-base font-bold;
+  @apply text-paper text-base font-bold;
 }
 @utility reel-sheet-evidence {
   @apply text-terra-soft mt-1 flex items-center gap-1.5 text-sm;
@@ -777,11 +825,11 @@
    the owner reversed the "looks large" call. */
 @utility reel-sheet-cta {
   @apply ease-interaction tracking-label flex h-13 w-full items-center justify-center gap-2 rounded-full text-xs font-bold uppercase no-underline transition-[background-color,transform] duration-200;
-  background-color: var(--color-cream);
+  background-color: var(--color-paper);
   color: var(--color-forest);
 
   &:hover {
-    background-color: var(--color-cream-deep);
+    background-color: var(--color-paper-deep);
   }
   &:active {
     transform: scale(0.99);
@@ -1018,7 +1066,7 @@
     border-left: 2px solid var(--color-terra-deep);
     border-radius: var(--radius-tile);
     padding: 0.75rem 1rem;
-    background: var(--color-cream-deep);
+    background: var(--color-paper-deep);
   }
 
   & blockquote p {

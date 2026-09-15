@@ -57,12 +57,12 @@
   font-size: 0.875rem;
 }
 .col-when.is-open {
-  color: var(--cream);
+  color: var(--paper);
 }
 /* Nothing bookable in ninety days is the most useful thing this card can say,
    and it is said quietly rather than as a warning. */
 .col-when.is-closed {
-  color: color-mix(in srgb, var(--cream) 60%, transparent);
+  color: color-mix(in srgb, var(--paper) 60%, transparent);
 }
 /*
   The availability line as a control.
@@ -230,7 +230,7 @@
   overflow: hidden;
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   background-color: color-mix(in srgb, var(--abyss) 94%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--cream) 14%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--paper) 14%, transparent);
   transform: translateY(100%);
   transition: transform 240ms var(--ease-interaction);
   /* The sheet's own vertical axis, and nothing else's. */
@@ -261,11 +261,11 @@
   width: 2.25rem;
   height: 0.25rem;
   border-radius: 9999px;
-  background-color: color-mix(in srgb, var(--cream) 30%, transparent);
+  background-color: color-mix(in srgb, var(--paper) 30%, transparent);
   transition: background-color var(--dur-interaction) var(--ease-interaction);
 }
 .col-handle:hover::before {
-  background-color: color-mix(in srgb, var(--cream) 45%, transparent);
+  background-color: color-mix(in srgb, var(--paper) 45%, transparent);
 }
 
 /*
@@ -364,7 +364,7 @@
   font-size: 0.9375rem;
   font-weight: 700;
   line-height: 1.3;
-  color: var(--cream);
+  color: var(--paper);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -394,12 +394,12 @@
   letter-spacing: var(--tracking-display);
   font-size: 1.75rem;
   line-height: 1;
-  color: var(--cream);
+  color: var(--paper);
 }
 .col-price-absent {
   font-family: var(--font-sans);
   font-size: 1rem;
-  color: color-mix(in srgb, var(--cream) 70%, transparent);
+  color: color-mix(in srgb, var(--paper) 70%, transparent);
 }
 .col-price-unit {
   font-family: var(--font-sans);
@@ -429,14 +429,14 @@
 }
 
 .col-operator {
-  border-top: 1px solid color-mix(in srgb, var(--cream) 14%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--paper) 14%, transparent);
   padding-top: 0.875rem;
 }
 .col-operator-name {
   font-family: var(--font-sans);
   font-size: 0.9375rem;
   font-weight: 700;
-  color: var(--cream);
+  color: var(--paper);
   margin: 0;
 }
 .col-evidence {
@@ -454,7 +454,7 @@
   flex: none;
 }
 
-/* The solid cream control. CTAs are monochrome: terracotta is never a fill. */
+/* The solid paper control. CTAs are monochrome: terracotta is never a fill. */
 .col-cta {
   display: flex;
   /*
@@ -470,7 +470,7 @@
   height: 3.25rem;
   margin-top: 1.125rem;
   border-radius: 9999px;
-  background-color: var(--cream);
+  background-color: var(--paper);
   color: var(--forest);
   font-family: var(--font-sans);
   font-size: 0.75rem;
@@ -483,7 +483,7 @@
     transform var(--dur-interaction) var(--ease-interaction);
 }
 .col-cta:hover {
-  background-color: var(--cream-deep);
+  background-color: var(--paper-deep);
 }
 .col-cta:active {
   transform: scale(0.99);
@@ -584,11 +584,11 @@
 /*
   They were right, and the measurements say by how much.
 
-  The shipped caption scrim reaches **100% abyss** at the foot and holds 16.75:1
-  against cream where the floor for small text is 4.5:1. A fully opaque band
+  The shipped caption scrim reaches **100% abyss** at the foot and holds 19.21:1
+  against paper where the floor for small text is 4.5:1. A fully opaque band
   across the bottom of a picture is not shade, it is a crop, and that is exactly
   what it was reading as. The top scrim was 80% flat to carry a 28px logo and a
-  sound disc, both of which are GRAPHICS with a 3:1 floor: 10.08:1 for something
+  sound disc, both of which are GRAPHICS with a 3:1 floor: 11.56:1 for something
   that needs 3.
 
   ## What decides how light it can go
@@ -599,9 +599,9 @@
   its scrim is the shortest so everything sits higher up the ramp.
 
       seats, terra-soft 14px    at 28.1%   needs 79% abyss
-      availability, cream 14px  at 30.9%   needs 56%
-      title, cream 32px         at 48.4%   needs 43%
-      eyebrow, 12px             at 53.8%   needs 71% at cream/70, 56% at cream
+      availability, paper 14px  at 30.9%   needs 56%
+      title, paper 32px         at 48.4%   needs 43%
+      eyebrow, 12px             at 53.8%   needs 71% at paper/70, 56% at paper
       the foot                  at 0%      needs nothing: no type is written there
 
   Two consequences worth stating plainly.
@@ -609,14 +609,14 @@
   **The accent on the seats is what holds the foot dark.** `terra-soft` needs
   79% abyss to clear 4.5:1, the ramp cannot rise going upward, and the seats sit
   at 28%, so everything below them is pinned at 79% or more. The foot is 82%
-  because of one coloured phrase. Rendering the seats in cream instead would let
+  because of one coloured phrase. Rendering the seats in paper instead would let
   the whole lower half drop to about 65%, and that is the lever to pull if this
   is still too heavy.
 
-  **The eyebrow had to stop being `cream/70`.** At its position this ramp gives
+  **The eyebrow had to stop being `paper/70`.** At its position this ramp gives
   it 3.22:1, and even the SHIPPED scrim only gave it 4.42:1, which is under the
   4.5 floor: a real failure that predates this change and that nothing had
-  measured. Full cream reads quiet anyway at 12px with 0.18em of tracking, where
+  measured. Full paper reads quiet anyway at 12px with 0.18em of tracking, where
   the hierarchy comes from size and letterspacing rather than from opacity.
 */
 .concept-06 .reel-scrim {
@@ -641,8 +641,8 @@
   The top, cut by more than half.
 
   It carries the mark and the sound control and nothing else, and both are
-  graphics: 3:1, not 4.5:1. At 52% the mark still holds 3.95:1 at its top edge
-  and 3.28:1 at its lowest, which is a comfortable margin for a thin brush
+  graphics: 3:1, not 4.5:1. At 52% the mark still holds 4.53:1 at its top edge
+  and 3.76:1 at its lowest, which is a comfortable margin for a thin brush
   stroke and a third of what it was paying.
 */
 .concept-06 .masthead {
@@ -660,10 +660,10 @@
   );
 }
 
-/* See above: `cream/70` cannot clear 4.5:1 at this position on any ramp light
+/* See above: `paper/70` cannot clear 4.5:1 at this position on any ramp light
    enough to answer the note, and it did not clear it on the old one either. */
 .concept-06 .col-eyebrow {
-  color: var(--cream);
+  color: var(--paper);
 }
 
 /*
@@ -672,11 +672,11 @@
   Owner, same note: "the bottom nav bar is looking weird with the background
   that I have... can we try something like with less opacity."
 
-  78% is the number, not a feeling. The inactive glyphs are `cream/70` ON the
+  78% is the number, not a feeling. The inactive glyphs are `paper/70` ON the
   bar, which makes them graphics at a 3:1 floor, and 78% holds 4.04:1 for them
   over the palest surf a clip can show. The bar itself still reads as an object
   at 5.61:1 against that same highlight, and the active destination is unchanged
-  because its cream pill carries its own fill: 11.44:1 whatever is behind it.
+  because its paper pill carries its own fill: 13.11:1 whatever is behind it.
   Below about 65% the glyphs fall under 3:1 and the bar stops being a surface.
 
   ## The blur, and the rule it bends
@@ -699,7 +699,7 @@
   /*
     Two hairlines, because one cannot work on both.
 
-    The solid bar is separated from the picture by a `cream/12` ring, which is
+    The solid bar is separated from the picture by a `paper/12` ring, which is
     correct while the bar is opaque and a dark object. A translucent bar over
     bright sand is neither: the light ring disappears into the sand and the pill
     loses its edge exactly where it most needs one.
@@ -709,7 +709,7 @@
     system uses where others reach for a shadow, and one pixel each.
   */
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--cream) 14%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--paper) 14%, transparent),
     0 0 0 1px color-mix(in srgb, var(--abyss) 24%, transparent);
 }
 
@@ -779,7 +779,7 @@
   It had a soft radial veil first, solved to the same 3:1 floor. Over deep water
   it was invisible and over pale sand it was a grey smudge on the one part of
   the frame with no detail to hide it. A hairline is what the rest of the system
-  already uses: the tab bar is separated from the picture by a `cream/12` ring
+  already uses: the tab bar is separated from the picture by a `paper/12` ring
   rather than by a shadow.
 */
 .frame-control .disc-paper,
@@ -809,7 +809,7 @@
   grid-template-rows: repeat(16, 1fr);
 }
 .frame-cell {
-  outline: 0.5px solid rgba(244, 239, 228, 0.12);
+  outline: 0.5px solid rgba(255, 255, 255, 0.12);
 }
 .frame-cell.is-chosen {
   outline: 1px solid var(--terra-soft);
@@ -892,9 +892,9 @@
   min-height: 4rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-control);
-  background-color: color-mix(in srgb, var(--cream) 8%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 14%, transparent);
-  color: var(--cream);
+  background-color: color-mix(in srgb, var(--paper) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--paper) 14%, transparent);
+  color: var(--paper);
   text-decoration: none;
   scroll-snap-align: start;
   transition:
@@ -902,7 +902,7 @@
     transform var(--dur-interaction) var(--ease-interaction);
 }
 .cd-chip:hover {
-  background-color: color-mix(in srgb, var(--cream) 14%, transparent);
+  background-color: color-mix(in srgb, var(--paper) 14%, transparent);
 }
 .cd-chip:active {
   transform: scale(0.97);
@@ -912,7 +912,7 @@
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: var(--tracking-label);
-  color: color-mix(in srgb, var(--cream) 70%, transparent);
+  color: color-mix(in srgb, var(--paper) 70%, transparent);
 }
 .cd-chip-date {
   font-family: var(--font-sans);
@@ -944,9 +944,9 @@
   padding: 0 1rem;
   border: 0;
   border-radius: 9999px;
-  background-color: color-mix(in srgb, var(--cream) 12%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 18%, transparent);
-  color: var(--cream);
+  background-color: color-mix(in srgb, var(--paper) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--paper) 18%, transparent);
+  color: var(--paper);
   font-family: var(--font-sans);
   font-size: 0.75rem;
   font-weight: 700;
@@ -965,9 +965,9 @@
 .skeleton {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--cream) 8%, transparent) 25%,
-    color-mix(in srgb, var(--cream) 16%, transparent) 37%,
-    color-mix(in srgb, var(--cream) 8%, transparent) 63%
+    color-mix(in srgb, var(--paper) 8%, transparent) 25%,
+    color-mix(in srgb, var(--paper) 16%, transparent) 37%,
+    color-mix(in srgb, var(--paper) 8%, transparent) 63%
   );
   background-size: 400% 100%;
   animation: skeleton-sweep 1.6s var(--ease-interaction) infinite;
@@ -1057,9 +1057,9 @@
   of the rule that there are no ratings and no review counts.
 */
 /*
-  `cream/70`, not `cream/45`.
+  `paper/70`, not `paper/45`.
 
-  The opacity ladder is measured, not chosen: anything below `cream/60` on a
+  The opacity ladder is measured, not chosen: anything below `paper/60` on a
   dark ground is decoration and never text. This was set at 45% because the
   empty state wanted to recede, and axe caught it as a serious contrast failure
   in the laboratory's own run. Receding is what the 70 rung is for.
@@ -1068,7 +1068,7 @@
   margin: 0;
   flex: none;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--cream) 70%, transparent);
+  color: color-mix(in srgb, var(--paper) 70%, transparent);
 }
 .cc-count.is-some {
   color: var(--terra-soft);
@@ -1151,7 +1151,7 @@
 }
 
 /*
-  The top band carries a cream GRAPHIC: the mark, and one control's glyph.
+  The top band carries a paper GRAPHIC: the mark, and one control's glyph.
 
   Its floor is the 3:1 non-text minimum, not the 4.5:1 body-text one, and it was
   sitting at 7.8:1 to 10.1:1. That is a lot of darkened sky to carry a 28px
@@ -1184,9 +1184,9 @@
 
   ## What it can afford
 
-  The active tab is a solid cream pill with forest text: 11.44:1 whatever is
+  The active tab is a solid paper pill with forest text: 13.11:1 whatever is
   behind it, so it is never the constraint. The constraint is the three inactive
-  glyphs, `cream/70` strokes on the bar's own fill. At 72% forest they measure
+  glyphs, `paper/70` strokes on the bar's own fill. At 72% forest they measure
   3.5:1 over the palest surf with NO scrim under them at all, clearing the 3:1
   non-text floor on the bar's own merits. In practice the caption scrim is under
   them too and they measure about 7:1. The bar is no longer leaning on the scrim
@@ -1207,7 +1207,7 @@
   background-color: color-mix(in srgb, var(--forest) 72%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
   backdrop-filter: blur(18px) saturate(1.15);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--paper) 16%, transparent);
 }
 
 /*
@@ -1221,7 +1221,7 @@
   height, and the caption starts at 28%: there is no band left for it. Measured
   at the seats line it came to 3.97:1, under the floor.
 
-  So the seats sentence is cream here: 8.46:1 in the same place. It is the same
+  So the seats sentence is paper here: 9.70:1 in the same place. It is the same
   words in the same position, carrying the same meaning, and the scarcity is
   said by the sentence rather than by the colour. The other eight concepts keep
   their darker scrims and keep the accent.
@@ -1230,7 +1230,7 @@
   and the two cannot be argued separately.
 */
 .concept-06 .col-seats {
-  color: var(--cream);
+  color: var(--paper);
 }
 
 /*
@@ -1241,7 +1241,7 @@
   one line. On an iPhone SE the caption column is about 275px wide, the title
   wraps to two, and the whole caption rises by roughly a line: the eyebrow moves
   from 47% of the scrim to 69% of it, where the lighter ramp has fallen to 44%
-  abyss and cream measures 3.17:1 against a 4.5 floor.
+  abyss and paper measures 3.63:1 against a 4.5 floor.
 
   Caught by the laboratory's own contrast guard, which measures the SE
   deliberately for exactly this reason: the shortest screen is where type sits
@@ -1262,8 +1262,8 @@
 /*
   The word instead of the glyph (owner, 14 September).
 
-  The system's `paper` control: solid cream, forest ink, 44px, uppercase at
-  `tracking-label`. 11.44:1 either way round, so it needs nothing from the scrim
+  The system's `paper` control: solid paper, forest ink, 44px, uppercase at
+  `tracking-label`. 13.11:1 either way round, so it needs nothing from the scrim
   and nothing from the frame behind it. CTAs are monochrome here: terracotta is
   never a fill.
 
@@ -1277,7 +1277,7 @@
   height: 2.75rem;
   padding: 0 1.125rem;
   border-radius: 9999px;
-  background-color: var(--cream);
+  background-color: var(--paper);
   color: var(--forest);
   font-family: var(--font-sans);
   font-size: 0.75rem;
@@ -1291,7 +1291,7 @@
     transform var(--dur-interaction) var(--ease-interaction);
 }
 .col-book:hover {
-  background-color: var(--cream-deep);
+  background-color: var(--paper-deep);
 }
 .col-book:active {
   transform: scale(0.97);
@@ -1317,10 +1317,10 @@
   ## The case this does NOT cover, and it matters for production
 
   The same bar is on `/search`, `/trips` and `/account`, where it floats over a
-  CREAM sheet rather than a dark reel. There the arithmetic inverts: at 72% the
+  PAPER sheet rather than a dark reel. There the arithmetic inverts: at 72% the
   glyphs measure 3.40:1 and at 60% they measure 2.62:1, under the 3:1 floor. So
   translucency is a property of the bar ON THE FEED, not of the bar. Anything
-  that ports this has to keep the pill solid on the cream tabs, which is one
+  that ports this has to keep the pill solid on the paper tabs, which is one
   conditional and is cheap, and is the kind of thing that is invisible until
   somebody opens Trips in sunlight.
 */

@@ -67,7 +67,7 @@ export function DatePicker({
         Pick a day
       </h2>
 
-      <div className="border-cream-line mt-3 rounded-2xl border p-3">
+      <div className="border-paper-line mt-3 rounded-2xl border p-3">
         <div className="flex items-center justify-between">
           <Arrow
             direction="back"
@@ -188,7 +188,7 @@ function DayCell({
         "ease-interaction flex h-14 flex-col items-center justify-center rounded-xl text-sm transition-[background-color,color] duration-200",
         !open && "opacity-40",
         open && !selected && "hover:bg-forest/8",
-        selected && "bg-forest text-cream font-bold",
+        selected && "bg-forest text-paper font-bold",
         /*
           Today gets a ring rather than a fill. A filled today would be
           indistinguishable from the chosen day, and on this screen the chosen
@@ -203,7 +203,7 @@ function DayCell({
           aria-hidden="true"
           className={cn(
             "mt-0.5 text-[10px] leading-none",
-            selected ? "text-cream/80" : "text-forest/70",
+            selected ? "text-paper/80" : "text-forest/70",
           )}
         >
           {formatMoney(availability.from)}

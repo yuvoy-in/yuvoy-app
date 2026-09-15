@@ -103,7 +103,7 @@ function Pill({
   */
   if (label === null) {
     return (
-      <span className="border-cream-line flex h-11 shrink-0 items-center gap-2 rounded-full border pr-1 pl-4">
+      <span className="border-paper-line flex h-11 shrink-0 items-center gap-2 rounded-full border pr-1 pl-4">
         <Skeleton className="h-3 w-16" />
         <RemoveButton label="this filter" onRemove={onRemove} />
       </span>

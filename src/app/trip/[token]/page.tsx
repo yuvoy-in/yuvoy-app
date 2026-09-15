@@ -120,7 +120,7 @@ export default async function SharedTripPage({
       ) : null}
 
       <Panel className="mt-8 p-0">
-        <dl className="divide-cream-line divide-y text-sm">
+        <dl className="divide-paper-line divide-y text-sm">
           <Row label="When">
             {trip.localTime} on{" "}
             {new Intl.DateTimeFormat("en-IN", {

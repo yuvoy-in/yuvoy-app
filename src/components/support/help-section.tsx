@@ -246,8 +246,8 @@ function MessageSheet({
               className={cn(
                 "rounded-control ease-interaction tap-target border px-3 py-2 text-sm transition-colors duration-200",
                 topic === option.key
-                  ? "border-forest bg-forest text-cream"
-                  : "border-cream-line bg-cream text-forest hover:border-forest/40",
+                  ? "border-forest bg-forest text-paper"
+                  : "border-paper-line bg-paper text-forest hover:border-forest/40",
               )}
             >
               {option.label}
@@ -264,7 +264,7 @@ function MessageSheet({
           rows={5}
           maxLength={MAX}
           aria-invalid={(tried && tooShort) || Boolean(details.message)}
-          className="rounded-control border-cream-line bg-cream focus:border-forest/60 ease-interaction mt-2 w-full border px-4 py-3 text-base transition-colors duration-200 outline-none"
+          className="rounded-control border-paper-line bg-paper focus:border-forest/60 ease-interaction mt-2 w-full border px-4 py-3 text-base transition-colors duration-200 outline-none"
         />
       </label>
 

@@ -8,7 +8,7 @@ import { LoginButton } from "@/components/auth/login-button";
  * The screen chassis — v2.7's stage and sheet.
  *
  * Every screen except the feed is the same object: a forest STAGE, and a
- * cream SHEET rising out of it with the sheet's rounded top. On a phone the
+ * paper SHEET rising out of it with the sheet's rounded top. On a phone the
  * stage is the strip above the sheet — a masthead on a tab root, a back
  * control and a small label on a focused screen, or the hero photograph the
  * sheet rises over. On a desktop the stage is the whole canvas and the sheet
@@ -20,8 +20,9 @@ import { LoginButton } from "@/components/auth/login-button";
  * (`isFocusedRoute` in the registry is the other half of that decision, and
  * `nav.test.ts` pins the two lists to each other).
  *
- * The reading surface is cream, so everything the marketing site measured on
- * cream still holds inside the sheet, unchanged.
+ * The reading surface is paper, so every floor the system measures on the
+ * canvas applies inside the sheet — with the v2.9 headroom, since a white
+ * canvas raised each of them by 1.1467.
  */
 export interface BackTarget {
   href: string;
@@ -88,10 +89,10 @@ export function Screen({
             {back ? (
               <BackButton {...back} />
             ) : (
-              <Wordmark tone="cream" className="h-7" priority />
+              <Wordmark tone="paper" className="h-7" priority />
             )}
             {stageLabel ? (
-              <p className="label text-cream/70 absolute left-1/2 -translate-x-1/2">
+              <p className="label text-paper/70 absolute left-1/2 -translate-x-1/2">
                 {stageLabel}
               </p>
             ) : null}

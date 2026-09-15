@@ -267,7 +267,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                         src={experience.operator.logoUrl}
                         alt=""
                         aria-hidden="true"
-                        className="rounded-tile bg-cream-deep border-cream-line size-10 shrink-0 border object-contain"
+                        className="rounded-tile bg-paper-deep border-paper-line size-10 shrink-0 border object-contain"
                         loading="lazy"
                         decoding="async"
                       />
