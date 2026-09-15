@@ -7,6 +7,7 @@ import { describeError, FailurePanel, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
+import { civilHere, dayMonth, clockTime } from "@/lib/format/date";
 import {
   MESSAGE_MAX,
   closedBecause,
@@ -513,13 +514,30 @@ function Message({ message }: { message: BookingMessage }) {
  * opposite case: "when did they write this" is a question about the reader's
  * own day, and a traveller still at home reading 15:45 for something sent at
  * their 10:15 would be the confusing one.
+ *
+ * ## The sharpest case in yuvoy-app#67, and it was sharp in two ways
+ *
+ * This used to format with `Intl.DateTimeFormat(undefined, { month: "short" })`.
+ * A formatter with no locale takes the RUNTIME's, so the string varied by
+ * engine and not merely by CLDR version: measured on the same instant, WebKit
+ * gave `16 Sep at 17:30` and Chromium gave `Sep 16, 17:30`. Different month
+ * spelling, different separator, and a different FIELD ORDER. Two travellers
+ * on the same thread read different sentences.
+ *
+ * It is also the one stamp on the screen that a server could never render
+ * correctly even with the names fixed, because the zone is the reader's and a
+ * server does not know it. That is safe here and structurally so: this thread
+ * hangs off a status token in the URL fragment, `useFragmentToken`'s server
+ * snapshot is `null`, and a fragment is never sent to a server. If this
+ * component is ever moved somewhere the server has the data, the stamp must
+ * move behind a mount check or a `suppressHydrationWarning`, because the zone
+ * cannot be made to agree.
+ *
+ * The machine-readable value is on the `<time dateTime>` above and is the
+ * unmodified ISO instant, so nothing downstream depends on this spelling.
  */
-function formatSent(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(iso));
+function formatSent(iso: string): string | null {
+  const civil = civilHere(iso);
+  if (!civil) return null;
+  return `${dayMonth(civil)}, ${clockTime(civil)}`;
 }

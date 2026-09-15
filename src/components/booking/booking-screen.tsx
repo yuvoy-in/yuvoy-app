@@ -8,6 +8,7 @@ import { useBookingStatus } from "@/lib/booking/use-booking-status";
 import { useFragmentToken } from "@/lib/booking/use-fragment-token";
 import { formatMoney } from "@/lib/format/money";
 import { formatCountdown, msUntil, formatAge } from "@/lib/format/time";
+import { civilInZone, weekdayDayMonth, clockTime } from "@/lib/format/date";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import {
   describeError,
@@ -1042,20 +1043,23 @@ function OperatorUpdates({
           From the operator
         </h2>
         <ul className="mt-3 space-y-3">
-          {updates.map((u, i) => (
-            <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
-              <p className="font-bold">
-                {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
-                {u.detail ? `: ${u.detail}` : ""}
-              </p>
-              {u.note ? <p className="text-forest/80 mt-1">{u.note}</p> : null}
-              {u.sentAt ? (
-                <p className="text-forest/70 mt-1 text-xs">
-                  {formatSentAt(u.sentAt, timezone)}
+          {updates.map((u, i) => {
+            const sentAt = u.sentAt ? formatSentAt(u.sentAt, timezone) : null;
+            return (
+              <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
+                <p className="font-bold">
+                  {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
+                  {u.detail ? `: ${u.detail}` : ""}
                 </p>
-              ) : null}
-            </li>
-          ))}
+                {u.note ? (
+                  <p className="text-forest/80 mt-1">{u.note}</p>
+                ) : null}
+                {sentAt ? (
+                  <p className="text-forest/70 mt-1 text-xs">{sentAt}</p>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
         <p className="text-forest/70 mt-3 text-xs">
           Shown here and not sent to your phone. This page is the place to
@@ -1066,17 +1070,29 @@ function OperatorUpdates({
   );
 }
 
-/** When an update was sent, in the MARKET's zone. */
-function formatSentAt(iso: string, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-IN", {
-    timeZone,
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(iso));
+/**
+ * When an update was sent, in the MARKET's zone.
+ *
+ * Assembled from civil fields rather than formatted, which fixes two separate
+ * things (yuvoy-app#67). `Intl` with these options rendered `Wed, 16 Sept,
+ * 17:30` in node and Chromium and `Wed, 16 Sep at 17:30` in WebKit, so an
+ * iPhone and an Android read the same update differently, and a server render
+ * would disagree with either.
+ *
+ * This screen cannot currently server render at all: its data hangs off a
+ * status token in the URL fragment, and `useFragmentToken`'s server snapshot
+ * is `null` because a fragment is never sent to a server. So the hydration
+ * half is structural today. The cross-browser half was live regardless, and is
+ * the reason this was worth changing rather than commenting.
+ *
+ * An unreadable instant or an unknown zone answers `null`, so the caller drops
+ * the whole line rather than printing `Invalid Date`, or an empty paragraph
+ * still carrying its margin, beside an operator's message.
+ */
+function formatSentAt(iso: string, timeZone: string): string | null {
+  const civil = civilInZone(iso, timeZone);
+  if (!civil) return null;
+  return `${weekdayDayMonth(civil)}, ${clockTime(civil)}`;
 }
 
 function RefundProgress({

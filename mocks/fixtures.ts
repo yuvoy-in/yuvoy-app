@@ -247,7 +247,20 @@ export const EXPERIENCES: ExperienceSummary[] = [
     // rather than render ₹0.
     heroMedia: poster("kayak", 3),
     operator: operatorNew,
-    nextAvailable: "2026-08-23",
+    /*
+      SEPTEMBER, ON PURPOSE, AND IT IS THE ONLY ONE (yuvoy-app#67).
+
+      September is the single month whose short name differs between runtimes:
+      node and Chromium abbreviate it to "Sept" for `en-IN`, WebKit to "Sep".
+      That one character threw React #418 on every reel in production, and no
+      fixture in this file was ever in September, so `hydration.spec.ts` could
+      run green against the defect it was written to catch.
+
+      Well inside the ninety-day window from `FIXTURE_NOW` (19 August), so the
+      card is still bookable and its shape is unchanged. Do not move this back
+      into August: the guard is only as good as the data that reaches it.
+    */
+    nextAvailable: "2026-09-23",
     seatsOnNext: 2,
   },
   {
