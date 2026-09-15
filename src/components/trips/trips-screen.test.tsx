@@ -115,65 +115,107 @@ const noInvites = () =>
  * overlapping bookings, in two places, with different cards.
  */
 describe("signed out", () => {
-  it("still works on the device alone, and asks for nothing", async () => {
+  it("shows the sign-in prompt and no booking at all", async () => {
     /*
-      Checkout is unauthenticated: the status token is the access and the
-      device store is the only copy a guest has. That is what makes this screen
-      work with no account and no signal, and it does not change.
+      THE OWNER'S SECOND REPORT, AS AN ASSERTION (yuvoy-app#60 item 2).
+
+      Trips used to read a list out of this device's IndexedDB, which knows
+      nothing about sessions, so signing out left every booking on screen. The
+      store is deliberately PRIMED here with a booking: the test is worthless
+      against an empty store, because then any screen passes it.
+
+      The API is asserted never called too. There is no session, so asking
+      would be a guaranteed 401, and a screen that asks anyway flashes an error
+      panel at somebody who is simply signed out.
     */
     let called = false;
     server.use(
       http.get(`${BASE}/me/bookings`, () => {
         called = true;
-        return HttpResponse.json({ bookings: [] });
+        return HttpResponse.json({ bookings: [], nextCursor: null });
       }),
     );
     await rememberBooking({ reference: "YV-ONDEVICE", token: "tok_device" });
 
     renderWithQuery(<TripsScreen />);
-    expect(await screen.findByText("YV-ONDEVICE")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Sign in to see your trips"),
+    ).toBeInTheDocument();
+
     await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText("YV-ONDEVICE")).toBeNull();
     expect(called).toBe(false);
   });
 
-  it("offers signing in as the way to the rest, not only recovery", async () => {
+  it("offers signing in, and recovery as the quieter second route", async () => {
     /*
-      It used to say "Booked on another phone? Get your link back", pointing at
-      recovery — the only route there was. Signing in works for a number that
-      has never booked and revokes nothing, where recovery rotates the links
-      already on this phone.
+      Both, because they are genuinely different. Signing in works for a number
+      that has never booked and revokes nothing; recovery mints one booking's
+      link and rotates the old one, which is what somebody who booked as a
+      guest on another phone needs.
+
+      `next=/trips` is asserted because without it signing in lands on Account
+      and the traveller has to find their own way back.
     */
     renderWithQuery(<TripsScreen />);
     expect(
-      await screen.findByRole("link", { name: /Sign in with my number/ }),
-    ).toHaveAttribute("href", "/account");
+      await screen.findByRole("link", { name: /^Sign in$/ }),
+    ).toHaveAttribute("href", "/account?next=/trips");
     expect(
-      screen.getByRole("link", { name: /Get a new one sent/ }),
+      screen.getByRole("link", { name: /Lost your booking link/ }),
     ).toHaveAttribute("href", "/trips/recover");
+  });
+
+  it("promises nothing about signal or this device", async () => {
+    /*
+      Item 5. The screen used to say "Kept on this device. No account, and they
+      work without signal", which stopped being true the moment the device read
+      went. The promise the product cannot keep is the defect, not the wording.
+    */
+    renderWithQuery(<TripsScreen />);
+    await screen.findByText("Sign in to see your trips");
+    expect(document.body.textContent).not.toMatch(/without signal/i);
+    expect(document.body.textContent).not.toMatch(/on this device/i);
   });
 });
 
 describe("signed in", () => {
-  it("shows a trip booked on another phone beside the device's own", async () => {
+  it("shows the account's trips, and ONLY those", async () => {
+    /*
+      The store is primed with a booking the API does not list. It must not
+      appear: Trips is the account's list now, and a device record has no tab,
+      no date and no state to be placed by.
+    */
     await signIn();
     await rememberBooking({ reference: "YV-ONDEVICE", token: "tok_device" });
     server.use(serverBookings([{}]));
 
     renderWithQuery(<TripsScreen />);
-    expect(await screen.findByText("YV-ONDEVICE")).toBeInTheDocument();
     expect(await screen.findByText("YV-SERVER11")).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText("YV-ONDEVICE")).toBeNull();
   });
 
-  it("shows a booking on both sources ONCE", async () => {
+  it("never draws a cancelled booking under Upcoming", async () => {
+    /*
+      THE OWNER'S FIRST REPORT, AS AN ASSERTION (yuvoy-app#60 item 1).
+
+      The API is right and excludes cancelled trips from the `upcoming` page.
+      The old merge added them back, and did so precisely BECAUSE the API had
+      filed them correctly: a device record the server had not listed on this
+      page counted as "not listed at all" and was drawn under Upcoming.
+
+      So the store is primed with the cancelled booking AND the API answers an
+      empty Upcoming page. That is the exact pair that produced the defect.
+    */
     await signIn();
-    await rememberBooking({ reference: "YV-SERVER11", token: "tok_device" });
-    server.use(serverBookings([{}]));
+    await rememberBooking({ reference: "YV-CANCELLED", token: "tok_device" });
+    server.use(serverBookings([]));
+    noInvites();
 
     renderWithQuery(<TripsScreen />);
-    await screen.findByText("YV-SERVER11");
-    await waitFor(() =>
-      expect(screen.getAllByText("YV-SERVER11")).toHaveLength(1),
-    );
+    expect(await screen.findByText("No upcoming trips")).toBeInTheDocument();
+    expect(screen.queryByText("YV-CANCELLED")).toBeNull();
   });
 
   it("shows a request still waiting, and says so instead of a reference", async () => {
@@ -202,38 +244,6 @@ describe("signed in", () => {
     expect(screen.queryByText("res_waiting")).toBeNull();
   });
 
-  it("does not list a waiting request twice when the device knows it too", async () => {
-    // The case the reference-only match breaks: two cards, two tokens, one of
-    // which may be dead.
-    await signIn();
-    await rememberBooking({
-      reservationId: "res_waiting",
-      token: "tok_device",
-    });
-    server.use(
-      serverBookings([
-        {
-          reference: "",
-          reservationId: "res_waiting",
-          state: "pending_request",
-          experience: "Mangrove kayak at dawn",
-        },
-      ]),
-    );
-
-    renderWithQuery(<TripsScreen />);
-    await screen.findByText("Mangrove kayak at dawn");
-    /*
-      Counted by TITLE, not by list item. The Upcoming tab also carries trips
-      this number was INVITED to (yuvoy-app#38), which are separate cards and
-      belong there: an all-items count used to mean "one card" and now means
-      "one card plus however many invitations the fixture has".
-    */
-    await waitFor(() =>
-      expect(screen.getAllByText("Mangrove kayak at dawn")).toHaveLength(1),
-    );
-  });
-
   it("opens a trip on the server's own token", async () => {
     // "A booking link for this trip, minted for this response, so a trip booked
     // on another phone opens here."
@@ -245,10 +255,15 @@ describe("signed in", () => {
     expect(row.getAttribute("href")).toContain("tok_server");
   });
 
-  it("says a dead session has expired, and keeps the device's trips", async () => {
+  it("says a dead session has expired, and promises nothing else", async () => {
     /*
-      `retry: false` means this will not resolve itself, so a Trips tab quietly
-      missing half of somebody's bookings would stay that way.
+      `retry: false` means this will not resolve itself, so it has to be said
+      plainly rather than left as a spinner.
+
+      It used to add "Anything saved on this phone is unaffected", above the
+      device's trips which were still listed. There is nothing left to be
+      unaffected, so the sentence went with the list: a failed read is the whole
+      screen's failure now, and the copy must not imply otherwise.
     */
     await signIn();
     await rememberBooking({ reference: "YV-ONDEVICE", token: "tok_device" });
@@ -265,8 +280,8 @@ describe("signed in", () => {
     expect(
       await screen.findByText("Your sign-in has expired"),
     ).toBeInTheDocument();
-    // The device's own trips are unaffected and still listed.
-    expect(screen.getByText("YV-ONDEVICE")).toBeInTheDocument();
+    expect(screen.queryByText("YV-ONDEVICE")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/saved on this phone/i);
   });
 });
 
@@ -332,13 +347,12 @@ describe("the three tabs", () => {
   });
 
   it("shows no tabs at all when signed out", async () => {
-    // Nothing to divide: three tabs over one phone's bookings is two empty ones.
+    // Nothing to divide: three tabs over no trips would be three empty ones
+    // above a sign-in prompt.
     renderWithQuery(<TripsScreen />);
-    await screen.findByText(/Kept on this device/);
+    await screen.findByText("Sign in to see your trips");
     expect(screen.queryByRole("tab", { name: "Upcoming" })).toBeNull();
-    expect(
-      screen.getByRole("link", { name: /Sign in with my number/ }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).toBeNull();
   });
 });
 

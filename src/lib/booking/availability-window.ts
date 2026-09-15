@@ -27,6 +27,31 @@ export const WINDOW_DAYS = 14;
  */
 export const CHECKOUT_WINDOW_DAYS = 30;
 
+/**
+ * The whole window checkout's calendar draws, in ONE request.
+ *
+ * 90 inclusive days, which is the API's own ceiling: "The API refuses ranges
+ * over 90 days." `MAX_DAYS_AHEAD` is 89 days AFTER today, so today plus 89 is
+ * exactly 90 dates and exactly what a traveller may choose.
+ *
+ * yuvoy-app#62 describes "one call per month shown", and one call for the
+ * whole window is strictly better at the same ceiling. Three reasons, in
+ * rising order.
+ *
+ * Fewer requests on a 0.5 Mbps island connection, and stepping a month is then
+ * instant rather than a spinner.
+ *
+ * The arrows can be drawn correctly straight away. With per-month fetching,
+ * whether next month has anything is unknown until it is fetched, so either
+ * the arrow lies or the traveller pages into an empty grid to find out.
+ *
+ * And "the month of the first open day" is knowable at all. Per month, the
+ * first open day cannot be found without fetching months to look for it, which
+ * is a loop with no bound and, in the first version of this screen, an effect
+ * that set state during render and a lint rule that correctly refused it.
+ */
+export const CALENDAR_WINDOW_DAYS = 90;
+
 export interface DateRange {
   from: string;
   to: string;

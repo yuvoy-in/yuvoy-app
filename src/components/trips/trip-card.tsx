@@ -3,18 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { bookingUrl } from "@/lib/booking/token-store";
-import type { Trip } from "@/lib/booking/merge-trips";
+
 import {
   tripPriceLine,
   partyLine,
   GUEST_STATUS_LABEL,
   type InvitedTrip,
+  type ServerTrip,
 } from "@/lib/trips/tabs";
 import { dateLabel } from "@/lib/search/labels";
 import { StateChip } from "@/components/booking/state-chip";
 import { Chip } from "@/components/ui/chip";
-import { Panel } from "@/components/ui/panel";
-import { ButtonLink } from "@/components/ui/button";
 import { CalendarIcon } from "@/components/ui/icons";
 
 /**
@@ -29,6 +28,15 @@ import { CalendarIcon } from "@/components/ui/icons";
  *
  * So a guest card cannot accidentally grow a price line: there is no field to
  * read one from, and the component that would render it is not this one.
+ *
+ * ## It takes the server's row, not a merged shape (yuvoy-app#60)
+ *
+ * This used to take a `Trip`, a union of what the API listed and what this
+ * device had saved, which meant every field was nullable and the card carried
+ * a whole second branch for a booking the server had never listed and whose
+ * link had died. Trips reads one source now, so the row IS the card's props and
+ * the branch is gone: a row the API returned always has a title, a date, a
+ * party and a freshly minted `statusToken`.
  */
 
 /** "Sat 20 Sep · 06:30", in the market's own day. */
@@ -64,70 +72,28 @@ function HeroTile({ src, alt }: { src?: string | null; alt: string }) {
   );
 }
 
-export function TripCard({ trip }: { trip: Trip }) {
-  if (trip.dead) {
-    /*
-      A link the server has finished with, and the number's list does not carry
-      this trip either. It stays listed, because the trip is real, but tapping
-      it would open a dead page.
-    */
-    return (
-      <Panel>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-bold">{trip.title}</p>
-            {trip.reference ? (
-              <p className="text-forest/70 mt-1 font-mono text-xs tracking-wider">
-                {trip.reference}
-              </p>
-            ) : null}
-          </div>
-          <Chip size="sm" tone="accent">
-            Link expired
-          </Chip>
-        </div>
-        <p className="text-forest/70 mt-3 text-sm">
-          This link no longer opens the booking. Signing in with the number you
-          booked with brings it back, along with everything else on it.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <ButtonLink href="/account" variant="outline" size="sm">
-            Sign in
-          </ButtonLink>
-          <ButtonLink href="/trips/recover" variant="outline" size="sm">
-            Get a new link
-          </ButtonLink>
-        </div>
-      </Panel>
-    );
-  }
-
-  const row = trip.server;
-  const price = row ? tripPriceLine(row) : null;
+export function TripCard({ trip }: { trip: ServerTrip }) {
+  const price = tripPriceLine(trip);
 
   return (
     <Link
-      href={bookingUrl(trip.token)}
+      href={bookingUrl(trip.statusToken)}
       className="rounded-card border-cream-line bg-cream-deep hover:border-forest/40 ease-interaction flex items-start gap-4 border p-4 transition-colors duration-200"
     >
-      <HeroTile src={row?.heroImageUrl} alt="" />
+      <HeroTile src={trip.heroImageUrl} alt="" />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
-          <p className="font-bold">{trip.title}</p>
-          {trip.state ? <StateChip state={trip.state} /> : null}
+          <p className="font-bold">{trip.experience}</p>
+          <StateChip state={trip.state} />
         </div>
 
-        {row ? (
-          <p className="text-forest/80 mt-2 flex items-center gap-2 text-sm">
-            <CalendarIcon className="text-forest/70 size-4" />
-            {whenLine(row.localDate, row.localTime)}
-          </p>
-        ) : null}
-
-        <p className="text-forest/70 mt-1 text-sm">
-          {row ? partyLine(row.guests) : null}
+        <p className="text-forest/80 mt-2 flex items-center gap-2 text-sm">
+          <CalendarIcon className="text-forest/70 size-4" />
+          {whenLine(trip.localDate, trip.localTime)}
         </p>
+
+        <p className="text-forest/70 mt-1 text-sm">{partyLine(trip.guests)}</p>
 
         {/*
           One sentence about money, or none. `tripPriceLine` decides which, in
@@ -140,8 +106,10 @@ export function TripCard({ trip }: { trip: Trip }) {
 
         {/*
           The reference is what gets read out at a jetty. A request the operator
-          has not answered has none, and an internal id styled as one is a
-          number somebody will read out to no effect.
+          has not answered has none, and the contract's absent case is an EMPTY
+          STRING rather than a missing field, so this is a truthiness test and
+          not `hasOwn`. An internal id styled as a reference is a number
+          somebody will read out to no effect.
         */}
         {trip.reference ? (
           <p className="text-forest/70 mt-2 font-mono text-xs tracking-wider">

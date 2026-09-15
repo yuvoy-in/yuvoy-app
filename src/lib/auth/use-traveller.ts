@@ -11,6 +11,7 @@ import { api, createProxyClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
 import type { TripTab } from "@/lib/trips/tabs";
+import { forgetAllBookings } from "@/lib/booking/token-store";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -116,6 +117,19 @@ export function useTravellerSession() {
    * out on a jetty with no signal must still be signed out on the phone in
    * front of them; the session lapses on its own within fourteen days either
    * way.
+   *
+   * ## The device's own bookings go too (yuvoy-app#60, item 3)
+   *
+   * Signing out used to clear the session and leave every saved booking behind,
+   * so Trips went on listing them. The owner reported that as a bug on 14
+   * September, and the visible half is the smaller half: a status token is a
+   * bearer credential that both opens a booking and can cancel it, so leaving
+   * one on the phone is the same shape as leaving a session cookie behind.
+   *
+   * `forgetAllBookings` is awaited before the cache is touched. The store is
+   * the durable copy, so if only one of the two can be cleared it has to be
+   * that one; a cleared cache over a full store comes straight back on reload,
+   * which is precisely the state the owner saw.
    */
   const signOut = useCallback(async () => {
     try {
@@ -123,6 +137,11 @@ export function useTravellerSession() {
     } catch {
       // Deliberately ignored. See above.
     }
+    /*
+      Resolves even when IndexedDB is missing or refuses, in step with the rest
+      of the store, so a private window cannot leave somebody signed in.
+    */
+    await forgetAllBookings();
     qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });

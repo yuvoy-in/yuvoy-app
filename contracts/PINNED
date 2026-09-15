@@ -333,7 +333,45 @@ repo=yuvoy-in/yuvoy-api
 # issue. And every field above is consumed as OPTIONAL regardless of what
 # `required:` says: a pinned contract states what an API WILL send, never what
 # it does send today (yuvoy-api#126).
+#
+# ---------------------------------------------------------------------------
+#
+# 15 Sep 2026. Forward two commits, 80668e7f -> 0dffd253 (yuvoy-api #190, #191).
+# PURELY ADDITIVE to the traveller contract: +28 lines, 0 removed, one enum and
+# its prose. Nothing this app already reads changed shape or meaning.
+#
+# Consumed in this change:
+#   - **`bookings[].state` on `GET /me/bookings` is an enum at last** (#190):
+#     `pending_request, paid_pending_ops, confirmed, declined, cancelled,
+#     completed, no_show`. The values are not new. Only the declaration is, and
+#     the declaration is the whole point: `paid_pending_ops` was the state this
+#     app had to read to know a cash booking still owes the operator money, and
+#     it was absent from every enum in the document. `isCashDueState` therefore
+#     took a bare `string`, because TypeScript would reject the comparison
+#     against the declared union as having no overlap. That narrowing is now
+#     deleted and the comparison is checked (app#29).
+#
+#     This cost two live defects before it was declared, both on the screen of
+#     somebody who had just committed money: an error boundary, and a false
+#     "Paid" shown to a traveller about to be asked for the notes. A state
+#     outside the enum does not fail to compile; it silently stops matching.
+#     yuvoy-api now has a test asserting this list against the database and the
+#     contract in both directions, so a new state cannot appear undeclared.
+#
+# Not consumed, and deliberately:
+#   - `getBookingStatus`'s own `BookingStatus.state` enum is UNCHANGED and
+#     still has no `paid_pending_ops`. Two endpoints, two shapes, on purpose: a
+#     cash booking reads `confirmed` there with a `payment` block (D-034). The
+#     app reads `payment` on that screen and the enum here, and the two must not
+#     be collapsed into one helper.
+#   - #191 is operator media cover selection. It touches
+#     `contracts/operator-openapi.yaml`, which this app neither generates from
+#     nor drift-checks, so the vendored copy is left at the ref it was last
+#     pulled at (0f31f3f, 31 Aug). It is dead weight and should be deleted
+#     rather than maintained; not done here to keep this change to app#29.
+#
+# Checked with `git ls-remote`, per the note above.
 
-ref=80668e7f1fd4740529a5f5d88787236508b6a014
+ref=0dffd253854785c5c4b62bd8c1df9bb1699c96c5
 branch=master
-pinned_on=2026-09-14
+pinned_on=2026-09-15

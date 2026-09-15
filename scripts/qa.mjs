@@ -1404,6 +1404,74 @@ for (const f of files) {
   }
 }
 
+/**
+ * A DATE NAME TAKEN FROM THE RUNTIME (yuvoy-app#67).
+ *
+ * `Intl.DateTimeFormat` reads its month and weekday names, and its separators,
+ * from whatever CLDR the runtime carries, and node and the browsers do not
+ * carry the same one. A component that renders a date on the server and then
+ * hydrates in a browser can therefore disagree with itself. It did, in
+ * production, on 15 September 2026: React #418 on every reel with a departure.
+ *
+ * Nothing in the suite could see it, and nothing in the suite can see the next
+ * one either. A unit test runs one runtime. An e2e test renders the built app
+ * in one browser against a server on the same machine but a different ICU
+ * build. Both halves are individually correct, which is why this is a static
+ * check rather than a test.
+ *
+ * Measured across node 22, WebKit and Chromium, the divergent options are:
+ *
+ *   - `month: "short"`: `Sept` in node and Chromium, `Sep` in WebKit, for
+ *     `en-IN` and `en-GB`. September is the only month that differs.
+ *   - a formatter with NO LOCALE, so `Intl.DateTimeFormat(undefined, …)` or
+ *     `Intl.DateTimeFormat(…)` with options first. That takes the runtime's
+ *     own locale, so the month spelling, the separator AND the field order all
+ *     vary: WebKit gave `16 Sep at 17:30` where Chromium gave `Sep 16, 17:30`.
+ *
+ * `month: "long"` and `weekday: "long" | "short"` were measured identical in
+ * all three and are deliberately NOT refused: a screen that wants "Wednesday,
+ * 16 September" may still say so directly.
+ *
+ * The fix is always the same, and `src/lib/format/date.ts` is where it lives:
+ * take civil fields as NUMBERS (identical everywhere, midnight included) and
+ * compose the names from fixed tables with separators we write ourselves.
+ * Slicing a month to three characters fixes the name but not the separator, so
+ * it is not sufficient on its own for anything built from `format()`.
+ */
+const DATE_NAMES_ALLOWED = new Set(["src/lib/format/date.ts"]);
+for (const f of files) {
+  if (DATE_NAMES_ALLOWED.has(rel(f))) continue;
+  const s = code(f);
+
+  if (/month:\s*["']short["']/.test(s)) {
+    problems.push(
+      `${rel(f)}: formats with \`month: "short"\`. That is "Sept" in node and ` +
+        `Chromium and "Sep" in WebKit, so a date rendered on the server and ` +
+        `hydrated in a browser disagrees with itself (React #418, and it ` +
+        `shipped). Take civil fields from \`@/lib/format/date\` and compose ` +
+        `the name from its tables.`,
+    );
+  }
+
+  /*
+    A formatter with no locale. Both spellings are matched: `undefined` passed
+    explicitly, and an options object passed as the FIRST argument, which is
+    the same thing written more briefly and is easier to miss in review.
+  */
+  const noLocale =
+    /new\s+Intl\.DateTimeFormat\(\s*undefined\b/.test(s) ||
+    /new\s+Intl\.DateTimeFormat\(\s*\{/.test(s);
+  if (noLocale) {
+    problems.push(
+      `${rel(f)}: builds an \`Intl.DateTimeFormat\` with no locale, so it ` +
+        `takes the runtime's. The month spelling, the separator and the ` +
+        `field order all vary by engine: WebKit renders "16 Sep at 17:30" ` +
+        `where Chromium renders "Sep 16, 17:30". Name a locale, or use ` +
+        `\`@/lib/format/date\` if the string is read by a person.`,
+    );
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
@@ -22,6 +22,7 @@ import {
 import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
+import { civilFromDate, weekdayDayMonth } from "@/lib/format/date";
 import { DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
 import {
   ContactFields,
@@ -56,9 +57,23 @@ type Slot = components["schemas"]["Slot"];
 export function CheckoutForm({
   experience,
   slot,
+  initialGuests,
+  onGuestsChange,
+  onRefused,
 }: {
   experience: Experience;
   slot: Slot;
+  /** Restored from the URL, so a refresh keeps the party (yuvoy-app#62). */
+  initialGuests?: number;
+  /** Lifted so the screen above can keep it in the URL. */
+  onGuestsChange?: (guests: number) => void;
+  /**
+   * The API refused the reservation because the calendar is out of date:
+   * `capacity_unavailable` or `price_moved`. The screen above refetches the
+   * month and puts this sentence over the calendar, which is where the
+   * traveller looks next.
+   */
+  onRefused?: (message: string) => void;
 }) {
   /*
     THE DEAD FORM, REFUSED BEFORE IT RENDERS — yuvoy-app#28.
@@ -88,15 +103,29 @@ export function CheckoutForm({
     );
   }
 
-  return <CheckoutFields experience={experience} slot={slot} />;
+  return (
+    <CheckoutFields
+      experience={experience}
+      slot={slot}
+      initialGuests={initialGuests}
+      onGuestsChange={onGuestsChange}
+      onRefused={onRefused}
+    />
+  );
 }
 
 function CheckoutFields({
   experience,
   slot,
+  initialGuests,
+  onGuestsChange,
+  onRefused,
 }: {
   experience: Experience;
   slot: Slot;
+  initialGuests?: number;
+  onGuestsChange?: (guests: number) => void;
+  onRefused?: (message: string) => void;
 }) {
   const router = useRouter();
   const create = useCreateReservation();
@@ -116,7 +145,15 @@ function CheckoutFields({
    */
   const submitting = useRef(false);
 
-  const [guests, setGuests] = useState(1);
+  /*
+    Seeded from the URL, and clamped, because `?guests=` survives a bookmark
+    and a departure's cap is not the one it was booked under. The stepper
+    enforces the cap while somebody taps; this is the same guard for a number
+    that arrives already typed.
+  */
+  const [guests, setGuests] = useState(() =>
+    Math.max(1, Math.min(initialGuests ?? 1, slot.maxPartySize ?? 99)),
+  );
   const [name, setName] = useState("");
   const [whatsapp, setWhatsapp] = useState(DEFAULT_DIAL_CODE);
   const [email, setEmail] = useState("");
@@ -282,6 +319,20 @@ function CheckoutFields({
     const reservation = await create.mutateAsync({
       slotId: slot.id,
       guests,
+      /*
+        THE TOTAL THE TRAVELLER AGREED TO - yuvoy-app#62 item 7.
+
+        "Optional, and send it." An operator changes their own price with no
+        review since D-032.3, so the gap between reading a total and pressing
+        this button is however long a checkout screen sits open. Without this
+        field the traveller is charged the NEW number having agreed to the old
+        one, and the snapshot records the new number as what they agreed to.
+
+        Sent only when there is a price to state. It is part of the body, so it
+        is inside the idempotency fingerprint, which is correct: a retry after
+        the price moved is a different agreement.
+      */
+      ...(total ? { expectedTotalMinor: total.amountMinor } : {}),
       authenticated: contact.authenticated,
       contact: contact.contactFor({ name, phone: whatsapp, email }),
       ...(attribution ? { attribution } : {}),
@@ -323,6 +374,31 @@ function CheckoutFields({
     }
   }
 
+  /*
+    A REFUSAL THAT MEANS "THE CALENDAR IS OUT OF DATE" - yuvoy-app#62 item 7.
+
+    `capacity_unavailable` (the seats went while they were filling this in) and
+    `price_moved` (the departure is not the price the calendar showed) are both
+    statements about the availability this page was drawn from, not about the
+    form. So they are reported UPWARD: the screen refetches the month and puts
+    the API's own sentence over the calendar, which is where somebody looks
+    next.
+
+    Reported in an effect rather than from the mutation's `onError`, because
+    `describeError` and the branches below still render it here too. One event,
+    two audiences, and neither is a substitute for the other.
+  */
+  useEffect(() => {
+    if (!(create.error instanceof YuvoyError)) return;
+    if (
+      create.error.code !== "capacity_unavailable" &&
+      create.error.code !== "price_moved"
+    ) {
+      return;
+    }
+    onRefused?.(create.error.message);
+  }, [create.error, onRefused]);
+
   const failure = create.error ? describeError(create.error) : null;
   /*
     The questions a `409 answers_required` named, marked in place. The panel
@@ -352,10 +428,33 @@ function CheckoutFields({
       : undefined;
   const sessionEnded = whoFailure?.status === 401;
 
+  /*
+    "Send request", not "Ask the operator" (yuvoy-app#62 item 7).
+
+    The old label belonged to a pop-up on the listing page that this issue
+    deleted. On a checkout page with a day, a time, a party and their details
+    already filled in, "Ask" understates what the traveller just did: they have
+    committed to everything except the operator's yes.
+  */
+  /*
+    Built from what is chosen, skipping what is not, so it never reads
+    "· · 2 people". The day comes from our own tables rather than `Intl`: this
+    page is server rendered and that is the app#67 hydration case.
+  */
+  const civil = civilFromDate(slot.localDate ?? "");
+  const summaryLine = [
+    civil ? weekdayDayMonth(civil) : null,
+    slot.localStartTime ? slot.localStartTime.slice(0, 5) : null,
+    `${guests} ${guests === 1 ? "person" : "people"}`,
+    total ? formatMoney(total) : null,
+  ].filter(Boolean) as string[];
+
   const action = create.isPending
-    ? "Holding your seats…"
+    ? isRequest
+      ? "Sending…"
+      : "Holding your seats…"
     : isRequest
-      ? "Ask the operator"
+      ? "Send request"
       : total
         ? `Hold these seats · ${formatMoney(total)}`
         : "Hold these seats";
@@ -376,7 +475,14 @@ function CheckoutFields({
           cannot disagree about the cap or about what to say at it. A traveller
           who set four on the listing arrives here with four already chosen.
         */}
-        <PartyStepper value={guests} onChange={setGuests} max={maxParty} />
+        <PartyStepper
+          value={guests}
+          onChange={(next) => {
+            setGuests(next);
+            onGuestsChange?.(next);
+          }}
+          max={maxParty}
+        />
 
         {/*
           Who is booking. The SAME block the Ask pop-up uses (yuvoy-app#32), so
@@ -540,6 +646,15 @@ function CheckoutFields({
       </div>
 
       <StickyBar className="mt-auto">
+        {/*
+          The whole choice in one line (yuvoy-app#62 item 7). It is the last
+          thing read before committing, and on a page where the day, the time
+          and the party were each chosen several scrolls apart, it is the only
+          place they appear together.
+        */}
+        <p className="text-forest/75 mb-3 text-center text-xs">
+          {summaryLine.join(" · ")}
+        </p>
         <Button type="submit" size="lg" block disabled={!canSubmit}>
           {action}
         </Button>

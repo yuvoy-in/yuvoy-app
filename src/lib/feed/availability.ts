@@ -1,4 +1,5 @@
 import type { components } from "@/lib/api/schema.gen";
+import { civilFromDate, weekdayDayMonth } from "@/lib/format/date";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 
@@ -68,36 +69,15 @@ export interface NextDeparture {
   round trip back to where it started, with an environment dependency picked up
   on the way.
 
-  The weekday is computed in UTC so it cannot depend on where this runs either.
+  The tables themselves moved to `@/lib/format/date` under yuvoy-app#67, which
+  audited the other call sites and found two more. One module owning the names
+  is what lets `pnpm qa` refuse `month: "short"` everywhere else; two copies of
+  a table are two things to keep in step and one of them would drift.
 */
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
-
 /** "Wed, 16 Sep", identically on a server and in any browser. */
 function marketDate(date: string): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-
-  const weekday =
-    WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
-  return `${weekday}, ${day} ${MONTHS[month - 1]}`;
+  const civil = civilFromDate(date);
+  return civil ? weekdayDayMonth(civil) : null;
 }
 
 export function nextDepartureSentence(

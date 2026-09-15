@@ -26,9 +26,12 @@ const LABEL: Record<string, string> = {
     `paid_pending_ops` is our internal word, and a traveller who reads
     "pending" on a seat they committed to rings somebody.
 
-    Keyed by `string` rather than the closed union because this value is not
-    in `BookingStatus.state`'s enum: it is declared only on `CashBooking`.
-    Raised on yuvoy-app#29; the label is right whichever way that is settled.
+    Keyed by `string` rather than by either endpoint's union, because the two
+    endpoints do not share one. `GET /me/bookings` declares `paid_pending_ops`
+    (yuvoy-api#190, 14 Sep); `BookingStatus.state` deliberately does not and
+    never will, because a cash booking reads `confirmed` there with a `payment`
+    block instead (D-034). This chip is rendered from both, so it takes what
+    they have in common and looks the label up.
   */
   paid_pending_ops: "Booked",
   holding: "Holding",
@@ -44,10 +47,13 @@ const LABEL: Record<string, string> = {
 };
 
 /**
- * `state` is typed as the closed union on `GET /bookings/status`, and as a
- * bare `string` on `GET /me/bookings` — the same values, typed loosely on one
- * of the two endpoints. So this accepts a string and looks the label up,
- * which is also what makes it safe against the API growing a state.
+ * `state` is a closed union on both endpoints now, but NOT the same union:
+ * `GET /bookings/status` has `holding`, `awaiting_operator`, `verifying`,
+ * `expired` and `released`, which a trips row never carries; `GET /me/bookings`
+ * has `paid_pending_ops` and `pending_request`, which a status answer never
+ * carries. Their intersection is not a type worth writing, so this takes a
+ * string and looks the label up, which is also what makes it safe against the
+ * API growing a state.
  *
  * An unrecognised state renders NOTHING. There is no honest generic: "Booked"
  * is false for a cancellation and "In progress" is false for a completed

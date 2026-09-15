@@ -17,7 +17,7 @@ import { defineConfig, devices } from "@playwright/test";
  * Named once so the `iphone` project and the two Chromium projects can never
  * disagree about what belongs where.
  */
-const WEBKIT_ONLY = /ios-input-zoom\.spec\.ts/;
+const WEBKIT_ONLY = /(ios-input-zoom|hydration)\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -53,9 +53,16 @@ export default defineConfig({
       reached the owner's phone with a green gate behind it.
 
       Running the whole suite twice would roughly double the pre-push gate for
-      one class of bug, so this project runs one file. Add a spec here only
-      when the thing it asserts is an engine difference; a spec that would pass
-      on Chromium belongs in `mobile`.
+      one class of bug, so this project runs only the specs that need it. Add a
+      spec here only when the thing it asserts is an engine difference; a spec
+      that would pass on Chromium belongs in `mobile`.
+
+      The second one earned its place the same way. `hydration.spec.ts` exists
+      because node and WebKit carry different CLDR versions, so a date rendered
+      on the server disagreed with the browser's first render and threw React
+      #418 on every reel in production (yuvoy-app#67). Chromium agrees with
+      node on that value, so both Chromium projects rendered it identically and
+      the suite stayed green.
     */
     {
       name: "iphone",

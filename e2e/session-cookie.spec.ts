@@ -29,7 +29,9 @@ async function signIn(page: Page, number = "9111111111") {
   await page.getByRole("button", { name: "Send me a code" }).click();
   await page.getByLabel("The code we sent").fill(SIGN_IN_CODE);
   await page.getByRole("button", { name: "Show me my trips" }).click();
-  await expect(page.getByText("You are signed in")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toBeVisible();
 }
 
 async function sessionCookie(page: Page) {
@@ -190,7 +192,9 @@ test("the session survives a reload, which IndexedDB did not", async ({
 }) => {
   await signIn(page);
   await page.reload();
-  await expect(page.getByText("You are signed in")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toBeVisible();
 
   // And on another route, so it is the cookie rather than a page's own state.
   await page.goto("/trips");
@@ -204,7 +208,7 @@ test("signing out clears the cookie and the next load shows the form", async ({
   expect(await sessionCookie(page)).toBeDefined();
 
   await page.getByRole("button", { name: "Sign out on this device" }).click();
-  await expect(page.getByText("There is no account to make")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
   const cookie = await sessionCookie(page);
   /*
@@ -216,7 +220,7 @@ test("signing out clears the cookie and the next load shows the form", async ({
   expect(cookie === undefined || cookie.value === "").toBe(true);
 
   await page.reload();
-  await expect(page.getByText("There is no account to make")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
 
 test("a revoked session shows the way back in, not an error", async ({

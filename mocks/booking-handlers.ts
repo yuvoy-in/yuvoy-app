@@ -743,6 +743,17 @@ export const bookingHandlers = [
     if (scenario === "cancelled") state = "cancelled";
     if (scenario === "expired") state = "expired";
     /*
+      A trip that has already happened (yuvoy-app#38 item 3). Needed so the
+      review form is reachable at all: `canReview` below is the server's
+      "completed, unreviewed, inside 30 days", and with no completed scenario
+      every test of that form would silently be a test of its absent branch.
+
+      `reviewed` is the same trip on the other side of leaving one.
+    */
+    if (scenario === "completed" || scenario === "reviewed") {
+      state = "completed";
+    }
+    /*
       COMMITTED IN CASH — yuvoy-app#29, and the projection changed under us.
 
       This used to answer `paid_pending_ops`, which is what the API returned
@@ -836,6 +847,43 @@ export const bookingHandlers = [
                 new Date(SLOT_STARTS_AT).getTime() > mockNow(),
             }
           : {}),
+        /*
+          HOW TO REACH A PERSON - yuvoy-app#38 item 4.
+
+          "Always sent (since 2026-09-13)", and the same shape as on
+          `getMyAccount`, so a traveller on a booking link who never signed in
+          can still Chat with us. `?__scenario=no-support-number` is the other
+          half of the contract's own sentence: `whatsappE164` is null while
+          there is no number, and the button is hidden then. Without a scenario
+          for it the hidden branch would never be exercised, and this product
+          has shipped an unconfigured number before.
+        */
+        support: {
+          whatsappE164:
+            scenario === "no-support-number" ? null : "+919000000001",
+          hours: "9am to 7pm, every day",
+        },
+        /*
+          WHETHER TO OFFER "HOW WAS IT" - yuvoy-app#38 item 3.
+
+          "Always sent", and the mock now sends it, because the screen reads
+          `review.canReview` instead of deriving the rule from `state`
+          (yuvoy-app#53). Without this the booking page could never show the
+          form against the mock, and every test of it would have been a test of
+          the absent branch.
+
+          `canReview` is the server's own definition: a completed trip with no
+          review that ended no more than 30 days ago, which is exactly when
+          `leaveReview` accepts one. `?__scenario=reviewed` is the other side,
+          a trip already rated, so the thanks line can be proven too.
+        */
+        review:
+          scenario === "reviewed"
+            ? { reviewed: true, canReview: false, rating: 5 }
+            : {
+                reviewed: false,
+                canReview: state === "completed",
+              },
         ...(scenario === "operator-updates"
           ? {
               /*
@@ -1498,6 +1546,135 @@ export const bookingHandlers = [
     return HttpResponse.json({ id: INVITED_TRIP.id });
   }),
 
+  /* --------------------------------------------- the booker's guests ---- */
+
+  /*
+    Inviting people onto a booking (yuvoy-app#38 items 6 and 12).
+
+    In-memory, so the panel can be walked end to end: invite, see the row
+    appear, remove it, see it go. A mock that answered a fixed list would let
+    the panel pass every test while never actually refetching.
+
+    `maxGuests` is the party size less the booker, which is the rule the client
+    is forbidden from deriving. `delivery: not_sent_no_channel` is what the API
+    answers today, because there is no WhatsApp sender yet, and it is the case
+    where the BOOKER has to deliver the link.
+  */
+  http.post(url("/bookings/invites"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "That link is not valid.", 401);
+    }
+    const scenario = scenarioOf(request);
+    if (scenario === "party-full") {
+      return envelope("conflict", "Every place is already offered.", 409);
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      phone?: string;
+    };
+    const id = `tgi_${guestSeq++}`;
+    mockGuests.push({
+      id,
+      ...(body.phone ? { phoneMasked: `••• ${body.phone.slice(-4)}` } : {}),
+      state: "invited" as const,
+      delivery: "not_sent_no_channel" as const,
+      createdAt: new Date(mockNow()).toISOString(),
+    });
+    return HttpResponse.json(
+      {
+        id,
+        state: "invited",
+        delivery: "not_sent_no_channel",
+        inviteUrl: `https://app.yuvoy.in/i/${id}`,
+      },
+      { status: 201, headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.get(url("/bookings/invites"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "That link is not valid.", 401);
+    }
+    return HttpResponse.json(
+      {
+        guests: mockGuests,
+        // A party of three: the booker plus two places to offer.
+        maxGuests: scenarioOf(request) === "party-of-one" ? 0 : 2,
+      },
+      { headers: mockHeaders(rid()) },
+    );
+  }),
+
+  http.delete(url("/bookings/invites/:id"), async ({ request, params }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "That link is not valid.", 401);
+    }
+    const at = mockGuests.findIndex((g) => g.id === params.id);
+    if (at >= 0) mockGuests.splice(at, 1);
+    // 204 "also when they were already removed".
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  /* ------------------------------------------------------ help ---------- */
+
+  /*
+    The in-app help form (yuvoy-app#38 items 4 and 9).
+
+    Takes EITHER credential, which is the contract's own point: "a traveller
+    who booked without signing in can still ask for help". The mock refuses an
+    unauthenticated call and accepts both a `sess_` session and a booking
+    link's status token, because the two callers reach this from different
+    screens and only one of them has a session.
+
+    Two scenarios, both of which the form has a branch for and neither of which
+    is reachable without the mock producing it: `support-invalid` for the
+    per-field `400`, and `support-rate-limited` for the `429` after five in an
+    hour.
+  */
+  http.post(url("/support/requests"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    const scenario = scenarioOf(request);
+    if (scenario === "support-rate-limited") {
+      return envelope("rate_limited", "Too many messages.", 429);
+    }
+
+    const body = (await request.json()) as {
+      message?: string;
+      topic?: string;
+      bookingReference?: string;
+    };
+
+    /*
+      The contract's own floor, enforced here so the field-level branch is
+      exercised by something. `details` is a map of field to sentence, which is
+      what the form renders under the box rather than at the top.
+    */
+    if (scenario === "support-invalid" || (body.message ?? "").length < 10) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "invalid_input",
+            message: "That message is too short.",
+            details: {
+              message: "Tell us a little more, at least 10 characters.",
+            },
+          },
+        },
+        { status: 400, headers: mockHeaders(rid()) },
+      );
+    }
+
+    return HttpResponse.json(
+      {
+        reference: "SR-3F9A12C0",
+        message: "Thanks. We have your message and will reply on WhatsApp.",
+      },
+      { status: 201, headers: mockHeaders(rid()) },
+    );
+  }),
+
   http.get(url("/me/interest-options"), async () =>
     HttpResponse.json({
       options: [
@@ -1569,6 +1746,26 @@ const DEV_SIGN_IN_CODE = "123456";
  * that carried any of them would let a card render something a guest must
  * never see and no server would send.
  */
+/**
+ * The booker's guest list, in memory (yuvoy-app#38 item 6).
+ *
+ * Mutable on purpose. The panel invites, sees a row appear, removes it and
+ * sees it go, and none of that is provable against a fixed fixture: a list
+ * that never changes lets a panel that never refetches pass.
+ *
+ * Reset between tests by `__resetBookingMocks`, like the reservations store.
+ */
+type MockGuest = {
+  id: string;
+  phoneMasked?: string;
+  name?: string;
+  state: "invited" | "joined" | "declined";
+  delivery: "not_sent_no_channel" | "queued" | "not_applicable";
+  createdAt: string;
+};
+const mockGuests: MockGuest[] = [];
+let guestSeq = 1;
+
 const INVITED_TRIP = {
   id: "inv_joined",
   role: "guest" as const,
@@ -1628,4 +1825,7 @@ export function __resetBookingMocks(): void {
   reservations.clear();
   byToken.clear();
   idempotent.clear();
+  // The guest list too, or one test's invitation is the next one's fixture.
+  mockGuests.length = 0;
+  guestSeq = 1;
 }
