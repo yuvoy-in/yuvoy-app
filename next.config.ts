@@ -53,6 +53,32 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   env: { NEXT_PUBLIC_SW_VERSION: swVersion },
+  /**
+   * The client router cache, switched back on for dynamic routes.
+   *
+   * Next 15 changed `staleTimes.dynamic` from 30s to **0**, which means a
+   * dynamic route's payload is thrown away the instant you leave it. Three of
+   * this app's screens are dynamic, so Feed -> Trips -> Feed refetched and
+   * re-rendered the feed on the server the second time, with the old screen
+   * held on the glass while it did. Every tab tap paid full price, every time,
+   * including the ones a traveller makes ten seconds apart while deciding.
+   *
+   * 30 seconds, matching the `staleTime` the QueryClient already uses for the
+   * same data (`lib/query/client.ts`). The two layers cache the same reels for
+   * the same window, so a return trip inside it is instant from both, and a
+   * trip after it refetches from both. Setting them differently is how you get
+   * a screen that is stale in one layer and fresh in the other.
+   *
+   * This does NOT hold a stale booking or a stale seat count in front of
+   * anyone. It is the client's *router* cache — a re-navigation inside the
+   * window re-renders from the payload, and every query on the screen still
+   * revalidates on its own terms, including `refetchOnReconnect`. `/booking`
+   * is additionally `no-store` at the CDN (see `headers` below), which is the
+   * surface where staleness would actually cost something.
+   */
+  experimental: {
+    staleTimes: { dynamic: 30, static: 180 },
+  },
   images: {
     qualities: [75, 100],
     remotePatterns: [
