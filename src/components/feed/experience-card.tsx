@@ -94,7 +94,8 @@ export function ExperienceCard({
   active: boolean;
   mounted: boolean;
   muted: boolean;
-  autoplayAllowed: boolean;
+  /** `undefined` until the browser has been asked. Undecided is not refused. */
+  autoplayAllowed: boolean | undefined;
   index: number;
   /** How many reels the feed HAS, or `-1` when that is not yet known. */
   total: number;

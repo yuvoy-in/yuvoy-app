@@ -18,8 +18,23 @@ interface FeedState {
   activeIndex: number;
   /** Muted by default, and remembered for the session once a traveller unmutes. */
   muted: boolean;
-  /** False when the connection or the user's preferences say do not autoplay. */
-  autoplayAllowed: boolean;
+  /**
+   * Whether video may START on its own. Nothing about whether it may play.
+   *
+   * THREE answers, not two, and `undefined` is the load-bearing one: the
+   * browser has not been asked yet. It is `false` only when something actually
+   * refused, which is Data Saver, a reduced-motion preference or a positively
+   * slow link.
+   *
+   * It used to start `false` and be corrected by an effect on mount, and that
+   * is the whole of the play-icon flash the owner reported. `false` is a
+   * REFUSAL, and the player draws its tap-to-play control over the poster when
+   * it reads one. So every card drew that control on first paint and took it
+   * away a tick later, on every load, for every traveller.
+   *
+   * Undecided is not refused. Nothing that renders may collapse the two.
+   */
+  autoplayAllowed: boolean | undefined;
 
   setActiveIndex: (i: number) => void;
   toggleMuted: () => void;
@@ -40,7 +55,9 @@ interface FeedState {
 export const useFeedStore = create<FeedState>((set, get) => ({
   activeIndex: 0,
   muted: true,
-  autoplayAllowed: false,
+  // Undecided. `detectAutoplayAllowed` answers it on mount. Never `false` here:
+  // see the field's own note, and never rendered as a refusal before it lands.
+  autoplayAllowed: undefined,
 
   /*
     The chrome used to retract here.
