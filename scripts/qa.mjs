@@ -34,6 +34,25 @@ const code = (f) =>
     .replace(/(^|[^:])\/\/.*$/gm, "$1");
 const rel = (f) => relative(ROOT, f);
 
+/**
+ * The URL a `page.tsx` serves.
+ *
+ * **Route groups do not appear in the URL.** `app/(feed)/page.tsx` serves `/`,
+ * not `/(feed)`. Two checks below derived the route by string-munging the file
+ * path and neither stripped them, so the first group added to this app was
+ * reported as an unknown route in no sitemap — a page that is in fact the
+ * homepage. Derived once here rather than twice inline, because the two copies
+ * had already drifted apart in how they handled the root.
+ */
+function routeOf(file) {
+  const segments = relative(APP, file)
+    .replace(/\\/g, "/")
+    .replace(/\/?page\.tsx$/, "")
+    .split("/")
+    .filter((seg) => seg && !(seg.startsWith("(") && seg.endsWith(")")));
+  return "/" + segments.join("/");
+}
+
 /* ---------------------------------------------- 1. routes that exist ----- */
 
 const routes = new Set(["/"]);
@@ -570,11 +589,7 @@ function coversRoute(rule, route) {
 
   for (const f of walk(APP)) {
     if (!/[/\\]page\.tsx$/.test(f)) continue;
-    const route =
-      "/" +
-      relative(APP, f)
-        .replace(/[/\\]page\.tsx$/, "")
-        .replace(/\\/g, "/");
+    const route = routeOf(f);
     if (excluded.some((r) => coversRoute(r, route))) continue;
 
     const s = code(f);
@@ -642,12 +657,7 @@ for (const f of files) {
 
   for (const f of walk(APP)) {
     if (!/[/\\]page\.tsx$/.test(f)) continue;
-    const route =
-      "/" +
-      relative(APP, f)
-        .replace(/[/\\]page\.tsx$/, "")
-        .replace(/^page\.tsx$/, "")
-        .replace(/\\/g, "/");
+    const route = routeOf(f);
 
     if (known.includes(route)) continue;
     if (excluded.some((r) => coversRoute(r, route))) continue;
