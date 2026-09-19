@@ -66,6 +66,30 @@ function token(globalsPath, name) {
   return hex.toLowerCase();
 }
 
+/**
+ * yuvoy-web's canvas, whatever that repo currently calls it.
+ *
+ * It was `cream` when this script was written, and the comment below predicted
+ * that "if yuvoy-web ever adopts `paper` too the mapping becomes the identity
+ * and quietly stops mattering". That prediction was half right: web took the
+ * white canvas on 19 September, but it RENAMED the token as it went, and
+ * `token(web, "cream")` throws rather than quietly stopping mattering — which
+ * would have taken this script out the next time the brand redelivered.
+ *
+ * Both names are accepted, newest first, so this runs against either
+ * generation of the marketing site and against a checkout mid-migration.
+ */
+function webCanvas(globalsPath) {
+  const css = readFileSync(globalsPath, "utf8");
+  for (const name of ["paper", "cream"]) {
+    if (new RegExp(`--color-${name}:`).test(css)) return token(globalsPath, name);
+  }
+  throw new Error(
+    `no canvas token (--color-paper or --color-cream) in ${globalsPath}; ` +
+      `yuvoy-web has renamed its canvas again and this script needs the new name.`,
+  );
+}
+
 const BRAND = join(process.cwd(), "public/brand");
 const MARGIN = 6;
 
@@ -231,11 +255,14 @@ const round = (n) => Math.round(n * 100) / 100;
 
   Both ends are read rather than typed: the source's from yuvoy-web's @theme,
   the destination's from ours. If either repo moves its canvas again this
-  follows it, and if yuvoy-web ever adopts `paper` too the mapping becomes the
-  identity and quietly stops mattering.
+  follows it.
+
+  Since 19 September web's canvas IS `paper` #FFFFFF, so the mapping is the
+  identity and this function is a no-op — but only because `webCanvas` knows
+  both names. Reading `cream` by name would throw, not no-op.
 */
 function recolour(svg) {
-  const from = token(join(SOURCE, "../../src/app/globals.css"), "cream");
+  const from = webCanvas(join(SOURCE, "../../src/app/globals.css"));
   const to = token(join(process.cwd(), "src/app/globals.css"), "paper");
   const swapped = svg.replace(new RegExp(from, "gi"), to);
   if (from !== to && swapped === svg) {
