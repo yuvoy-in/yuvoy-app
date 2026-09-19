@@ -82,7 +82,8 @@ function token(globalsPath, name) {
 function webCanvas(globalsPath) {
   const css = readFileSync(globalsPath, "utf8");
   for (const name of ["paper", "cream"]) {
-    if (new RegExp(`--color-${name}:`).test(css)) return token(globalsPath, name);
+    if (new RegExp(`--color-${name}:`).test(css))
+      return token(globalsPath, name);
   }
   throw new Error(
     `no canvas token (--color-paper or --color-cream) in ${globalsPath}; ` +
