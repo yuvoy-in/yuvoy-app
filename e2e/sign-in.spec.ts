@@ -90,8 +90,24 @@ test("signing in brings the other phone's trips into Trips, in one list", async 
     reference, so the card says what is true of a request rather than styling
     an internal id as something to read out at a jetty.
   */
-  await expect(page.getByText("Mangrove kayak at dawn")).toBeVisible();
-  await expect(page.getByText("Waiting for the operator")).toBeVisible();
+  /*
+    Scoped to THAT card, not to the page. The mock's booking list is server
+    state shared by every spec in a run, and any test that lodges a request
+    puts a second "Waiting for the operator" on this screen — which is a
+    strict-mode violation rather than a failed assertion, so it reads as this
+    test breaking when nothing it covers has changed.
+
+    Asserting the pair together is also closer to what this test means: the
+    claim is that the waiting request shows as waiting, not that the words
+    appear somewhere on the page.
+  */
+  const waitingRequest = page
+    .getByRole("link")
+    .filter({ hasText: "Mangrove kayak at dawn" });
+  await expect(waitingRequest).toBeVisible();
+  await expect(
+    waitingRequest.getByText("Waiting for the operator"),
+  ).toBeVisible();
 });
 
 test("signing out clears this phone, and Trips says so", async ({ page }) => {

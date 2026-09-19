@@ -140,8 +140,20 @@ const errorMiddleware: Middleware = {
       loud in a mocked build: the fixtures are anchored to the mock's own now,
       so one signed-in call to `/api/v1/me` moved "now" by weeks and every
       departure in the fixture read as closed. That is how this was found.
+
+      So the proxy forwards the API's own `Date` as `x-api-date` and it is
+      preferred wherever it appears. A custom name because `Date` cannot
+      survive the hop: the browser writes that header on the response it
+      receives, so ours would be overwritten by this server's.
+
+      Dropping the proxy's clock WITHOUT forwarding the API's would be worse
+      than either: every signed-in screen reads through the proxy, so the
+      offset would simply never be set and the device's own clock would stand
+      unchallenged. That is the bug this guards against, one layer along.
     */
-    if (!isProxyResponse(request.url)) {
+    const apiDate = response.headers.get("x-api-date");
+    if (apiDate) recordServerDate(apiDate);
+    else if (!isProxyResponse(request.url)) {
       recordServerDate(response.headers.get("date"));
     }
 

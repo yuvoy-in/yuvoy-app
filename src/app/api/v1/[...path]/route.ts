@@ -118,6 +118,17 @@ async function proxy(
     on a signed-in checkout (yuvoy-app#75).
   */
   if (answer.idempotentReplay) headers.set("Idempotent-Replay", "true");
+  /*
+    And the API's OWN clock, under a name of our own.
+
+    A proxied response's `Date` is written by this server when it answers, so
+    it says nothing about the machine whose `expiresAt` the hold countdown is
+    measured against. `Date` itself cannot carry it — a browser sets that
+    header on the response it receives, so ours would be overwritten — hence a
+    header the client knows to prefer. See `recordServerDate` in
+    lib/api/client.ts.
+  */
+  if (answer.apiDate) headers.set("x-api-date", answer.apiDate);
 
   if (answer.status === 204 || !answer.text) {
     return new NextResponse(null, { status: answer.status, headers });

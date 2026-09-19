@@ -61,6 +61,12 @@ export interface UpstreamResult {
    * "this was a replay" from "this API does not say".
    */
   idempotentReplay: boolean;
+  /**
+   * The API's own `Date`, so the browser can keep the API's clock rather than
+   * this server's. A hold countdown is measured against the API's
+   * `expiresAt`; the proxy is a different machine.
+   */
+  apiDate: string | null;
 }
 
 export async function callUpstream(options: {
@@ -145,6 +151,7 @@ export async function callUpstream(options: {
       whatever casing the API chooses.
     */
     idempotentReplay: response.headers.get("Idempotent-Replay") === "true",
+    apiDate: response.headers.get("date"),
   };
 }
 
