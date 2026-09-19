@@ -293,13 +293,63 @@ export async function getSnapshot(
  * A fragment is never sent to the server, so this can only run in the browser
  * — which is why the booking route is client-only. That is a constraint the
  * token forces, not a preference.
+ *
+ * ## Why it reads the LAST fragment
+ *
+ * A URL has one fragment, and `#` is not a legal character inside it
+ * (RFC 3986 §3.5). So a second `#` in what the browser hands back is not a
+ * fragment we wrote: it is a corrupted URL, and the corruption has a known
+ * source.
+ *
+ * Next's app router remembers the canonical URL of the FIRST document load,
+ * fragment included. Arrive by hard-loading a booking link — which is the
+ * primary way anyone arrives, straight from WhatsApp — and every later
+ * client-side navigation back to `/booking` APPENDS its fragment to that
+ * remembered one rather than replacing it. The router itself calls
+ * `pushState("/booking#t=A#t=B")`; the browser is only doing as it is told.
+ *
+ * `URLSearchParams` has no concept of `#`, so it read the whole tail as the
+ * value and produced the token `A#t=B`. That is a bearer credential the
+ * server has never issued, so it answered `401 unauthorized` — which is
+ * indistinguishable from a revoked link by design, so the screen told the
+ * traveller their booking link no longer opens anything, and offered to
+ * replace a link that was in fact perfectly good. Tapping a trip in Trips was
+ * enough to trigger it.
+ *
+ * The last fragment is the one the traveller just asked for: the appended one
+ * is the newest, and the stale one in front of it is whatever the tab was
+ * opened on. Reading it is what makes this defect survivable rather than
+ * merely diagnosable, so it stays even once the router stops appending. A
+ * credential reader has no business trusting the shape of its input.
  */
 export function readTokenFromFragment(
   hash: string = window.location.hash,
 ): string | null {
   const raw = hash.startsWith("#") ? hash.slice(1) : hash;
-  const token = new URLSearchParams(raw).get(TOKEN_PARAM);
+  // `lastIndexOf` is -1 on a well-formed fragment, so this slices from 0 and
+  // the normal path costs one comparison.
+  const newest = raw.slice(raw.lastIndexOf("#") + 1);
+  const token = new URLSearchParams(newest).get(TOKEN_PARAM);
   return token && token.length > 0 ? token : null;
+}
+
+/**
+ * The fragment as it should have been, or `null` when it already is.
+ *
+ * Only the address bar's problem, never the token's: `readTokenFromFragment`
+ * already reads a doubled fragment correctly, so nothing on the screen
+ * depends on this. What depends on it is the link the traveller COPIES. The
+ * booking link is the only way back into a booking, travellers are told to
+ * keep it, and a URL carrying two fragments is one `URLSearchParams` away
+ * from being dead everywhere it is pasted.
+ */
+export function canonicalFragment(
+  hash: string = window.location.hash,
+): string | null {
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  if (!raw.includes("#")) return null;
+  const token = readTokenFromFragment(hash);
+  return token ? `#${TOKEN_PARAM}=${encodeURIComponent(token)}` : null;
 }
 
 /** Builds the link the traveller keeps. Fragment, never a path or query. */
