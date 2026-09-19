@@ -91,6 +91,12 @@ interface MockReservation {
   /** Committed in cash, awaiting the operator recording the money. */
   cashBooked?: boolean;
   /**
+   * The state `listMyBookings` filed this trip under, for a row this device
+   * did not create. A seeded past trip must report `completed` on status too,
+   * or the Trips card and the booking screen disagree about the same booking.
+   */
+  listedState?: string;
+  /**
    * The listing's own questions, as answered by this party - yuvoy-app#46.
    *
    * Keyed by question id, and carried on the RESERVATION rather than derived
@@ -729,10 +735,17 @@ export const bookingHandlers = [
 
     record.polls += 1;
 
+    /*
+      A row this device did not create reports what the list said it was. A
+      seeded past trip answering "holding" would have the Trips card and the
+      booking screen describing the same booking two different ways, which is
+      a fixture disagreeing with itself rather than a state worth testing.
+    */
     // `verifying` resolves after a couple of polls, so the interrupted-payment
     // screen can be exercised without a real provider.
     let state: string =
-      record.state === "pending_request" ? "awaiting_operator" : "holding";
+      record.listedState ??
+      (record.state === "pending_request" ? "awaiting_operator" : "holding");
     if (scenario === "verifying") state = "verifying";
     if (scenario === "paid") {
       state = record.polls < 3 ? "verifying" : "confirmed";
@@ -1710,21 +1723,50 @@ export const bookingHandlers = [
       one cannot prove that matching falls back to `reservationId` — and
       without that fallback every waiting request appears twice.
     */
-    const own = [...reservations.values()].map((r) => ({
-      reference: r.state === "pending_request" ? "" : r.reference,
-      reservationId: r.reservationId,
-      experience: "Try-dive at Nemo Reef",
-      operator: "Sample Dive Operator",
-      localDate: "2026-08-22",
-      localTime: "07:00",
-      state: r.state === "pending_request" ? "pending_request" : "confirmed",
-      guests: r.guests,
-      meetingPoint: "Jetty 2, Havelock",
-      statusToken: r.token,
-    }));
+    const own = [...reservations.values()]
+      // The seeded rows are listed from `LISTED_TRIPS` below, with the tab and
+      // the state the fixture declares. Listing them from here as well would
+      // put every one of them in `upcoming` a second time.
+      .filter((r) => r.listedState === undefined)
+      .map((r) => ({
+        reference: r.state === "pending_request" ? "" : r.reference,
+        reservationId: r.reservationId,
+        experience: "Try-dive at Nemo Reef",
+        operator: "Sample Dive Operator",
+        localDate: "2026-08-22",
+        localTime: "07:00",
+        state: r.state === "pending_request" ? "pending_request" : "confirmed",
+        guests: r.guests,
+        meetingPoint: "Jetty 2, Havelock",
+        statusToken: r.token,
+        tab: "upcoming" as const,
+      }));
+
+    /*
+      `?tab=` is HONOURED — yuvoy-app, 19 September.
+
+      This used to answer the identical list whatever tab was asked for, and
+      the Trips screen deliberately does no filtering of its own: the API
+      "has already put each one in the right tab", so the client renders the
+      page it is given. A mock that ignores the parameter therefore makes all
+      three tabs pass while proving only that one of them works, and the tab
+      the owner reported — Past — had no row in it at all.
+
+      The contract's guarantee is that the three "never overlap and together
+      they are the whole list", so this partitions rather than filters, and an
+      absent `tab` still means every trip.
+    */
+    const tab = new URL(request.url).searchParams.get("tab");
+    const all = [...own, ...LISTED_TRIPS];
+    const rows = tab ? all.filter((t) => t.tab === tab) : all;
 
     return HttpResponse.json({
-      bookings: [...own, ANOTHER_PHONES_TRIP, WAITING_REQUEST],
+      // `tab` is how this fixture files a row, not a field the API sends, so
+      // it is dropped rather than shipped to a client that must not read it.
+      bookings: rows.map((row) =>
+        Object.fromEntries(Object.entries(row).filter(([k]) => k !== "tab")),
+      ),
+      nextCursor: null,
     });
   }),
 ];
@@ -1804,6 +1846,7 @@ const ANOTHER_PHONES_TRIP = {
   guests: 2,
   meetingPoint: "Jetty 2, Havelock",
   statusToken: "tok_other_phone",
+  tab: "upcoming" as const,
 };
 
 /** A request the operator has not answered: no reference, only an id. */
@@ -1818,12 +1861,112 @@ const WAITING_REQUEST = {
   guests: 1,
   meetingPoint: "Mangrove jetty",
   statusToken: "tok_waiting_request",
+  tab: "upcoming" as const,
 };
+
+/**
+ * A trip that HAPPENED, and one the traveller called off.
+ *
+ * The Past tab had no fixture at all, which is how the owner's report of
+ * 19 September — tapping a past trip and being told the link was dead — was
+ * structurally unreachable by the suite: there was nothing in that tab to tap.
+ * `no_show` rather than `completed` on the second past row because the
+ * contract files it under PAST, not cancelled, and that rule is only worth
+ * anything if something exercises it.
+ */
+const PAST_TRIP = {
+  reference: "YV-PASTONE",
+  reservationId: "res_past_trip",
+  experience: "Sunset cruise off Radhanagar",
+  operator: "Sample Boat Operator",
+  localDate: "2026-07-02",
+  localTime: "16:30",
+  state: "completed",
+  guests: 2,
+  meetingPoint: "Jetty 1, Havelock",
+  statusToken: "tok_past_trip",
+  tab: "past" as const,
+};
+
+const MISSED_TRIP = {
+  reference: "YV-NOSHOW1",
+  reservationId: "res_no_show",
+  experience: "Dawn birdwatching at Chidiya Tapu",
+  operator: "Sample New Operator",
+  localDate: "2026-07-11",
+  localTime: "05:15",
+  state: "no_show",
+  guests: 1,
+  meetingPoint: "Chidiya Tapu gate",
+  statusToken: "tok_no_show",
+  tab: "past" as const,
+};
+
+const CANCELLED_TRIP = {
+  reference: "YV-CALLOFF",
+  reservationId: "res_cancelled_trip",
+  experience: "Try-dive at Nemo Reef",
+  operator: "Sample Dive Operator",
+  localDate: "2026-08-01",
+  localTime: "07:00",
+  state: "cancelled",
+  guests: 3,
+  meetingPoint: "Jetty 2, Havelock",
+  statusToken: "tok_cancelled_trip",
+  tab: "cancelled" as const,
+};
+
+/** Every row the API lists that this device did not create. */
+const LISTED_TRIPS = [
+  ANOTHER_PHONES_TRIP,
+  WAITING_REQUEST,
+  PAST_TRIP,
+  MISSED_TRIP,
+  CANCELLED_TRIP,
+];
+
+/**
+ * Makes the listed trips OPENABLE.
+ *
+ * Every row of `listMyBookings` carries a `statusToken`, and the contract is
+ * unambiguous that it opens that booking. The mock used to invent those
+ * tokens in the list handler alone and register them nowhere, so
+ * `GET /bookings/status` answered 401 for every one of them: tapping a trip
+ * in Trips — the single most ordinary thing on the screen — could not be
+ * tested end to end, and a client that mangled the token on the way was
+ * indistinguishable from the mock's own refusal.
+ *
+ * That is the gap the 19 September defect hid in, so it is closed here rather
+ * than worked around in a test.
+ */
+function seedListedTrips(): void {
+  for (const trip of LISTED_TRIPS) {
+    reservations.set(trip.reservationId, {
+      reservationId: trip.reservationId,
+      slotId: `slot_${trip.reservationId}`,
+      guests: trip.guests,
+      contactName: "Sample Traveller",
+      state: trip.state === "pending_request" ? "pending_request" : "active",
+      holdExpiresAt: null,
+      requestExpiresAt: null,
+      token: trip.statusToken,
+      reference: trip.reference || trip.reservationId,
+      polls: 0,
+      paid: trip.state === "confirmed" || trip.tab !== "upcoming",
+      listedState: trip.state,
+    });
+    byToken.set(trip.statusToken, trip.reservationId);
+  }
+}
+
+seedListedTrips();
 
 /** Test-only: forget every reservation between cases. */
 export function __resetBookingMocks(): void {
   reservations.clear();
   byToken.clear();
+  // The listed trips are fixtures, not a test's leftovers: they come back.
+  seedListedTrips();
   idempotent.clear();
   // The guest list too, or one test's invitation is the next one's fixture.
   mockGuests.length = 0;
