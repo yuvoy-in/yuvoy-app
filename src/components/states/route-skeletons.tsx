@@ -37,14 +37,29 @@ import { Screen } from "@/components/chrome/screen";
 /**
  * The stage-and-sheet chassis: everything that is not a reel.
  *
- * No back control is drawn even on a focused route. A fallback cannot know
- * where back leads, and a disc that flashes the wrong destination for 200ms is
- * worse than a disc that arrives with the screen. The strip itself is the same
- * height either way, so nothing below it moves.
+ * `back` and `stageLabel` are passed through so a FOCUSED route's fallback can
+ * wear the chassis that route actually wears. By default neither is drawn: a
+ * fallback usually cannot know where back leads, and a disc that flashes the
+ * wrong destination is worse than one that arrives with the screen.
+ *
+ * `/booking` is the exception that made this necessary. Its screen renders
+ * `<Screen back={{href:"/trips"}} stageLabel="Your booking">`, so a fallback
+ * without them swapped a wordmark for a back disc, grew a centred label and
+ * changed the foot from tab clearance to `pb-8` — the "two loads" flash this
+ * file exists to prevent, on the one screen a traveller opens from a link
+ * somebody sent them. Where the target IS knowable, pass it.
  */
-export function SheetSkeleton({ width = "md" }: { width?: "md" | "lg" }) {
+export function SheetSkeleton({
+  width = "md",
+  back,
+  stageLabel,
+}: {
+  width?: "md" | "lg";
+  back?: { href: string; label: string };
+  stageLabel?: string;
+}) {
   return (
-    <Screen width={width}>
+    <Screen width={width} back={back} stageLabel={stageLabel}>
       <LoadingState label="Loading">
         <div className="space-y-6">
           <div className="space-y-3">
