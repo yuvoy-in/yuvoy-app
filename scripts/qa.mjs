@@ -1366,6 +1366,99 @@ for (const f of files) {
     }
   }
 
+  /* -- 18c -- */
+
+  /*
+    Every REQUIRED header the contract declares on a proxied path must be one
+    the proxy forwards (yuvoy-app#75).
+
+    `callUpstream` builds a fresh header set and sends nothing of the caller's
+    that is not named in `FORWARDED_REQUEST_HEADERS`. That is the right
+    default — a proxy that forwards what it was not asked to is how a session
+    reaches somewhere nobody intended — but it means a header the API REQUIRES
+    is dropped in silence, and the failure surfaces as the API refusing a
+    request the client composed correctly.
+
+    That is exactly how `Idempotency-Key` was lost. The contract makes it
+    required on `POST /reservations`, so omitting it client-side would have
+    been a type error; the proxy dropped it after the types were satisfied.
+    Every signed-in booking failed for five days, and the guest path kept
+    working because it calls the API directly, so the e2e stayed green.
+
+    Reading the pinned contract rather than a list of known headers is the
+    whole point: the next required header arrives from the API team, not from
+    this repo, and it must not be able to arrive quietly.
+  */
+  const upstreamSrc = readFileSync(join(SRC, "lib/auth/upstream.ts"), "utf8");
+  const forwardedBlock = upstreamSrc.match(
+    /FORWARDED_REQUEST_HEADERS\s*=\s*\[([\s\S]*?)\]/,
+  );
+  const forwarded = forwardedBlock
+    ? [...forwardedBlock[1].matchAll(/"([^"]+)"/g)].map((m) =>
+        m[1].toLowerCase(),
+      )
+    : null;
+
+  if (!forwarded) {
+    problems.push(
+      `src/lib/auth/upstream.ts: FORWARDED_REQUEST_HEADERS could not be ` +
+        `parsed, so the required-header check cannot run, which means it is ` +
+        `silently passing.`,
+    );
+  }
+
+  /** The `parameters:` of ONE operation inside a path block. */
+  const operationParams = (block, method) => {
+    const verb = method.toLowerCase();
+    const start = block.search(new RegExp(`\\n {4}${verb}:\\n`));
+    if (start < 0) return "";
+    const rest = block.slice(start + 1);
+    // Up to the next sibling verb, so `get:` never reads `post:`'s parameters.
+    const next = rest
+      .slice(1)
+      .search(/\n {4}(get|put|post|delete|options|head|patch|trace):/);
+    const operation = next < 0 ? rest : rest.slice(0, next + 1);
+    const params = operation.search(/\n {6}parameters:\n/);
+    if (params < 0) return "";
+    const after = operation.slice(params + 1);
+    const end = after.slice(1).search(/\n {6}\w+:/);
+    return end < 0 ? after : after.slice(0, end + 1);
+  };
+
+  if (forwarded) {
+    for (const { method, pattern } of listed) {
+      const block = blockFor(pattern);
+      if (!block) continue; // Already reported by 18a.
+
+      const params = operationParams(block, method);
+      if (!params) continue;
+
+      /*
+        One `- name: X` entry at a time, so `required: true` and `in: header`
+        are read off the SAME parameter. Scanning the whole list for both
+        would pass a required query parameter beside an optional header.
+      */
+      for (const entry of params.split(/\n(?= {8}- )/)) {
+        const name = entry.match(/-\s*name:\s*([^\s#]+)/)?.[1];
+        if (!name) continue;
+        if (!/\bin:\s*header\b/.test(entry)) continue;
+        if (!/\brequired:\s*true\b/.test(entry)) continue;
+        if (forwarded.includes(name.toLowerCase())) continue;
+
+        problems.push(
+          `src/lib/auth/upstream.ts: the contract REQUIRES header ` +
+            `\`${name}\` on ${method} ${pattern}, which the proxy forwards, ` +
+            `but FORWARDED_REQUEST_HEADERS does not name it. The proxy ` +
+            `builds a fresh header set, so the API will receive the request ` +
+            `without it and refuse a call the client composed correctly — ` +
+            `and only for signed-in travellers, because a guest reaches the ` +
+            `API directly. This is yuvoy-app#75 exactly. Add it to the ` +
+            `allowlist, or stop proxying this path.`,
+        );
+      }
+    }
+  }
+
   /* -- 18b -- */
 
   const apiRoutes = walk(join(APP, "api")).filter((f) =>
