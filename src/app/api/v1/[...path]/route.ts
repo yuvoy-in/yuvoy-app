@@ -110,6 +110,25 @@ async function proxy(
     every error screen expects one.
   */
   if (answer.requestId) headers.set("x-request-id", answer.requestId);
+  /*
+    And the replay marker. A retry with the same `Idempotency-Key` answers
+    `201` with the stored response, "so a client that retried after a dropped
+    connection cannot tell its request was a repeat" — except by this header.
+    Swallowing it here left the browser unable to make that distinction at all
+    on a signed-in checkout (yuvoy-app#75).
+  */
+  if (answer.idempotentReplay) headers.set("Idempotent-Replay", "true");
+  /*
+    And the API's OWN clock, under a name of our own.
+
+    A proxied response's `Date` is written by this server when it answers, so
+    it says nothing about the machine whose `expiresAt` the hold countdown is
+    measured against. `Date` itself cannot carry it — a browser sets that
+    header on the response it receives, so ours would be overwritten — hence a
+    header the client knows to prefer. See `recordServerDate` in
+    lib/api/client.ts.
+  */
+  if (answer.apiDate) headers.set("x-api-date", answer.apiDate);
 
   if (answer.status === 204 || !answer.text) {
     return new NextResponse(null, { status: answer.status, headers });
