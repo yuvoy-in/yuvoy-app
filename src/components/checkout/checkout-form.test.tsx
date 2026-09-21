@@ -484,3 +484,65 @@ describe("CheckoutForm — what the operator asks", () => {
     expect(sent!).not.toHaveProperty("answers");
   });
 });
+
+describe("the cancellation terms, as production actually sends them", () => {
+  /*
+    Copied from the live API on 21 September 2026, not from a fixture.
+
+    The fixtures carry a one-sentence policy that reads fine inline, and that
+    is exactly why this went unseen: production sends four rules in 227
+    characters, and inline they turned the consent checkbox into a wall of
+    text. A test shaped like the fixture passes for the wrong reason.
+  */
+  const PRODUCTION_POLICY =
+    "Cancel 48 hours or more before your trip starts: full refund. Cancel 24-48 hours before: half refund. Inside 24 hours: no refund. If the operator or the weather cancels your trip, you are always refunded in full, automatically.";
+
+  it("lists every rule, in order, without hiding any of them", () => {
+    renderWithQuery(
+      <CheckoutForm
+        experience={{ ...kayak, cancellationPolicy: PRODUCTION_POLICY }}
+        slot={kayakSlot}
+      />,
+    );
+
+    /*
+      Consent has to be informed, so nothing sits behind a tap. Every rule is
+      on screen, as its own line, in the operator's order.
+    */
+    const items = screen
+      .getByText("If plans change")
+      .parentElement!.querySelectorAll("li");
+    expect(Array.from(items).map((li) => li.textContent)).toEqual([
+      "Cancel 48 hours or more before your trip starts: full refund.",
+      "Cancel 24-48 hours before: half refund.",
+      "Inside 24 hours: no refund.",
+      "If the operator or the weather cancels your trip, you are always refunded in full, automatically.",
+    ]);
+  });
+
+  it("keeps the checkbox's own name short, and ties it to the terms", () => {
+    renderWithQuery(
+      <CheckoutForm
+        experience={{ ...kayak, cancellationPolicy: PRODUCTION_POLICY }}
+        slot={kayakSlot}
+      />,
+    );
+
+    const box = screen.getByRole("checkbox", { name: /called off/i });
+    /*
+      THE DEFECT: the accessible NAME used to be the whole policy, so a screen
+      reader announced 227 characters as the label of one checkbox. The name is
+      the short sentence now and the terms are its DESCRIPTION, which is what
+      `aria-describedby` is for.
+    */
+    /*
+      The COMPUTED accessible name, not the `aria-label` attribute. A first
+      version of this test read the attribute, which this control never had,
+      so it compared an empty string and passed on the broken code too: a guard
+      that could not fail. Checked by reverting the fix and watching it fail.
+    */
+    expect(box).toHaveAccessibleName(/called off/i);
+    expect(box).not.toHaveAccessibleName(/refund/i);
+    expect(box).toHaveAccessibleDescription(/full refund/i);
+  });
+});
