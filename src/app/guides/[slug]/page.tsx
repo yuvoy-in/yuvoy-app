@@ -107,11 +107,22 @@ export default async function GuidePage({
               published guide whose hero is not on disk.
             */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
+            {/*
+              EAGER, and `fetchPriority="high"`, where it was `loading="lazy"`.
+
+              This is the guide's largest element and it sits directly under
+              the title, so it is the page's LCP on every viewport that shows
+              more than the headline. Lazy-loading it defers the one image the
+              page is judged on: the browser's preload scanner skips a lazy
+              image and only fetches it after layout confirms it is on screen,
+              which is later than it needed to be. Lazy is right for images
+              below the fold, and this is not one.
+            */}
             <img
               src={guide.hero.src}
               alt={guide.hero.alt}
               className="rounded-card w-full"
-              loading="lazy"
+              fetchPriority="high"
               decoding="async"
             />
             {/*
