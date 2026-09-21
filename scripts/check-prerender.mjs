@@ -50,6 +50,9 @@ const ALLOWED = {
   "/offline": "The service worker's fallback. Must be static by definition.",
   "/opengraph-image": "Build asset.",
   "/robots.txt": "Static, gated on NEXT_PUBLIC_ALLOW_INDEXING at build time.",
+  "/saved":
+    "The wishlist. Reads IndexedDB in the browser, same as /trips. The shell " +
+    "carries no data and no clock.",
   "/sitemap.xml": "revalidate=3600 — ISR, not frozen. lastModified refreshes.",
   "/trips": "Reads IndexedDB in the browser. The shell carries no data.",
   "/trips/recover": "A form. No server data, no clock.",

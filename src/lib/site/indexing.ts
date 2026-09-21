@@ -76,6 +76,16 @@ export const PRIVATE_ROUTES = [
   "/trip/",
   "/trips",
   "/account",
+  /*
+    The wishlist. Rendered entirely from IndexedDB on the device, so a crawler
+    sees an empty list, and a permanently empty result is worse than none.
+
+    NOTE for whoever adds the next one: `pnpm qa` scrapes the string literals
+    out of this array, comments included, so a double-quoted word in a comment
+    here is read as a route. That is what a quoted Saved in this very comment
+    did, and the failure names a route nobody wrote.
+  */
+  "/saved",
   "/offline",
   /*
     A shared reel — yuvoy-app#36.

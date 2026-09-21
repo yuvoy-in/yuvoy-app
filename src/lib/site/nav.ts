@@ -92,6 +92,13 @@ export const FOCUSED_ROUTE_PREFIXES = [
   "/o/*/r/",
   // A search result, playing. `/search` itself is a tab root and keeps the bar.
   "/search/r/",
+  /*
+    The wishlist. A place a traveller goes INTO from Account, with its own way
+    back, and not one of the four they move between. It is deliberately not a
+    fifth tab: the bar answers "where do I go most often", and a wishlist is
+    where somebody goes once they already have saves. See `saved-screen`.
+  */
+  "/saved",
 ] as const;
 
 /**

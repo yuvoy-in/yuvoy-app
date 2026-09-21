@@ -356,7 +356,7 @@ export function ExperienceCard({
               className={
                 saved ? "text-terra-soft ring-terra-soft/45" : undefined
               }
-              onClick={() => toggleSaved(experience.id)}
+              onClick={() => toggleSaved(experience.id, experience.slug)}
             >
               {saved ? <BookmarkFilledIcon /> : <BookmarkIcon />}
             </IconButton>
