@@ -79,11 +79,21 @@ export function HelpSection({
 
   return (
     <div className={cn("border-paper-line mt-8 border-t pt-6", className)}>
+      {/*
+        EVERY CONTROL HERE CARRIES `tap-target`, and that was a fix.
+
+        This row was cut down from a panel of full-width buttons to one line of
+        inline text, and the first version of that line shipped its three
+        controls as plain text: about 20px tall on a phone, under the repo's
+        own 28px floor, and separated by nothing but a dot. A thumb aiming for
+        WhatsApp hit "Message us". Found in the accessibility pass, not by a
+        report, and pinned by a test.
+      */}
       <p className="text-forest/70 text-sm">
         Need a hand?{" "}
         <Link
           href="/help"
-          className="text-forest font-bold underline underline-offset-4"
+          className="text-forest tap-target font-bold underline underline-offset-4"
         >
           Help centre
         </Link>
@@ -100,7 +110,7 @@ export function HelpSection({
               href={waHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-forest font-bold underline underline-offset-4"
+              className="text-forest tap-target font-bold underline underline-offset-4"
             >
               Chat on WhatsApp
             </a>
@@ -110,7 +120,7 @@ export function HelpSection({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="text-forest font-bold underline underline-offset-4"
+          className="text-forest tap-target font-bold underline underline-offset-4"
         >
           {onBooking ? "Message us about this trip" : "Message us"}
         </button>
