@@ -360,6 +360,7 @@ export const bookingHandlers = [
       screening?: { declaredClear?: boolean; ageBands?: string[] };
       attribution?: Record<string, unknown>;
       answers?: unknown;
+      expectedTotalMinor?: unknown;
     };
 
     if (!key) {
@@ -419,6 +420,20 @@ export const bookingHandlers = [
         );
       case "booking-disabled":
         return envelope("booking_disabled", "Booking is paused.", 503);
+      /*
+        Forces the moved-price refusal below, so its panel can be seen in dev
+        without editing a fixture price mid-session. Only when a total was
+        sent: omitted, the real API checks nothing, and neither does this.
+      */
+      case "price-moved":
+        if (typeof body.expectedTotalMinor === "number") {
+          return envelope(
+            "price_moved",
+            "The price of this departure changed while you were deciding.",
+            409,
+          );
+        }
+        break;
       case "slow":
         await delay(3000);
         break;
@@ -507,6 +522,28 @@ export const bookingHandlers = [
       ? availabilityFor(slug).find((s) => s.id === body.slotId)
       : undefined;
     const isRequest = slot?.bookingMode === "request";
+
+    /*
+      THE TOTAL THE TRAVELLER AGREED TO - yuvoy-app#62 item 7, yuvoy-api#193.
+
+      "Optional, and send it. Omitted, nothing is checked ... Sent, the
+      checkout is refused 409 price_moved when the listing no longer costs
+      that." The mock used to ignore the field entirely, so a client that sent
+      the wrong total, or none at all, passed every test here. It is checked
+      against the same slot price the availability handler serves, which is
+      the number the client multiplied.
+    */
+    if (
+      typeof body.expectedTotalMinor === "number" &&
+      slot?.price &&
+      slot.price.amountMinor * body.guests !== body.expectedTotalMinor
+    ) {
+      return envelope(
+        "price_moved",
+        "The price of this departure changed while you were deciding.",
+        409,
+      );
+    }
 
     const id = `res_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
     const token = `tok_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;

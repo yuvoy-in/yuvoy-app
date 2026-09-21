@@ -194,6 +194,32 @@ export function describeError(
           body: "Nothing was sent and no seats are held. Try again, or pick another departure.",
           canRetry: true,
         };
+      /*
+        THE CALENDAR WAS OUT OF DATE - yuvoy-app#62 item 7, yuvoy-api#193.
+
+        Both are checkout refusals about the availability the page was drawn
+        from, not about the form. The screen above refetches the dates and puts
+        the API's own sentence over the calendar; these are what the panel
+        beside the button says. They used to fall through to the default, so a
+        traveller whose price had just moved read "It is us, not you, and
+        trying again often fixes it". Sending the same total again is refused
+        the same way, which is why neither offers a retry: the next attempt is
+        a new agreement at the new total, not a replay.
+      */
+      case "capacity_unavailable":
+        return {
+          ...base,
+          title: "Those seats have just gone",
+          body: "Somebody booked them while you were deciding. Nothing was held and nothing was charged. The dates above have been refreshed to show what is left.",
+          canRetry: false,
+        };
+      case "price_moved":
+        return {
+          ...base,
+          title: "The price has changed",
+          body: "This departure no longer costs what you were shown, so nothing was held and nothing was charged. The prices have been refreshed. Check the total below before you book again.",
+          canRetry: false,
+        };
       case "cutoff_passed":
         return {
           ...base,

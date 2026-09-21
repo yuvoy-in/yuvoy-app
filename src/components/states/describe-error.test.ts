@@ -124,6 +124,32 @@ describe("describeError — codes the client used to not recognise", () => {
 });
 
 /*
+  The two checkout refusals that mean "the calendar was out of date"
+  (yuvoy-app#62 item 7, yuvoy-api#193). Both fell through to the default, so a
+  traveller whose price had moved read "It is us, not you, and trying again
+  often fixes it", and sending the same total again is refused identically.
+*/
+describe("describeError: the calendar was out of date", () => {
+  const GENERIC = /trying again often fixes it/;
+
+  it("says a moved price is a moved price, and that nothing was charged", () => {
+    const d = describeError(err("price_moved", 409));
+    expect(d.title).toBe("The price has changed");
+    expect(d.body).not.toMatch(GENERIC);
+    expect(d.body).toMatch(/nothing was charged/i);
+    expect(d.canRetry).toBe(false);
+    expect(d.requestId).toBe("01J");
+  });
+
+  it("says the seats went, rather than blaming us", () => {
+    const d = describeError(err("capacity_unavailable", 409, { remaining: 2 }));
+    expect(d.title).toBe("Those seats have just gone");
+    expect(d.body).not.toMatch(GENERIC);
+    expect(d.canRetry).toBe(false);
+  });
+});
+
+/*
   Booking by invitation (yuvoy-api#195). Declared in the contract before the
   API that returns them was deployed, so nothing in production sends them yet.
   Each still has to say something true the day it does, and none may offer a

@@ -287,6 +287,103 @@ describe("when the calendar is out of date", () => {
       await screen.findByText("Those seats went while you were deciding."),
     ).toBeInTheDocument();
   });
+
+  it("books at the new price after a moved price, with a fresh key", async () => {
+    /*
+      yuvoy-api#193 asked for the changed-price checkout path to be confirmed
+      from the app, and until this test nothing here had ever produced a
+      `price_moved`: the mock ignored `expectedTotalMinor` entirely.
+
+      The whole loop, because each step is a separate way to strand somebody:
+        1. the first attempt, at the old total, is refused;
+        2. the panel beside the button says what happened, not "it is us";
+        3. the dates are refetched and the bar shows the NEW total;
+        4. the next attempt sends the new total under a NEW idempotency key.
+           The total is part of the body, so reusing the key would be refused
+           as `idempotency_key_reuse` and the traveller could never book.
+    */
+    nav.search = "date=2026-09-20&slot=sl_20_0700";
+    let price = 450000;
+    const sent: { total: unknown; key: string | null }[] = [];
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () =>
+        HttpResponse.json({
+          slots: [slot({ price: { amountMinor: price, currency: "INR" } })],
+          bookable: true,
+          availabilityAsOf: "2026-09-14T04:00:00Z",
+          marketTimezone: "Asia/Kolkata",
+          staleSlotsSuppressed: 0,
+        }),
+      ),
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        const body = (await request.json()) as { expectedTotalMinor?: number };
+        sent.push({
+          total: body.expectedTotalMinor,
+          key: request.headers.get("idempotency-key"),
+        });
+        if (body.expectedTotalMinor !== 500000) {
+          // The operator raised the price while the form was open.
+          price = 500000;
+          return HttpResponse.json(
+            {
+              error: {
+                code: "price_moved",
+                message: "The price of this departure changed.",
+                requestId: "01JPRICE",
+              },
+            },
+            { status: 409 },
+          );
+        }
+        return HttpResponse.json(
+          {
+            reservationId: "res_new",
+            state: "active",
+            guests: 1,
+            holdExpiresAt: "2026-09-14T04:10:00Z",
+            requestExpiresAt: null,
+            statusToken: "tok_after_price_moved",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookScreen slug="mangrove-kayak-at-dawn" />);
+
+    await user.type(await screen.findByLabelText(/Your name/i), "Asha Menon");
+    await user.type(screen.getByLabelText(/WhatsApp number/i), "9000000000");
+    await user.click(screen.getByRole("checkbox", { name: /called off/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Hold these seats · ₹4,500/i }),
+    );
+
+    // 1 and 2: refused, and told the truth about it, above and beside.
+    expect(
+      await screen.findByText("The price of this departure changed."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("The price has changed")).toBeInTheDocument();
+    expect(screen.queryByText(/trying again often fixes it/)).toBeNull();
+
+    // 3: the refetch lands and the bar carries the new total.
+    const pay = await screen.findByRole("button", {
+      name: /Hold these seats · ₹5,000/i,
+    });
+
+    // 4: the new agreement goes through, under its own key.
+    await user.click(pay);
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[0].total).toBe(450000);
+    expect(sent[1].total).toBe(500000);
+    expect(sent[1].key).toBeTruthy();
+    expect(sent[1].key).not.toBe(sent[0].key);
+    await waitFor(() =>
+      expect(
+        nav.replaced.some((h) => h.includes("tok_after_price_moved")),
+      ).toBe(true),
+    );
+  });
 });
 
 describe("the summary in the bar", () => {
