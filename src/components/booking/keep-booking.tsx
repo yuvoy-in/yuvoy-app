@@ -47,12 +47,9 @@ const NOT_HAPPENING = ["cancelled", "declined", "expired"];
 export function KeepBooking({
   status,
   token,
-  /** The panel after checkout, which Skip dismisses. The row is always there. */
-  variant,
 }: {
   status: BookingStatus;
   token: string;
-  variant: "panel" | "row";
 }) {
   const [skipped, setSkipped] = useState(false);
   const [busy, setBusy] = useState<"photos" | "download" | "share" | null>(
@@ -111,7 +108,23 @@ export function KeepBooking({
   }, [copied]);
 
   if (NOT_HAPPENING.includes(status.state)) return null;
-  if (variant === "panel" && dismissed) return null;
+
+  /*
+    ONE component, and the variant is now a consequence rather than a choice.
+
+    It used to be a prop, and the trip screen passed BOTH: a `panel` and a
+    `row`, at two points in the same stack. The panel hid itself once dismissed
+    and the row never did, so before anybody pressed Skip the page offered the
+    same three actions twice, about forty lines apart. The revamp brief named
+    the survivor by its own heading: "remove unnecessary elements such as
+    repetitive 'Save or share this booking'".
+
+    The requirement it was reaching for is real and is kept (yuvoy-app#61):
+    "keep a Save or share this booking row after Skip too". Skipping the prompt
+    is not the same as never wanting the booking again. So the prompt becomes
+    the row rather than being joined by one.
+  */
+  const variant: "panel" | "row" = dismissed ? "row" : "panel";
 
   const reference = status.bookingReference ?? status.reservationId ?? "trip";
   const filename = `yuvoy-${reference}.png`;

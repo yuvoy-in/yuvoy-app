@@ -212,6 +212,24 @@ function StatusBody({
     status.state === "confirmed" &&
     new Date(status.slot.startsAt).getTime() > now;
 
+  /*
+    Whether "Manage this trip" has anything to hold.
+
+    Every control in that region is gated, and on a trip that is over or never
+    happened ALL of them decline: the calendar and KeepBooking each exclude
+    these states, and share, invite and cancel all need a trip still ahead. The
+    region was drawn regardless, so its heading stood alone over nothing.
+
+    DELIBERATELY CONSERVATIVE. This lists only the states where every child is
+    known to be empty, the intersection of their own exclusions. If a child's
+    rules change, the worst this can do is leave an empty heading, never hide
+    a real action: hiding a cancel button someone needs is the failure that
+    matters, and this cannot cause it.
+  */
+  const hasTripActions = !["cancelled", "declined", "expired"].includes(
+    status.state,
+  );
+
   // See the "Where you meet" row and the reason line below for why each of
   // these is derived rather than read straight off the response.
   const meetingText = status.meetingPoint?.text?.trim();
@@ -501,26 +519,37 @@ function StatusBody({
 
       {status.refund ? <RefundProgress refund={status.refund} /> : null}
 
-      {/* Actions need the network, so they are absent on an offline snapshot. */}
       {/*
-        KEEP YOUR BOOKING, right under the heading (yuvoy-app#61 item 1).
+        MANAGE THIS TRIP: one region, not five stacked panels.
 
-        The panel is the one with Skip; the row below is always there, for any
-        booking still happening, "after Skip too". Two variants rather than two
-        components, because they are the same three actions and a second copy
-        would drift.
+        Share, invite, calendar, keep a copy and cancel were five siblings in a
+        vertical stack of about twenty-two surfaces, each with its own heading
+        and its own weight, none of them more important than the meeting point
+        above them. Everything was level one, which is the information
+        architecture problem the revamp brief describes: hierarchy, not more
+        text.
 
-        This exists because #60 removed the device's own copy of a booking. A
-        traveller on a jetty with no signal had nothing; an image in Photos
-        survives a cleared browser, a new phone and a flat battery.
+        They are one labelled region now. Each control keeps its own gate
+        EXACTLY as it was, because every one of those conditions encodes a
+        contract rule and several were bugs once: `upcoming` reads the server's
+        clock, invitations follow the 409 the API would return anyway, and the
+        calendar component owns its own exclusions because it is the one that
+        knows what it would write.
+
+        On an offline snapshot the token-gated controls are absent, exactly as
+        before, and the calendar stays because it never needed the network.
+        The region itself is gated on `hasTripActions`, so a trip with nothing
+        left to manage draws no heading at all.
       */}
-      {token ? (
-        <KeepBooking status={status} token={token} variant="panel" />
-      ) : null}
+      {hasTripActions ? (
+        <section aria-labelledby="manage-trip" className="mt-10">
+          <h2 id="manage-trip" className="label text-forest/75">
+            Manage this trip
+          </h2>
 
-      {token && upcoming ? <ShareButton token={token} /> : null}
+          {token && upcoming ? <ShareButton token={token} /> : null}
 
-      {/*
+          {/*
         Offering a PLACE, which is a different thing from sharing a link
         (#38 items 6 and 12). Share reveals the meeting point to anybody it is
         pasted to; this gives somebody their own seat in the party.
@@ -530,11 +559,11 @@ function StatusBody({
         confirmed half and `awaiting_operator` the other, and the server
         refuses anything else with a 409 regardless.
       */}
-      {token && (upcoming || status.state === "awaiting_operator") ? (
-        <InviteGuests token={token} />
-      ) : null}
+          {token && (upcoming || status.state === "awaiting_operator") ? (
+            <InviteGuests token={token} />
+          ) : null}
 
-      {/*
+          {/*
         The trip in the traveller's own calendar (#38 item 5).
 
         Not gated on `upcoming` like Share is. Share mints a link for people
@@ -543,10 +572,21 @@ function StatusBody({
         exclusions are the states where an entry would be a lie. The component
         owns that list, since it is the one that knows what it would write.
       */}
-      <AddToCalendar status={status} />
+          <AddToCalendar status={status} />
 
-      {token ? (
-        <KeepBooking status={status} token={token} variant="row" />
+          {token ? <KeepBooking status={status} token={token} /> : null}
+
+          {token && upcoming && !cancelling ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCancelling(true)}
+              className="mt-4"
+            >
+              I need to cancel
+            </Button>
+          ) : null}
+        </section>
       ) : null}
 
       {/*
@@ -569,17 +609,6 @@ function StatusBody({
             : `Hi, I need help with my request for ${status.experience?.title ?? "my trip"}.`
         }
       />
-
-      {token && upcoming && !cancelling ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setCancelling(true)}
-          className="mt-4"
-        >
-          I need to cancel
-        </Button>
-      ) : null}
 
       {token && cancelling ? (
         <CancelSheet
