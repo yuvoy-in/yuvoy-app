@@ -307,3 +307,30 @@ describe("send us a message", () => {
     await waitFor(() => expect(auth).toBe("Bearer tok_abc"));
   });
 });
+
+describe("the row's touch targets", () => {
+  it("gives every control the repo's minimum tap height", () => {
+    /*
+      THE DEFECT THIS PINS. The help row was cut to one line of inline text and
+      its three controls shipped as bare text, about 20px tall on a phone and
+      a dot apart. `tap-target` is the repo's own floor for inline controls
+      (28px), so a thumb has something to land on and a neighbour to miss.
+    */
+    renderWithQuery(
+      <HelpSection
+        support={{ whatsappE164: "+919000000001" }}
+        whatsappMessage="Hi"
+        token="tok_1"
+      />,
+    );
+
+    const controls = [
+      screen.getByRole("link", { name: "Help centre" }),
+      screen.getByRole("link", { name: "Chat on WhatsApp" }),
+      screen.getByRole("button", { name: /^Message us/ }),
+    ];
+    for (const control of controls) {
+      expect(control, control.textContent ?? "").toHaveClass("tap-target");
+    }
+  });
+});
