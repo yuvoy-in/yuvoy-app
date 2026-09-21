@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { savedStore } from "./saved-store";
+import { savedStore, type SavedEntry } from "./saved-store";
 
 /**
  * The saved set, and the one way to change it.
@@ -28,6 +28,35 @@ import { savedStore } from "./saved-store";
  * one that admits it could not.
  */
 const KEY = ["savedExperienceIds"] as const;
+
+/**
+ * The list screen's key, separate from the feed's.
+ *
+ * Two reads rather than one derived from the other, mirroring `#192`: the feed
+ * wants ids and nothing else, twelve times a page. Sharing one key would make
+ * every card's subscription re-render when the list screen refetched bodies.
+ * Both are invalidated together on a write, which is what keeps them agreeing.
+ */
+const LIST_KEY = ["savedExperiences"] as const;
+
+/** Shared empty list. Same reasoning as `NONE`. */
+const NO_ENTRIES: SavedEntry[] = [];
+
+/**
+ * Every save with enough to render it, newest first.
+ *
+ * Separate hook because only one screen needs it, and a feed that imported it
+ * would pay for a read it never looks at.
+ */
+export function useSavedList() {
+  return useQuery({
+    queryKey: LIST_KEY,
+    queryFn: () => savedStore.listSaved(),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    placeholderData: NO_ENTRIES,
+  });
+}
 
 /**
  * One array, shared by every card that has nothing saved yet.
@@ -74,8 +103,16 @@ export function useSaved() {
   const ids = data ?? NONE;
 
   const mutation = useMutation({
-    mutationFn: async ({ id, next }: { id: string; next: boolean }) => {
-      if (next) await savedStore.addSaved(id);
+    mutationFn: async ({
+      id,
+      slug,
+      next,
+    }: {
+      id: string;
+      slug: string;
+      next: boolean;
+    }) => {
+      if (next) await savedStore.addSaved(id, slug);
       else await savedStore.removeSaved(id);
     },
     onMutate: async ({ id, next }) => {
@@ -99,6 +136,11 @@ export function useSaved() {
     */
     onSettled: () => {
       void client.invalidateQueries({ queryKey: KEY });
+      /* The list screen reads the same storage through a different key, so a
+         save made on the feed has to reach it too. Invalidated rather than
+         written, because the list carries `savedAt` and a slug this call site
+         has no reason to assemble. */
+      void client.invalidateQueries({ queryKey: LIST_KEY });
     },
   });
 
@@ -109,10 +151,19 @@ export function useSaved() {
     [ids],
   );
 
+  /*
+    The SLUG is required, and that is the point of it.
+
+    The id alone cannot be resolved to an experience: the API fetches by slug
+    and offers no id filter. Taking it here rather than looking it up later
+    means a save is renderable the moment it is made, and a caller that does
+    not have a slug is a compile error rather than a row the list silently
+    cannot show. See `saved-store`.
+  */
   const toggleSaved = useCallback(
-    (experienceId: string) => {
+    (experienceId: string, slug: string) => {
       const next = !ids.includes(experienceId);
-      mutate({ id: experienceId, next });
+      mutate({ id: experienceId, slug, next });
       return next;
     },
     [ids, mutate],

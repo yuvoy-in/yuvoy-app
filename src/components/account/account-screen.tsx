@@ -440,6 +440,18 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         Go to my trips
       </ButtonLink>
 
+      {/*
+        The wishlist's only permanent entrance.
+
+        Saving has written to the device since it shipped and had nowhere to be
+        read back; this is that screen. Deliberately NOT a fifth tab: the
+        bottom bar answers "where do I go most often" and a wishlist is where
+        somebody goes once they already have saves. See `saved-screen`.
+      */}
+      <ButtonLink href="/saved" variant="outline" block className="mt-3">
+        Saved experiences
+      </ButtonLink>
+
       {me ? (
         <Button
           variant="outline"
