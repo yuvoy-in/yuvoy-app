@@ -93,9 +93,7 @@ describe("Save to Photos", () => {
       file went, so it is absent rather than degraded.
     */
     patchNavigator({ canShareFiles: false });
-    renderWithQuery(
-      <KeepBooking status={status()} token="tok" variant="panel" />,
-    );
+    renderWithQuery(<KeepBooking status={status()} token="tok" />);
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Download" })).toBeVisible(),
@@ -121,9 +119,7 @@ describe("Save to Photos", () => {
       }),
     );
 
-    renderWithQuery(
-      <KeepBooking status={status()} token="tok_secret" variant="panel" />,
-    );
+    renderWithQuery(<KeepBooking status={status()} token="tok_secret" />);
 
     await user.click(
       await screen.findByRole("button", { name: "Save to Photos" }),
@@ -151,9 +147,7 @@ describe("Save to Photos", () => {
       ),
     );
 
-    renderWithQuery(
-      <KeepBooking status={status()} token="tok" variant="panel" />,
-    );
+    renderWithQuery(<KeepBooking status={status()} token="tok" />);
     await user.click(
       await screen.findByRole("button", { name: "Save to Photos" }),
     );
@@ -173,9 +167,7 @@ describe("when the image cannot be made", () => {
       ),
     );
 
-    renderWithQuery(
-      <KeepBooking status={status()} token="tok" variant="panel" />,
-    );
+    renderWithQuery(<KeepBooking status={status()} token="tok" />);
     await user.click(await screen.findByRole("button", { name: "Download" }));
 
     expect(
@@ -207,9 +199,7 @@ describe("Share", () => {
       ),
     );
 
-    renderWithQuery(
-      <KeepBooking status={status()} token="tok_secret" variant="panel" />,
-    );
+    renderWithQuery(<KeepBooking status={status()} token="tok_secret" />);
     await user.click(await screen.findByRole("button", { name: /Share/ }));
 
     await waitFor(() => expect(shared).toHaveLength(1));
@@ -230,9 +220,7 @@ describe("Share", () => {
       ),
     );
 
-    renderWithQuery(
-      <KeepBooking status={status()} token="tok" variant="panel" />,
-    );
+    renderWithQuery(<KeepBooking status={status()} token="tok" />);
     await user.click(await screen.findByRole("button", { name: /Share/ }));
 
     await waitFor(() =>
@@ -252,7 +240,7 @@ describe("Skip", () => {
     patchNavigator({ canShareFiles: false });
 
     const { unmount } = renderWithQuery(
-      <KeepBooking status={status()} token="tok" variant="panel" />,
+      <KeepBooking status={status()} token="tok" />,
     );
     await user.click(await screen.findByRole("button", { name: "Skip" }));
     expect(screen.queryByText("Keep your booking")).toBeNull();
@@ -263,9 +251,7 @@ describe("Skip", () => {
     );
 
     unmount();
-    renderWithQuery(
-      <KeepBooking status={status()} token="tok" variant="panel" />,
-    );
+    renderWithQuery(<KeepBooking status={status()} token="tok" />);
     await new Promise((r) => setTimeout(r, 40));
     expect(screen.queryByText("Keep your booking")).toBeNull();
   });
@@ -278,12 +264,12 @@ describe("Skip", () => {
     const user = userEvent.setup();
     patchNavigator({ canShareFiles: false });
 
-    renderWithQuery(
-      <>
-        <KeepBooking status={status()} token="tok" variant="panel" />
-        <KeepBooking status={status()} token="tok" variant="row" />
-      </>,
-    );
+    /*
+      ONE component now, not two. It used to take a `variant` and the trip
+      screen passed both, so the same three actions appeared twice on one page
+      until somebody pressed Skip. The prompt BECOMES the row instead.
+    */
+    renderWithQuery(<KeepBooking status={status()} token="tok" />);
     await user.click(await screen.findByRole("button", { name: "Skip" }));
 
     expect(screen.getByText("Save or share this booking")).toBeInTheDocument();
@@ -294,7 +280,7 @@ describe("Skip", () => {
     patchNavigator({ canShareFiles: false });
 
     const { unmount } = renderWithQuery(
-      <KeepBooking status={status()} token="tok" variant="panel" />,
+      <KeepBooking status={status()} token="tok" />,
     );
     await user.click(await screen.findByRole("button", { name: "Skip" }));
     unmount();
@@ -303,7 +289,6 @@ describe("Skip", () => {
       <KeepBooking
         status={status({ bookingReference: "YV-ANOTHER1" })}
         token="tok"
-        variant="panel"
       />,
     );
     expect(await screen.findByText("Keep your booking")).toBeInTheDocument();
@@ -318,7 +303,7 @@ describe("a trip that is not happening", () => {
       cleanup();
       patchNavigator({ canShareFiles: false });
       const { container } = renderWithQuery(
-        <KeepBooking status={status({ state })} token="tok" variant="row" />,
+        <KeepBooking status={status({ state })} token="tok" />,
       );
       expect(container.textContent, state).toBe("");
     }
