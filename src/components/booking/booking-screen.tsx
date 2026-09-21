@@ -641,10 +641,15 @@ function StatusBody({
         </p>
       ) : null}
 
-      <p className="text-forest/70 border-paper-line mt-8 border-t pt-6 text-xs">
-        Something not right? Reply to the WhatsApp message we sent, or contact
-        us from the link in it. Someone answers between 06:00 and 21:00.
-      </p>
+      {/*
+        The closing "something not right?" paragraph is GONE.
+
+        It said the same thing `HelpSection` says, a few lines above it, on a
+        page the audit counted about twenty surfaces on. Two offers of help
+        within one screen of each other is the duplication the revamp brief
+        named, and the one that survives is the one with the working controls
+        rather than the one describing a message that may never have arrived.
+      */}
     </div>
   );
 }

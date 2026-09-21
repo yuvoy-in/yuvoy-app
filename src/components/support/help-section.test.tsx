@@ -48,7 +48,7 @@ describe("chat with us", () => {
       />,
     );
 
-    const link = screen.getByRole("link", { name: "Chat with us" });
+    const link = screen.getByRole("link", { name: "Chat on WhatsApp" });
     expect(link).toHaveAttribute(
       "href",
       "https://wa.me/919000000001?text=Hi%2C%20I%20need%20help%20with%20booking%20YV-4K2M9P7Q.",
@@ -67,10 +67,9 @@ describe("chat with us", () => {
         whatsappMessage="Hi"
       />,
     );
-    expect(screen.getByRole("link", { name: "Chat with us" })).toHaveAttribute(
-      "href",
-      "https://wa.me/919000000001?text=Hi",
-    );
+    expect(
+      screen.getByRole("link", { name: "Chat on WhatsApp" }),
+    ).toHaveAttribute("href", "https://wa.me/919000000001?text=Hi");
   });
 
   it("shows the hours under it, when there are any", () => {
@@ -91,12 +90,12 @@ describe("chat with us", () => {
         <HelpSection support={{ whatsappE164: value }} whatsappMessage="Hi" />,
       );
       expect(
-        screen.queryByRole("link", { name: "Chat with us" }),
+        screen.queryByRole("link", { name: "Chat on WhatsApp" }),
         String(value),
       ).toBeNull();
       // The form is still there: there is always a way to reach somebody.
       expect(
-        screen.getByRole("button", { name: "Send us a message" }),
+        screen.getByRole("button", { name: "Message us" }),
       ).toBeInTheDocument();
     }
   });
@@ -104,7 +103,7 @@ describe("chat with us", () => {
   it("offers the form even with no support object at all", () => {
     renderWithQuery(<HelpSection support={undefined} whatsappMessage="Hi" />);
     expect(
-      screen.getByRole("button", { name: "Send us a message" }),
+      screen.getByRole("button", { name: "Message us" }),
     ).toBeInTheDocument();
   });
 });
@@ -112,7 +111,10 @@ describe("chat with us", () => {
 describe("send us a message", () => {
   const openSheet = async () => {
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Send us a message" }));
+    /* "Message us" on Account, "Message us about this trip" on a booking: the
+       row names the context it is in. Matched either way so this helper does
+       not have to know which case the caller set up. */
+    await user.click(screen.getByRole("button", { name: /^Message us/ }));
     return user;
   };
 
