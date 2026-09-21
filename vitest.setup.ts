@@ -4,6 +4,7 @@ import { cleanup } from "@testing-library/react";
 import { server } from "./mocks/server";
 import { __resetBookingMocks } from "./mocks/booking-handlers";
 import { __resetAppRouteMocks } from "./mocks/app-route-handlers";
+import { __resetSavedMocks } from "./mocks/saved-handlers";
 import { __resetClockOffset } from "./src/lib/booking/clock";
 
 /*
@@ -23,6 +24,8 @@ afterEach(() => {
     make a signed-out branch pass for the wrong reason.
   */
   __resetAppRouteMocks();
+  // Account saves are module state too (yuvoy-api#192).
+  __resetSavedMocks();
   // The measured server-clock offset is module state; one test's fixture
   // clock must not become the next test's idea of now.
   __resetClockOffset();

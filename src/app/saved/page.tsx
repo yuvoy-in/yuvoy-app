@@ -11,9 +11,9 @@ export const metadata: Metadata = {
  * The wishlist.
  *
  * `noindex`, and for a plainer reason than the token-bearing routes: there is
- * nothing here to index. The page renders from IndexedDB on the device, so a
- * crawler sees an empty list, and an indexed "Saved" that is always empty is
- * worse than no result at all.
+ * nothing here to index. The page renders a signed-in account's saves or this
+ * browser's, so a crawler sees an empty list, and an indexed "Saved" that is
+ * always empty is worse than no result at all.
  */
 export default function SavedPage() {
   return <SavedScreen />;

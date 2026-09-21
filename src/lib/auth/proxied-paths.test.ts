@@ -38,6 +38,26 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("POST", "/reservations")).toBe("/reservations");
   });
 
+  it("forwards the account's saves, and only the verbs the contract has", () => {
+    /*
+      yuvoy-api#192. Session-only, so these cannot be called any other way.
+      Each verb is listed on its own: listing `GET /me/saved` must not quietly
+      let a DELETE of the whole collection through, and the id placeholder
+      must not let one save's DELETE reach a sibling path.
+    */
+    expect(allowedProxyPath("GET", "/me/saved")).toBe("/me/saved");
+    expect(allowedProxyPath("GET", "/me/saved/ids")).toBe("/me/saved/ids");
+    expect(allowedProxyPath("POST", "/me/saved")).toBe("/me/saved");
+    expect(allowedProxyPath("POST", "/me/saved/adopt")).toBe("/me/saved/adopt");
+    expect(allowedProxyPath("DELETE", "/me/saved/exp_kayak")).toBe(
+      "/me/saved/{experienceId}",
+    );
+    expect(allowedProxyPath("DELETE", "/me/saved")).toBeNull();
+    expect(allowedProxyPath("PATCH", "/me/saved")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/me/saved/a/b")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/saved/exp_kayak")).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

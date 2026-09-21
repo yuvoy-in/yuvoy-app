@@ -49,6 +49,16 @@ export const CACHE = {
    * in underneath it.
    */
   getReel: { staleTime: 60_000, gcTime: 30 * 60_000 },
+
+  /**
+   * The saves on a signed-in account (yuvoy-api#192).
+   *
+   * A minute, and refetched on focus by the queries that use it. Putting saves
+   * on the account is so that a save made on the phone is on the laptop, and
+   * the laptop only learns that by asking. The device half needs none of this:
+   * nothing but this tab writes to it, so it never goes stale.
+   */
+  accountSaved: { staleTime: 60_000, gcTime: 30 * 60_000 },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -163,4 +173,25 @@ export const qk = {
     kind of wrong answer to reproduce.
   */
   bookingStatus: (token: string) => ["getBookingStatus", token] as const,
+  /**
+   * The saved set as ids, which is what every feed card asks about
+   * (yuvoy-api#192). Keyed by WHERE the saves live, because the device's set
+   * and the account's are different answers: signed out it is this browser's,
+   * signed in it is the number's. One key for both would paint one over the
+   * other for the length of a refetch, which on a shared phone is somebody
+   * else's list.
+   *
+   * Both halves are REMOVED, not invalidated, on sign in and sign out, for
+   * the reason `myBookings` gives.
+   */
+  savedIds: (where: "device" | "account") =>
+    ["listSavedExperienceIds", where] as const,
+  /**
+   * The list screen's read, beside the feed's rather than derived from it: the
+   * feed wants ids and nothing else, twelve times a page, and a shared entry
+   * would re-render every card whenever the list refetched bodies. On the
+   * account it is an infinite query; on the device, a list of entries.
+   */
+  savedList: (where: "device" | "account") =>
+    ["listSavedExperiences", where] as const,
 };

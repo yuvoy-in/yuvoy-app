@@ -98,6 +98,20 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   */
   { method: "PATCH", pattern: "/me" },
   { method: "POST", pattern: "/support/requests" },
+  /*
+    Saves on the account (yuvoy-api#192). All five are session-only in the
+    contract (`security: [{ travellerSession: [] }]`, no status token
+    alternative), so this is the only way to call them and every one belongs
+    here. `account-saved.ts` is the caller of each.
+
+    `{experienceId}` matches one segment, like every placeholder here, and the
+    API answers anything that is not an experience id with a 400.
+  */
+  { method: "GET", pattern: "/me/saved" },
+  { method: "GET", pattern: "/me/saved/ids" },
+  { method: "POST", pattern: "/me/saved" },
+  { method: "POST", pattern: "/me/saved/adopt" },
+  { method: "DELETE", pattern: "/me/saved/{experienceId}" },
 ];
 
 /*

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { savedStore } from "./saved-store";
+import { deviceSavedStore as savedStore } from "./saved-store";
 
 /**
  * A save has to be resolvable, and for a long time it was not.
@@ -86,6 +86,32 @@ describe("saving", () => {
 
     expect(await savedStore.listSaved()).toEqual([]);
   });
+
+  it("removes several at once, and only those", async () => {
+    /*
+      What adoption calls once the account holds a batch (yuvoy-api#192).
+      By id rather than "clear everything": a save made on this device while
+      adoption was in flight is not in the batch, and must survive it.
+    */
+    await savedStore.addSaved("adopted_1", "a");
+    await savedStore.addSaved("adopted_2", "b");
+    await savedStore.addSaved("made_meanwhile", "c");
+
+    await savedStore.removeSavedIds(["adopted_1", "adopted_2", "never_here"]);
+
+    expect(await savedStore.listSavedIds()).toEqual(["made_meanwhile"]);
+  });
+
+  it("does not write at all when there is nothing to remove", async () => {
+    await savedStore.addSaved("exp_1", "a");
+    const before = idb.store.get(V2);
+
+    await savedStore.removeSavedIds([]);
+    await savedStore.removeSavedIds(["absent"]);
+
+    // Same array object: nothing was rewritten.
+    expect(idb.store.get(V2)).toBe(before);
+  });
 });
 
 describe("saves made before an entry carried a slug", () => {
@@ -143,6 +169,7 @@ describe("when storage refuses", () => {
     // in `use-saved` is rolled back by the refetch that follows.
     await expect(savedStore.addSaved("exp_1", "a")).resolves.toBeUndefined();
     await expect(savedStore.removeSaved("exp_1")).resolves.toBeUndefined();
+    await expect(savedStore.removeSavedIds(["exp_1"])).resolves.toBeUndefined();
   });
 
   it("answers empty when there is no IndexedDB at all", async () => {
