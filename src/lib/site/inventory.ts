@@ -31,6 +31,13 @@ export const INDEXABLE_FIXED_ROUTES: readonly FixedRoute[] = [
   { path: "/search", changeFrequency: "daily", priority: 0.8 },
   // The guides hub. Changes only on deploy — the records are MDX in the repo.
   { path: "/guides", changeFrequency: "weekly", priority: 0.7 },
+  /*
+    The Help Center. Indexable unlike the rest of the signed-in app, because
+    every answer on it is static, none of it is anybody's data, and "how do I
+    cancel a Yuvoy booking" is typed into a search engine before anybody thinks
+    to open the app. Changes only on deploy: the answers are a module.
+  */
+  { path: "/help", changeFrequency: "monthly", priority: 0.6 },
 ] as const;
 
 /**

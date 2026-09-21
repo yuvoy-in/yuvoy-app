@@ -1,25 +1,14 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useDocumentTitle } from "@/lib/site/use-document-title";
-import { useMutation } from "@tanstack/react-query";
-import { createApiClient } from "@/lib/api/client";
 import { useBookingStatus } from "@/lib/booking/use-booking-status";
 import { useFragmentToken } from "@/lib/booking/use-fragment-token";
 import { formatMoney } from "@/lib/format/money";
-import { formatCountdown, msUntil, formatAge } from "@/lib/format/time";
-import { civilInZone, weekdayDayMonth, clockTime } from "@/lib/format/date";
+import { formatAge } from "@/lib/format/time";
 import { clockOffsetMs } from "@/lib/booking/clock";
-import {
-  describeError,
-  ErrorState,
-  FailurePanel,
-  LoadingState,
-  Skeleton,
-} from "@/components/states";
-import { openHostedCheckout } from "@/lib/booking/payment-handoff";
-import { YuvoyError, isCheckoutDeadEnd } from "@/lib/api/errors";
+import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { CancelSheet } from "./cancel-sheet";
 import { BookingQuestions } from "./booking-questions";
 import { MessageThread } from "./message-thread";
@@ -28,20 +17,26 @@ import { InviteGuests } from "./invite-guests";
 import { AddToCalendar } from "./add-to-calendar";
 import { KeepBooking } from "./keep-booking";
 import { HelpSection } from "@/components/support/help-section";
-import {
-  amountToBring,
-  isBooked,
-  cashOwed,
-  cashOwedPaise,
-  readPayAtCounter,
-  type CashBooking,
-} from "@/lib/booking/cash-booking";
+import { cashOwed, cashOwedPaise } from "@/lib/booking/cash-booking";
 import { ReviewForm } from "./review-form";
 import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
+import { PayButton, ReleaseButton } from "./pay-actions";
+import {
+  cancellationReason,
+  formatDeparture,
+  formatTotal,
+  stateCopy,
+} from "./trip-copy";
+import {
+  AnswerBy,
+  HandOver,
+  HoldCountdown,
+  OperatorUpdates,
+  RefundProgress,
+} from "./trip-progress";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
 
@@ -216,6 +211,24 @@ function StatusBody({
   const upcoming =
     status.state === "confirmed" &&
     new Date(status.slot.startsAt).getTime() > now;
+
+  /*
+    Whether "Manage this trip" has anything to hold.
+
+    Every control in that region is gated, and on a trip that is over or never
+    happened ALL of them decline: the calendar and KeepBooking each exclude
+    these states, and share, invite and cancel all need a trip still ahead. The
+    region was drawn regardless, so its heading stood alone over nothing.
+
+    DELIBERATELY CONSERVATIVE. This lists only the states where every child is
+    known to be empty, the intersection of their own exclusions. If a child's
+    rules change, the worst this can do is leave an empty heading, never hide
+    a real action: hiding a cancel button someone needs is the failure that
+    matters, and this cannot cause it.
+  */
+  const hasTripActions = !["cancelled", "declined", "expired"].includes(
+    status.state,
+  );
 
   // See the "Where you meet" row and the reason line below for why each of
   // these is derived rather than read straight off the response.
@@ -506,26 +519,37 @@ function StatusBody({
 
       {status.refund ? <RefundProgress refund={status.refund} /> : null}
 
-      {/* Actions need the network, so they are absent on an offline snapshot. */}
       {/*
-        KEEP YOUR BOOKING, right under the heading (yuvoy-app#61 item 1).
+        MANAGE THIS TRIP: one region, not five stacked panels.
 
-        The panel is the one with Skip; the row below is always there, for any
-        booking still happening, "after Skip too". Two variants rather than two
-        components, because they are the same three actions and a second copy
-        would drift.
+        Share, invite, calendar, keep a copy and cancel were five siblings in a
+        vertical stack of about twenty-two surfaces, each with its own heading
+        and its own weight, none of them more important than the meeting point
+        above them. Everything was level one, which is the information
+        architecture problem the revamp brief describes: hierarchy, not more
+        text.
 
-        This exists because #60 removed the device's own copy of a booking. A
-        traveller on a jetty with no signal had nothing; an image in Photos
-        survives a cleared browser, a new phone and a flat battery.
+        They are one labelled region now. Each control keeps its own gate
+        EXACTLY as it was, because every one of those conditions encodes a
+        contract rule and several were bugs once: `upcoming` reads the server's
+        clock, invitations follow the 409 the API would return anyway, and the
+        calendar component owns its own exclusions because it is the one that
+        knows what it would write.
+
+        On an offline snapshot the token-gated controls are absent, exactly as
+        before, and the calendar stays because it never needed the network.
+        The region itself is gated on `hasTripActions`, so a trip with nothing
+        left to manage draws no heading at all.
       */}
-      {token ? (
-        <KeepBooking status={status} token={token} variant="panel" />
-      ) : null}
+      {hasTripActions ? (
+        <section aria-labelledby="manage-trip" className="mt-10">
+          <h2 id="manage-trip" className="label text-forest/75">
+            Manage this trip
+          </h2>
 
-      {token && upcoming ? <ShareButton token={token} /> : null}
+          {token && upcoming ? <ShareButton token={token} /> : null}
 
-      {/*
+          {/*
         Offering a PLACE, which is a different thing from sharing a link
         (#38 items 6 and 12). Share reveals the meeting point to anybody it is
         pasted to; this gives somebody their own seat in the party.
@@ -535,11 +559,11 @@ function StatusBody({
         confirmed half and `awaiting_operator` the other, and the server
         refuses anything else with a 409 regardless.
       */}
-      {token && (upcoming || status.state === "awaiting_operator") ? (
-        <InviteGuests token={token} />
-      ) : null}
+          {token && (upcoming || status.state === "awaiting_operator") ? (
+            <InviteGuests token={token} />
+          ) : null}
 
-      {/*
+          {/*
         The trip in the traveller's own calendar (#38 item 5).
 
         Not gated on `upcoming` like Share is. Share mints a link for people
@@ -548,10 +572,21 @@ function StatusBody({
         exclusions are the states where an entry would be a lie. The component
         owns that list, since it is the one that knows what it would write.
       */}
-      <AddToCalendar status={status} />
+          <AddToCalendar status={status} />
 
-      {token ? (
-        <KeepBooking status={status} token={token} variant="row" />
+          {token ? <KeepBooking status={status} token={token} /> : null}
+
+          {token && upcoming && !cancelling ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCancelling(true)}
+              className="mt-4"
+            >
+              I need to cancel
+            </Button>
+          ) : null}
+        </section>
       ) : null}
 
       {/*
@@ -574,17 +609,6 @@ function StatusBody({
             : `Hi, I need help with my request for ${status.experience?.title ?? "my trip"}.`
         }
       />
-
-      {token && upcoming && !cancelling ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setCancelling(true)}
-          className="mt-4"
-        >
-          I need to cancel
-        </Button>
-      ) : null}
 
       {token && cancelling ? (
         <CancelSheet
@@ -641,864 +665,20 @@ function StatusBody({
         </p>
       ) : null}
 
-      <p className="text-forest/70 border-paper-line mt-8 border-t pt-6 text-xs">
-        Something not right? Reply to the WhatsApp message we sent, or contact
-        us from the link in it. Someone answers between 06:00 and 21:00.
-      </p>
+      {/*
+        The closing "something not right?" paragraph is GONE.
+
+        It said the same thing `HelpSection` says, a few lines above it, on a
+        page the audit counted about twenty surfaces on. Two offers of help
+        within one screen of each other is the duplication the revamp brief
+        named, and the one that survives is the one with the working controls
+        rather than the one describing a message that may never have arrived.
+      */}
     </div>
   );
 }
 
 /* ---------------------------------------------------------- state copy */
-
-/**
- * The vocabulary, one entry per contract state.
- *
- * `verifying` is the one that matters most: money may have moved and the
- * outcome is not settled. It is ALSO what the server says when a booking
- * exists but is not yet visible to it. Rendering it as failure tells somebody
- * who has just been debited that they have lost their money.
- */
-const STATE_COPY: Record<
-  string,
-  { eyebrow: string; title: string; body: string }
-> = {
-  /*
-    A CASH BOOKING, BEFORE THE OPERATOR HAS RECORDED THE MONEY — yuvoy-app#29.
-
-    Keyed by `string` rather than by `BookingStatus["state"]` because
-    `paid_pending_ops` is NOT in that enum: the traveller contract declares it
-    only on `CashBooking`. `STATE_COPY[status.state]` is dereferenced three
-    lines into the render, so an undeclared state was a TypeError on the screen
-    of somebody who had just committed money — the worst place in the product
-    to crash. `stateCopy` below makes the lookup total.
-
-    The copy says BOOKED. "Both should read as booked to the traveller — the
-    difference is our bookkeeping, not their standing." Never "unpaid", never
-    "pending payment": it is a confirmed seat on a boat.
-  */
-  paid_pending_ops: {
-    eyebrow: "Booked",
-    title: "You're booked",
-    body: "Your seat is held on the boat. Pay the operator in cash when you arrive. The amount and where to meet are below.",
-  },
-  holding: {
-    eyebrow: "Seats held",
-    title: "Your seats are held",
-    body: "Nobody else can take them while this clock runs. Pay to confirm.",
-  },
-  awaiting_operator: {
-    eyebrow: "Asked",
-    title: "We have asked the operator",
-    body: "They confirm this one by hand, so it is a person answering rather than a system. We will message you the moment they do. Nothing has been charged.",
-  },
-  verifying: {
-    eyebrow: "Checking",
-    title: "Confirming your payment",
-    /*
-      Copy set by yuvoy-api#53, which answered this precisely: there is no
-      bound on `verifying` and nothing measures it, because it is a RACE
-      WINDOW of milliseconds to seconds — the moment between a payment landing
-      and the booking row becoming visible — not a waiting room. A traveller
-      sitting here for two hours is an incident, not the design.
-
-      So: no number, no countdown, and no "come back later". The prototype's
-      two-hour cap was drawn for a sustained operational state that does not
-      exist yet; publishing it would publish a promise nothing keeps.
-    */
-    body: "This usually takes a few seconds. If money left your account it is safe, and this page updates itself the moment it settles.",
-  },
-  confirmed: {
-    eyebrow: "Confirmed",
-    title: "You are going",
-    body: "Everything you need is on this page. Save the link. It works from any device, and you do not need an account or a password.",
-  },
-  declined: {
-    eyebrow: "Refunded",
-    title: "We could not get you the seat",
-    body: "Money was taken and the seat could not be delivered, so a full refund is already on its way. You do not need to ask for it.",
-  },
-  cancelled: {
-    eyebrow: "Cancelled",
-    title: "This trip was called off",
-    /*
-      The "if the sea called it off" hedge was removed with yuvoy-app#22 §2 —
-      the real reason is rendered above this from `cancellation.reasonCode`.
-      What is left is the refund fact and the rebooking rule, both of which
-      are true whatever the reason was.
-    */
-    body: "Your refund has already started. Rebooking is a fresh booking rather than a silent move. The price you see will be the price you pay.",
-  },
-  expired: {
-    eyebrow: "Expired",
-    title: "The hold ran out",
-    body: "The seats went back on sale. Nothing was charged, and you can book again if they are still there.",
-  },
-  released: {
-    eyebrow: "Released",
-    title: "This booking was let go",
-    body: "Either you gave it up or the operator could not take it. Nothing was charged.",
-  },
-  completed: {
-    eyebrow: "Done",
-    title: "Hope it was worth it",
-    body: "This trip has happened. If you want to say something about it, we would read it.",
-  },
-  no_show: {
-    eyebrow: "Not boarded",
-    title: "You did not board",
-    body: "The operator marked this one as a no-show. If that is wrong, tell us and we will look.",
-  },
-};
-
-/**
- * The copy for a state, for ANY state.
- *
- * `STATE_COPY[status.state]` was dereferenced unguarded three lines into the
- * render, so a state this build has never heard of took the whole booking
- * screen to the error boundary — for somebody holding a reference, possibly
- * having just handed over money. `paid_pending_ops` is exactly such a state
- * today: real, returned after a cash booking, and absent from the enum.
- *
- * The fallback is deliberately vague and deliberately not alarming. There is
- * no honest specific: "Confirmed" would be a lie for a cancellation and
- * "Something went wrong" a lie for a booking that is fine. It says what is
- * certainly true — the booking exists, we can see it, here is your reference —
- * and leaves the rest of the screen, which is all derived from fields rather
- * than from the state, to say the rest.
- */
-function stateCopy(state: string): {
-  eyebrow: string;
-  title: string;
-  body: string;
-} {
-  return (
-    STATE_COPY[state] ?? {
-      eyebrow: "Your booking",
-      title: "Your booking",
-      body: "We can see this booking. Your reference and the details are below. If anything here looks wrong, send us the reference and we will check it.",
-    }
-  );
-}
-
-/* ------------------------------------------------------------- fragments */
-
-function HoldCountdown({ expiresAt }: { expiresAt: string }) {
-  // Against the SERVER's clock, via the offset every response teaches us.
-  // A phone ten minutes fast used to show a fresh hold as already run out.
-  const [left, setLeft] = useState(() => msUntil(expiresAt, clockOffsetMs()));
-
-  useEffect(() => {
-    const t = setInterval(
-      () => setLeft(msUntil(expiresAt, clockOffsetMs())),
-      1000,
-    );
-    return () => clearInterval(t);
-  }, [expiresAt]);
-
-  const urgent = left < 120_000;
-
-  return (
-    <Panel
-      tone={urgent ? "alert" : "raised"}
-      className="mt-6"
-      role="timer"
-      aria-live="off"
-    >
-      <p className="label text-forest/75">Time left to pay</p>
-      <p
-        className={cn(
-          "mt-1 font-mono text-3xl font-bold tabular-nums",
-          urgent && "text-terra-deep",
-        )}
-      >
-        {formatCountdown(left)}
-      </p>
-      {left === 0 ? (
-        <p className="text-forest/70 mt-2 text-sm">
-          The hold has run out. If you pay now it may still work, but the seat
-          is no longer reserved, and if it has gone we refund you in full,
-          automatically.
-        </p>
-      ) : null}
-    </Panel>
-  );
-}
-
-/**
- * T8 — opening checkout.
- *
- * Two answers the contract gives, and both are rendered — a client "switches
- * on one field across both responses rather than inferring from the status
- * code":
- *
- *   - `200 coming_soon` — "Payment is not open yet. A deliberate product
- *     state, not a failure: the hold is real and still running, so keep
- *     showing the countdown. Render `message` and do not treat this as an
- *     error." This is what production answers until a processor exists.
- *   - `201 ready` — an order to pay against, handed to the provider's own
- *     checkout through `openHostedCheckout`. No provider is registered yet,
- *     and that is said on screen rather than spun through.
- *
- * The first version rendered neither. It read only `order.error`, so both
- * success shapes were discarded: the button said "Opening…", returned to
- * "Pay", and the traveller learned nothing while the hold clock ran. The
- * mock hid it by answering an uncontracted 503 — the one shape that WAS
- * rendered. A 503 `payments_unavailable` is still handled below, because a
- * transport can always say it.
- */
-function PayButton({
-  status,
-  onBooked,
-}: {
-  status: BookingStatus;
-  /** Refetch the status once a cash booking lands, so the screen catches up. */
-  onBooked?: () => void;
-}) {
-  const [handoff, setHandoff] = useState<"idle" | "opening" | "no_adapter">(
-    "idle",
-  );
-
-  const order = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const client = createApiClient();
-      const { data, error } = await client.POST(
-        "/reservations/{id}/payment-order",
-        { params: { path: { id: status.reservationId } } },
-      );
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: async (answer) => {
-      if (answer.state !== "ready") return;
-      setHandoff("opening");
-      const outcome = await openHostedCheckout(answer);
-      setHandoff(outcome === "opened" ? "opening" : "no_adapter");
-    },
-  });
-
-  const answer = order.data;
-
-  /*
-    PAYING THE OPERATOR IN CASH ON THE DAY — yuvoy-app#29.
-
-    Until a processor is live this is the ONLY way a booking can be finished.
-    The payment step reached `coming_soon`, rendered the message and stopped,
-    and the held seats lapsed fifteen minutes later — so nothing in the app
-    could be booked to completion at all.
-
-    Read by PRESENCE off either answer. `payAtCounter` arrives on the
-    `coming_soon` answer AND on `ready`, and production has a processor
-    configured and returns `ready` — so gating this on `state` would have
-    hidden it exactly where it is live. See `readPayAtCounter`.
-  */
-  const cashOffer = readPayAtCounter(answer);
-
-  const cash = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const client = createApiClient();
-      /*
-        The typed path, not `payAtCounter.confirmAt`.
-
-        `confirmAt` is what SAYS the option is available and is honoured as
-        that signal. It is not used as the request target: posting the
-        traveller's own reservation to a path taken from a response body is a
-        redirect we would be following on the server's word, and the path is
-        declared in the contract anyway, so nothing is gained by trusting it.
-        Flagged on the issue in case the API means to move it.
-
-        No `Idempotency-Key`, and that is not an omission: "one reservation has
-        at most one booking by construction."
-      */
-      const { data, error } = await client.POST(
-        "/reservations/{id}/cash-booking",
-        { params: { path: { id: status.reservationId } } },
-      );
-      if (error) throw error;
-      return data;
-    },
-    /*
-      `201` the first time, `200` if it was already confirmed — the second tap
-      on ferry wifi. Same booking, so both land here and are rendered
-      identically. Nothing counts a `200` as a fresh conversion because nothing
-      counts conversions here at all.
-    */
-    onSuccess: () => onBooked?.(),
-  });
-
-  const booked = cash.data;
-  const failure = order.error
-    ? describeError(order.error)
-    : cash.error
-      ? describeError(cash.error)
-      : null;
-  const busy = order.isPending || handoff === "opening";
-
-  /*
-    A checkout that cannot be finished, and the way out of it.
-
-    `operator_not_bookable` is new here (yuvoy-app#19 §3): the operator's
-    standing is re-checked when a traveller RE-ENTERS checkout, not only when
-    they first took the seat, which closes the window where a traveller could
-    hold seats, the operator be switched off, and the traveller pay anyway.
-    `reservation_not_payable` is the same shape and much commoner — a hold that
-    lapsed while somebody found their card.
-
-    Both used to render as a panel of text on a screen whose only control is a
-    Pay button that will fail again. The copy already said "pick a departure
-    again"; there was nothing to tap that got them there, so the traveller's
-    options were the browser's back button or leaving. The dates are one link
-    away and `BookingStatus.experience.slug` is required by the contract, so
-    the screen can simply offer it.
-  */
-  const deadEnd =
-    order.error instanceof YuvoyError && isCheckoutDeadEnd(order.error.code);
-
-  /*
-    Somebody has just committed. This is the one screen in the product where
-    the absence is NOT the design — everywhere else a state change is a quiet
-    line, and here it should feel like something happened.
-  */
-  if (booked && isBooked(booked)) {
-    return <CashBooked booking={booked} status={status} />;
-  }
-
-  return (
-    <div className="mt-6">
-      <Button size="lg" block onClick={() => order.mutate()} disabled={busy}>
-        {busy ? "Opening…" : `Pay ${formatTotal(status.price)}`}
-      </Button>
-
-      {answer?.state === "coming_soon" ? (
-        <Panel role="status" className="mt-4">
-          <p className="text-sm font-bold">Payment is not open yet</p>
-          <p className="text-forest/70 mt-1.5 text-sm">{answer.message}</p>
-          <p className="text-forest/70 mt-2 text-xs">
-            Nothing has been charged.
-            {answer.holdStillActive === false
-              ? ""
-              : " Your seats stay held while the clock above runs."}
-          </p>
-        </Panel>
-      ) : null}
-
-      {/*
-        CASH, AS A REAL CHOICE — yuvoy-app#29.
-
-        Not a fallback tucked under a "having trouble?" link. "On a jetty in
-        the Andamans it is how people pay, and a traveller with no card or no
-        signal at the moment they decide is not an edge case."
-
-        When the card flow is not open (`coming_soon`) this is the ONLY way to
-        finish, so it leads. When an order is ready the card flow leads and
-        this sits beside it, clearly labelled and full size.
-
-        The amount is in the button on purpose: "a traveller deciding whether
-        to commit wants to know what they are committing to, and 'pay on the
-        day' without a number reads as a trap."
-      */}
-      {cashOffer && !busy ? (
-        <div className="mt-4">
-          <Button
-            size="lg"
-            block
-            variant={answer?.state === "ready" ? "outline" : "primary"}
-            disabled={cash.isPending}
-            onClick={() => cash.mutate()}
-          >
-            {cash.isPending
-              ? "Booking…"
-              : `Book now, pay ${formatTotal(status.price)} cash on the day`}
-          </Button>
-          <p className="text-forest/70 mt-2 text-center text-xs">
-            {/*
-              "Pay the operator", never "pay Yuvoy" or "amount due". The money
-              never reaches us, and it is what they will be holding when they
-              arrive.
-            */}
-            You pay the operator at the meeting point. Nothing is charged now.
-          </p>
-        </div>
-      ) : null}
-
-      {answer?.state === "ready" && handoff === "no_adapter" ? (
-        <Panel role="status" className="mt-4">
-          <p className="text-sm font-bold">
-            Your order is ready:{" "}
-            {formatMoney({
-              amountMinor: answer.amountPaise,
-              currency: answer.currency,
-            })}
-          </p>
-          <p className="text-forest/70 mt-1.5 text-sm">
-            This version of the app cannot open the {answer.provider} payment
-            page yet. Nothing has been charged, and your seats stay held while
-            the clock above runs. Update the app, or send us your reference on
-            WhatsApp and we will take it from there.
-          </p>
-        </Panel>
-      ) : null}
-
-      {answer?.state === "ready" && handoff === "opening" ? (
-        <p role="status" className="text-forest/70 mt-4 text-sm">
-          Opening payment with {answer.provider}…
-        </p>
-      ) : null}
-
-      {failure ? (
-        <FailurePanel failure={failure} className="mt-4">
-          {deadEnd ? (
-            <ButtonLink
-              href={`/e/${status.experience.slug}`}
-              variant="outline"
-              size="sm"
-              className="mt-4"
-            >
-              See other dates
-            </ButtonLink>
-          ) : null}
-        </FailurePanel>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * Giving the seats back, in two taps.
- *
- * A hold releases the seats to whoever is next; a request tells the operator
- * not to bother answering. Neither charges anything and neither can be undone,
- * which is why the first tap only asks. The server's answer is the truth: the
- * status is refetched rather than assumed, so the screen lands on `released`
- * because the API said so.
- */
-function ReleaseButton({
-  status,
-  onReleased,
-}: {
-  status: BookingStatus;
-  onReleased: () => void;
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const isRequest = status.state === "awaiting_operator";
-
-  const release = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      const client = createApiClient();
-      const { error } = await client.POST("/reservations/{id}/release", {
-        params: { path: { id: status.reservationId } },
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => onReleased(),
-  });
-
-  const failure = release.error ? describeError(release.error) : null;
-
-  return (
-    <div className="mt-4">
-      {confirming ? (
-        <Panel>
-          <p className="text-sm font-bold">
-            {isRequest ? "Withdraw this request?" : "Give these seats back?"}
-          </p>
-          <p className="text-forest/70 mt-1.5 text-sm">
-            {isRequest
-              ? "The operator will not answer it. Nothing has been charged, and you can ask again any time."
-              : "They go back on sale for whoever is next. Nothing has been charged."}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              disabled={release.isPending}
-              onClick={() => release.mutate()}
-              className="flex-1"
-            >
-              {release.isPending
-                ? "Letting go…"
-                : isRequest
-                  ? "Yes, withdraw it"
-                  : "Yes, let them go"}
-            </Button>
-            <Button onClick={() => setConfirming(false)} className="flex-1">
-              {isRequest ? "Keep asking" : "Keep them"}
-            </Button>
-          </div>
-          {failure ? <FailurePanel failure={failure} className="mt-3" /> : null}
-        </Panel>
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => setConfirming(true)}>
-          {isRequest ? "Withdraw the request" : "Give these seats back"}
-        </Button>
-      )}
-    </div>
-  );
-}
-
-/**
- * What sort of update this is.
- *
- * `kind` is the field, and `intent` is a name that was only ever in the
- * document: "Never emitted. This document named the field `intent` while the
- * server has always sent `kind`; read `kind`." So the panel read a key the API
- * has never sent, fell through to `"note"` on every update, and labelled a
- * moved meeting point "A note" for as long as it has shipped. The mock sent
- * `intent`, which is why nothing caught it.
- *
- * `intent` is still read, second: the contract keeps declaring it, and a field
- * that is deprecated rather than deleted costs one `??` to honour.
- */
-function updateKind(u: { kind?: string; intent?: string }): string {
-  return u.kind ?? u.intent ?? "note";
-}
-
-/** What the operator has told everybody on this departure. */
-const UPDATE_LABEL: Record<string, string> = {
-  time_change: "Time changed",
-  meeting_point_change: "Meeting point changed",
-  weather_watch: "Weather watch",
-  bring_item: "Bring",
-  note: "A note",
-};
-
-function OperatorUpdates({
-  updates,
-  timezone,
-}: {
-  updates: NonNullable<BookingStatus["operatorUpdates"]>;
-  timezone: string;
-}) {
-  return (
-    <Panel tone="alert" className="mt-8">
-      <section aria-labelledby="operator-updates">
-        <h2 id="operator-updates" className="label text-forest/75">
-          From the operator
-        </h2>
-        <ul className="mt-3 space-y-3">
-          {updates.map((u, i) => {
-            const sentAt = u.sentAt ? formatSentAt(u.sentAt, timezone) : null;
-            return (
-              <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
-                <p className="font-bold">
-                  {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
-                  {u.detail ? `: ${u.detail}` : ""}
-                </p>
-                {u.note ? (
-                  <p className="text-forest/80 mt-1">{u.note}</p>
-                ) : null}
-                {sentAt ? (
-                  <p className="text-forest/70 mt-1 text-xs">{sentAt}</p>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-        <p className="text-forest/70 mt-3 text-xs">
-          Shown here and not sent to your phone. This page is the place to
-          check.
-        </p>
-      </section>
-    </Panel>
-  );
-}
-
-/**
- * When an update was sent, in the MARKET's zone.
- *
- * Assembled from civil fields rather than formatted, which fixes two separate
- * things (yuvoy-app#67). `Intl` with these options rendered `Wed, 16 Sept,
- * 17:30` in node and Chromium and `Wed, 16 Sep at 17:30` in WebKit, so an
- * iPhone and an Android read the same update differently, and a server render
- * would disagree with either.
- *
- * This screen cannot currently server render at all: its data hangs off a
- * status token in the URL fragment, and `useFragmentToken`'s server snapshot
- * is `null` because a fragment is never sent to a server. So the hydration
- * half is structural today. The cross-browser half was live regardless, and is
- * the reason this was worth changing rather than commenting.
- *
- * An unreadable instant or an unknown zone answers `null`, so the caller drops
- * the whole line rather than printing `Invalid Date`, or an empty paragraph
- * still carrying its margin, beside an operator's message.
- */
-function formatSentAt(iso: string, timeZone: string): string | null {
-  const civil = civilInZone(iso, timeZone);
-  if (!civil) return null;
-  return `${weekdayDayMonth(civil)}, ${clockTime(civil)}`;
-}
-
-function RefundProgress({
-  refund,
-}: {
-  refund: NonNullable<BookingStatus["refund"]>;
-}) {
-  // The contract's own enum. `processed` is the end state, not "completed".
-  const STEPS = ["requested", "pending", "processed"] as const;
-  const failed = refund.state === "failed" || refund.state === "abandoned";
-  const at = STEPS.indexOf(refund.state as (typeof STEPS)[number]);
-
-  return (
-    <Panel className="mt-8">
-      <p className="label text-forest/75">Your refund</p>
-
-      {failed ? (
-        /* A failed refund tells the truth and promises a human, rather than
-           hiding behind a spinner. */
-        <p className="text-forest/80 mt-2 text-sm">
-          The refund did not go through. That is ours to fix, not yours to
-          chase. Someone is on it and will message you.
-        </p>
-      ) : (
-        <ol className="mt-3 space-y-2.5">
-          {STEPS.map((step, i) => (
-            <li key={step} className="flex items-center gap-3 text-sm">
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  i <= at ? "bg-terra-deep" : "bg-forest/20",
-                )}
-              />
-              <span className={i <= at ? "text-forest" : "text-forest/70"}>
-                {step === "requested"
-                  ? "Refund started"
-                  : step === "pending"
-                    ? "On its way to your bank"
-                    : "Back in your account"}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {/* The server ships ready-to-render copy for the current state; prefer
-          it over ours, so a change in refund handling does not need a deploy. */}
-      {refund.message ? (
-        <p className="text-forest/70 mt-3 text-sm">{refund.message}</p>
-      ) : null}
-
-      {refund.amountPaise != null ? (
-        <p className="text-forest/70 mt-3 text-xs">
-          {formatMoney({ amountMinor: refund.amountPaise, currency: "INR" })}.
-          Banks usually take 5 to 7 working days.
-        </p>
-      ) : null}
-    </Panel>
-  );
-}
-
-/** The ceiling. Stop, and put a person in front of them. */
-function HandOver({ status }: { status: BookingStatus }) {
-  return (
-    <Panel tone="alert" role="alert" className="mt-8">
-      <p className="text-sm font-bold">This is taking longer than it should</p>
-      <p className="text-forest/70 mt-1.5 text-sm">
-        We have stopped checking automatically. Nothing is lost. Your booking
-        reference is{" "}
-        <span className="font-mono font-bold">
-          {status.bookingReference ?? status.reservationId}
-        </span>
-        . Send us that on WhatsApp and someone will sort it out.
-      </p>
-    </Panel>
-  );
-}
-
-/** The frozen total. `totalPaise` on a booking, not `amountMinor`. */
-function formatTotal(price: BookingStatus["price"]): string {
-  return formatMoney({
-    amountMinor: price.totalPaise,
-    currency: price.currency,
-  });
-}
-
-/** Renders the departure in the MARKET's zone, never the device's. */
-/**
- * Why a trip was called off, in a sentence a traveller can act on.
- *
- * The codes are a closed set in `cancellation_reason_codes` — twelve today —
- * and they are OUR tokens. `CREDENTIAL_LAPSE` is a column value, not an
- * explanation, and printing it is the same defect as printing a booking state.
- *
- * `TRAVELLER_REQUEST` and `CUSTOMER_REQUEST` are the same event under two
- * names. That duplicate is in the backend's data and is not ours to fix, so
- * both are mapped to the same sentence rather than one of them falling
- * through.
- *
- * The FALLBACK is the load-bearing part. The set grows by INSERT on the
- * server with no deploy here, so an unmapped code is not a defect to guard
- * against, it is the expected steady state after any addition. It must not
- * render blank and it must not render the token.
- */
-export function cancellationReason(code?: string): string | null {
-  const key = code?.trim().toUpperCase();
-  if (!key) return null;
-
-  const sentences: Record<string, string> = {
-    WEATHER: "Conditions on the day.",
-    SAFETY: "The operator made a safety call.",
-    OPERATOR_CANCELLED: "The operator cancelled.",
-    OPERATOR_DISHONOUR: "The operator could not honour the booking.",
-    OPERATOR_UNREACHABLE: "We could not reach the operator.",
-    CAPACITY_LOST: "The seats were no longer available.",
-    CREDENTIAL_LAPSE: "The operator's paperwork was not current.",
-    MEDICAL_UNFIT: "This trip was not medically suitable.",
-    TRAVELLER_REQUEST: "You asked us to cancel.",
-    CUSTOMER_REQUEST: "You asked us to cancel.",
-    /*
-      D-032.3, yuvoy-app#48 §1. The operator moved the departure after this
-      booking was made, so cancelling refunded everything paid online whatever
-      the tier. Without an entry the fallback said "The operator or we called
-      it off." to somebody who cancelled BECAUSE the time changed under them:
-      the wrong actor, and it hides the one fact that explains the full refund.
-    */
-    OPERATOR_MOVED_IT: "The operator moved this departure after you booked.",
-    PAYMENT_FAILED: "The payment did not complete.",
-    ADMIN_ERROR: "This was our mistake.",
-  };
-
-  return sentences[key] ?? "The operator or we called it off.";
-}
-
-/**
- * When the operator has to answer by — yuvoy-app#32.
- *
- * ## It used to tick, and the API made that absurd
- *
- * `requestExpiresAt` was a short answer clock: a request lapsed in about two
- * hours, so a live countdown beside it was the right shape. yuvoy-api#170
- * changed it to the departure's booking CUTOFF, which is routinely days away
- * — "so show it as a date and time rather than a countdown".
- *
- * The countdown was `formatCountdown`, which is `m:ss`. Three days out it
- * rendered "4320:00" and decremented once a second: a number nobody can read
- * as a duration, on a screen whose whole job is to stop somebody worrying.
- *
- * So the deadline is a date and a time, said once, with no interval and no
- * re-render. Which is also the honest shape: the traveller is waiting on a
- * person, not on a clock, and a second-by-second display implies a precision
- * the answer does not have.
- *
- * Still `role="timer"` with `aria-live="off"`: it is a deadline, and it must
- * not be announced.
- */
-function AnswerBy({
-  expiresAt,
-  timezone,
-}: {
-  expiresAt: string;
-  timezone: string;
-}) {
-  const deadline = new Intl.DateTimeFormat("en-IN", {
-    timeZone: timezone,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(expiresAt));
-
-  return (
-    <Panel className="mt-6" role="timer" aria-live="off">
-      <p className="label text-forest/75">The operator has until</p>
-      <p className="mt-1 text-lg font-bold">{deadline}</p>
-      <p className="text-forest/70 mt-2 text-sm">
-        Nothing has been charged, and you can withdraw the ask at any time. If
-        they do not answer by then, the request lapses on its own.
-      </p>
-    </Panel>
-  );
-}
-
-/**
- * The moment somebody has committed — yuvoy-app#29.
- *
- * "This is the one screen where somebody has just committed, so it can have a
- * moment. Everywhere else the absence is the design; here it should feel like
- * something happened."
- *
- * Three things carry it, in this order:
- *
- *   - **The reference, large and selectable.** It is what they say out loud at
- *     a jetty, so it is the biggest thing on the screen and monospaced. The
- *     alphabet already excludes letters people mishear.
- *   - **"Bring ₹X in cash" — an instruction, not a balance.** From
- *     `payAtCounterPaise` and never `capturedAmountPaise`, which is `0` on
- *     these bookings and stays `0` forever because we never touch the money.
- *   - **"Pay the operator"**, never "pay Yuvoy" and never "amount due".
- *
- * The word "booked" does the work. Nothing here calls it unpaid or pending:
- * `paid_pending_ops` is our word for "committed, ops have not confirmed", and
- * the traveller-facing word is booked.
- */
-function CashBooked({
-  booking,
-  status,
-}: {
-  booking: CashBooking;
-  status: BookingStatus;
-}) {
-  const bring = amountToBring(booking);
-  const meeting = status.meetingPoint?.text?.trim();
-
-  return (
-    <div className="mt-6">
-      <Panel tone="raised" role="status">
-        <p className="eyebrow text-terra-deep">Booked</p>
-        <p className="font-display tracking-display mt-2 text-3xl leading-tight">
-          You&rsquo;re booked
-        </p>
-
-        {/*
-          Selectable, and big. Somebody reads this to an operator over the
-          noise of an outboard motor.
-        */}
-        <p className="mt-5 font-mono text-3xl font-bold tracking-wider select-all">
-          {booking.bookingReference}
-        </p>
-
-        <p className="mt-6 text-lg font-bold">
-          Bring{" "}
-          {formatMoney({
-            amountMinor: bring,
-            currency: booking.currency || status.price.currency,
-          })}{" "}
-          in cash
-        </p>
-        <p className="text-forest/80 mt-1 text-sm">
-          Pay the operator at the meeting point. The money goes to them, not to
-          us.
-        </p>
-
-        <p className="border-paper-line text-forest/80 mt-5 border-t pt-4 text-sm">
-          {formatDeparture(status.slot)}
-          {meeting ? ` · ${meeting}` : null}
-        </p>
-      </Panel>
-    </div>
-  );
-}
-
-function formatDeparture(slot: BookingStatus["slot"]): string {
-  const when = new Date(slot.startsAt);
-  const date = new Intl.DateTimeFormat("en-IN", {
-    timeZone: slot.timezone,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(when);
-  const time = new Intl.DateTimeFormat("en-IN", {
-    timeZone: slot.timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(when);
-  return `${time} on ${date}`;
-}
 
 function Row({
   label,

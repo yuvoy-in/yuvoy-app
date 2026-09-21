@@ -689,6 +689,82 @@ describe("giving the seats back", () => {
   rendered nowhere. This is the screen somebody opens at 5:40am on the morning
   of a trip, and the screen they refresh while an operator decides.
 */
+describe("the trip screen does not say things twice", () => {
+  it("offers Save or share ONCE, not once per variant", async () => {
+    /*
+      THE DEFECT THIS PINS, and the revamp brief named it by this exact
+      heading: "remove unnecessary elements such as repetitive 'Save or share
+      this booking'".
+
+      `KeepBooking` took a `variant` and this screen passed BOTH, about forty
+      lines apart. The panel hid itself once dismissed; the row never did. So
+      until somebody pressed Skip the page offered the same three actions
+      twice. It is one component now and the prompt BECOMES the row, which
+      keeps yuvoy-app#61's "after Skip too" without the overlap.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("You are going");
+
+    expect(
+      screen.queryAllByText(/^(Keep your booking|Save or share this booking)$/),
+    ).toHaveLength(1);
+  });
+
+  it("gathers the trip's actions under one heading", async () => {
+    /*
+      Share, invite, calendar, keep and cancel were five siblings in a stack of
+      about twenty-two surfaces, each as loud as the meeting point above them.
+      Everything was level one, which is the IA problem the brief describes.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("You are going");
+
+    expect(
+      screen.getByRole("heading", { name: "Manage this trip" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each(["cancelled", "declined", "expired"])(
+    "draws no empty Manage heading on a %s trip",
+    async (state) => {
+      /*
+        THE DEFECT THIS PINS, found reviewing the grouping above rather than
+        by a report.
+
+        The region was drawn unconditionally while every control inside it
+        is gated. On a trip that is over or never happened, all five decline
+        to render: the calendar and KeepBooking both exclude these states,
+        and share, invite and cancel all need a trip that is still ahead. So
+        the heading stood alone over nothing, which reads as a broken page.
+      */
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(statusBody({ state })),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByRole("heading", { level: 1 });
+
+      expect(
+        screen.queryByRole("heading", { name: "Manage this trip" }),
+      ).toBeNull();
+    },
+  );
+});
+
 describe("BookingScreen — the day's facts", () => {
   it("says where to meet", async () => {
     server.use(
