@@ -375,6 +375,46 @@ export function describeError(
           body: "This is not something we have, or it is no longer listed.",
           canRetry: false,
         };
+      /*
+        BOOKING BY INVITATION - yuvoy-api#195.
+
+        `invite_required` is what checkout gets while the server's gate is on
+        and the traveller is not signed in with an admitted number. The code
+        screen is the real answer to it; this is what is read anywhere that
+        screen is not. The other three are the code screen's own refusals, and
+        each names the one thing that helps, because "invalid code" for all
+        three is the sentence that turns into a support message.
+
+        None offers a retry: the same code sent again is refused identically.
+      */
+      case "invite_required":
+        return {
+          ...base,
+          title: "Yuvoy is by invitation",
+          body: "Booking needs an invite code. Sign in with your number, then enter the code you were given. Nothing was held and nothing was charged.",
+          canRetry: false,
+        };
+      case "invite_code_unknown":
+        return {
+          ...base,
+          title: "We do not recognise that code",
+          body: "Check it against the one you were given. If it still does not work, it may have been withdrawn, so ask for a new one.",
+          canRetry: false,
+        };
+      case "invite_code_used":
+        return {
+          ...base,
+          title: "That code has already been used",
+          body: "Each code lets one person in, once. Ask whoever gave it to you for another.",
+          canRetry: false,
+        };
+      case "invite_code_expired":
+        return {
+          ...base,
+          title: "That code has expired",
+          body: "Ask whoever gave it to you for a new one.",
+          canRetry: false,
+        };
       default:
         return {
           ...base,

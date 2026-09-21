@@ -131,6 +131,19 @@ export const ERROR_CODES = [
     yuvoy-api#193; delete this entry once it is declared upstream, not before.
   */
   "price_moved",
+  /*
+    Booking by invitation (yuvoy-api#195).
+
+    `invite_required` is a 403 from `POST /reservations` while the server's
+    invite gate is on; the other three are the refusals of
+    `POST /me/invite-codes/redeem`. Each leaves the traveller with a different
+    next step, which is why they are four codes and four sentences rather than
+    one "invalid code".
+  */
+  "invite_required",
+  "invite_code_unknown",
+  "invite_code_used",
+  "invite_code_expired",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

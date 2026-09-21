@@ -122,3 +122,43 @@ describe("describeError — codes the client used to not recognise", () => {
     }
   });
 });
+
+/*
+  Booking by invitation (yuvoy-api#195). Declared in the contract before the
+  API that returns them was deployed, so nothing in production sends them yet.
+  Each still has to say something true the day it does, and none may offer a
+  retry: the same code sent again is refused the same way.
+*/
+describe("describeError: booking by invitation", () => {
+  const GENERIC = /trying again often fixes it/;
+  const CASES: [string, number][] = [
+    ["invite_required", 403],
+    ["invite_code_unknown", 404],
+    ["invite_code_used", 409],
+    ["invite_code_expired", 410],
+  ];
+
+  it("gives each refusal its own sentence, and never a retry", () => {
+    const titles = new Set<string>();
+    for (const [code, status] of CASES) {
+      expect(new YuvoyError({ code, message: "raw", status }).code, code).toBe(
+        code,
+      );
+      const d = describeError(err(code, status));
+      expect(d.body, code).not.toMatch(GENERIC);
+      expect(d.canRetry, code).toBe(false);
+      titles.add(d.title);
+    }
+    // Four next steps, so four sentences: "invalid code" for all of them is
+    // the answer that turns into a support message.
+    expect(titles.size).toBe(CASES.length);
+  });
+
+  it("tells somebody refused at checkout how to get in", () => {
+    const d = describeError(err("invite_required", 403));
+    expect(d.body).toMatch(/sign in/i);
+    expect(d.body).toMatch(/code/i);
+    // A refusal at the pay step must say that no money moved.
+    expect(d.body).toMatch(/nothing was charged/i);
+  });
+});
