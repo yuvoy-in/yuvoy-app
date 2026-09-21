@@ -37,6 +37,9 @@ const ALLOWED = {
   "/account": "Settings and consent. All state is client-side and per-device.",
   "/apple-icon.png": "Build asset.",
   "/favicon.ico": "Build asset.",
+  "/help":
+    "The Help Center. Its answers are a module in the repo, so the HTML " +
+    "changes only on deploy. Same class as /guides.",
   "/guides": "Guide registry — MDX in the repo, so it changes only on deploy.",
   "/guides/diving-in-havelock": "MDX in the repo.",
   "/guides/getting-to-the-andamans": "MDX in the repo.",

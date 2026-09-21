@@ -99,6 +99,11 @@ export const FOCUSED_ROUTE_PREFIXES = [
     where somebody goes once they already have saves. See `saved-screen`.
   */
   "/saved",
+  /*
+    The Help Center. A place a traveller goes INTO when something is wrong,
+    with its own way back. Not a tab, and not a tab root.
+  */
+  "/help",
 ] as const;
 
 /**
