@@ -296,9 +296,17 @@ function StatusBody({
         every other state precisely so a clock is never shown beside a dead
         booking — and it is one countdown, not two: the payment order's
         expiresAt IS this deadline.
+
+        Not always a countdown any more (yuvoy-app#97). A hold from an accepted
+        request runs up to twelve hours and can end tomorrow, and then this
+        draws "Pay by 08:00 on Tue 22 Sep" in the trip's own zone instead.
+        The timezone is passed for that, and only for that.
       */}
       {status.state === "holding" && status.holdExpiresAt ? (
-        <HoldCountdown expiresAt={status.holdExpiresAt} />
+        <HoldCountdown
+          expiresAt={status.holdExpiresAt}
+          timezone={status.slot?.timezone}
+        />
       ) : null}
 
       {/*

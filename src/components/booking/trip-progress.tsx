@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { formatMoney } from "@/lib/format/money";
 import { formatCountdown, msUntil } from "@/lib/format/time";
 import { clockOffsetMs } from "@/lib/booking/clock";
+import { holdDisplay } from "@/lib/booking/hold-deadline";
 import { amountToBring, type CashBooking } from "@/lib/booking/cash-booking";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
@@ -17,20 +18,59 @@ import type { components } from "@/lib/api/schema.gen";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
 
-export function HoldCountdown({ expiresAt }: { expiresAt: string }) {
+/**
+ * The hold's deadline: a ticking count when it is close, a time with its day
+ * when it is not (yuvoy-app#97). See `holdDisplay` for the rule and why.
+ *
+ * `timezone` is the trip's market, `slot.timezone`. Defaulted to the only
+ * market there is rather than required, so a status without one still draws
+ * the deadline in the right day.
+ */
+export function HoldCountdown({
+  expiresAt,
+  timezone = "Asia/Kolkata",
+}: {
+  expiresAt: string;
+  timezone?: string;
+}) {
   // Against the SERVER's clock, via the offset every response teaches us.
   // A phone ten minutes fast used to show a fresh hold as already run out.
-  const [left, setLeft] = useState(() => msUntil(expiresAt, clockOffsetMs()));
+  const [now, setNow] = useState(() => Date.now() + clockOffsetMs());
+  const display = holdDisplay(expiresAt, timezone, now);
+  const ticking = display.kind === "countdown";
 
+  /*
+    Once a second while it ticks. As a time with its day nothing on screen
+    changes between minutes, so it re-reads every thirty seconds instead,
+    which is only there to hand over to the countdown when a long hold comes
+    within its last hour.
+  */
   useEffect(() => {
     const t = setInterval(
-      () => setLeft(msUntil(expiresAt, clockOffsetMs())),
-      1000,
+      () => setNow(Date.now() + clockOffsetMs()),
+      ticking ? 1000 : 30_000,
     );
     return () => clearInterval(t);
-  }, [expiresAt]);
+  }, [expiresAt, ticking]);
 
-  const urgent = left < 120_000;
+  const left = msUntil(expiresAt, 0, now);
+  const urgent = ticking && left < 120_000;
+
+  if (display.kind === "deadline") {
+    return (
+      <Panel tone="raised" className="mt-6" role="timer" aria-live="off">
+        <p className="label text-forest/75">Pay by</p>
+        <p className="mt-1 text-2xl font-bold tabular-nums">{display.when}</p>
+        {/*
+          In the trip's own zone, like every other time on this page: the
+          departure above is written the same way.
+        */}
+        <p className="text-forest/70 mt-2 text-sm">
+          Your seats are held until then.
+        </p>
+      </Panel>
+    );
+  }
 
   return (
     <Panel

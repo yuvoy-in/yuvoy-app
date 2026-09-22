@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { screen, waitFor, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
@@ -102,6 +102,74 @@ describe("BookingScreen", () => {
 
     renderWithQuery(<BookingScreen />);
     expect(await screen.findByRole("timer")).toBeInTheDocument();
+  });
+
+  /*
+    AN ACCEPTED REQUEST HOLDS FOR TWELVE HOURS (yuvoy-app#97, yuvoy-api#203).
+
+    A countdown to tomorrow morning is "1080:00" ticking once a second. The
+    contract now says to show a deadline that far off as a time with its day,
+    in the trip's market, and the ten-minute checkout hold keeps its count.
+    Date is pinned so the day is known: 08:30Z on Monday 21 Sep is 14:00 in
+    the Andamans.
+  */
+  describe("a hold that is hours away", () => {
+    const holdUntil = (holdExpiresAt: string, headers?: HeadersInit) =>
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(
+            statusBody({
+              state: "holding",
+              final: false,
+              bookingReference: undefined,
+              holdExpiresAt,
+            }),
+            { headers },
+          ),
+        ),
+      );
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-09-21T08:30:00Z"));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("says when to pay by, with the day, rather than counting down", async () => {
+      holdUntil("2026-09-22T02:30:00Z");
+      renderWithQuery(<BookingScreen />);
+
+      const timer = await screen.findByRole("timer");
+      expect(timer).toHaveTextContent("Pay by");
+      expect(timer).toHaveTextContent("08:00 on Tue 22 Sep");
+      expect(timer).not.toHaveTextContent("Time left to pay");
+    });
+
+    it("keeps the countdown for the ten-minute hold at checkout", async () => {
+      holdUntil("2026-09-21T08:40:00Z");
+      renderWithQuery(<BookingScreen />);
+
+      const timer = await screen.findByRole("timer");
+      expect(timer).toHaveTextContent("Time left to pay");
+      expect(timer).toHaveTextContent("10:00");
+    });
+
+    it("decides by the SERVER's clock, not a phone that is an hour out", async () => {
+      /*
+        The phone thinks it is 08:30Z; the API's Date says 09:40Z. The hold
+        ends at 10:00Z: twenty minutes by the server, ninety by the phone. The
+        phone alone would have drawn a calm "Pay by 15:30 today" over a hold
+        with twenty minutes left.
+      */
+      holdUntil("2026-09-21T10:00:00Z", {
+        date: new Date("2026-09-21T09:40:00Z").toUTCString(),
+      });
+      renderWithQuery(<BookingScreen />);
+
+      const timer = await screen.findByRole("timer");
+      expect(timer).toHaveTextContent("Time left to pay");
+      expect(timer).toHaveTextContent("20:00");
+    });
   });
 
   it("shows no countdown beside a dead booking", async () => {
