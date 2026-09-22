@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
+import { useHasMounted } from "@/lib/react/use-has-mounted";
 import Link from "next/link";
 import { useDocumentTitle } from "@/lib/site/use-document-title";
 import { useBookingStatus } from "@/lib/booking/use-booking-status";
@@ -703,15 +704,6 @@ function Loading() {
         <Skeleton className="h-32 w-full" />
       </div>
     </LoadingState>
-  );
-}
-
-/** True after hydration. `useSyncExternalStore` is the honest way to ask. */
-function useHasMounted(): boolean {
-  return useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
   );
 }
 

@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act } from "react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse, delay } from "msw";
@@ -8,6 +12,7 @@ import { __seedSavedMock } from "../../../mocks/saved-handlers";
 import { renderWithQuery } from "@/test/render";
 import { useSaved } from "./use-saved";
 import { deviceSavedStore } from "./saved-store";
+import { qk } from "@/lib/query/policy";
 
 /**
  * The bookmark on a feed card, wherever the save lands (yuvoy-api#192).
@@ -178,5 +183,50 @@ describe("signed out", () => {
       expect(await deviceSavedStore.listSavedIds()).toEqual(["exp_kayak"]),
     );
     expect(calls).toEqual([]);
+  });
+});
+
+describe("hydrating", () => {
+  it("draws every bookmark empty first, as the server did, then fills it", async () => {
+    /*
+      The server knows no saves, so every bookmark it renders is empty. The
+      feed hydrates in more than one pass and its first pass starts the saved
+      set's own query, so a card hydrating later can find the set already in
+      the cache. Filling its bookmark on that first client render disagrees
+      with the server HTML: React #418 for anybody signed in with saves.
+    */
+    const tree = (client: QueryClient) => (
+      <QueryClientProvider client={client}>
+        <Bookmark id="exp_kayak" slug="mangrove-kayak-at-dawn" />
+      </QueryClientProvider>
+    );
+    const html = renderToString(tree(new QueryClient()));
+    expect(html).toContain('aria-pressed="false"');
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    client.setQueryData(qk.session(), { signedIn: true });
+    client.setQueryData(qk.savedIds("account"), ["exp_kayak"]);
+
+    const mismatches: unknown[] = [];
+    const root = await act(async () =>
+      hydrateRoot(container, tree(client), {
+        onRecoverableError: (error) => mismatches.push(error),
+      }),
+    );
+
+    expect(mismatches).toEqual([]);
+    // One render later, the account's answer.
+    expect(container.querySelector("button")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    act(() => root.unmount());
+    container.remove();
   });
 });

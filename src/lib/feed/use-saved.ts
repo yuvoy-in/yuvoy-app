@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-query";
 import { CACHE, qk } from "@/lib/query/policy";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
+import { useHasMounted } from "@/lib/react/use-has-mounted";
 import { deviceSavedStore, type SavedEntry } from "./saved-store";
 import {
   adoptDeviceSavesOnce,
@@ -158,8 +159,18 @@ export function useSaved() {
     placeholderData: NONE,
   });
 
-  /* `NONE`, never a fresh `[]`: see its declaration. */
-  const ids = data ?? NONE;
+  /*
+    Nothing is saved until this tree has hydrated, whatever the cache says.
+
+    The server knows no saves, so every bookmark it renders is empty. A card
+    that hydrates after the saved set arrived (the feed hydrates in more than
+    one pass, and the first pass starts this very query) would otherwise fill
+    its bookmark on the first client render and disagree with the server
+    HTML: React #418 for anybody signed in with saves. One render later it
+    shows the truth. `NONE`, never a fresh `[]`: see its declaration.
+  */
+  const mounted = useHasMounted();
+  const ids = mounted ? (data ?? NONE) : NONE;
 
   const { mutate } = useSavedWrite();
 
