@@ -59,6 +59,17 @@ export const CACHE = {
    * nothing but this tab writes to it, so it never goes stale.
    */
   accountSaved: { staleTime: 60_000, gcTime: 30 * 60_000 },
+
+  /**
+   * The help requests this number sent (yuvoy-api#196).
+   *
+   * Thirty seconds, and refetched on focus by the list that reads it. The one
+   * thing on it that moves is the status, and it moves when a person at Yuvoy
+   * picks a request up, which is exactly when a traveller comes back from
+   * WhatsApp to look. Kept five minutes: it belongs to a number, and sign in
+   * and sign out remove it outright rather than letting it age.
+   */
+  supportRequests: { staleTime: 30_000, gcTime: 5 * 60_000 },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -194,4 +205,22 @@ export const qk = {
    */
   savedList: (where: "device" | "account") =>
     ["listSavedExperiences", where] as const,
+  /**
+   * The help requests on a signed-in number (yuvoy-api#196), newest first and
+   * paged. Not keyed by anything, for the reason `myBookings` gives: the
+   * session is in a cookie the browser cannot see, so the separation between
+   * two numbers on one phone comes from REMOVING this on sign in and sign out.
+   */
+  supportRequests: () => ["listSupportRequests"] as const,
+  /**
+   * One help request, by its reference, and by WHICH credential asked.
+   *
+   * The same reference can be asked for by the session and by a booking's
+   * status token, and the two can get different answers: the token opens only
+   * requests about its own booking, and a 404 for one is not a 404 for the
+   * other. Sharing an entry would paint one credential's answer as the
+   * other's. The token rides in the key the way `bookingStatus` carries it.
+   */
+  supportRequest: (reference: string, token: string | null) =>
+    ["getSupportRequest", reference, token ?? "session"] as const,
 };

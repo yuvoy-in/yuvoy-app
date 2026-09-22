@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { act } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
+import { qk } from "@/lib/query/policy";
 import { useTravellerSession } from "./use-traveller";
 import {
   rememberBooking,
@@ -78,6 +79,34 @@ describe("signing out", () => {
       experience, the party, the meeting point and what was paid.
     */
     expect([...idb.store.keys()]).toEqual([]);
+  });
+
+  it("forgets the help requests the previous number sent", async () => {
+    /*
+      yuvoy-api#196. They are one number's messages to us, in their own words,
+      so on a shared phone the next person must not see them while a refetch
+      runs. Removed, not invalidated, for the reason the trips list gives.
+    */
+    let signOut!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <Harness onReady={(fn) => (signOut = fn)} />,
+    );
+    client.setQueryDefaults(["listSupportRequests"], { gcTime: Infinity });
+    client.setQueryDefaults(["getSupportRequest"], { gcTime: Infinity });
+    client.setQueryData(qk.supportRequests(), {
+      pages: [{ items: [], complete: true, nextCursor: null }],
+      pageParams: [undefined],
+    });
+    client.setQueryData(qk.supportRequest("SR-1", null), { reference: "SR-1" });
+
+    await act(async () => {
+      await signOut();
+    });
+
+    expect(client.getQueryData(qk.supportRequests())).toBeUndefined();
+    expect(
+      client.getQueryData(qk.supportRequest("SR-1", null)),
+    ).toBeUndefined();
   });
 
   it("clears the device even when the sign-out request fails", async () => {

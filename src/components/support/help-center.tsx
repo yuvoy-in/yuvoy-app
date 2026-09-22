@@ -10,6 +10,7 @@ import { Field } from "@/components/ui/field";
 import { SearchIcon } from "@/components/ui/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { MessageSheet } from "./message-sheet";
+import { YourRequests } from "./your-requests";
 import { cn } from "@/lib/cn";
 
 const BACK = { href: "/account", label: "your account" };
@@ -34,11 +35,13 @@ const BACK = { href: "/account", label: "your account" };
  *
  * ## What it does not claim
  *
- * There is no ticket list, because there is no endpoint behind one. `POST
- * /support/requests` is the whole support surface: it takes a message and
- * answers a reference, and a person replies on WhatsApp. Inventing a status
- * screen over that would be a lie with a progress bar on it. yuvoy-api#196 is
- * the gap, filed rather than papered over.
+ * A conversation. Since yuvoy-api#196 a signed-in traveller sees the requests
+ * they sent and where each one is, above the answers, because somebody who
+ * has already asked is usually here to see what happened to it. What the API
+ * still does not have is the reply: it lives on WhatsApp and is not stored, so
+ * the list is statuses and the traveller's own words, and says so. Before that
+ * endpoint existed there was no list at all rather than a fake one, and on an
+ * API that predates it there still is not (see `YourRequests`).
  */
 export function HelpCenter() {
   const [query, setQuery] = useState("");
@@ -86,6 +89,13 @@ export function HelpCenter() {
         How booking, paying and cancelling work on Yuvoy. If the answer is not
         here, a person will help.
       </p>
+
+      {/*
+        What this number has already asked, before the answers: somebody who
+        has sent a request is usually here to see where it got to. Draws
+        nothing signed out, and nothing on an API with no read side.
+      */}
+      <YourRequests />
 
       <Field
         label="Search help"

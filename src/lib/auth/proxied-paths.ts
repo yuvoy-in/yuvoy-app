@@ -99,6 +99,22 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "PATCH", pattern: "/me" },
   { method: "POST", pattern: "/support/requests" },
   /*
+    Reading them back (yuvoy-api#196): the Help Center's "Your requests" and
+    a status check from Account.
+
+    The list is session-ONLY in the contract ("a booking link's status token
+    proves one booking, not the number on it, so it cannot list"), so this is
+    the only way to call it. One request by reference takes either
+    credential, and this entry is for the session's half: the booking page
+    checks with its own status token, directly, exactly as it sends.
+
+    `{reference}` matches one segment, like every placeholder here, and a
+    reference that is not the number's is the same 404 as one that does not
+    exist, so nothing here can be used to probe for somebody else's.
+  */
+  { method: "GET", pattern: "/support/requests" },
+  { method: "GET", pattern: "/support/requests/{reference}" },
+  /*
     Saves on the account (yuvoy-api#192). All five are session-only in the
     contract (`security: [{ travellerSession: [] }]`, no status token
     alternative), so this is the only way to call them and every one belongs

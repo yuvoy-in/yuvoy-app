@@ -58,6 +58,19 @@ interface SessionAnswer {
  * previous number's saves while the refetch ran. The device's set goes too,
  * because signing in moves it onto the account underneath its cache.
  */
+/**
+ * Help requests, on both sides of a change of who is signed in
+ * (yuvoy-api#196).
+ *
+ * REMOVED rather than invalidated, for the reason `refresh` gives: they belong
+ * to a number, and an invalidated list would show the previous number's
+ * messages to us, in their own words, while the refetch ran.
+ */
+function forgetSupportRequests(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.supportRequests() });
+  qc.removeQueries({ queryKey: ["getSupportRequest"] });
+}
+
 function forgetSaved(qc: QueryClient): void {
   /*
     First, so nothing started for the previous number (an adoption, a queued
@@ -118,6 +131,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     forgetSaved(qc);
+    forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -169,6 +183,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     forgetSaved(qc);
+    forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
