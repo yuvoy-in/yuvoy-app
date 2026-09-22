@@ -6,6 +6,7 @@ import { MessageThread } from "./message-thread";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 import type { components } from "@/lib/api/schema.gen";
+import { qk } from "@/lib/query/policy";
 
 type BookingMessage = components["schemas"]["BookingMessage"];
 
@@ -370,6 +371,86 @@ describe("MessageThread", () => {
       await screen.findByText("Bring a towel, the wind is up.");
       await new Promise((r) => setTimeout(r, 60));
       expect(marks).toBe(0);
+    } finally {
+      stop();
+    }
+  });
+
+  /*
+    THE TRIPS LIST COUNTS FROM THE SAME MARKER (yuvoy-api#207).
+
+    Each `/me/bookings` row carries `unreadCount`, and so does the dot on the
+    Trips destination. A mark that left the cached list alone would send the
+    traveller back to Trips to read "1 new message" about the reply they had
+    just read.
+  */
+  it("tells the trips list to re-read once the marker has moved", async () => {
+    serveThread({ unreadCount: 2 });
+    server.use(
+      http.post(`${BASE}/bookings/messages/read`, () =>
+        HttpResponse.json({ unreadCount: 0 }),
+      ),
+    );
+
+    const stop = observeAsOnScreen();
+    try {
+      const { client } = renderWithQuery(
+        <MessageThread token="t" bookingState="confirmed" />,
+      );
+      // What Trips opened on, and a second tab, both cached from earlier.
+      // Kept, because nothing observes them here and the test client
+      // collects an unobserved entry at once.
+      client.setQueryDefaults(["listMyBookings"], { gcTime: Infinity });
+      const upcoming = qk.myBookings("upcoming");
+      const past = qk.myBookings("past");
+      for (const key of [upcoming, past]) {
+        client.setQueryData(key, {
+          pages: [{ bookings: [], nextCursor: null }],
+          pageParams: [undefined],
+        });
+      }
+      expect(client.getQueryState(upcoming)?.isInvalidated).toBe(false);
+
+      await screen.findByText("Bring a towel, the wind is up.");
+      await waitFor(() =>
+        expect(client.getQueryState(upcoming)?.isInvalidated).toBe(true),
+      );
+      expect(client.getQueryState(past)?.isInvalidated).toBe(true);
+    } finally {
+      stop();
+    }
+  });
+
+  it("leaves the trips list alone when the mark did not land", async () => {
+    // Nothing moved on the server, so nothing the list says has changed.
+    let marks = 0;
+    serveThread({ unreadCount: 2 });
+    server.use(
+      http.post(`${BASE}/bookings/messages/read`, () => {
+        marks += 1;
+        return HttpResponse.json(
+          { error: { code: "not_found", message: "No such message." } },
+          { status: 404 },
+        );
+      }),
+    );
+
+    const stop = observeAsOnScreen();
+    try {
+      const { client } = renderWithQuery(
+        <MessageThread token="t" bookingState="confirmed" />,
+      );
+      client.setQueryDefaults(["listMyBookings"], { gcTime: Infinity });
+      const upcoming = qk.myBookings("upcoming");
+      client.setQueryData(upcoming, {
+        pages: [{ bookings: [], nextCursor: null }],
+        pageParams: [undefined],
+      });
+
+      await screen.findByText("Bring a towel, the wind is up.");
+      await waitFor(() => expect(marks).toBe(1));
+      await new Promise((r) => setTimeout(r, 60));
+      expect(client.getQueryState(upcoming)?.isInvalidated).toBe(false);
     } finally {
       stop();
     }

@@ -7,9 +7,17 @@ import { ChipButton } from "@/components/ui/chip";
 import { Skeleton } from "@/components/states";
 import { marketToday, marketDaysFrom } from "@/lib/booking/availability-window";
 import { dayLabel } from "@/lib/search/labels";
-import type { ReelFilters, Category } from "@/lib/search/filters";
+import {
+  DURATION_BANDS,
+  PRICE_BANDS,
+  type ReelFilters,
+  type Category,
+  type DurationBand,
+  type PriceBand,
+} from "@/lib/search/filters";
 import { useVocabulary } from "@/lib/search/use-search-reels";
 import { MonthCalendar } from "./month-calendar";
+import { cn } from "@/lib/cn";
 
 /**
  * Where, when and what — yuvoy-app#37, second attempt.
@@ -312,7 +320,87 @@ export function FilterSheet({
           ))}
         </Group>
       ) : null}
+
+      {/*
+        HOW LONG, AND HOW MUCH (yuvoy-api#197).
+
+        Three bands each, never a slider: see `DURATION_BANDS` for why. Like
+        When, both work with no vocabulary at all, because the bands are this
+        app's words rather than the server's. A neutral chip leads each group,
+        the same as "Any day", and tapping the chosen band also takes it off.
+      */}
+      <Group label="How long" className="mt-6">
+        <ChipButton
+          size="lg"
+          pressed={draft.duration === undefined}
+          onClick={() => setDraft((d) => ({ ...d, duration: undefined }))}
+        >
+          Any length
+        </ChipButton>
+        {(Object.keys(DURATION_BANDS) as DurationBand[]).map((band) => (
+          <ChipButton
+            key={band}
+            size="lg"
+            pressed={draft.duration === band}
+            onClick={() =>
+              setDraft((d) => ({
+                ...d,
+                duration: d.duration === band ? undefined : band,
+              }))
+            }
+          >
+            {DURATION_BANDS[band].label}
+          </ChipButton>
+        ))}
+      </Group>
+
+      <Group label="Price per person" className="mt-6">
+        <ChipButton
+          size="lg"
+          pressed={draft.price === undefined}
+          onClick={() => setDraft((d) => ({ ...d, price: undefined }))}
+        >
+          Any price
+        </ChipButton>
+        {(Object.keys(PRICE_BANDS) as PriceBand[]).map((band) => (
+          <ChipButton
+            key={band}
+            size="lg"
+            pressed={draft.price === band}
+            onClick={() =>
+              setDraft((d) => ({
+                ...d,
+                price: d.price === band ? undefined : band,
+              }))
+            }
+          >
+            {PRICE_BANDS[band].label}
+          </ChipButton>
+        ))}
+      </Group>
+      {/*
+        Said the moment a band is chosen, before "Show results" rather than
+        after it. The API leaves listings priced for a whole group out of any
+        price filter (the owner's decision on yuvoy-api#197), so a traveller
+        who wanted a private boat would otherwise read an empty grid as "none
+        exist".
+      */}
+      {draft.price ? <GroupPricedNote className="mt-2.5" /> : null}
     </Sheet>
+  );
+}
+
+/**
+ * What a price band leaves out, in one sentence.
+ *
+ * Exported so the results screen says the same words under its pills: one
+ * sentence in two places, never two sentences about one rule.
+ */
+export function GroupPricedNote({ className }: { className?: string }) {
+  return (
+    <p className={cn("text-forest/70 text-xs", className)}>
+      Prices are per person, so trips priced for a whole group are not included.
+    </p>
   );
 }
 

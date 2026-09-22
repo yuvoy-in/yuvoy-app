@@ -3,7 +3,13 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
-import { REELS_PAGE_SIZE, type ReelsPage } from "@/lib/feed/reels";
+import { REELS_PAGE_SIZE } from "@/lib/feed/reels";
+import {
+  fetchVisitPage,
+  nextVisitCursor,
+  type VisitCursor,
+  type VisitPage,
+} from "@/lib/feed/visit";
 import { reelFilterKey, reelQuery, type ReelFilters } from "./filters";
 
 /**
@@ -78,7 +84,7 @@ export function useVocabulary() {
 export function useSearchReels(filters: ReelFilters) {
   return useInfiniteQuery({
     queryKey: qk.searchReels(reelFilterKey(filters)),
-    initialPageParam: undefined as string | undefined,
+    initialPageParam: undefined as VisitCursor | undefined,
     /*
       NO `enabled` gate, since 14 September.
 
@@ -92,28 +98,41 @@ export function useSearchReels(filters: ReelFilters) {
       search screen that refuses to answer "what is on" until a filter is
       chosen is one that has to be obeyed before it does anything.
     */
-    queryFn: async ({ pageParam, signal }): Promise<ReelsPage> => {
-      const { data, error } = await api.GET("/reels", {
-        params: {
-          query: {
-            limit: REELS_PAGE_SIZE,
-            ...reelQuery(filters),
-            // Omitted entirely on the first page: `cursor=` empty is a
-            // different request from sending none.
-            ...(pageParam ? { cursor: pageParam } : {}),
+    /*
+      A visit of the FILTERED order, restarted once if a cursor is refused,
+      exactly as the feed's is. The filters go into every request of it,
+      including the first page a restart asks for, because a cursor belongs to
+      the filter set it was minted under.
+    */
+    queryFn: ({ pageParam, signal }): Promise<VisitPage> =>
+      fetchVisitPage(pageParam, async (cursor) => {
+        const { data, error } = await api.GET("/reels", {
+          params: {
+            query: {
+              limit: REELS_PAGE_SIZE,
+              ...reelQuery(filters),
+              // Omitted entirely on the first page: `cursor=` empty is a
+              // different request from sending none.
+              ...(cursor ? { cursor } : {}),
+            },
           },
-        },
-        signal,
-      });
-      if (error) throw error;
-      return data;
-    },
+          signal,
+        });
+        if (error) throw error;
+        return data;
+      }),
     /*
       `complete` FIRST and independently of the cursor. A complete page with a
       stale cursor still on it would otherwise fetch a page past the end.
     */
-    getNextPageParam: (lastPage) =>
-      lastPage.complete ? undefined : (lastPage.nextCursor ?? undefined),
-    ...CACHE.search,
+    getNextPageParam: (lastPage, allPages) =>
+      nextVisitCursor(lastPage, allPages),
+    /*
+      One visit, never refetched in the background. A grid that reshuffled
+      every thirty seconds sent a traveller back from a played reel to a
+      different grid, and "back returns to the same grid" is the promise this
+      screen makes. See `CACHE.reelVisit`.
+    */
+    ...CACHE.reelVisit,
   });
 }

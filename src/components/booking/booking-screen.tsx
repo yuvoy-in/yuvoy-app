@@ -265,13 +265,48 @@ function StatusBody({
       <p className="text-forest/70 mt-3 max-w-prose text-sm">{body}</p>
 
       {/*
+        THE WAY ON FROM A REQUEST THAT WAS LET GO (yuvoy-api#225).
+
+        A declined request arrives on this page as `released`, and so does one
+        the traveller gave up, and this page cannot tell them apart: the API
+        does not send who released it, or why, on this endpoint yet. So it
+        says nothing new about the reason (the sentence above already covers
+        both) and offers the one next step that is true either way: the same
+        listing's dates. It is the honest version of the review's "offer the
+        next open departure", which would need a departure this page does not
+        have.
+
+        Gated on the slug the status carries, and drawn nothing without it
+        rather than as a link to `/e/undefined/book`: a pinned contract says
+        what the API WILL send.
+      */}
+      {status.state === "released" && status.experience?.slug ? (
+        <ButtonLink
+          href={`/e/${encodeURIComponent(status.experience.slug)}/book`}
+          variant="outline"
+          size="sm"
+          className="mt-4"
+        >
+          See other dates
+        </ButtonLink>
+      ) : null}
+
+      {/*
         The countdown renders ONLY while holding. `holdExpiresAt` is absent in
         every other state precisely so a clock is never shown beside a dead
         booking — and it is one countdown, not two: the payment order's
         expiresAt IS this deadline.
+
+        Not always a countdown any more (yuvoy-app#97). A hold from an accepted
+        request runs up to twelve hours and can end tomorrow, and then this
+        draws "Pay by 08:00 on Tue 22 Sep" in the trip's own zone instead.
+        The timezone is passed for that, and only for that.
       */}
       {status.state === "holding" && status.holdExpiresAt ? (
-        <HoldCountdown expiresAt={status.holdExpiresAt} />
+        <HoldCountdown
+          expiresAt={status.holdExpiresAt}
+          timezone={status.slot?.timezone}
+        />
       ) : null}
 
       {/*

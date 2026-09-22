@@ -11,7 +11,7 @@ import {
 import { api, createProxyClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
-import type { TripTab } from "@/lib/trips/tabs";
+import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
 import { resetSavedSession } from "@/lib/feed/account-saved";
 
@@ -58,6 +58,19 @@ interface SessionAnswer {
  * previous number's saves while the refetch ran. The device's set goes too,
  * because signing in moves it onto the account underneath its cache.
  */
+/**
+ * Help requests, on both sides of a change of who is signed in
+ * (yuvoy-api#196).
+ *
+ * REMOVED rather than invalidated, for the reason `refresh` gives: they belong
+ * to a number, and an invalidated list would show the previous number's
+ * messages to us, in their own words, while the refetch ran.
+ */
+function forgetSupportRequests(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.supportRequests() });
+  qc.removeQueries({ queryKey: ["getSupportRequest"] });
+}
+
 function forgetSaved(qc: QueryClient): void {
   /*
     First, so nothing started for the previous number (an adoption, a queued
@@ -118,6 +131,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     forgetSaved(qc);
+    forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -169,6 +183,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     forgetSaved(qc);
+    forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
@@ -315,6 +330,40 @@ export function useMyBookings(
     */
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
+}
+
+/**
+ * Whether a trip has a reply the traveller has not read, for the dot on the
+ * Trips destination (yuvoy-api#207).
+ *
+ * ## It reads the Trips tab's own first answer, not a second list
+ *
+ * The nav asks for exactly what Trips opens on: `?tab=upcoming`, first page,
+ * the same query key. So on `/trips` the two share one request and one cache
+ * entry and cannot disagree, and a count cleared by reading a thread clears
+ * both at once (`MessageThread` invalidates `listMyBookings` after a mark).
+ *
+ * The alternatives were worse on the axis the API itself names. An unpaged
+ * `GET /me/bookings` is the whole history, and every row of every answer
+ * mints a fresh booking link; asking for it on every page to light one dot
+ * would mint the most links for the least information. A reply on a past or
+ * cancelled trip still shows, as a line on that trip's row; it just does not
+ * light the dot, which is a narrower claim rather than a false one.
+ *
+ * ## Nothing is asked of a signed-out visitor
+ *
+ * `useMyBookings` is disabled until the session answers `true`, so a visitor
+ * who is not signed in costs no request here at all, on any page. The session
+ * read itself is shared with `LoginButton`, which every page already makes.
+ *
+ * Silent on failure by design: the Trips screen owns the error states, and a
+ * dot that cannot be computed is simply not drawn.
+ */
+export function useUnreadTrips(): boolean {
+  const { signedIn } = useTravellerSession();
+  const upcoming = useMyBookings(signedIn, { tab: "upcoming" });
+  if (signedIn !== true) return false;
+  return anyUnread(upcoming.data?.pages.flatMap((page) => page.bookings ?? []));
 }
 
 /**

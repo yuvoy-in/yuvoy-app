@@ -170,6 +170,108 @@ export function partyLine(guests: number): string {
 }
 
 /**
+ * "1 new message" or "3 new messages", or `null` for nothing to say
+ * (yuvoy-api#207).
+ *
+ * `unreadCount` is the business's messages this traveller has not marked
+ * read, counted from the same marker the conversation itself uses, so the row
+ * and the thread cannot disagree about what is new.
+ *
+ * Takes `unknown` on purpose. The contract calls the field required and says
+ * "you do not need to handle absence", and this app reads it as optional
+ * anyway: a pinned contract says what the API WILL send, and an API a deploy
+ * behind this document sends no such field. Absent, zero, negative or not a
+ * whole number all say nothing, which is exactly what the row said before the
+ * field existed. A line reading "NaN new messages" is worse than no line.
+ */
+export function unreadLine(count: unknown): string | null {
+  if (typeof count !== "number" || !Number.isInteger(count) || count <= 0) {
+    return null;
+  }
+  return count === 1 ? "1 new message" : `${count} new messages`;
+}
+
+/**
+ * Why the operator said no, in words (yuvoy-api#225).
+ *
+ * `/me/bookings` has carried `reasonCode` on a declined request since
+ * api#175, the operator picks it from six when declining, and this app never
+ * showed it: a traveller was left guessing whether they had done something
+ * wrong, and support got the call instead.
+ *
+ * Phrased to finish "The operator could not take this one: ...". `other` has
+ * no entry ON PURPOSE: the operator gave no reason we can repeat, and a
+ * sentence invented to fill the gap would be a claim about somebody else's
+ * decision. It still gets the sentence, without a reason.
+ */
+const DECLINE_REASON: Record<string, string> = {
+  no_capacity: "no seats left",
+  weather: "the weather",
+  not_operating: "it is not running that day",
+  party_too_large: "the party is larger than the trip takes",
+  unsafe_for_party: "it would not be safe for this party",
+};
+
+/**
+ * The sentence for a declined request, or `null` for any other row.
+ *
+ * Only when `reasonCode` is PRESENT, whatever its value. The field says the
+ * operator declined a request; without it the row cannot tell that apart
+ * from anything else the API files as `declined`, so it says what it said
+ * before the field existed. An unknown code, like `other`, gets the sentence
+ * with no reason: the codes grow on the server, and a raw token is never a
+ * reason.
+ */
+export function declineLine(trip: {
+  state?: string;
+  reasonCode?: unknown;
+}): string | null {
+  if (trip.state !== "declined") return null;
+  if (typeof trip.reasonCode !== "string" || trip.reasonCode === "") {
+    return null;
+  }
+  const reason = Object.prototype.hasOwnProperty.call(
+    DECLINE_REASON,
+    trip.reasonCode,
+  )
+    ? DECLINE_REASON[trip.reasonCode]
+    : null;
+  return reason
+    ? `The operator could not take this one: ${reason}.`
+    : "The operator could not take this one.";
+}
+
+/**
+ * Whether a declined row is a REQUEST the operator refused, as opposed to a
+ * booking they could not honour.
+ *
+ * The two are one state on `/me/bookings` and are not the same thing to the
+ * traveller: a refused booking was paid and is being refunded, a refused
+ * request never took any money. `payment` is "present once a booking exists;
+ * absent on a request nobody has answered", and a refund exists only where
+ * money did, so a declined row with neither is a request.
+ */
+export function isDeclinedRequest(trip: {
+  state?: string;
+  payment?: unknown;
+  refund?: unknown;
+}): boolean {
+  return trip.state === "declined" && !trip.payment && !trip.refund;
+}
+
+/**
+ * Whether any of these rows has a message the traveller has not read.
+ *
+ * The same rule as {@link unreadLine}, so the dot on the Trips destination
+ * lights for exactly the rows that would draw a line and for nothing else.
+ */
+export function anyUnread(
+  rows: readonly { unreadCount?: unknown }[] | undefined,
+): boolean {
+  return (rows ?? []).some((row) => unreadLine(row.unreadCount) !== null);
+}
+
+/**
  * Sorts trips within a tab.
  *
  * Upcoming is soonest first; Past and Cancelled are most recent first. The API

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { describeError, FailurePanel, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -191,6 +191,7 @@ export function MessageThread({
   }, [hasMessages]);
 
   const tabVisible = useTabVisible();
+  const queryClient = useQueryClient();
 
   const markRead = useMutation({
     retry: false,
@@ -202,6 +203,29 @@ export function MessageThread({
       });
       if (error) throw error;
       return data;
+    },
+    /*
+      THE TRIPS LIST COUNTS FROM THIS SAME MARKER (yuvoy-api#207).
+
+      Each `/me/bookings` row carries `unreadCount`, read off the marker this
+      call just moved, and so does the dot on the Trips destination. Without
+      this a traveller reads the reply, goes back to Trips and is told there
+      is "1 new message" they have just read, for as long as that list stays
+      cached.
+
+      Invalidated rather than patched. The rows are keyed by reference and
+      reservation, this screen is keyed by a token the list never sees (each
+      row's link is minted per response), so matching the row here would be a
+      guess. The list re-reads the server, which is the only thing that knows.
+      A guest with no session has no such list and this touches nothing.
+
+      Not awaited. A returned promise would hold this mutation pending until
+      the list had refetched, and the badge on this panel reads the receipt:
+      it would go on saying "2 new" over messages already marked, for as long
+      as somebody else's request took.
+    */
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["listMyBookings"] });
     },
   });
 

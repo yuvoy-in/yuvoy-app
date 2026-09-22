@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { MessageSheet } from "./message-sheet";
+import { RequestStatus } from "./request-status";
 import { cn } from "@/lib/cn";
 
 /**
@@ -61,6 +62,16 @@ export function HelpSection({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  /*
+    The reference of the last request sent from this row, kept for as long as
+    the page is open (yuvoy-api#196). The sheet's receipt closes with the
+    sheet; this is what is left behind, so a traveller who closed it too
+    quickly still has the reference and a way to check it.
+
+    Deliberately not stored anywhere. It is one page's memory of one tap, and
+    the Help Center lists every request a signed-in number has sent.
+  */
+  const [sent, setSent] = useState<string | null>(null);
 
   const number = support?.whatsappE164?.trim();
   /*
@@ -138,11 +149,21 @@ export function HelpSection({
         <p className="text-forest/70 mt-1.5 text-xs">{support.hours}</p>
       ) : null}
 
+      {sent && !open ? (
+        <div className="border-paper-line mt-4 border-t pt-4">
+          <p className="text-forest/70 text-sm">
+            Your message is with us. A person replies on WhatsApp.
+          </p>
+          <RequestStatus reference={sent} token={token} className="mt-2" />
+        </div>
+      ) : null}
+
       {open ? (
         <MessageSheet
           onClose={() => setOpen(false)}
           bookingReference={bookingReference}
           token={token}
+          onSent={setSent}
         />
       ) : null}
     </div>

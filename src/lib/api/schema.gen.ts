@@ -218,11 +218,11 @@ export interface paths {
          *
          *     Each item carries the whole listing, so a card can offer the booking without a second request — a spinner over the price is a spinner over the one thing somebody stopped scrolling for.
          *
-         *     **Ordering interleaves operators.** Reels are numbered within each business and the feed is ordered by that number, so every operator's first reel precedes anybody's second. A business with twenty clips appears across twenty rounds rather than twenty times in a row. The ordering is blind to which operator: it rotates them, and cannot express a preference for one. Stable between requests.
+         *     **Ordering interleaves operators, shuffled per visit.** Reels are numbered within each business and the feed is ordered by that number, so every operator's first reel precedes anybody's second. A business with twenty clips appears across twenty rounds rather than twenty times in a row. Which of a business's reels counts as its first, second and so on, and the order of businesses inside a round, are shuffled for each visit (since 2026-09-21; before that it was newest first). A request without `cursor` starts a new visit and gets a new order; the cursor carries the visit, so paging through one visit returns every reel exactly once, in one order. The ordering is blind to which operator: it rotates them, and cannot express a preference for one.
          *
          *     **Paged, and it says whether it ended.** Pass `nextCursor` back to continue; its absence, with `complete: true`, is the end. Do not infer the end from a short page — a page that happens to come back exactly full would stop the scroll early, and an infinite scroll that has silently stopped looks identical to one with nothing more to show, so nobody reports it.
          *
-         *     The cursor resumes inside the rotation rather than at a timestamp, which is why a client must not attempt to page this ordering itself: restart the rotation and one business's second reel arrives before another's first, and the ordering stops being blind to which operator.
+         *     The cursor resumes inside the rotation of its own visit, which is why a client must not attempt to page this ordering itself: restart the rotation and one business's second reel arrives before another's first, and the ordering stops being blind to which operator. A cursor minted before 2026-09-21 cannot be resumed in the shuffled order and is a `400`; start again from the first page.
          *
          *     **Filters.** `q`, `destinationKey`, `category`, `activityType` and `bookableOn` narrow the feed with the same meaning and the same validation as `GET /search`: an unknown `category` is a `400`, an unknown `activityType` is an empty page, and a `q` with nothing searchable in it (only punctuation, or only exclusions) is an empty page rather than the words being ignored. Omit all of them and this is the unfiltered feed, unchanged.
          *
@@ -230,9 +230,9 @@ export interface paths {
          *
          *     Filters **narrow, they never rank**. The order is still the rotation, counted within the filtered set, so under "scuba at Havelock" every business's first matching reel still comes before anybody's second. There is no relevance ordering here; that is what `/search` is for.
          *
-         *     **A cursor belongs to the filters it was minted under**, the ranges included. Sending it with any different filter set is a `400`, because the rotation is counted within the filters and the same position means a different card under different ones. When the chips change, drop the cursor and start from the first page. The same words typed with different case or spacing are the same filter set. Unfiltered cursors are unchanged from before filters existed.
+         *     **A cursor belongs to the filters it was minted under**, the ranges included. Sending it with any different filter set is a `400`, because the rotation is counted within the filters and the same position means a different card under different ones. When the chips change, drop the cursor and start from the first page. The same words typed with different case or spacing are the same filter set.
          *
-         *     The order is stable between requests, so a grid can open a reel and swipe on through the same sequence by paging with the same filters. As with the unfiltered feed, a listing published, withdrawn or sold out (under `bookableOn`) between two pages can move later cards by a place.
+         *     The order is stable within a visit, so a grid can open a reel and swipe on through the same sequence by paging with the cursor and the same filters. A first page asked for again, without a cursor, is a new visit and comes back in a different order. As with the unfiltered feed, a listing published, withdrawn or sold out (under `bookableOn`) between two pages can move later cards by a place.
          */
         get: operations["listReels"];
         put?: never;
@@ -263,6 +263,36 @@ export interface paths {
         get: operations["getReel"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reel-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report reel views and watch time
+         * @description The apps report which reels were watched, for how long, and whether to the end, in batches of 1 to 50. Collected so a ranking can later be built from real data. Nothing ranks on it yet, and nothing about a view changes what the feed shows.
+         *
+         *     **Whose view it is.** A view belongs to the signed-in traveller when the request carries a sign-in session (`Authorization: Bearer <sessionToken>`), and is anonymous otherwise. A session is read when one is sent and never required: no header, an unknown or expired token, or a booking link's status token all record the views with no identity, and none of them is a `401`. No device id, cookie or IP address is stored with a view, and there is no field for one.
+         *
+         *     **Retries.** Each event carries an `eventId`, a UUID the app mints once per view and keeps with it until the call succeeds. Sending the same `eventId` again, in a retry of the whole batch or twice in one batch, stores the view once and is answered as accepted, so a retry after a timeout is always safe.
+         *
+         *     **Invalid events are dropped one by one.** The rest of the batch is kept. `droppedEvents` names each dropped event by its position in the `events` list and says why, so the app can discard it rather than send it again. Only a body that is not a batch of 1 to 50 events is a `400`.
+         *
+         *     An event is dropped when its `eventId` is not a UUID; when `reelId` is not a reel the feed would show today (never published, withdrawn, or not on the `experienceId` named); when `watchedMs` is below 0 or above 600000 (ten minutes, ten loops of the longest reel); or when `viewedAt` is more than 5 minutes in the future or more than 24 hours in the past.
+         *
+         *     Raw views are kept for 180 days and then deleted. Daily totals per reel are kept.
+         */
+        post: operations["recordReelViews"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1886,7 +1916,7 @@ export interface components {
             guests: number;
             /**
              * Format: date-time
-             * @description Set for allotment holds only.
+             * @description Set for allotment holds only. At checkout this is about ten minutes away. A request accepted later by the operator gets its own, longer hold, read from the booking status.
              */
             holdExpiresAt?: string | null;
             /**
@@ -1913,7 +1943,7 @@ export interface components {
             currency: string;
             /**
              * Format: date-time
-             * @description The hold's deadline, not a separate payment clock. Paying after it may still succeed — the capture re-acquires capacity — but the seat is no longer reserved and the booking can be declined with a full automatic refund.
+             * @description The hold's deadline, not a separate payment clock, so it can be hours away when the hold came from an accepted request. Paying after it may still succeed — the capture re-acquires capacity — but the seat is no longer reserved and the booking can be declined with a full automatic refund.
              */
             expiresAt: string;
             /**
@@ -1926,6 +1956,33 @@ export interface components {
                 /** @description Path to POST to, relative to the API base — the same path as `POST /reservations/{id}/cash-booking`, so it carries no `/v1` of its own. */
                 confirmAt: string;
             };
+        };
+        /** @description One view of one reel. */
+        ReelViewEvent: {
+            /**
+             * Format: uuid
+             * @description Minted by the app once per view and kept with it until a call carrying it succeeds. The same id sent again is the same view.
+             */
+            eventId: string;
+            /**
+             * Format: uuid
+             * @description The feed card's `media.id`.
+             */
+            reelId: string;
+            /**
+             * Format: uuid
+             * @description Optional. The feed card's `experience.id`, when the app knows which listing the reel was shown with. A reel can be published on more than one listing; without this the view counts against the listing `GET /reels/{id}` opens it with.
+             */
+            experienceId?: string;
+            /** @description How long the reel played in this view, in milliseconds, across loops. */
+            watchedMs: number;
+            /** @description Whether the reel played to its end at least once in this view. */
+            completed: boolean;
+            /**
+             * Format: date-time
+             * @description When the view started, RFC 3339 with an offset. No more than 5 minutes ahead of the server's clock and no more than 24 hours behind it.
+             */
+            viewedAt: string;
         };
         /** @description One reel and the listing it sells: the item `GET /reels` pages, and what `GET /reels/{id}` returns. */
         ReelItem: {
@@ -2017,6 +2074,8 @@ export interface components {
             /**
              * Format: date-time
              * @description Present only while `state` is `holding`. Absent once the deadline is meaningless, so a countdown is never rendered beside a dead booking.
+             *
+             *     **Not always minutes away.** A hold taken at checkout runs about ten minutes. A hold that comes from an operator accepting a request runs twelve hours, or until the departure's booking cutoff if that is sooner (yuvoy-api#203), so it can end tomorrow morning. Show a deadline that far off as a time, with the day when it is not today in the trip's market, rather than as a ticking count of minutes.
              */
             holdExpiresAt?: string | null;
             guests: number;
@@ -2782,6 +2841,48 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             503: components["responses"]["CatalogUnavailable"];
+        };
+    };
+    recordReelViews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    events: components["schemas"]["ReelViewEvent"][];
+                };
+            };
+        };
+        responses: {
+            /** @description The batch was read. `accepted` counts views stored by this call or by an earlier send of the same `eventId`; `dropped` counts the events refused, each named in `droppedEvents`. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accepted: number;
+                        dropped: number;
+                        /** @description In the order the events were sent. Empty when nothing was dropped. */
+                        droppedEvents: {
+                            /** @description The event's position in the request's `events` list, from 0. */
+                            index: number;
+                            /**
+                             * @description `invalid_event` is an event that is not an object or is missing `reelId`, `watchedMs`, `completed` or `viewedAt`.
+                             * @enum {string}
+                             */
+                            reason: "invalid_event" | "invalid_event_id" | "unknown_reel" | "watched_ms_out_of_range" | "invalid_viewed_at" | "viewed_at_in_future" | "viewed_at_too_old";
+                        }[];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listExperiences: {

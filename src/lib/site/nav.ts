@@ -13,6 +13,15 @@
 
 export type NavIcon = "feed" | "search" | "trips" | "account";
 
+/**
+ * Something a destination can carry a dot for.
+ *
+ * One today: a reply on a trip the traveller has not read (yuvoy-api#207).
+ * Named here, beside the destination it belongs to, so the chrome asks the
+ * registry which item carries it rather than recognising Trips by its href.
+ */
+export type NavSignal = "unreadTrips";
+
 export interface NavItem {
   href: string;
   label: string;
@@ -20,6 +29,8 @@ export interface NavItem {
   icon: NavIcon;
   /** Matched as a prefix so `/e/some-slug` still highlights Feed. */
   match: (pathname: string) => boolean;
+  /** A dot this destination may carry. See {@link NavSignal}. */
+  signal?: NavSignal;
 }
 
 export const NAV: readonly NavItem[] = [
@@ -40,6 +51,7 @@ export const NAV: readonly NavItem[] = [
     label: "Trips",
     icon: "trips",
     match: (p) => p.startsWith("/trips") || p.startsWith("/booking"),
+    signal: "unreadTrips",
   },
   {
     href: "/account",

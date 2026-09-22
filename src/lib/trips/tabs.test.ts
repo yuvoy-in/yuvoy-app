@@ -5,6 +5,10 @@ import {
   partyLine,
   sortForTab,
   withinDateFilter,
+  unreadLine,
+  anyUnread,
+  declineLine,
+  isDeclinedRequest,
 } from "./tabs";
 
 const TODAY = "2026-09-14";
@@ -204,6 +208,96 @@ describe("counting a party", () => {
     expect(partyLine(1)).toBe("1 person");
     expect(partyLine(2)).toBe("2 people");
     expect(partyLine(0)).toBe("0 people");
+  });
+});
+
+describe("saying a reply has arrived (yuvoy-api#207)", () => {
+  it("counts in words, with the singular where it belongs", () => {
+    expect(unreadLine(1)).toBe("1 new message");
+    expect(unreadLine(3)).toBe("3 new messages");
+  });
+
+  it("says nothing when nothing is new", () => {
+    expect(unreadLine(0)).toBeNull();
+  });
+
+  it("says nothing, rather than something false, for a field it cannot read", () => {
+    /*
+      The contract calls `unreadCount` required. It is read as optional here
+      anyway: an API a deploy behind the document sends no such field, and the
+      row must then say exactly what it said before the field existed.
+    */
+    expect(unreadLine(undefined)).toBeNull();
+    expect(unreadLine(null)).toBeNull();
+    expect(unreadLine("2")).toBeNull();
+    expect(unreadLine(-1)).toBeNull();
+    expect(unreadLine(1.5)).toBeNull();
+    expect(unreadLine(Number.NaN)).toBeNull();
+  });
+
+  it("lights the dot for exactly the rows that draw a line", () => {
+    expect(anyUnread([{ unreadCount: 0 }, { unreadCount: 2 }])).toBe(true);
+    expect(anyUnread([{ unreadCount: 0 }, {}])).toBe(false);
+    expect(anyUnread([])).toBe(false);
+    expect(anyUnread(undefined)).toBe(false);
+  });
+});
+
+describe("why the operator said no (yuvoy-api#225)", () => {
+  it("says each of the operator's reasons in words, never the code", () => {
+    const line = (reasonCode: string) =>
+      declineLine({ state: "declined", reasonCode });
+    expect(line("no_capacity")).toBe(
+      "The operator could not take this one: no seats left.",
+    );
+    expect(line("weather")).toBe(
+      "The operator could not take this one: the weather.",
+    );
+    expect(line("not_operating")).toBe(
+      "The operator could not take this one: it is not running that day.",
+    );
+    expect(line("party_too_large")).toBe(
+      "The operator could not take this one: the party is larger than the trip takes.",
+    );
+    expect(line("unsafe_for_party")).toBe(
+      "The operator could not take this one: it would not be safe for this party.",
+    );
+  });
+
+  it("invents no reason for `other`, or for a code it has never seen", () => {
+    // The operator gave no reason we can repeat. A sentence made up to fill
+    // the gap would be a claim about somebody else's decision.
+    for (const reasonCode of ["other", "new_reason_2027", "toString"]) {
+      expect(declineLine({ state: "declined", reasonCode })).toBe(
+        "The operator could not take this one.",
+      );
+    }
+  });
+
+  it("says nothing new when the API sends no reason, or the row is not declined", () => {
+    expect(declineLine({ state: "declined" })).toBeNull();
+    expect(declineLine({ state: "declined", reasonCode: "" })).toBeNull();
+    expect(
+      declineLine({ state: "cancelled", reasonCode: "weather" }),
+    ).toBeNull();
+  });
+
+  it("tells a refused request, which took no money, from a refused booking", () => {
+    expect(isDeclinedRequest({ state: "declined" })).toBe(true);
+    expect(
+      isDeclinedRequest({
+        state: "declined",
+        payment: { method: "online", collected: true, amountPaise: 900000 },
+        refund: { amountPaise: 900000, state: "pending" },
+      }),
+    ).toBe(false);
+    expect(
+      isDeclinedRequest({
+        state: "declined",
+        refund: { amountPaise: 900000, state: "pending" },
+      }),
+    ).toBe(false);
+    expect(isDeclinedRequest({ state: "cancelled" })).toBe(false);
   });
 });
 

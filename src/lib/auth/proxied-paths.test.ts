@@ -58,6 +58,32 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/me/saved/exp_kayak")).toBeNull();
   });
 
+  it("forwards reading back help requests, and nothing past one reference", () => {
+    /*
+      yuvoy-api#196. The list is session-only in the contract, so the proxy is
+      the only way to call it; one request by reference takes either
+      credential and this is the session's half. Listing them must not let a
+      write through, and the reference placeholder must stay one segment.
+    */
+    expect(allowedProxyPath("GET", "/support/requests")).toBe(
+      "/support/requests",
+    );
+    expect(allowedProxyPath("GET", "/support/requests/SR-3F9A12C0")).toBe(
+      "/support/requests/{reference}",
+    );
+    expect(
+      allowedProxyPath("DELETE", "/support/requests/SR-3F9A12C0"),
+    ).toBeNull();
+    expect(
+      allowedProxyPath("PATCH", "/support/requests/SR-3F9A12C0"),
+    ).toBeNull();
+    expect(
+      allowedProxyPath("POST", "/support/requests/SR-3F9A12C0"),
+    ).toBeNull();
+    expect(allowedProxyPath("GET", "/support/requests/SR-1/notes")).toBeNull();
+    expect(allowedProxyPath("GET", "/support/requests/../me")).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

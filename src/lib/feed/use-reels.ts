@@ -4,6 +4,12 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
 import { REELS_PAGE_SIZE, type ReelsPage } from "./reels";
+import {
+  fetchVisitPage,
+  nextVisitCursor,
+  type VisitCursor,
+  type VisitPage,
+} from "./visit";
 
 /*
   The hook, and NOTHING else.
@@ -41,15 +47,20 @@ import { REELS_PAGE_SIZE, type ReelsPage } from "./reels";
  *
  * ## The cursor is opaque, and constructing one would break the feed
  *
- * It carries the ROUND a reel is in for its own operator, then recency, then
- * id — the three terms the ordering itself has. The rotation is computed
- * across every eligible reel at query time, so a client cannot resume it from
- * what it holds: a cursor built from the last item's timestamp restarts the
- * rotation, one business's second reel arrives before another's first, and the
- * ordering stops being blind to which operator. That interleave is the one
- * property this endpoint exists to protect.
+ * It carries the VISIT and the ROUND a reel is in for its own operator. Since
+ * yuvoy-api#213 the order inside a round, and which of a business's reels
+ * counts as its first, are shuffled for every visit, and "the cursor carries
+ * the visit". A client cannot resume that from what it holds: a cursor built
+ * from the last item restarts the rotation, one business's second reel
+ * arrives before another's first, and the ordering stops being blind to which
+ * operator. That interleave is the one property this endpoint exists to
+ * protect.
  *
- * So `getNextPageParam` returns the server's own string and never derives one.
+ * So `getNextPageParam` returns the server's own string and never derives one,
+ * and the feed is ONE visit while it is on screen: never refetched behind the
+ * traveller (a refetch is a new first page, which is a reshuffle), and
+ * restarted once, without repeats, if the API refuses a cursor minted before
+ * the shuffle. Both live in `lib/feed/visit.ts` and `CACHE.reelVisit`.
  *
  * ## `complete` is read, never inferred
  *
@@ -97,39 +108,52 @@ export function useReels(
       recognised as page one rather than as a page fetched with the literal
       cursor "null".
     */
-    initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam, signal }) => {
-      const { data, error } = await api.GET("/reels", {
-        params: {
-          query: {
-            limit: REELS_PAGE_SIZE,
-            // Omitted entirely on the first page. Sending `cursor=` empty is a
-            // different request from sending none, and the contract only
-            // describes the latter.
-            ...(pageParam ? { cursor: pageParam } : {}),
-          },
-        },
-        signal,
-      });
-      if (error) throw error;
-      return data;
-    },
+    initialPageParam: undefined as VisitCursor | undefined,
     /*
-      The server's own answer, passed straight back. `complete` is checked
-      FIRST and independently of the cursor: a complete page with a stale
-      cursor still on it would otherwise fetch a page past the end.
+      One page of the visit, restarted ONCE if the API refuses a cursor minted
+      before the shuffle (yuvoy-app#96). See `lib/feed/visit.ts`.
     */
-    getNextPageParam: (lastPage) =>
-      lastPage.complete ? undefined : (lastPage.nextCursor ?? undefined),
+    queryFn: ({ pageParam, signal }): Promise<VisitPage> =>
+      fetchVisitPage(pageParam, async (cursor) => {
+        const { data, error } = await api.GET("/reels", {
+          params: {
+            query: {
+              limit: REELS_PAGE_SIZE,
+              // Omitted entirely on the first page. Sending `cursor=` empty is
+              // a different request from sending none, and the contract only
+              // describes the latter.
+              ...(cursor ? { cursor } : {}),
+            },
+          },
+          signal,
+        });
+        if (error) throw error;
+        return data;
+      }),
+    /*
+      The server's own cursor, passed straight back, with `complete` checked
+      FIRST and independently of it: a complete page with a stale cursor still
+      on it would otherwise fetch a page past the end.
+    */
+    getNextPageParam: (lastPage, allPages) =>
+      nextVisitCursor(lastPage, allPages),
     ...(initialPage
       ? {
-          initialData: { pages: [initialPage], pageParams: [undefined] },
+          initialData: {
+            pages: [initialPage as VisitPage],
+            pageParams: [undefined],
+          },
           // Without this the initial data is considered infinitely stale and
           // refetched on hydration, undoing the point of fetching it on the
           // server.
           initialDataUpdatedAt: initialFetchedAt,
         }
       : {}),
-    ...CACHE.listReels,
+    /*
+      One visit, never refetched behind the traveller's back: the order is
+      shuffled per visit, so a refetch is a different feed. See
+      `CACHE.reelVisit`.
+    */
+    ...CACHE.reelVisit,
   });
 }

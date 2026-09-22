@@ -18,6 +18,7 @@ import {
   VolumeOffIcon,
 } from "@/components/ui/icons";
 import { ShareLink } from "@/components/ui/share-link";
+import type { ReelWatch } from "@/lib/feed/use-reel-views";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 type Media = components["schemas"]["Media"];
@@ -81,6 +82,7 @@ export function ExperienceCard({
   autoplayAllowed,
   index,
   total,
+  watch,
 }: {
   experience: ExperienceSummary;
   /**
@@ -99,6 +101,11 @@ export function ExperienceCard({
   index: number;
   /** How many reels the feed HAS, or `-1` when that is not yet known. */
   total: number;
+  /**
+   * The view in progress, for the card on screen (yuvoy-app#96). Passed to
+   * the player, which is the only thing that knows how much actually played.
+   */
+  watch?: ReelWatch;
 }) {
   /*
     Built ONCE, and handed to every way in. Book, the title, the swipe and the
@@ -176,6 +183,7 @@ export function ExperienceCard({
               answered the question the connection heuristic was guessing at.
             */
             onRequestPlay={() => setAutoplayAllowed(true)}
+            watch={watch}
             /*
               Hidden while the panel is open.
 
