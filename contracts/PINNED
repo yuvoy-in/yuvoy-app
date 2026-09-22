@@ -420,7 +420,61 @@ repo=yuvoy-in/yuvoy-api
 # this app did before the route existed.
 #
 # Checked with `git ls-remote`, per the note above.
+#
+# ---------------------------------------------------------------------------
+#
+# 22 Sep 2026. Forward from 6caa7289 to e7291e35, across yuvoy-api #211 to
+# #221. Only three of those eleven merges touch this document (#213, #214 and
+# #215); the rest are operator-side and live in `operator-openapi.yaml`.
+# Additive to every path this app already calls.
+#
+# The removals were read first. There are sixteen lines and every one is
+# prose rewritten in place:
+#   - ten are the `/reels` ordering and cursor paragraphs, rewritten around
+#     "shuffled per visit" (#213). The sentence "Unfiltered cursors are
+#     unchanged from before filters existed" is the one that matters, and it
+#     is gone because it stopped being true: see below.
+#   - four are the `/reels` filter paragraph: "stable between requests" became
+#     "stable within a visit".
+#   - two are descriptions of `holdExpiresAt` on the reservation and
+#     `expiresAt` on `PaymentOrder`, each extended rather than changed (#215).
+# The `ErrorCode` enum is byte-identical, so `ERROR_CODES` needs nothing. No
+# `required:` list moved and no type changed on any existing path.
+#
+# New, and each one is consumed by a named issue:
+#   - `POST /reel-views`, `ReelViewEvent` and the `202` batch receipt with
+#     `droppedEvents` (yuvoy-api#214, consumed by yuvoy-app#96). Anonymous
+#     unless a session is sent, and by the owner's ruling this app never sends
+#     one: views go to the API directly, with no Authorization header, and
+#     only while analytics consent is granted.
+#
+# Behaviour that changed under paths already called, which is the dangerous
+# half of this bump:
+#   - **`GET /reels` is shuffled per visit** (#213). A request without a
+#     cursor starts a new visit in a new order, so a background refetch of the
+#     feed would reshuffle it under a traveller's thumb. yuvoy-app#96 makes the
+#     feed and the search grid one stable visit each.
+#   - **A cursor minted before 2026-09-21 is a `400 invalid_input`, once.**
+#     Every phone that had the feed open across the deploy holds one. The
+#     issue asks for a fresh first page rather than an error, and that is
+#     built under yuvoy-app#96, de-duplicated so nothing already seen repeats.
+#   - **An accepted request holds for twelve hours** (#215, api#203), capped
+#     at the departure's booking cutoff. `holdExpiresAt` and
+#     `PaymentOrder.expiresAt` can be on the next day, and the contract now
+#     says to show such a deadline as a time with the day rather than as a
+#     ticking count of minutes. yuvoy-app#97.
+#
+# Consumed in THIS change: nothing. The contract and the generated client move
+# together, and every item above lands with the issue that reads it.
+#
+# Live, checked on 22 Sep rather than assumed: `POST /reel-views` with an
+# empty batch answers `400` naming `events`, `GET /support/requests` answers
+# `401` signed out, and `/reels` refuses a minimum duration above its maximum
+# with a `400` naming both. The routes the 21 Sep record found undeployed are
+# deployed now.
+#
+# Checked with `git ls-remote`, per the note above.
 
-ref=6caa728932d08e02f2b9746f20930cda9ebb8af9
+ref=e7291e3543072083cff851714b97fabe3cd4f111
 branch=master
-pinned_on=2026-09-21
+pinned_on=2026-09-22
