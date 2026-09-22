@@ -471,6 +471,39 @@ describe("the card", () => {
     expect(await screen.findByText("3 new messages")).toBeInTheDocument();
   });
 
+  it("says why the operator declined a request, and does not call it refunded", async () => {
+    /*
+      yuvoy-api#225. A declined REQUEST took no money, so the booking page's
+      "Refunded" for `declined` is false here, beside a sentence that says the
+      operator could not take it.
+    */
+    await card({
+      state: "declined",
+      reasonCode: "no_capacity",
+      reference: "",
+      price: { totalPaise: 900000, currency: "INR" },
+    });
+    expect(
+      await screen.findByText(
+        "The operator could not take this one: no seats left.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not accepted")).toBeInTheDocument();
+    expect(screen.queryByText("Refunded")).toBeNull();
+    expect(screen.queryByText(/no_capacity/)).toBeNull();
+  });
+
+  it("keeps Refunded, and invents no reason, for a declined booking that was paid", async () => {
+    await card({
+      state: "declined",
+      payment: { method: "online", collected: true, amountPaise: 900000 },
+      refund: { amountPaise: 900000, state: "pending" },
+    });
+    expect(await screen.findByText("Refunded")).toBeInTheDocument();
+    expect(screen.getByText("Refund of ₹9,000 on its way")).toBeInTheDocument();
+    expect(screen.queryByText(/could not take this one/)).toBeNull();
+  });
+
   it("says nothing when nothing is new, or when the API sends no count", async () => {
     /*
       Zero is the ordinary case and must draw nothing. ABSENT is the case an

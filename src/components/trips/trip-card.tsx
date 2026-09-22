@@ -8,6 +8,8 @@ import {
   tripPriceLine,
   partyLine,
   unreadLine,
+  declineLine,
+  isDeclinedRequest,
   GUEST_STATUS_LABEL,
   type InvitedTrip,
   type ServerTrip,
@@ -80,6 +82,7 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
     API sends no count, and the card then says what it said before.
   */
   const unread = unreadLine(trip.unreadCount);
+  const declined = declineLine(trip);
 
   return (
     <Link
@@ -91,7 +94,23 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <p className="font-bold">{trip.experience}</p>
-          <StateChip state={trip.state} />
+          {/*
+            A REFUSED REQUEST WAS NEVER PAID FOR, so it is not "Refunded".
+
+            `StateChip` reads `declined` as "Refunded", which is right on the
+            booking page, where `declined` means money was taken and is coming
+            back. Here the same word also covers a request the operator said no
+            to, which took no money at all, and "Refunded" beside "The operator
+            could not take this one" would be two statements and one of them
+            false (yuvoy-api#225).
+          */}
+          {isDeclinedRequest(trip) ? (
+            <Chip size="sm" className="text-forest/70">
+              Not accepted
+            </Chip>
+          ) : (
+            <StateChip state={trip.state} />
+          )}
         </div>
 
         {/*
@@ -133,6 +152,16 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
           "Paid ₹9,000" to travellers who had handed over nothing (#29).
         */}
         {price ? <p className="mt-1.5 text-sm font-bold">{price}</p> : null}
+
+        {/*
+          WHY THE OPERATOR SAID NO (yuvoy-api#225), in words and never the
+          code. Only on a declined request that carries a reason, and `other`
+          or a code this build does not know says the sentence without one,
+          rather than inventing somebody else's reason for them.
+        */}
+        {declined ? (
+          <p className="text-forest/80 mt-1.5 text-sm">{declined}</p>
+        ) : null}
 
         {/*
           The reference is what gets read out at a jetty. A request the operator

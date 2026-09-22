@@ -2159,6 +2159,29 @@ const CANCELLED_TRIP = {
   tab: "cancelled" as const,
 };
 
+/**
+ * A request the operator said no to, with the reason they picked
+ * (yuvoy-api#225). No reference, because no booking ever existed; no payment
+ * and no refund, because no money moved.
+ *
+ * Filed under Cancelled, AFTER the cancelled booking, so the first card in
+ * that tab is still the one the booking-link suite opens.
+ */
+const DECLINED_REQUEST = {
+  reference: "",
+  reservationId: "res_declined_request",
+  experience: "Mangrove kayak at dawn",
+  operator: "Sample New Operator",
+  localDate: "2026-08-28",
+  localTime: "06:30",
+  state: "declined",
+  reasonCode: "no_capacity",
+  guests: 2,
+  meetingPoint: "Mangrove jetty",
+  statusToken: "tok_declined_request",
+  tab: "cancelled" as const,
+};
+
 /** Every row the API lists that this device did not create. */
 const LISTED_TRIPS = [
   ANOTHER_PHONES_TRIP,
@@ -2166,6 +2189,7 @@ const LISTED_TRIPS = [
   PAST_TRIP,
   MISSED_TRIP,
   CANCELLED_TRIP,
+  DECLINED_REQUEST,
 ];
 
 /**
@@ -2182,6 +2206,11 @@ const LISTED_TRIPS = [
  * That is the gap the 19 September defect hid in, so it is closed here rather
  * than worked around in a test.
  */
+/** A request the operator refused: declined, and never a booking. */
+function isDeclinedRequestRow(trip: { state: string; reference: string }) {
+  return trip.state === "declined" && trip.reference === "";
+}
+
 function seedListedTrips(): void {
   for (const trip of LISTED_TRIPS) {
     reservations.set(trip.reservationId, {
@@ -2195,8 +2224,19 @@ function seedListedTrips(): void {
       token: trip.statusToken,
       reference: trip.reference || trip.reservationId,
       polls: 0,
-      paid: trip.state === "confirmed" || trip.tab !== "upcoming",
-      listedState: trip.state,
+      /*
+        A declined REQUEST never took money, and its conversation is the empty
+        one a link with no booking behind it answers.
+      */
+      paid:
+        !isDeclinedRequestRow(trip) &&
+        (trip.state === "confirmed" || trip.tab !== "upcoming"),
+      /*
+        And its booking link reads `released`, not `declined`: that is how the
+        API projects an operator-declined request on `GET /bookings/status`,
+        where `declined` means money was taken (yuvoy-api#225).
+      */
+      listedState: isDeclinedRequestRow(trip) ? "released" : trip.state,
     });
     byToken.set(trip.statusToken, trip.reservationId);
   }

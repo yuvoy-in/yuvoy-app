@@ -1551,6 +1551,74 @@ describe("add to calendar", () => {
   });
 });
 
+/**
+ * The way on from a request that was let go (yuvoy-api#225).
+ *
+ * An operator-declined request reaches this page as `released`, and so does
+ * one the traveller gave up. The page cannot tell which, because the API does
+ * not say on this endpoint yet, so it invents no reason and offers the one
+ * step that is true either way: the listing's dates.
+ */
+describe("a released request", () => {
+  it("offers the listing's dates, straight into its calendar", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({ state: "released", bookingReference: undefined }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByText("This booking was let go"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "See other dates" }),
+    ).toHaveAttribute("href", "/e/try-dive-nemo-reef/book");
+    // No reason is invented: the sentence that covers both causes stays.
+    expect(
+      screen.getByText(
+        /Either you gave it up or the operator could not take it/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/no seats left|weather/i)).toBeNull();
+  });
+
+  it("offers nothing on a booking that is going ahead", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("You are going");
+    expect(screen.queryByRole("link", { name: "See other dates" })).toBeNull();
+  });
+
+  it("draws no link at all rather than one to /e/undefined/book", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            state: "released",
+            bookingReference: undefined,
+            experience: {
+              title: "Try-dive at Nemo Reef",
+              operator: "Sample Dive Operator",
+            },
+          }),
+        ),
+      ),
+    );
+
+    renderWithQuery(<BookingScreen />);
+    await screen.findByText("This booking was let go");
+    expect(screen.queryByRole("link", { name: "See other dates" })).toBeNull();
+  });
+});
+
 describe("the experience title", () => {
   it("links to the listing (#38 item 3)", async () => {
     /*
