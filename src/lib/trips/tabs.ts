@@ -170,6 +170,40 @@ export function partyLine(guests: number): string {
 }
 
 /**
+ * "1 new message" or "3 new messages", or `null` for nothing to say
+ * (yuvoy-api#207).
+ *
+ * `unreadCount` is the business's messages this traveller has not marked
+ * read, counted from the same marker the conversation itself uses, so the row
+ * and the thread cannot disagree about what is new.
+ *
+ * Takes `unknown` on purpose. The contract calls the field required and says
+ * "you do not need to handle absence", and this app reads it as optional
+ * anyway: a pinned contract says what the API WILL send, and an API a deploy
+ * behind this document sends no such field. Absent, zero, negative or not a
+ * whole number all say nothing, which is exactly what the row said before the
+ * field existed. A line reading "NaN new messages" is worse than no line.
+ */
+export function unreadLine(count: unknown): string | null {
+  if (typeof count !== "number" || !Number.isInteger(count) || count <= 0) {
+    return null;
+  }
+  return count === 1 ? "1 new message" : `${count} new messages`;
+}
+
+/**
+ * Whether any of these rows has a message the traveller has not read.
+ *
+ * The same rule as {@link unreadLine}, so the dot on the Trips destination
+ * lights for exactly the rows that would draw a line and for nothing else.
+ */
+export function anyUnread(
+  rows: readonly { unreadCount?: unknown }[] | undefined,
+): boolean {
+  return (rows ?? []).some((row) => unreadLine(row.unreadCount) !== null);
+}
+
+/**
  * Sorts trips within a tab.
  *
  * Upcoming is soonest first; Past and Cancelled are most recent first. The API

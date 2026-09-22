@@ -5,6 +5,8 @@ import {
   partyLine,
   sortForTab,
   withinDateFilter,
+  unreadLine,
+  anyUnread,
 } from "./tabs";
 
 const TODAY = "2026-09-14";
@@ -204,6 +206,38 @@ describe("counting a party", () => {
     expect(partyLine(1)).toBe("1 person");
     expect(partyLine(2)).toBe("2 people");
     expect(partyLine(0)).toBe("0 people");
+  });
+});
+
+describe("saying a reply has arrived (yuvoy-api#207)", () => {
+  it("counts in words, with the singular where it belongs", () => {
+    expect(unreadLine(1)).toBe("1 new message");
+    expect(unreadLine(3)).toBe("3 new messages");
+  });
+
+  it("says nothing when nothing is new", () => {
+    expect(unreadLine(0)).toBeNull();
+  });
+
+  it("says nothing, rather than something false, for a field it cannot read", () => {
+    /*
+      The contract calls `unreadCount` required. It is read as optional here
+      anyway: an API a deploy behind the document sends no such field, and the
+      row must then say exactly what it said before the field existed.
+    */
+    expect(unreadLine(undefined)).toBeNull();
+    expect(unreadLine(null)).toBeNull();
+    expect(unreadLine("2")).toBeNull();
+    expect(unreadLine(-1)).toBeNull();
+    expect(unreadLine(1.5)).toBeNull();
+    expect(unreadLine(Number.NaN)).toBeNull();
+  });
+
+  it("lights the dot for exactly the rows that draw a line", () => {
+    expect(anyUnread([{ unreadCount: 0 }, { unreadCount: 2 }])).toBe(true);
+    expect(anyUnread([{ unreadCount: 0 }, {}])).toBe(false);
+    expect(anyUnread([])).toBe(false);
+    expect(anyUnread(undefined)).toBe(false);
   });
 });
 

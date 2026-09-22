@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/cn";
 import { NAV, type NavIcon } from "@/lib/site/nav";
+import { useUnreadTrips } from "@/lib/auth/use-traveller";
+import { useHasMounted } from "@/lib/react/use-has-mounted";
 import {
   CompassIcon,
   SearchIcon,
@@ -32,12 +34,25 @@ const ICONS: Record<NavIcon, ComponentType<{ className?: string }>> = {
 export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
   const pathname = usePathname() ?? "";
   const bar = orientation === "bar";
+  const unreadTrips = useUnreadTrips();
+  /*
+    THE DOT IS DRAWN ONLY ONCE HYDRATED (yuvoy-api#207).
+
+    The server knows nothing about who is signed in, so it draws no dot. This
+    list sits in the shell on every page and hydrates beside boundaries that
+    may already have filled the query cache (every feed card reads the
+    session), so a first client render that trusted the cache could draw a
+    dot the server did not: React #418, the defect `useHasMounted` exists for.
+    Until hydrated, this draws exactly what the server drew.
+  */
+  const mounted = useHasMounted();
 
   return (
     <ul className={cn("flex", bar ? "items-center gap-1" : "flex-col gap-1")}>
       {NAV.map((item) => {
         const active = item.match(pathname);
         const Icon = ICONS[item.icon];
+        const dot = mounted && item.signal === "unreadTrips" && unreadTrips;
         return (
           <li key={item.href}>
             <Link
@@ -64,7 +79,23 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
                     : "text-paper/70 hover:bg-paper/8 hover:text-paper gap-3 px-4",
               )}
             >
-              <Icon className="size-5" />
+              {/*
+                The glyph, and the dot on its shoulder when a destination has
+                something new. `terra` because the dot is a mark, never text,
+                and a mark needs 3:1 against what it sits on: 3.53:1 on the
+                forest pill, 3.72:1 on the paper one that marks the active
+                destination, and more on the media ground.
+              */}
+              <span className="relative inline-flex">
+                <Icon className="size-5" />
+                {dot ? (
+                  <span
+                    aria-hidden="true"
+                    data-dot="unread"
+                    className="bg-terra absolute -top-0.5 -right-1 size-2 rounded-full"
+                  />
+                ) : null}
+              </span>
               <span
                 className={cn(
                   "label font-bold",
@@ -74,6 +105,14 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
               >
                 {item.label}
               </span>
+              {/*
+                The dot's words. A dot is invisible to a screen reader, and a
+                destination that looks different to one reader and identical to
+                another is a signal only some travellers get. So the link's name
+                becomes "Trips, new messages" whenever the dot is drawn, and is
+                plain "Trips" otherwise.
+              */}
+              {dot ? <span className="sr-only">, new messages</span> : null}
             </Link>
           </li>
         );

@@ -451,6 +451,41 @@ describe("the card", () => {
     await card({ localDate: "2026-12-24", localTime: "09:00" });
     expect(await screen.findByText(/Thu 24 Dec · 09:00/)).toBeInTheDocument();
   });
+
+  /*
+    A REPLY HAS ARRIVED (yuvoy-api#207).
+
+    Before `unreadCount` the only way to learn the business had written was to
+    open that exact trip and scroll to the conversation. The line is inside
+    the card's link, so it is part of the name a screen reader hears for the
+    trip it belongs to.
+  */
+  it("says a reply has arrived, in words, inside the trip's own link", async () => {
+    await card({ unreadCount: 1 });
+    const line = await screen.findByText("1 new message");
+    expect(line.closest("a")?.getAttribute("href")).toContain("tok_server");
+  });
+
+  it("counts more than one", async () => {
+    await card({ unreadCount: 3 });
+    expect(await screen.findByText("3 new messages")).toBeInTheDocument();
+  });
+
+  it("says nothing when nothing is new, or when the API sends no count", async () => {
+    /*
+      Zero is the ordinary case and must draw nothing. ABSENT is the case an
+      API a deploy behind the contract produces, and it must look exactly like
+      the card before the field existed rather than like a broken one.
+    */
+    await card({ unreadCount: 0 });
+    await screen.findByText("Paid ₹9,000");
+    expect(screen.queryByText(/new message/)).toBeNull();
+    cleanup();
+
+    await card({});
+    await screen.findByText("Paid ₹9,000");
+    expect(screen.queryByText(/new message/)).toBeNull();
+  });
 });
 
 describe("an invited trip", () => {

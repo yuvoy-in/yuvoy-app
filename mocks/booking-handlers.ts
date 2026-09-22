@@ -1801,7 +1801,32 @@ export const bookingHandlers = [
       absent `tab` still means every trip.
     */
     const tab = new URL(request.url).searchParams.get("tab");
-    const all = [...own, ...LISTED_TRIPS];
+    /*
+      `unreadCount` on every row (yuvoy-api#207), counted the way the API
+      counts it: the business's messages past this booking's read marker,
+      from the SAME conversation and the SAME marker `GET /bookings/messages`
+      and `POST /bookings/messages/read` use below. A fixed number here would
+      let the Trips row go on saying "2 new messages" after the thread was
+      read, and a client that never refreshed the list would pass.
+
+      "`0` when there is nothing new, no conversation yet, or no booking yet":
+      a link with no booking behind it answers an empty conversation, so it
+      counts nothing whatever the seeded thread holds.
+    */
+    const scenario = scenarioOf(request);
+    const unreadFor = (reservationId: string): number => {
+      const record = reservations.get(reservationId);
+      if (!record || closedReasonFor(record, scenario) === "not_booked") {
+        return 0;
+      }
+      return conversation(record, scenario).filter(
+        (m) => m.from === "operator" && m.id > (record.readUpTo ?? ""),
+      ).length;
+    };
+    const all = [...own, ...LISTED_TRIPS].map((row) => ({
+      ...row,
+      unreadCount: unreadFor(row.reservationId),
+    }));
     const rows = tab ? all.filter((t) => t.tab === tab) : all;
 
     return HttpResponse.json({
