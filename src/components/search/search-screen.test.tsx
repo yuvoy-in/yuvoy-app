@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor, cleanup, within } from "@testing-library/react";
+import { act, screen, waitFor, cleanup, within } from "@testing-library/react";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { SearchScreen } from "./search-screen";
@@ -506,6 +507,118 @@ describe("results", () => {
     renderWithQuery(<SearchScreen />);
     expect(await screen.findByText("No matches")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/**
+ * The grid is one VISIT of a shuffled order (yuvoy-app#96).
+ *
+ * "Back returns to the same grid" is this screen's promise, and a first page
+ * asked for again is a new order. So the grid is never refetched behind the
+ * traveller, and a refused cursor starts one new visit of the SAME filters.
+ */
+describe("the grid as one visit", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    act(() => {
+      onlineManager.setOnline(true);
+      focusManager.setFocused(undefined);
+    });
+  });
+
+  const tile = (id: string, title: string) => ({
+    media: {
+      id,
+      kind: "video",
+      posterUrl: "data:image/svg+xml;utf8,%3Csvg%2F%3E",
+      aspectRatio: "9:16",
+    },
+    experience: {
+      id: `exp_${id}`,
+      slug: `slug-${id}`,
+      title,
+      marketKey: "andaman",
+      destinationKey: "andaman/havelock",
+      category: "adventure",
+      bookingMode: "allotment",
+      durationMinutes: 120,
+      operator: { id: "o1", slug: "o1", name: "Operator", verified: true },
+    },
+  });
+
+  it("is not refetched, and so not reshuffled, when focus or signal returns", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-21T08:30:00Z"));
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/reels`, () => {
+        calls += 1;
+        return HttpResponse.json({
+          items: [tile("m1", "One")],
+          complete: true,
+        });
+      }),
+    );
+
+    renderWithQuery(<SearchScreen />);
+    await screen.findByRole("link", { name: /One/ });
+    expect(calls).toBe(1);
+
+    vi.setSystemTime(new Date("2026-09-21T09:30:00Z"));
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+    });
+    await new Promise((r) => setTimeout(r, 60));
+    expect(calls).toBe(1);
+  });
+
+  it("restarts a refused cursor with the same filters, and repeats no tile", async () => {
+    const user = userEvent.setup();
+    nav.url = "/search?kind=adventure";
+    const asked: URLSearchParams[] = [];
+    server.use(
+      http.get(`${BASE}/reels`, ({ request }) => {
+        const query = new URL(request.url).searchParams;
+        asked.push(query);
+        const cursor = query.get("cursor");
+        if (cursor === "pre-shuffle") {
+          return HttpResponse.json(
+            { error: { code: "invalid_input", message: "start again" } },
+            { status: 400 },
+          );
+        }
+        const first = asked.filter((q) => !q.get("cursor")).length === 1;
+        return HttpResponse.json(
+          first
+            ? {
+                items: [tile("m1", "Seen one")],
+                complete: false,
+                nextCursor: "pre-shuffle",
+              }
+            : {
+                items: [tile("m1", "Seen one"), tile("m2", "New two")],
+                complete: true,
+              },
+        );
+      }),
+    );
+
+    renderWithQuery(<SearchScreen />);
+    await screen.findByRole("link", { name: /Seen one/ });
+    await user.click(screen.getByRole("button", { name: "Show more" }));
+
+    expect(
+      await screen.findByRole("link", { name: /New two/ }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Seen one/ })).toHaveLength(1);
+    // The restart's own first page carries the filters: a cursor belongs to
+    // the filter set it was minted under, and so does a new visit.
+    const restart = asked.at(-1)!;
+    expect(restart.get("cursor")).toBeNull();
+    expect(restart.get("category")).toBe("adventure");
   });
 });
 

@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { act, screen, waitFor } from "@testing-library/react";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import { renderWithQuery } from "@/test/render";
 import { Feed } from "./feed";
+import type { ReelsPage } from "@/lib/feed/reels";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 
@@ -713,6 +715,195 @@ describe("Feed paging", () => {
     renderWithQuery(<Feed />);
     await waitFor(() => expect(seen.length).toBeGreaterThan(0));
     expect(seen[0]).toBeNull();
+  });
+});
+
+/**
+ * The feed is one VISIT of a shuffled order (yuvoy-app#96, yuvoy-api#213).
+ *
+ * A request without a cursor is a new visit in a new order, so a background
+ * refetch would reshuffle the feed under the traveller's thumb, and a cursor
+ * minted before the shuffle is refused once with a 400.
+ */
+describe("the feed as one visit", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    act(() => {
+      onlineManager.setOnline(true);
+      focusManager.setFocused(undefined);
+    });
+  });
+
+  /** The page the server rendered before the deploy, holding an old cursor. */
+  const before: ReelsPage = {
+    items: [
+      {
+        media: clip("m1"),
+        experience: listing({ id: "e1", title: "Seen one" }),
+      },
+      {
+        media: clip("m2"),
+        experience: listing({ id: "e2", title: "Seen two" }),
+      },
+    ] as unknown as ReelsPage["items"],
+    complete: false,
+    nextCursor: "pre-shuffle",
+  };
+
+  it("starts a new visit when an old cursor is refused, and shows nothing twice", async () => {
+    const observers = firingObservers();
+    const asked: (string | null)[] = [];
+    server.use(
+      http.get(`${BASE}/reels`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get("cursor");
+        asked.push(cursor);
+        if (cursor === "pre-shuffle") {
+          return HttpResponse.json(
+            {
+              error: {
+                code: "invalid_input",
+                message:
+                  "that cursor can no longer be used, so start again from the first page",
+              },
+            },
+            { status: 400 },
+          );
+        }
+        if (cursor === null) {
+          // A new visit: the whole catalogue again, in a new order.
+          return HttpResponse.json({
+            items: [
+              {
+                media: clip("m2"),
+                experience: listing({ id: "e2", title: "Seen two" }),
+              },
+              {
+                media: clip("m3"),
+                experience: listing({ id: "e3", title: "New three" }),
+              },
+              {
+                media: clip("m1"),
+                experience: listing({ id: "e1", title: "Seen one" }),
+              },
+            ],
+            complete: false,
+            nextCursor: "v2-2",
+          });
+        }
+        return HttpResponse.json({
+          items: [
+            {
+              media: clip("m4"),
+              experience: listing({ id: "e4", title: "New four" }),
+            },
+          ],
+          complete: true,
+        });
+      }),
+    );
+
+    renderWithQuery(
+      <Feed initialPage={before} initialFetchedAt={Date.now()} />,
+    );
+    await screen.findByText("Seen one");
+
+    observers.scrollToSentinel();
+    await screen.findByText("New three");
+
+    // No error, and the reels already shown are not shown again.
+    expect(screen.queryByText(/More reels did not load/)).toBeNull();
+    expect(screen.getAllByText("Seen one")).toHaveLength(1);
+    expect(screen.getAllByText("Seen two")).toHaveLength(1);
+    // Appended after what was on screen, so nothing above the traveller moved.
+    const titles = screen
+      .getAllByRole("article")
+      .map((card) => card.getAttribute("aria-label"));
+    expect(titles).toEqual(["Seen one", "Seen two", "New three"]);
+
+    // And it carries on from the NEW visit's cursor.
+    observers.scrollToSentinel();
+    await screen.findByText("New four");
+    expect(asked).toEqual(["pre-shuffle", null, "v2-2"]);
+  });
+
+  it("restarts once, and a second refusal is an ordinary failed page", async () => {
+    const observers = firingObservers();
+    let firstPages = 0;
+    server.use(
+      http.get(`${BASE}/reels`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get("cursor");
+        if (cursor === null) {
+          firstPages += 1;
+          return HttpResponse.json({
+            items: [
+              {
+                media: clip("m3"),
+                experience: listing({ id: "e3", title: "New three" }),
+              },
+            ],
+            complete: false,
+            nextCursor: "v2-2",
+          });
+        }
+        return HttpResponse.json(
+          { error: { code: "invalid_input", message: "no" } },
+          { status: 400 },
+        );
+      }),
+    );
+
+    renderWithQuery(
+      <Feed initialPage={before} initialFetchedAt={Date.now()} />,
+    );
+    await screen.findByText("Seen one");
+
+    observers.scrollToSentinel();
+    await screen.findByText("New three");
+    observers.scrollToSentinel();
+
+    await waitFor(() =>
+      expect(screen.getByText(/More reels did not load/)).toBeInTheDocument(),
+    );
+    // One restart, not one per refusal.
+    expect(firstPages).toBe(1);
+    expect(screen.getByText("Seen one")).toBeInTheDocument();
+  });
+
+  it("does not refetch, and so does not reshuffle, when the tab or the signal comes back", async () => {
+    /*
+      A refetch here is not a refresh, it is a different feed: every page
+      re-walked from a new first page in a new order. Date is moved on well
+      past what the old one-minute policy would have called stale, and focus
+      and connectivity are then both lost and regained.
+    */
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-21T08:30:00Z"));
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/reels`, () => {
+        calls += 1;
+        return HttpResponse.json({
+          items: [{ media: clip("m1"), experience: listing({ title: "One" }) }],
+          complete: false,
+          nextCursor: "c2",
+        });
+      }),
+    );
+
+    renderWithQuery(<Feed />);
+    await screen.findByText("One");
+    expect(calls).toBe(1);
+
+    vi.setSystemTime(new Date("2026-09-21T09:30:00Z"));
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+    });
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(calls).toBe(1);
   });
 });
 
