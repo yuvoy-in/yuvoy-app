@@ -6,6 +6,7 @@ import { ExperienceCard } from "./experience-card";
 import { Wordmark } from "@/components/ui/wordmark";
 import { LoginButton } from "@/components/auth/login-button";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
+import { useReelViews } from "@/lib/feed/use-reel-views";
 import type { FeedTail, Reel } from "@/lib/feed/reels";
 import { cn } from "@/lib/cn";
 
@@ -187,6 +188,23 @@ export function ReelStrip({
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  /*
+    REEL VIEWS (yuvoy-app#96), for every surface this strip serves: the feed,
+    a shared reel, search results and a business's reels are all a reel shown
+    on screen. One view per reel that fills the strip, only with analytics
+    consent, anonymously and never stored. The hook owns all of that; this
+    only says which reel is on screen and hands the player the sink.
+  */
+  const onScreen = items[activeIndex];
+  const watch = useReelViews(
+    onScreen?.media?.id
+      ? {
+          reelId: onScreen.media.id,
+          experienceId: onScreen.experience?.id,
+        }
+      : null,
+  );
 
   // Decide once, on mount, whether video may autoplay at all.
   useEffect(() => {
@@ -395,6 +413,7 @@ export function ReelStrip({
             mounted={shouldMount(i)}
             muted={muted}
             autoplayAllowed={autoplayAllowed}
+            watch={i === activeIndex ? watch : undefined}
           />
         ))}
 

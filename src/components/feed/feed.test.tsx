@@ -4,6 +4,9 @@ import { focusManager, onlineManager } from "@tanstack/react-query";
 import { renderWithQuery } from "@/test/render";
 import { Feed } from "./feed";
 import type { ReelsPage } from "@/lib/feed/reels";
+import { useFeedStore } from "@/lib/feed/store";
+import { setConsent } from "@/lib/analytics/consent";
+import { __resetReelViewCollector } from "@/lib/analytics/reel-views";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 
@@ -904,6 +907,82 @@ describe("the feed as one visit", () => {
     await new Promise((r) => setTimeout(r, 60));
 
     expect(calls).toBe(1);
+  });
+});
+
+/**
+ * Reel views, from the feed itself (yuvoy-app#96): the strip says which reel
+ * is on screen, and a view of it is reported when the feed is left, only with
+ * analytics consent.
+ */
+describe("the feed, reporting views", () => {
+  afterEach(() => {
+    setConsent("denied");
+    __resetReelViewCollector();
+    vi.useRealTimers();
+  });
+
+  function captureViews() {
+    const calls: { auth: string | null; events: { reelId: string }[] }[] = [];
+    server.use(
+      http.post(`${BASE}/reel-views`, async ({ request }) => {
+        const body = (await request.json()) as {
+          events: { reelId: string }[];
+        };
+        calls.push({
+          auth: request.headers.get("authorization"),
+          events: body.events,
+        });
+        return HttpResponse.json(
+          { accepted: body.events.length, dropped: 0, droppedEvents: [] },
+          { status: 202 },
+        );
+      }),
+    );
+    return calls;
+  }
+
+  it("reports each reel the traveller settled on, with consent", async () => {
+    setConsent("granted");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-21T10:00:00Z"));
+    const calls = captureViews();
+    server.use(
+      reels([
+        { media: clip("m1"), experience: listing({ id: "e1", title: "One" }) },
+        { media: clip("m2"), experience: listing({ id: "e2", title: "Two" }) },
+      ]),
+    );
+
+    const { unmount } = renderWithQuery(<Feed />);
+    await screen.findByText("One");
+    act(() => {
+      vi.setSystemTime(Date.now() + 2_000);
+      useFeedStore.getState().setActiveIndex(1);
+    });
+    act(() => {
+      vi.setSystemTime(Date.now() + 2_000);
+    });
+    unmount();
+
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].auth).toBeNull();
+    expect(calls[0].events.map((e) => e.reelId)).toEqual(["m1", "m2"]);
+  });
+
+  it("reports nothing without consent", async () => {
+    setConsent("denied");
+    const calls = captureViews();
+    server.use(
+      reels([{ media: clip("m1"), experience: listing({ title: "One" }) }]),
+    );
+
+    const { unmount } = renderWithQuery(<Feed />);
+    await screen.findByText("One");
+    await new Promise((r) => setTimeout(r, 350));
+    unmount();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(calls).toEqual([]);
   });
 });
 
