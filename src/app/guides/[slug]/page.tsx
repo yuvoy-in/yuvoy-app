@@ -5,7 +5,7 @@ import { allGuides, getGuide, publishedGuides } from "@/lib/guides/guides";
 import { articleJsonLd, breadcrumbJsonLd } from "@/lib/site/structured-data";
 import { JsonLd } from "@/components/site/json-ld";
 import { pageMetadata } from "@/lib/site/metadata";
-import { unpublishedRobotsMeta } from "@/lib/site/indexing";
+import { robotsMeta, unpublishedRobotsMeta } from "@/lib/site/indexing";
 import { Screen } from "@/components/chrome/screen";
 import { ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -43,10 +43,20 @@ export async function generateMetadata({
       type: "article",
       modifiedTime: guide.updated,
     }),
-    // A draft or a record still in review renders — a reviewer has to be able
-    // to read one — but it is never indexable, whatever the site-wide switch
-    // says. `undefined` inherits the app default rather than overriding it.
-    robots: indexable ? undefined : unpublishedRobotsMeta,
+    /*
+      A draft or a record still in review renders (a reviewer has to be able
+      to read one) but it is never indexable, whatever the site-wide switch
+      says.
+
+      A published guide takes the app default, `robotsMeta`, SAID HERE rather
+      than left to inherit. This used to be `undefined`, on the reading that
+      an undefined key inherits the layout's value; a key this function
+      returns replaces the layout's instead, so every live guide rendered no
+      robots tag at all, and with it lost the `max-image-preview` and
+      `max-snippet` directives the default exists to carry. Guarded in
+      `metadata.test.ts`.
+    */
+    robots: indexable ? robotsMeta : unpublishedRobotsMeta,
   };
 }
 

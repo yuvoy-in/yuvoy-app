@@ -8,19 +8,38 @@
 
 export const CACHE = {
   /**
-   * The reels feed. Cheap to refetch, and the feed is not a promise.
+   * A business's own reels (`GET /operators/{slug}/reels`, yuvoy-app#30).
    *
-   * Same numbers the experience feed used, for the same reason: it changes as
-   * operators put footage up and as seats go, and a minute-old feed costs
-   * nothing.
-   *
-   * It is an infinite query (yuvoy-api#114), so `staleTime` governs the whole
-   * accumulated feed rather than one answer: going stale refetches every page
-   * loaded so far, in sequence, which is why the number is a minute and not
-   * five seconds. A traveller twelve pages deep does not want the scroll
-   * position they earned spent on a background re-walk of the cursor.
+   * NOT shuffled, unlike the feed: "the per-operator grid cursors are
+   * unaffected" by yuvoy-api#213. So this keeps the feed's old numbers, for
+   * the feed's old reason: it changes as the business puts footage up, and a
+   * minute-old grid costs nothing. It is an infinite query, so going stale
+   * re-walks every page loaded, which is why the number is a minute and not
+   * five seconds.
    */
   listReels: { staleTime: 60_000, gcTime: 30 * 60_000 },
+
+  /**
+   * The feed and the search grid: ONE VISIT of a shuffled order
+   * (yuvoy-app#96, yuvoy-api#213).
+   *
+   * `GET /reels` is shuffled for every request that carries no cursor, so a
+   * background refetch is not a refresh any more, it is a different feed. The
+   * reel under the traveller's thumb would be swapped for another, the ones
+   * they skipped would come back, and the grid a search result was opened
+   * from would be in a different order when they came back to it.
+   *
+   * So a visit never goes stale while it is on screen, and neither focus nor
+   * a regained connection refetches it. What is on sale does change, and the
+   * new visit that shows it is the next load or the next arrival after this
+   * entry has been collected: half an hour unobserved, as the feed always was.
+   */
+  reelVisit: {
+    staleTime: Infinity,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  },
 
   /** The experience page. Also precached by the service worker. */
   getExperience: { staleTime: 5 * 60_000, gcTime: 24 * 60 * 60_000 },
@@ -38,15 +57,21 @@ export const CACHE = {
   /** Drives prefetch and the sitemap. */
   catalogIndex: { staleTime: 60 * 60_000, gcTime: 24 * 60 * 60_000 },
 
-  search: { staleTime: 30_000, gcTime: 5 * 60_000 },
+  /*
+    `search` was 30 seconds here, and it is gone rather than kept: search
+    results are reels, the reels are one shuffled visit, and a grid that
+    refetched every thirty seconds came back from a played reel in a
+    different order. See `reelVisit`.
+  */
 
   /**
    * One reel, opened by its own link.
    *
-   * The same minute as the feed, and for the same reason: a reel is not a
-   * promise about a seat, and the listing beside it carries no availability
+   * A minute, the feed's old number, for the feed's old reason: a reel is not
+   * a promise about a seat, and the listing beside it carries no availability
    * this screen acts on. It is fetched once on arrival and then the feed pages
-   * in underneath it.
+   * in underneath it, as one visit (`reelVisit`). One reel by id is not
+   * shuffled, so it has no reason to take the visit's rule.
    */
   getReel: { staleTime: 60_000, gcTime: 30 * 60_000 },
 
@@ -59,6 +84,17 @@ export const CACHE = {
    * nothing but this tab writes to it, so it never goes stale.
    */
   accountSaved: { staleTime: 60_000, gcTime: 30 * 60_000 },
+
+  /**
+   * The help requests this number sent (yuvoy-api#196).
+   *
+   * Thirty seconds, and refetched on focus by the list that reads it. The one
+   * thing on it that moves is the status, and it moves when a person at Yuvoy
+   * picks a request up, which is exactly when a traveller comes back from
+   * WhatsApp to look. Kept five minutes: it belongs to a number, and sign in
+   * and sign out remove it outright rather than letting it age.
+   */
+  supportRequests: { staleTime: 30_000, gcTime: 5 * 60_000 },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -194,4 +230,22 @@ export const qk = {
    */
   savedList: (where: "device" | "account") =>
     ["listSavedExperiences", where] as const,
+  /**
+   * The help requests on a signed-in number (yuvoy-api#196), newest first and
+   * paged. Not keyed by anything, for the reason `myBookings` gives: the
+   * session is in a cookie the browser cannot see, so the separation between
+   * two numbers on one phone comes from REMOVING this on sign in and sign out.
+   */
+  supportRequests: () => ["listSupportRequests"] as const,
+  /**
+   * One help request, by its reference, and by WHICH credential asked.
+   *
+   * The same reference can be asked for by the session and by a booking's
+   * status token, and the two can get different answers: the token opens only
+   * requests about its own booking, and a 404 for one is not a 404 for the
+   * other. Sharing an entry would paint one credential's answer as the
+   * other's. The token rides in the key the way `bookingStatus` carries it.
+   */
+  supportRequest: (reference: string, token: string | null) =>
+    ["getSupportRequest", reference, token ?? "session"] as const,
 };

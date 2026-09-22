@@ -10,6 +10,7 @@ import {
   availabilityFor,
   FIXTURE_NOW,
   mockHeaders,
+  mockNow,
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
@@ -102,6 +103,9 @@ function scenarioOf(request: Request): Scenario {
   const s = new URL(request.url).searchParams.get("__scenario");
   return (s as Scenario) ?? "ok";
 }
+
+/** The views this process has stored, by `eventId`: a repeat is one view. */
+const recordedViews = new Set<string>();
 
 let requestSeq = 0;
 const requestId = () =>
@@ -465,6 +469,61 @@ export const handlers = [
       );
     }
 
+    /*
+      The four ranges (yuvoy-api#197), inclusive, and refused the way the API
+      refuses them: a negative or non-integer bound is a 400 naming that
+      parameter, and a minimum above its maximum is a 400 naming both. A mock
+      that ignored them would let a client that sent an inverted range pass.
+    */
+    const bounds: Record<string, number | undefined> = {};
+    for (const name of [
+      "minDurationMinutes",
+      "maxDurationMinutes",
+      "minPriceMinor",
+      "maxPriceMinor",
+    ]) {
+      const raw = u.searchParams.get(name);
+      if (raw === null) continue;
+      const n = Number(raw);
+      if (!/^\d+$/.test(raw) || !Number.isSafeInteger(n)) {
+        return HttpResponse.json(
+          {
+            error: {
+              code: "invalid_input",
+              message: `${name} must be a whole number of zero or more.`,
+              details: { [name]: raw },
+            },
+          },
+          { status: 400, headers: mockHeaders(requestId()) },
+        );
+      }
+      bounds[name] = n;
+    }
+    for (const [lo, hi] of [
+      ["minDurationMinutes", "maxDurationMinutes"],
+      ["minPriceMinor", "maxPriceMinor"],
+    ] as const) {
+      const min = bounds[lo];
+      const max = bounds[hi];
+      if (min !== undefined && max !== undefined && min > max) {
+        return HttpResponse.json(
+          {
+            error: {
+              code: "invalid_input",
+              message: `${lo} cannot be more than ${hi}`,
+              details: { [lo]: min, [hi]: max },
+            },
+          },
+          { status: 400, headers: mockHeaders(requestId()) },
+        );
+      }
+    }
+    const priced =
+      bounds.minPriceMinor !== undefined || bounds.maxPriceMinor !== undefined;
+    const within = (value: number, min?: number, max?: number) =>
+      (min === undefined || value >= min) &&
+      (max === undefined || value <= max);
+
     const all = unfiltered.filter((reel) => {
       const e = reel.experience;
       if (q) {
@@ -477,6 +536,30 @@ export const handlers = [
       // Only reels of listings bookable that day. `nextAvailable` is the only
       // date this fixture carries, so it stands in for the departure list.
       if (bookableOn && e.nextAvailable !== bookableOn) return false;
+      if (
+        !within(
+          e.durationMinutes,
+          bounds.minDurationMinutes,
+          bounds.maxDurationMinutes,
+        )
+      ) {
+        return false;
+      }
+      if (priced) {
+        // The owner's decision: a price for the whole boat is never compared
+        // with a price for one person, so group-priced listings are left out,
+        // and so is a listing with no price to compare at all.
+        if (e.pricingUnit === "per_group" || !e.fromPrice) return false;
+        if (
+          !within(
+            e.fromPrice.amountMinor,
+            bounds.minPriceMinor,
+            bounds.maxPriceMinor,
+          )
+        ) {
+          return false;
+        }
+      }
       return true;
     });
 
@@ -517,6 +600,80 @@ export const handlers = [
         ...(complete ? {} : { nextCursor: btoa(String(next)) }),
       },
       { headers: mockHeaders(requestId()) },
+    );
+  }),
+
+  /*
+    Reel views and watch time (yuvoy-app#96, yuvoy-api#214), judged the way
+    the API judges them: a body that is not 1 to 50 events is a 400, and
+    every other problem drops ONE event, named by its position, while the
+    rest are kept. The same `eventId` twice is stored once and answered as
+    accepted, which is what makes retrying a whole batch safe.
+
+    Stored nowhere but this process, and nothing about who sent it.
+  */
+  http.post(url("/reel-views"), async ({ request }) => {
+    let body: { events?: unknown } | null = null;
+    try {
+      body = (await request.json()) as { events?: unknown };
+    } catch {
+      body = null;
+    }
+    const events = Array.isArray(body?.events) ? body.events : null;
+    if (!events || events.length < 1 || events.length > 50) {
+      return envelope(
+        "invalid_input",
+        "Send between 1 and 50 events in one call.",
+        400,
+        { events: "Between 1 and 50 events, each one view of one reel." },
+      );
+    }
+
+    const known = new Set(
+      [...REELS, ...LONG_REEL_FEED].map((reel) => reel.media.id),
+    );
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const now = mockNow();
+    const droppedEvents: { index: number; reason: string }[] = [];
+    let accepted = 0;
+
+    events.forEach((raw, index) => {
+      const event = raw as Record<string, unknown> | null;
+      const viewedAt =
+        typeof event?.viewedAt === "string" ? Date.parse(event.viewedAt) : NaN;
+      const reason =
+        !event ||
+        typeof event !== "object" ||
+        typeof event.reelId !== "string" ||
+        typeof event.watchedMs !== "number" ||
+        typeof event.completed !== "boolean" ||
+        typeof event.viewedAt !== "string"
+          ? "invalid_event"
+          : typeof event.eventId !== "string" || !uuid.test(event.eventId)
+            ? "invalid_event_id"
+            : !known.has(event.reelId)
+              ? "unknown_reel"
+              : event.watchedMs < 0 || event.watchedMs > 600_000
+                ? "watched_ms_out_of_range"
+                : !Number.isFinite(viewedAt)
+                  ? "invalid_viewed_at"
+                  : viewedAt > now + 5 * 60_000
+                    ? "viewed_at_in_future"
+                    : viewedAt < now - 24 * 60 * 60_000
+                      ? "viewed_at_too_old"
+                      : null;
+      if (reason) {
+        droppedEvents.push({ index, reason });
+        return;
+      }
+      recordedViews.add(event!.eventId as string);
+      accepted += 1;
+    });
+
+    return HttpResponse.json(
+      { accepted, dropped: droppedEvents.length, droppedEvents },
+      { status: 202, headers: mockHeaders(requestId()) },
     );
   }),
 

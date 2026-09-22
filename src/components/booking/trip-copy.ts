@@ -38,7 +38,12 @@ export const STATE_COPY: Record<
   holding: {
     eyebrow: "Seats held",
     title: "Your seats are held",
-    body: "Nobody else can take them while this clock runs. Pay to confirm.",
+    /*
+      "Until the hold ends", not "while this clock runs": since yuvoy-app#97 a
+      hold from an accepted request is drawn as a time with its day, not as a
+      clock, and the sentence has to be true beside both.
+    */
+    body: "Nobody else can take them until the hold ends. Pay to confirm.",
   },
   awaiting_operator: {
     eyebrow: "Asked",

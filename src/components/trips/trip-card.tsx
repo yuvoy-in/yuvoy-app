@@ -7,6 +7,9 @@ import { bookingUrl } from "@/lib/booking/token-store";
 import {
   tripPriceLine,
   partyLine,
+  unreadLine,
+  declineLine,
+  isDeclinedRequest,
   GUEST_STATUS_LABEL,
   type InvitedTrip,
   type ServerTrip,
@@ -74,6 +77,12 @@ function HeroTile({ src, alt }: { src?: string | null; alt: string }) {
 
 export function TripCard({ trip }: { trip: ServerTrip }) {
   const price = tripPriceLine(trip);
+  /*
+    Read as optional whatever the contract says: see `unreadLine`. An older
+    API sends no count, and the card then says what it said before.
+  */
+  const unread = unreadLine(trip.unreadCount);
+  const declined = declineLine(trip);
 
   return (
     <Link
@@ -85,8 +94,48 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <p className="font-bold">{trip.experience}</p>
-          <StateChip state={trip.state} />
+          {/*
+            A REFUSED REQUEST WAS NEVER PAID FOR, so it is not "Refunded".
+
+            `StateChip` reads `declined` as "Refunded", which is right on the
+            booking page, where `declined` means money was taken and is coming
+            back. Here the same word also covers a request the operator said no
+            to, which took no money at all, and "Refunded" beside "The operator
+            could not take this one" would be two statements and one of them
+            false (yuvoy-api#225).
+          */}
+          {isDeclinedRequest(trip) ? (
+            <Chip size="sm" className="text-forest/70">
+              Not accepted
+            </Chip>
+          ) : (
+            <StateChip state={trip.state} />
+          )}
         </div>
+
+        {/*
+          A REPLY HAS ARRIVED (yuvoy-api#207), under the name rather than at
+          the foot of the card, because it is the one line here that changes
+          while the trip does not.
+
+          Before this the only way to learn the business had written was to
+          open that exact trip and scroll to the conversation. The card is the
+          link to that page, so the line is part of the link's name and a
+          screen reader hears it with the trip it belongs to.
+
+          `terra-deep`, the accent that is legible at body size on this card's
+          `paper-deep` ground (5.49:1). The dot is decoration and hidden: the
+          words carry the meaning.
+        */}
+        {unread ? (
+          <p className="text-terra-deep mt-1.5 flex items-center gap-2 text-sm font-bold">
+            <span
+              aria-hidden="true"
+              className="bg-terra-deep size-1.5 shrink-0 rounded-full"
+            />
+            {unread}
+          </p>
+        ) : null}
 
         <p className="text-forest/80 mt-2 flex items-center gap-2 text-sm">
           <CalendarIcon className="text-forest/70 size-4" />
@@ -103,6 +152,16 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
           "Paid ₹9,000" to travellers who had handed over nothing (#29).
         */}
         {price ? <p className="mt-1.5 text-sm font-bold">{price}</p> : null}
+
+        {/*
+          WHY THE OPERATOR SAID NO (yuvoy-api#225), in words and never the
+          code. Only on a declined request that carries a reason, and `other`
+          or a code this build does not know says the sentence without one,
+          rather than inventing somebody else's reason for them.
+        */}
+        {declined ? (
+          <p className="text-forest/80 mt-1.5 text-sm">{declined}</p>
+        ) : null}
 
         {/*
           The reference is what gets read out at a jetty. A request the operator

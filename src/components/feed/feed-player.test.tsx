@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { act, render, screen, cleanup } from "@testing-library/react";
 import { FeedPlayer } from "./feed-player";
 import type { components } from "@/lib/api/schema.gen";
 
@@ -182,5 +182,114 @@ describe("the reel player, with no clip", () => {
 
     expect(container.querySelector("video")).not.toBeInTheDocument();
     expect(playControl()).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * How much of a clip actually PLAYED, for a reel view (yuvoy-app#96).
+ *
+ * The API asks for watch time "across loops" and whether the reel "played to
+ * the end at least once". Both are read off the element's own clock, so a
+ * clip that is paused, buffering or refused adds nothing, and a loop (which
+ * never fires `ended`) is seen as the media time going backwards.
+ */
+describe("the reel player, reporting what played", () => {
+  /** Puts the element where a real one would be, then lets it report. */
+  function at(
+    video: HTMLVideoElement,
+    time: number,
+    { duration = 10, paused = false } = {},
+  ) {
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      get: () => time,
+      set: () => {},
+    });
+    Object.defineProperty(video, "duration", {
+      configurable: true,
+      get: () => duration,
+    });
+    Object.defineProperty(video, "paused", {
+      configurable: true,
+      get: () => paused,
+    });
+    act(() => {
+      video.dispatchEvent(new Event("timeupdate"));
+    });
+  }
+
+  function mount() {
+    const watch = { played: vi.fn(), completed: vi.fn() };
+    const { container } = render(
+      <FeedPlayer
+        media={CLIP}
+        active
+        mounted
+        muted
+        autoplayAllowed={undefined}
+        watch={watch}
+      />,
+    );
+    const video = container.querySelector("video")!;
+    const total = () =>
+      watch.played.mock.calls.reduce((sum, [ms]) => sum + (ms as number), 0);
+    return { watch, video, total };
+  }
+
+  it("adds up the media time that passed while it played", () => {
+    const { watch, video, total } = mount();
+    at(video, 0);
+    at(video, 0.25);
+    at(video, 0.5);
+    at(video, 1.5);
+    expect(total()).toBeCloseTo(1_500);
+    expect(watch.completed).not.toHaveBeenCalled();
+  });
+
+  it("adds nothing while paused", () => {
+    const { video, total } = mount();
+    at(video, 2);
+    at(video, 2, { paused: true });
+    at(video, 2, { paused: true });
+    expect(total()).toBe(0);
+  });
+
+  it("counts a loop as the end, and the time on both sides of it", () => {
+    const { watch, video, total } = mount();
+    at(video, 9.8);
+    // `loop` comes round to the start without an `ended`.
+    at(video, 0.1);
+    expect(total()).toBeCloseTo(300);
+    expect(watch.completed).toHaveBeenCalled();
+  });
+
+  it("counts the last moment before the end as the end", () => {
+    // Somebody who scrolls on just as it finishes has seen it finish.
+    const { watch, video } = mount();
+    at(video, 9.5);
+    at(video, 9.75);
+    expect(watch.completed).toHaveBeenCalled();
+  });
+
+  it("does not count a jump as playback", () => {
+    // A source attaching, or a stall recovering, is not time anybody watched.
+    const { video, total } = mount();
+    at(video, 0);
+    at(video, 6);
+    expect(total()).toBe(0);
+  });
+
+  it("measures nothing at all without a view to report to", () => {
+    const { container } = render(
+      <FeedPlayer
+        media={CLIP}
+        active
+        mounted
+        muted
+        autoplayAllowed={undefined}
+      />,
+    );
+    const video = container.querySelector("video")!;
+    expect(() => at(video, 1)).not.toThrow();
   });
 });

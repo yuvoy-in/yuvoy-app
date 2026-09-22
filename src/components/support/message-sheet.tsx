@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
+import { qk } from "@/lib/query/policy";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
+import { RequestStatus } from "./request-status";
 
 /**
  * The message form, lifted out of `help-section` so two surfaces share it.
@@ -26,10 +28,10 @@ import { cn } from "@/lib/cn";
  *
  * ## What it does not pretend to be
  *
- * A ticket. The reply comes on WhatsApp, because `POST /support/requests` is
- * the whole support surface of the API: no list, no status, no history to read
- * back. The success state says so rather than implying a tracker. See
- * yuvoy-api#196.
+ * A conversation. The reply comes on WhatsApp, and the API stores the
+ * traveller's own message and no staff replies. Since yuvoy-api#196 it does
+ * store where a request is, so the receipt offers that and nothing more: the
+ * reference, a way to check its status, and where the answer will come from.
  */
 const TOPICS = [
   { key: "booking", label: "Booking" },
@@ -48,11 +50,20 @@ export function MessageSheet({
   onClose,
   bookingReference,
   token,
+  onSent,
 }: {
   onClose: () => void;
   bookingReference?: string | null;
   token?: string | null;
+  /**
+   * Told the reference once the request is in, so the screen behind the
+   * sheet can keep showing it after the sheet is closed. A reference that
+   * vanishes with a dialog is the "swallowed" feeling the receipt exists to
+   * prevent.
+   */
+  onSent?: (reference: string) => void;
 }) {
+  const queryClient = useQueryClient();
   const [topic, setTopic] = useState<Topic>("other");
   const [message, setMessage] = useState("");
   /** Set only after a submit, so the field does not scold while being typed. */
@@ -79,6 +90,17 @@ export function MessageSheet({
       const { data, error } = await client.POST("/support/requests", { body });
       if (error) throw error;
       return data;
+    },
+    onSuccess: (data) => {
+      /*
+        The Help Center's list is this number's requests, and it now has one
+        more. Invalidated rather than appended to: the API may have answered
+        with an EXISTING reference ("resubmitting the same message about the
+        same booking returns the same reference") and reopened it, which only
+        the server's own list can show correctly.
+      */
+      void queryClient.invalidateQueries({ queryKey: qk.supportRequests() });
+      if (data?.reference) onSent?.(data.reference);
     },
   });
 
@@ -115,21 +137,28 @@ export function MessageSheet({
           <p className="mt-3 font-mono text-sm tracking-wider">
             Reference {send.data.reference}
           </p>
-          {/*
-            WHERE THE ANSWER COMES FROM, said plainly.
-
-            A reference with no tracker is the thing that makes support feel
-            swallowed: somebody is handed a number and reasonably goes looking
-            for a page to watch. There is no such page, because the API has no
-            read side at all (yuvoy-api#196), so this says where to actually
-            look instead of leaving them to hunt for a status screen that does
-            not exist. It comes out the day #196 lands, not before.
-          */}
-          <p className="text-forest/70 mt-3 text-sm">
-            A person replies on WhatsApp, to the number you used. There is
-            nothing to check back on here.
-          </p>
         </div>
+        {/*
+          And since yuvoy-api#196, a way to see where it is: on demand, with
+          the same credential that sent it (the booking's status token on a
+          booking page, the session anywhere else). Outside the status region
+          above, because a live region is for the receipt, not for a control.
+        */}
+        <RequestStatus
+          reference={send.data.reference}
+          token={token}
+          showReference={false}
+          className="mt-1"
+        />
+        {/*
+          WHERE THE ANSWER COMES FROM, said plainly, and it has not changed.
+          The status says where the request is; the reply itself still comes
+          on WhatsApp and is never shown in the app, so nothing here may read
+          as though it will be.
+        */}
+        <p className="text-forest/70 mt-3 text-sm">
+          A person replies on WhatsApp, to the number you used.
+        </p>
       </Sheet>
     );
   }
