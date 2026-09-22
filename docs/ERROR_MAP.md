@@ -32,14 +32,15 @@ check found `unavailable` had been missing for longer.
 
 ## Availability and capacity — each names a different next step
 
-| Code                      | Treatment                                                                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `capacity_unavailable`    | "Those seats went while you were deciding." **`details.remaining` has what is left — offer it.**                                         |
-| `request_quota_exhausted` | Too many open requests already. Explained as **not the traveller's fault**, no retry. Implemented in `describeError`.                    |
-| `request_window_closed`   | **`details.opensAt` → "they take them from 06:00"** in market time, no retry. Implemented in `describeError`.                            |
-| `grant_ceiling_exceeded`  | Rare, operator-side. Calm copy, no retry — re-check availability. Implemented.                                                           |
-| `cutoff_passed`           | Booking closed for this departure. **Show the slot disabled, never hidden.** A race at `POST /reservations` renders calm copy, no retry. |
-| `stale_availability`      | The count is too old to sell against. Re-verify; do not guess.                                                                           |
+| Code                      | Treatment                                                                                                                                                                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capacity_unavailable`    | "Not enough room for that party": the API sends it when the seats went AND when the party is larger than the trip takes, so the sentence names neither. **`details.remaining` has what is left: offer it.** Checkout refetches the dates and shows the API's sentence above the calendar. No retry. |
+| `price_moved`             | `expectTotalPaise` no longer matches what the departure costs (yuvoy-api#193). "The price has changed": nothing held, nothing charged. Checkout refetches the dates, the bar shows the new total, and the next attempt is a new body under a new idempotency key. No retry of the old total.        |
+| `request_quota_exhausted` | Too many open requests already. Explained as **not the traveller's fault**, no retry. Implemented in `describeError`.                                                                                                                                                                               |
+| `request_window_closed`   | **`details.opensAt` → "they take them from 06:00"** in market time, no retry. Implemented in `describeError`.                                                                                                                                                                                       |
+| `grant_ceiling_exceeded`  | Rare, operator-side. Calm copy, no retry: re-check availability. Implemented.                                                                                                                                                                                                                       |
+| `cutoff_passed`           | Booking closed for this departure. **Show the slot disabled, never hidden.** A race at `POST /reservations` renders calm copy, no retry.                                                                                                                                                            |
+| `stale_availability`      | The count is too old to sell against. Re-verify; do not guess.                                                                                                                                                                                                                                      |
 
 ## Deliberately stopped — 503, but not an outage
 
@@ -123,6 +124,20 @@ sentence has to say the booking is untouched and the wait is short.
 | `answers_required` | The listing asks its own questions and at least one is unanswered. Checkout marks each named question and scrolls to it. No retry: the same body is refused identically.    |
 | `answers_closed`   | The departure has left, or the booking is not going ahead. Nothing written was saved. No retry.                                                                             |
 | `messages_closed`  | No more messages on this booking. `details.reason` says which of the three reasons it is, and the thread renders it in a sentence of its own. No retry: it does not reopen. |
+
+## Booking by invitation
+
+Declared by yuvoy-api#195. `invite_required` is the 403 `POST /reservations` answers while the
+server's invite gate is on; the other three are the refusals of `POST /me/invite-codes/redeem`.
+Each has its own next step, so each has its own sentence. None offers a retry: the same code is
+refused the same way.
+
+| Code                  | Treatment                                                                                                |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `invite_required`     | Booking needs a signed-in, admitted number. Sign in, then enter a code. Nothing held, nothing charged.   |
+| `invite_code_unknown` | No such code, or one that was withdrawn (the two read alike on purpose). Check it, or ask for a new one. |
+| `invite_code_used`    | One code admits one person, once. Ask for another.                                                       |
+| `invite_code_expired` | Past its expiry. Ask for a new one.                                                                      |
 
 ## Reviewing a trip
 

@@ -6,12 +6,14 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from "@tanstack/react-query";
 import { api, createProxyClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
 import type { TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
+import { resetSavedSession } from "@/lib/feed/account-saved";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -46,6 +48,26 @@ export const TRIPS_PAGE_SIZE = 20;
 
 interface SessionAnswer {
   signedIn: boolean;
+}
+
+/**
+ * Saves, on both sides of a change of who is signed in (yuvoy-api#192).
+ *
+ * REMOVED rather than invalidated, for the reason `refresh` gives below: the
+ * account's set belongs to a number, and an invalidated entry would paint the
+ * previous number's saves while the refetch ran. The device's set goes too,
+ * because signing in moves it onto the account underneath its cache.
+ */
+function forgetSaved(qc: QueryClient): void {
+  /*
+    First, so nothing started for the previous number (an adoption, a queued
+    write) reaches the next one's account or cache. See `resetSavedSession`.
+  */
+  resetSavedSession();
+  qc.removeQueries({ queryKey: qk.savedIds("account") });
+  qc.removeQueries({ queryKey: qk.savedList("account") });
+  qc.removeQueries({ queryKey: qk.savedIds("device") });
+  qc.removeQueries({ queryKey: qk.savedList("device") });
 }
 
 async function readSession(signal?: AbortSignal): Promise<SessionAnswer> {
@@ -95,6 +117,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    forgetSaved(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -145,6 +168,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    forgetSaved(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);

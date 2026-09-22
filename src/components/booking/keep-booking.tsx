@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useHasMounted } from "@/lib/react/use-has-mounted";
 import { createApiClient } from "@/lib/api/client";
 import { civilInZone, weekdayDayMonth } from "@/lib/format/date";
 import { Button } from "@/components/ui/button";
@@ -314,14 +315,5 @@ export function KeepBooking({
     <Panel className="mt-6">{body}</Panel>
   ) : (
     <div className="border-paper-line mt-8 border-t pt-6">{body}</div>
-  );
-}
-
-/** True after hydration. `useSyncExternalStore` is the honest way to ask. */
-function useHasMounted(): boolean {
-  return useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
   );
 }
