@@ -141,10 +141,17 @@ describe("describeError: the calendar was out of date", () => {
     expect(d.requestId).toBe("01J");
   });
 
-  it("says the seats went, rather than blaming us", () => {
+  it("says there is not room for the party, without guessing why", () => {
+    /*
+      The API sends this code for two different reasons: the seats went, or
+      the party is larger than the trip takes. The sentence must be true of
+      both, because checkout shows the API's own reason above the calendar.
+    */
     const d = describeError(err("capacity_unavailable", 409, { remaining: 2 }));
-    expect(d.title).toBe("Those seats have just gone");
+    expect(d.title).toBe("Not enough room for that party");
     expect(d.body).not.toMatch(GENERIC);
+    expect(d.body).not.toMatch(/somebody booked|while you were deciding/i);
+    expect(d.body).toMatch(/nothing was charged/i);
     expect(d.canRetry).toBe(false);
   });
 });

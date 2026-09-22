@@ -118,7 +118,7 @@ export const ERROR_CODES = [
   "review_window_closed",
   /*
     `POST /reservations` refuses with `409 price_moved` when the departure no
-    longer costs the `expectedTotalMinor` the traveller agreed to
+    longer costs the `expectTotalPaise` the traveller agreed to
     (yuvoy-app#62 item 7).
 
     This list carried it before the contract did: the API documented the

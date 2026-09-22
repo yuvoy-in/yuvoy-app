@@ -360,7 +360,7 @@ export const bookingHandlers = [
       screening?: { declaredClear?: boolean; ageBands?: string[] };
       attribution?: Record<string, unknown>;
       answers?: unknown;
-      expectedTotalMinor?: unknown;
+      expectTotalPaise?: unknown;
     };
 
     if (!key) {
@@ -426,7 +426,7 @@ export const bookingHandlers = [
         sent: omitted, the real API checks nothing, and neither does this.
       */
       case "price-moved":
-        if (typeof body.expectedTotalMinor === "number") {
+        if (typeof body.expectTotalPaise === "number") {
           return envelope(
             "price_moved",
             "The price of this departure changed while you were deciding.",
@@ -528,15 +528,22 @@ export const bookingHandlers = [
 
       "Optional, and send it. Omitted, nothing is checked ... Sent, the
       checkout is refused 409 price_moved when the listing no longer costs
-      that." The mock used to ignore the field entirely, so a client that sent
-      the wrong total, or none at all, passed every test here. It is checked
-      against the same slot price the availability handler serves, which is
-      the number the client multiplied.
+      that." Read under the contract's name, `expectTotalPaise`, and computed
+      the API's way: a price for the whole group is not multiplied by the
+      party (`case pricing_unit when 'per_group' then unit_price else unit_price
+      * guests`). The mock used to ignore the field entirely, which is how the
+      app sent it under a name the API does not read for a week and every test
+      here still passed.
     */
+    const perGroup = slug
+      ? EXPERIENCE_DETAIL[slug]?.pricingUnit === "per_group"
+      : false;
     if (
-      typeof body.expectedTotalMinor === "number" &&
+      typeof body.expectTotalPaise === "number" &&
       slot?.price &&
-      slot.price.amountMinor * body.guests !== body.expectedTotalMinor
+      (perGroup
+        ? slot.price.amountMinor
+        : slot.price.amountMinor * body.guests) !== body.expectTotalPaise
     ) {
       return envelope(
         "price_moved",

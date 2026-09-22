@@ -292,7 +292,9 @@ describe("when the calendar is out of date", () => {
     /*
       yuvoy-api#193 asked for the changed-price checkout path to be confirmed
       from the app, and until this test nothing here had ever produced a
-      `price_moved`: the mock ignored `expectedTotalMinor` entirely.
+      `price_moved`: the mock ignored the agreed total entirely, which is how
+      the app sent it under a name the API does not read (`expectedTotalMinor`
+      rather than `expectTotalPaise`) without a single test noticing.
 
       The whole loop, because each step is a separate way to strand somebody:
         1. the first attempt, at the old total, is refused;
@@ -304,7 +306,8 @@ describe("when the calendar is out of date", () => {
     */
     nav.search = "date=2026-09-20&slot=sl_20_0700";
     let price = 450000;
-    const sent: { total: unknown; key: string | null }[] = [];
+    const sent: { total: unknown; misnamed: unknown; key: string | null }[] =
+      [];
     server.use(
       http.get(`${BASE}/experiences/:slug/availability`, () =>
         HttpResponse.json({
@@ -316,12 +319,16 @@ describe("when the calendar is out of date", () => {
         }),
       ),
       http.post(`${BASE}/reservations`, async ({ request }) => {
-        const body = (await request.json()) as { expectedTotalMinor?: number };
+        const body = (await request.json()) as {
+          expectTotalPaise?: number;
+          expectedTotalMinor?: unknown;
+        };
         sent.push({
-          total: body.expectedTotalMinor,
+          total: body.expectTotalPaise,
+          misnamed: body.expectedTotalMinor,
           key: request.headers.get("idempotency-key"),
         });
-        if (body.expectedTotalMinor !== 500000) {
+        if (body.expectTotalPaise !== 500000) {
           // The operator raised the price while the form was open.
           price = 500000;
           return HttpResponse.json(
@@ -374,8 +381,11 @@ describe("when the calendar is out of date", () => {
     // 4: the new agreement goes through, under its own key.
     await user.click(pay);
     await waitFor(() => expect(sent).toHaveLength(2));
+    // Under the contract's name, and never the old misspelling: the API
+    // ignores any key it does not know, so a wrong name checks nothing.
     expect(sent[0].total).toBe(450000);
     expect(sent[1].total).toBe(500000);
+    expect(sent[0].misnamed).toBeUndefined();
     expect(sent[1].key).toBeTruthy();
     expect(sent[1].key).not.toBe(sent[0].key);
     await waitFor(() =>

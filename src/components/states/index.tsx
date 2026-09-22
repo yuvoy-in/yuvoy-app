@@ -206,11 +206,18 @@ export function describeError(
         the same way, which is why neither offers a retry: the next attempt is
         a new agreement at the new total, not a replay.
       */
+      /*
+        Worded for both of the API's reasons. It sends this code when the
+        seats went while somebody was deciding AND when the party is larger
+        than the trip takes ("that is a larger party than this experience
+        takes"), so a sentence that named one cause would contradict the
+        API's own sentence, which checkout shows above the calendar.
+      */
       case "capacity_unavailable":
         return {
           ...base,
-          title: "Those seats have just gone",
-          body: "Somebody booked them while you were deciding. Nothing was held and nothing was charged. The dates above have been refreshed to show what is left.",
+          title: "Not enough room for that party",
+          body: "This departure cannot take that many people now. Nothing was held and nothing was charged. Try fewer people, or pick another departure above.",
           canRetry: false,
         };
       case "price_moved":
