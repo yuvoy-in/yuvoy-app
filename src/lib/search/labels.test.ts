@@ -120,6 +120,30 @@ describe("the pills for an applied filter set", () => {
     expect(pill.label).toBeNull();
   });
 
+  it("names a length and a price band in the words on their chips", () => {
+    /*
+      yuvoy-api#197. The bands are this app's own words, so their pills are
+      named at once and never wait on the vocabulary, and they come after the
+      four the issue orders, as they do in the sheet.
+    */
+    const pills = filterPills(
+      { price: "mid", duration: "short", category: "adventure" },
+      undefined,
+      TODAY,
+    );
+    expect(pills.map((p) => p.field)).toEqual([
+      "category",
+      "duration",
+      "price",
+    ]);
+    expect(pills.slice(1).map((p) => p.label)).toEqual([
+      "Up to 2 hours",
+      "₹2,000 to ₹4,000",
+    ]);
+    // Both count toward the number on the Filters button.
+    expect(activeFilterCount({ duration: "long", price: "low" })).toBe(2);
+  });
+
   it("shows nothing when nothing is applied, and ignores the typed word", () => {
     expect(filterPills({}, vocabulary, TODAY)).toEqual([]);
     // `q` is in the search box, which is already on screen. Not a pill.
@@ -165,5 +189,16 @@ describe("taking a filter off", () => {
   it("keeps the typed word when everything is cleared", () => {
     // "It removes every filter and keeps the typed word." The issue's words.
     expect(withoutFilters(applied)).toEqual({ q: "diving" });
+  });
+
+  it("takes a band off on its own, and with everything else on Clear all", () => {
+    const banded = { ...applied, duration: "long", price: "high" } as const;
+    expect(withoutFilter(banded, "price")).toMatchObject({
+      duration: "long",
+      price: undefined,
+      category: "adventure",
+    });
+    expect(withoutFilter(banded, "duration").price).toBe("high");
+    expect(withoutFilters(banded)).toEqual({ q: "diving" });
   });
 });

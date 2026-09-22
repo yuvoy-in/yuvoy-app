@@ -1,6 +1,12 @@
 import { marketToday, marketDaysFrom } from "@/lib/booking/availability-window";
 import { civilFromDate, weekdayName, dayMonth } from "@/lib/format/date";
-import type { ReelFilters } from "./filters";
+import {
+  DURATION_BANDS,
+  PRICE_BANDS,
+  isDurationBand,
+  isPriceBand,
+  type ReelFilters,
+} from "./filters";
 
 /**
  * What each applied filter is CALLED, for the pills under the search bar.
@@ -19,12 +25,19 @@ import type { ReelFilters } from "./filters";
  * to the one they will be on a boat.
  */
 
-/** The four filters that show as pills, in the order the issue names. */
+/**
+ * The filters that show as pills, in the order the sheet asks them.
+ *
+ * The first four are the order the issue names (yuvoy-app#37). How long and
+ * how much follow, because they follow in the sheet too (yuvoy-api#197).
+ */
 export const PILL_ORDER = [
   "destinationKey",
   "bookableOn",
   "category",
   "activityType",
+  "duration",
+  "price",
 ] as const;
 
 export type PillField = (typeof PILL_ORDER)[number];
@@ -125,6 +138,27 @@ export function filterPills(
 
     if (field === "bookableOn") {
       pills.push({ field, label: dayLabel(value, today) });
+      continue;
+    }
+    /*
+      A band is this app's own word, not the vocabulary's, so its label is
+      known at once and never waits on a request. An unknown key cannot reach
+      here from the address (`filtersFromParams` drops it), and if one is ever
+      built by hand it answers `null`, the same skeleton-with-a-way-off every
+      other unnamed filter gets.
+    */
+    if (field === "duration") {
+      pills.push({
+        field,
+        label: isDurationBand(value) ? DURATION_BANDS[value].label : null,
+      });
+      continue;
+    }
+    if (field === "price") {
+      pills.push({
+        field,
+        label: isPriceBand(value) ? PRICE_BANDS[value].label : null,
+      });
       continue;
     }
     const list =

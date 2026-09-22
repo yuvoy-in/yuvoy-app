@@ -13,7 +13,7 @@ import { Screen } from "@/components/chrome/screen";
 import { Button } from "@/components/ui/button";
 import { SearchIcon } from "@/components/ui/icons";
 import { ReelGrid } from "@/components/feed/reel-grid";
-import { FilterSheet } from "./filter-sheet";
+import { FilterSheet, GroupPricedNote } from "./filter-sheet";
 import { ActiveFilters } from "./active-filters";
 import { playableReels } from "@/lib/feed/reels";
 import {
@@ -173,6 +173,13 @@ export function SearchScreen() {
         vocabulary={vocabulary.data}
         onChange={apply}
       />
+      {/*
+        What a price band leaves out, under the pill that applied it, for as
+        long as it is applied (yuvoy-api#197). The API drops listings priced
+        for a whole group from any price filter, so without this a traveller
+        looking for a private boat reads its absence as "none exist".
+      */}
+      {filters.price ? <GroupPricedNote className="mt-2" /> : null}
 
       {/*
         Mounted only while open, which is what seeds the draft afresh each time
