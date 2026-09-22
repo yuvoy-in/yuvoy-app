@@ -128,6 +128,18 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "POST", pattern: "/me/saved" },
   { method: "POST", pattern: "/me/saved/adopt" },
   { method: "DELETE", pattern: "/me/saved/{experienceId}" },
+  /*
+    Redeeming an invite code (yuvoy-api#195). The code screen is its only
+    caller, and it is always signed in: the contract's order is "sign in first,
+    then redeem", and redeeming never creates a session. The contract also
+    takes a booking's status token here, which this app never sends: a code
+    admits the NUMBER, and the session is the proof of the number.
+
+    POST only. Nothing else lives under `/me/invite-codes`, and a redeem is
+    throttled per number, so the path must not widen into anything that could
+    be called in a loop.
+  */
+  { method: "POST", pattern: "/me/invite-codes/redeem" },
 ];
 
 /*

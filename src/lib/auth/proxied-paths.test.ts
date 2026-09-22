@@ -84,6 +84,23 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/support/requests/../me")).toBeNull();
   });
 
+  it("forwards redeeming an invite code, as a POST and nothing else", () => {
+    /*
+      yuvoy-api#195. Signed in only: the code admits the number the session
+      proved. Listing it must not list another verb on it, nor anything under
+      it, nor a sibling under `/me/invite-codes`.
+    */
+    expect(allowedProxyPath("POST", "/me/invite-codes/redeem")).toBe(
+      "/me/invite-codes/redeem",
+    );
+    expect(allowedProxyPath("GET", "/me/invite-codes/redeem")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/me/invite-codes/redeem")).toBeNull();
+    expect(allowedProxyPath("POST", "/me/invite-codes")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/invite-codes")).toBeNull();
+    expect(allowedProxyPath("POST", "/me/invite-codes/redeem/x")).toBeNull();
+    expect(allowedProxyPath("POST", "/me/invite-codes/issue")).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

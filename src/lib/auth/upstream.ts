@@ -84,6 +84,12 @@ export async function callUpstream(options: {
    * mocked build, the scenario header.
    */
   from?: Request;
+  /**
+   * The page's own `?__scenario=`, for a call a Server Component makes, which
+   * has no incoming `Request` to read it off. Honoured in a mocked build only,
+   * exactly like the header above; anywhere else it is dropped.
+   */
+  scenario?: string;
   signal?: AbortSignal;
 }): Promise<UpstreamResult> {
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -108,8 +114,9 @@ export async function callUpstream(options: {
     unconditionally would let anybody set a scenario header against the real
     API, which does not honour it but should never be offered the chance.
   */
-  if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled" && options.from) {
-    const scenario = options.from.headers.get(SCENARIO_HEADER);
+  if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
+    const scenario =
+      options.scenario ?? options.from?.headers.get(SCENARIO_HEADER);
     if (scenario) headers[SCENARIO_HEADER] = scenario;
   }
 
