@@ -3,17 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { YuvoyError } from "@/lib/api/errors";
-import {
-  useTravellerSession,
-  useRequestSignInCode,
-  useVerifySignInCode,
-} from "@/lib/auth/use-traveller";
-import { Field } from "@/components/ui/field";
-import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
+import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Panel } from "@/components/ui/panel";
 import { Screen } from "@/components/chrome/screen";
+import { SignInSteps, useSignInFlow } from "@/components/auth/sign-in-form";
 import { LegalLinks } from "@/components/site/legal-links";
 import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
@@ -55,65 +48,34 @@ import { FirstSignIn } from "./first-sign-in";
  * against the drop-off.
  */
 export function AccountScreen() {
-  const { signedIn, signIn, signOut } = useTravellerSession();
+  const { signedIn, signOut } = useTravellerSession();
   const router = useRouter();
-  const [phone, setPhone] = useState(DEFAULT_DIAL_CODE);
-  const [code, setCode] = useState("");
-  const [sent, setSent] = useState(false);
-  const [devCode, setDevCode] = useState<string | undefined>();
-  const [resent, setResent] = useState(false);
+  const flow = useSignInFlow();
 
-  const request = useRequestSignInCode();
-  const verify = useVerifySignInCode();
-
-  const phoneGiven = phone.replace(/\D/g, "").length > 4;
-
-  async function askForCode(again = false) {
-    verify.reset();
-    setCode("");
-    const answer = await request.mutateAsync(phone).catch(() => null);
-    if (!answer) return;
-    setSent(true);
-    setDevCode(answer.devCode);
-    setResent(again);
-  }
-
-  async function submitCode() {
+  function afterSignIn() {
     /*
-      The answer carries no token any more, only `{ signedIn: true }`. The
-      session is already in an HttpOnly cookie by the time this resolves,
-      because `POST /api/session` set it server-side (yuvoy-app#57).
+      Back where the Login button was pressed (yuvoy-app#56 item 5).
+
+      Read off `window.location` in the handler rather than with
+      `useSearchParams`. The hook would bail this whole page out of static
+      rendering unless it sat inside a Suspense boundary, and a boundary
+      around the screen empties the prerendered HTML: `/account` is where the
+      privacy and terms links live, `e2e/audit.spec.ts` asserts them in the
+      SERVER-RENDERED source, and it caught exactly that. The value is only
+      needed at the instant sign-in succeeds, which is browser-only anyway.
+
+      `safeNextPath` is an open-redirect guard, not a formality: `next`
+      arrives from the query string, so a link to
+      `/account?next=https://evil.example/login` would otherwise hand a
+      traveller who has just signed in on OUR domain to somebody else's page,
+      in the same tab, already trusting what they see. Anything that is not a
+      path on this origin answers null and they stay here, signed in, which
+      is the issue's own instruction.
     */
-    const answer = await verify.mutateAsync({ phone, code }).catch(() => null);
-    if (answer?.signedIn) {
-      await signIn();
-      setSent(false);
-      setCode("");
-
-      /*
-        Back where the Login button was pressed (yuvoy-app#56 item 5).
-
-        Read off `window.location` in the handler rather than with
-        `useSearchParams`. The hook would bail this whole page out of static
-        rendering unless it sat inside a Suspense boundary, and a boundary
-        around the screen empties the prerendered HTML: `/account` is where the
-        privacy and terms links live, `e2e/audit.spec.ts` asserts them in the
-        SERVER-RENDERED source, and it caught exactly that. The value is only
-        needed at the instant sign-in succeeds, which is browser-only anyway.
-
-        `safeNextPath` is an open-redirect guard, not a formality: `next`
-        arrives from the query string, so a link to
-        `/account?next=https://evil.example/login` would otherwise hand a
-        traveller who has just signed in on OUR domain to somebody else's page,
-        in the same tab, already trusting what they see. Anything that is not a
-        path on this origin answers null and they stay here, signed in, which
-        is the issue's own instruction.
-      */
-      const next = safeNextPath(
-        new URLSearchParams(window.location.search).get("next"),
-      );
-      if (next) router.replace(next);
-    }
+    const next = safeNextPath(
+      new URLSearchParams(window.location.search).get("next"),
+    );
+    if (next) router.replace(next);
   }
 
   if (signedIn === undefined) {
@@ -123,7 +85,7 @@ export function AccountScreen() {
           <Skeleton className="h-32 w-full" />
         </LoadingState>
         {/*
-          Here too, because this is the branch that PRERENDERS — `/account` is
+          Here too, because this is the branch that PRERENDERS: `/account` is
           a static route and this shell is what the HTML contains. A policy
           link that only exists after hydration is one a crawler, a reader with
           JavaScript off, and anybody reading the source cannot find.
@@ -135,126 +97,22 @@ export function AccountScreen() {
 
   if (signedIn) return <SignedIn onSignOut={signOut} />;
 
-  const failure = signInFailure(verify.error ?? request.error, sent);
-
   return (
     <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        {sent ? "Check your WhatsApp" : "Sign in"}
+        {flow.sent ? "Check your WhatsApp" : "Sign in"}
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
-        {sent
-          ? `We sent a six-digit code to ${phone}. It is good for a few minutes.`
+        {flow.sent
+          ? `We sent a six-digit code to ${flow.phone}. It is good for a few minutes.`
           : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up."}
       </p>
 
-      <form
-        className="mt-8 space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (sent) void submitCode();
-          else void askForCode();
-        }}
-      >
-        {sent ? (
-          <Field
-            label="The code we sent"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="font-mono"
-            error={failure?.field === "code" ? failure.body : undefined}
-            hint={
-              devCode ? `Development build: the code is ${devCode}.` : undefined
-            }
-            autoFocus
-            required
-          />
-        ) : (
-          <PhoneField
-            label="Your WhatsApp number"
-            value={phone}
-            onChange={setPhone}
-            error={failure?.field === "phone" ? failure.body : undefined}
-            hint="The number you book with. Any number works, whether or not it has booked before."
-            required
-          />
-        )}
-
-        <Button
-          type="submit"
-          size="lg"
-          block
-          disabled={
-            request.isPending ||
-            verify.isPending ||
-            (sent ? code.trim().length === 0 : !phoneGiven)
-          }
-        >
-          {request.isPending
-            ? "Sending a code…"
-            : verify.isPending
-              ? "Signing you in…"
-              : sent
-                ? "Show me my trips"
-                : "Send me a code"}
-        </Button>
-      </form>
-
-      {/*
-        THE TWO WAYS OUT, as buttons rather than small print — yuvoy-app#34.
-
-        "The owner took a while to find both." They were two underlined words
-        inside a sentence of 12px grey text, and the number field was simply
-        disabled once a code had been sent, so a wrong number had no visible
-        way back at all.
-      */}
-      {sent ? (
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            disabled={request.isPending}
-            onClick={() => void askForCode(true)}
-          >
-            {request.isPending ? "Sending…" : "Send another code"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSent(false);
-              setCode("");
-              setDevCode(undefined);
-              setResent(false);
-              request.reset();
-              verify.reset();
-            }}
-          >
-            Change number
-          </Button>
-        </div>
-      ) : null}
-
-      {resent && !failure ? (
-        <p role="status" className="text-forest/70 mt-4 text-xs">
-          A new code is on its way. The older one stops working.
-        </p>
-      ) : null}
-
-      {/*
-        The failure, said as a product rather than a stub. `signInFailure` is
-        what turns a code into a sentence; a message attached to the FIELD it
-        concerns is rendered on the field instead of here, so it is beside the
-        thing to change rather than below the button.
-      */}
-      {failure && !failure.field ? (
-        <Panel role="alert" className="mt-6">
-          <p className="text-sm font-bold">{failure.title}</p>
-          <p className="text-forest/70 mt-1.5 text-sm">{failure.body}</p>
-          {failure.action ? <div className="mt-4">{failure.action}</div> : null}
-        </Panel>
-      ) : null}
+      <SignInSteps
+        flow={flow}
+        submitLabel="Show me my trips"
+        onSignedIn={afterSignIn}
+      />
 
       <p className="text-forest/70 mt-8 text-xs">
         Lost the link to a booking?{" "}
@@ -268,93 +126,13 @@ export function AccountScreen() {
       </p>
 
       {/*
-        On BOTH branches of this screen — yuvoy-app#15. It was on the signed-in
+        On BOTH branches of this screen (yuvoy-app#15). It was on the signed-in
         one only, and almost nobody is signed in: this product has no account
         to make, so the signed-out form is what a traveller meets here.
       */}
       <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
     </Screen>
   );
-}
-
-/**
- * What went wrong, as something a person can act on.
- *
- * The owner's words about what was here: "just basic AI generated, make it
- * proper. Say what happened, what to do next and where, with the field it
- * concerns."
- *
- * So each branch answers three things — what happened, what to do, and which
- * field to do it in — and `field` is what puts the sentence beside the input
- * rather than in a panel below the button.
- *
- * The generic `describeError` is deliberately not used here. It is written for
- * a booking that may have taken money, and its vocabulary ("this link no
- * longer opens anything") is wrong for somebody who has typed six digits.
- */
-function signInFailure(
-  error: unknown,
-  sent: boolean,
-): {
-  title: string;
-  body: string;
-  /** Renders on that field instead of in a panel. */
-  field?: "phone" | "code";
-  action?: React.ReactNode;
-} | null {
-  if (!error) return null;
-
-  const code = error instanceof YuvoyError ? error.code : null;
-  const status = error instanceof YuvoyError ? error.status : null;
-
-  if (status === 429) {
-    return {
-      title: "Too many tries",
-      body: "We have stopped sending codes to this number for a few minutes. Nothing is wrong with your account. Wait a moment and ask for another.",
-    };
-  }
-
-  if (status === 401) {
-    /*
-      "Wrong, expired, used and over-attempted codes all answer 401 with one
-      message." So this cannot say WHICH, and must not guess — but it can say
-      the three things that are true of all four, and offer the way out.
-    */
-    return {
-      title: "That code did not work",
-      body: "It may be wrong, it may have expired, or it may already have been used. Ask for a new one and try again.",
-      field: "code",
-    };
-  }
-
-  if (status === 400 || code === "invalid_input") {
-    return sent
-      ? {
-          title: "That does not look like the code",
-          body: "It is six digits, from the message we sent.",
-          field: "code",
-        }
-      : {
-          title: "That number did not go through",
-          body: "Check the country code and the digits. An Indian mobile is ten digits after +91.",
-          field: "phone",
-        };
-  }
-
-  /*
-    Everything else: the network, or us. Not the traveller's fault and not
-    their problem to diagnose, so it says so and offers the one thing that
-    still works with no session at all.
-  */
-  return {
-    title: "We could not connect",
-    body: "That is our side or the island signal, not your number. Try again in a moment.",
-    action: (
-      <ButtonLink href="/trips" variant="outline" size="sm">
-        Go to my trips
-      </ButtonLink>
-    ),
-  };
 }
 
 /**
