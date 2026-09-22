@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { __seedSavedMock } from "../../../mocks/saved-handlers";
 import { YuvoyError } from "@/lib/api/errors";
 import { deviceSavedStore } from "./saved-store";
-import { adoptDeviceSavesOnce, readAccountSavedIds } from "./account-saved";
+import {
+  adoptDeviceSavesOnce,
+  readAccountSavedIds,
+  resetSavedSession,
+} from "./account-saved";
 
 /**
  * Moving a device's saves onto the account (yuvoy-api#192).
@@ -162,9 +166,16 @@ describe("when adoption cannot finish", () => {
   it("clears what it already moved when the connection drops halfway", async () => {
     let singles = 0;
     server.use(
+      // The API's own refusal, request id and all, as its envelope always is.
       http.post(`${BASE}/me/saved/adopt`, () =>
         HttpResponse.json(
-          { error: { code: "not_found", message: "Not available." } },
+          {
+            error: {
+              code: "not_found",
+              message: "Not available.",
+              requestId: "01JAPI404",
+            },
+          },
           { status: 404 },
         ),
       ),
@@ -204,5 +215,96 @@ describe("when adoption cannot finish", () => {
     expect(failure).toBeInstanceOf(YuvoyError);
     expect((failure as YuvoyError).status).toBe(401);
     expect(await deviceSavedStore.listSavedIds()).toEqual(["exp_try_dive"]);
+  });
+});
+
+describe("what may leave the device", () => {
+  it("cleans off the device what an unanswered adoption already moved", async () => {
+    /*
+      The server committed the adoption and the answer never arrived. Those
+      saves are on the account AND still on the device, and left there they
+      would be adopted again after the traveller removed one, putting it back.
+    */
+    server.use(
+      http.post(`${BASE}/me/saved/adopt`, () => {
+        __seedSavedMock(TOKEN, ["exp_try_dive"]);
+        return HttpResponse.error();
+      }),
+    );
+    await onDevice("exp_try_dive");
+
+    expect(await readAccountSavedIds()).toEqual(["exp_try_dive"]);
+    expect(await deviceSavedStore.listSavedIds()).toEqual([]);
+  });
+
+  it("keeps every save when the refusal is this app's own proxy, not the API", async () => {
+    /*
+      The proxy answers 404 for a path its allowlist lacks, with no request
+      id: what an older deployment would say to a newer page, for every save.
+      Reading that as "these listings are gone" would delete them all.
+    */
+    server.use(
+      http.post(`${BASE}/me/saved/adopt`, () =>
+        HttpResponse.json(
+          { error: { code: "not_found", message: "No such route." } },
+          { status: 404 },
+        ),
+      ),
+    );
+    await onDevice("exp_try_dive", UNKNOWN_UUID);
+
+    await readAccountSavedIds();
+
+    expect([...(await deviceSavedStore.listSavedIds())].sort()).toEqual(
+      [UNKNOWN_UUID, "exp_try_dive"].sort(),
+    );
+    // And no save was tried one at a time on the strength of it.
+    expect(calls.filter((c) => c === "POST /me/saved")).toEqual([]);
+  });
+
+  it("keeps a save the API refused while its listing still answers", async () => {
+    // An id the account will not take, on a listing that is plainly there.
+    await deviceSavedStore.addSaved(UNKNOWN_UUID, "mangrove-kayak-at-dawn");
+    await onDevice("exp_try_dive");
+
+    const ids = await readAccountSavedIds();
+
+    // The good one still moved: one refusal does not hold up the rest.
+    expect(ids).toEqual(["exp_try_dive"]);
+    expect(await deviceSavedStore.listSavedIds()).toEqual([UNKNOWN_UUID]);
+  });
+
+  it("does not ask again, this visit, about a save it had to keep", async () => {
+    await deviceSavedStore.addSaved(UNKNOWN_UUID, "mangrove-kayak-at-dawn");
+    await readAccountSavedIds();
+    calls = [];
+
+    await readAccountSavedIds();
+
+    // A plain read: no batch, no single save, for an answer that will not change.
+    expect(calls).toEqual(["GET /me/saved/ids"]);
+  });
+});
+
+describe("when who is signed in changes mid-way", () => {
+  it("does not hand one session's adoption to the next", async () => {
+    server.use(
+      http.post(`${BASE}/me/saved/adopt`, async ({ request }) => {
+        await delay(100);
+        const { experienceIds } = (await request.json()) as {
+          experienceIds: string[];
+        };
+        return HttpResponse.json({ ids: experienceIds });
+      }),
+    );
+    await onDevice("exp_try_dive");
+
+    const first = adoptDeviceSavesOnce();
+    resetSavedSession();
+    const second = adoptDeviceSavesOnce();
+
+    // A new session starts its own, rather than joining the old one's answer.
+    expect(second).not.toBe(first);
+    await Promise.all([first, second]);
   });
 });

@@ -158,7 +158,13 @@ function AccountSaved() {
     );
   }
 
-  if (list.isError && items.length === 0) {
+  /*
+    The error screen only when there is nothing to show. TanStack keeps the
+    last pages when a REFETCH fails and still reports `isError`, so testing
+    the error alone replaced a list, or an empty list with its Undo bar, with
+    "Try again" whenever a background refresh missed.
+  */
+  if (list.isError && list.data === undefined) {
     return (
       <Shell>
         {isSignedOutError(list.error) ? (
@@ -183,9 +189,22 @@ function AccountSaved() {
     );
   }
 
+  /*
+    STALE, and said quietly. A refresh that failed leaves a list that was true
+    a minute ago and is still useful, so it stays on screen; what changes is
+    that the traveller is told it may be behind.
+  */
+  const stale =
+    list.isRefetchError && !isSignedOutError(list.error) ? (
+      <StaleNotice onRefresh={() => void list.refetch()} className="mb-6">
+        We could not check for changes just now, so this list may be behind.
+      </StaleNotice>
+    ) : null;
+
   if (items.length === 0) {
     return (
       <Shell undoBar={undoBar} failure={writeFailure}>
+        {stale}
         <NothingSaved />
       </Shell>
     );
@@ -193,16 +212,7 @@ function AccountSaved() {
 
   return (
     <Shell count={count} undoBar={undoBar} failure={writeFailure}>
-      {/*
-        STALE, and said quietly. A refresh that failed leaves a list that was
-        true a minute ago and is still useful, so it stays on screen; what
-        changes is that the traveller is told it may be behind.
-      */}
-      {list.isRefetchError && !isSignedOutError(list.error) ? (
-        <StaleNotice onRefresh={() => void list.refetch()} className="mb-6">
-          We could not check for changes just now, so this list may be behind.
-        </StaleNotice>
-      ) : null}
+      {stale}
       <Grid>
         {items.map((item) => (
           <li key={item.id} className="relative">
@@ -231,7 +241,12 @@ function AccountSaved() {
           </Button>
         </div>
       ) : null}
-      {list.isFetchNextPageError ? (
+      {/*
+        Not for a 401: the session ended, the session answer is already being
+        asked again, and describeError reads a bare 401 as a wrong sign-in
+        code ("That code did not work").
+      */}
+      {list.isFetchNextPageError && !isSignedOutError(list.error) ? (
         <FailurePanel failure={describeError(list.error)} className="mt-4" />
       ) : null}
     </Shell>

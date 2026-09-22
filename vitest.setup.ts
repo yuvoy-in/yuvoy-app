@@ -13,7 +13,7 @@ import { __resetClockOffset } from "./src/lib/booking/clock";
   request whose shape nobody checked, and it would otherwise pass silently.
 */
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => {
+afterEach(async () => {
   server.resetHandlers();
   // Reservations and idempotency keys are module state in the mock. Leaking
   // them between cases makes an idempotency test pass for the wrong reason.
@@ -31,6 +31,15 @@ afterEach(() => {
   __resetClockOffset();
   sessionStorage.clear();
   cleanup();
+  /*
+    The saved module's own state: the session counter, a joined adoption, the
+    saves skipped this visit. Imported HERE, lazily, and not at the top of this
+    file: a static import would load the device store before a test file's
+    `vi.mock("idb-keyval")` is registered, and every test would then read a
+    real, empty IndexedDB instead of its own stand-in.
+  */
+  const { resetSavedSession } = await import("./src/lib/feed/account-saved");
+  resetSavedSession();
 });
 afterAll(() => server.close());
 

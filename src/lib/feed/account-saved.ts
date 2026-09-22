@@ -1,7 +1,7 @@
-import { createProxyClient } from "@/lib/api/client";
+import { api, createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema.gen";
-import { deviceSavedStore } from "./saved-store";
+import { deviceSavedStore, type SavedEntry } from "./saved-store";
 
 /**
  * Saves on the ACCOUNT, and the one-time move of a device's saves onto it
@@ -102,19 +102,82 @@ export function isSignedOutError(error: unknown): boolean {
 }
 
 /**
- * A refusal that will never become a yes for this id.
+ * Who is signed in, as a number that changes whenever that does.
  *
- * `404 not_found` is "not available to save" (a listing that was never public
- * or no longer exists) and `400` is an id the API cannot read. Retrying either
- * answers the same way forever, so the id is let go rather than retried on
- * every sign-in. A 401, a 5xx or a dropped connection is none of these: the
- * save is kept on the device and tried again next time.
+ * Sign in, sign out, and a session that ended all bump it (`forgetSaved` in
+ * `use-traveller.ts`). Work started for one number checks it before it
+ * touches the account again, because the proxy attaches whatever cookie is
+ * current when a request LEAVES: an adoption or a queued write started for
+ * one traveller on a shared phone would otherwise land in the next
+ * traveller's account.
  */
-function isPermanentRefusal(error: unknown): boolean {
+let epoch = 0;
+
+/**
+ * Saves the API refused this visit although their listing still answers.
+ * Kept on the device and not offered again until the page reloads, so one
+ * refusal that will not change cannot cost a round trip on every read.
+ */
+const skippedThisVisit = new Set<string>();
+
+/** The current session's number. Stamped on account writes when queued. */
+export function savedSessionEpoch(): number {
+  return epoch;
+}
+
+/** Who is signed in changed: nothing started before this may continue. */
+export function resetSavedSession(): void {
+  epoch += 1;
+  inFlight = null;
+  skippedThisVisit.clear();
+}
+
+/**
+ * A refusal from the API itself, of an id it will never accept.
+ *
+ * `400` is an id the API cannot read. `404` is "not available to save": a
+ * listing that was never public or no longer exists. Both only count when the
+ * API said them, which its envelope's request id proves. This app's own proxy
+ * answers `404 not_found` too, for a path its allowlist lacks, with no request
+ * id: an older deployment serving a newer page would say exactly that for
+ * every save, and reading it as "these listings are gone" would delete every
+ * save on the device.
+ */
+function isApiRefusal(error: unknown): error is YuvoyError {
   return (
     error instanceof YuvoyError &&
-    (error.status === 400 || error.status === 404)
+    (error.status === 400 || error.status === 404) &&
+    Boolean(error.requestId)
   );
+}
+
+/**
+ * Whether a save the API refused can be let go from the device.
+ *
+ * A malformed id, yes. A 404, only once the public listing confirms it is
+ * gone: if `GET /experiences/{slug}` still answers, the refusal was about
+ * something else and the save is kept to try again. A save from before
+ * entries carried a slug cannot be checked and cannot be shown either, so the
+ * API's word is taken for it.
+ */
+async function isGoneForGood(
+  error: unknown,
+  entry: SavedEntry,
+): Promise<boolean> {
+  if (!isApiRefusal(error)) return false;
+  if (error.status === 400 || !entry.slug) return true;
+  try {
+    await api.GET("/experiences/{slug}", {
+      params: { path: { slug: entry.slug } },
+    });
+    return false;
+  } catch (readError) {
+    return (
+      readError instanceof YuvoyError &&
+      readError.status === 404 &&
+      Boolean(readError.requestId)
+    );
+  }
 }
 
 async function adoptBatch(ids: string[]): Promise<string[]> {
@@ -126,25 +189,43 @@ async function adoptBatch(ids: string[]): Promise<string[]> {
 }
 
 /**
- * One batch the API refused as a whole, sent one id at a time.
+ * One batch the API refused as a whole, sent one save at a time.
  *
  * The API refuses the ENTIRE batch when any id in it is unknown or malformed,
  * and says which in neither case. So the only way to keep the good ones is to
  * send each on its own, through the same idempotent single save the feed uses.
- * It costs a round trip per id, which is why it only ever happens after a
+ * It costs a round trip per save, which is why it only ever happens after a
  * refusal and never as the first attempt.
  */
-async function adoptOneByOne(ids: string[]): Promise<void> {
+async function adoptOneByOne(
+  entries: SavedEntry[],
+  startedIn: number,
+): Promise<void> {
   const settled: string[] = [];
   try {
-    for (const id of ids) {
+    for (const entry of entries) {
+      if (epoch !== startedIn) return;
       try {
-        await saveToAccount(id);
+        await saveToAccount(entry.id);
       } catch (error) {
-        if (!isPermanentRefusal(error)) throw error;
+        if (!(await isGoneForGood(error, entry))) {
+          /*
+            Refused by the API although its listing still answers: kept on
+            the device, skipped for the rest of this visit, and the rest of
+            the batch carries on. Throwing here would stop every save after it
+            from moving, on every read, and retrying it on every read would
+            be a request each time for an answer that will not change.
+          */
+          if (isApiRefusal(error)) {
+            skippedThisVisit.add(entry.id);
+            continue;
+          }
+          // The network, a 5xx, a finished session: stop, keep the rest.
+          throw error;
+        }
       }
-      // Adopted, or refused for good: either way it has left the device.
-      settled.push(id);
+      // Adopted, or gone for good: either way it has left the device.
+      settled.push(entry.id);
     }
   } finally {
     /*
@@ -164,57 +245,71 @@ async function adoptOneByOne(ids: string[]): Promise<void> {
  * ## What leaves the device, and when
  *
  * An id is removed from the device only once the account has it, or once the
- * API has refused it for good. Removal is by id rather than "clear the store",
- * so a save the traveller made on this device while adoption was in flight is
- * not lost with it: it stays for the next run.
+ * API has refused it and the listing is confirmed gone. Removal is by id
+ * rather than "clear the store", so a save the traveller made on this device
+ * while adoption was in flight is not lost with it: it stays for the next run.
  *
- * Throws on anything that is not a permanent refusal, leaving whatever did not
- * move on the device. A 401 in particular must reach the caller: it means the
- * session ended and the screen should stop treating the traveller as signed in.
+ * It stops, keeping the rest on the device, the moment who is signed in
+ * changes. Throws on anything else that is not a confirmed refusal. A 401 in
+ * particular must reach the caller: the session ended, and the screen should
+ * stop treating the traveller as signed in.
  */
-async function adoptDeviceSaves(): Promise<string[] | null> {
-  const entries = await deviceSavedStore.listSaved();
-  const ids = [...new Set(entries.map((entry) => entry.id))];
-  if (ids.length === 0) return null;
+async function adoptDeviceSaves(startedIn: number): Promise<string[] | null> {
+  const unique = new Map<string, SavedEntry>();
+  for (const entry of await deviceSavedStore.listSaved()) {
+    if (skippedThisVisit.has(entry.id)) continue;
+    if (!unique.has(entry.id)) unique.set(entry.id, entry);
+  }
+  const entries = [...unique.values()];
+  if (entries.length === 0) return null;
 
   let result: string[] | null = null;
-  for (let i = 0; i < ids.length; i += ADOPT_BATCH) {
-    const batch = ids.slice(i, i + ADOPT_BATCH);
+  for (let i = 0; i < entries.length; i += ADOPT_BATCH) {
+    if (epoch !== startedIn) return null;
+    const batch = entries.slice(i, i + ADOPT_BATCH);
+    const ids = batch.map((entry) => entry.id);
     try {
-      result = await adoptBatch(batch);
-      await deviceSavedStore.removeSavedIds(batch);
+      result = await adoptBatch(ids);
+      await deviceSavedStore.removeSavedIds(ids);
     } catch (error) {
-      if (!isPermanentRefusal(error)) throw error;
-      await adoptOneByOne(batch);
+      if (!isApiRefusal(error)) throw error;
+      await adoptOneByOne(batch, startedIn);
       // The last batch answer no longer describes the account after single
       // saves, so the caller reads the set fresh.
       result = null;
     }
   }
-  return result ?? (await fetchAccountSavedIds());
+  return result;
 }
 
 /**
- * One adoption at a time for the whole page.
+ * One adoption at a time for the whole page, per signed-in session.
  *
  * The feed's id query and the list screen's first page both need the device's
  * saves on the account before they read it, and they can start in the same
  * tick. Two concurrent adoptions would both succeed (the API serialises them
  * and the union is idempotent), but they would read and rewrite the same
- * device store twice for no gain. So the second caller waits for the first.
+ * device store twice for no gain. So the second caller waits for the first,
+ * unless the first belongs to a session that has since ended.
  *
  * Cleared when it settles, so the next read looks at the device again: a save
  * made while signed out in another tab is picked up then.
  */
-let inFlight: Promise<string[] | null> | null = null;
+let inFlight: { epoch: number; promise: Promise<string[] | null> } | null =
+  null;
 
 export function adoptDeviceSavesOnce(): Promise<string[] | null> {
-  if (!inFlight) {
-    inFlight = adoptDeviceSaves().finally(() => {
-      inFlight = null;
-    });
+  if (!inFlight || inFlight.epoch !== epoch) {
+    const startedIn = epoch;
+    const mine: { epoch: number; promise: Promise<string[] | null> } = {
+      epoch: startedIn,
+      promise: adoptDeviceSaves(startedIn).finally(() => {
+        if (inFlight === mine) inFlight = null;
+      }),
+    };
+    inFlight = mine;
   }
-  return inFlight;
+  return inFlight.promise;
 }
 
 /**
@@ -229,11 +324,21 @@ export function adoptDeviceSavesOnce(): Promise<string[] | null> {
 export async function readAccountSavedIds(
   signal?: AbortSignal,
 ): Promise<string[]> {
+  const startedIn = epoch;
+  let ids: string[] | null = null;
   try {
-    const adopted = await adoptDeviceSavesOnce();
-    if (adopted) return adopted;
+    ids = await adoptDeviceSavesOnce();
   } catch (error) {
     if (isSignedOutError(error)) throw error;
   }
-  return fetchAccountSavedIds(signal);
+  ids ??= await fetchAccountSavedIds(signal);
+
+  /*
+    A device copy of anything the account now holds goes. The case it exists
+    for: an adoption the server committed whose answer never arrived. Those
+    saves are on the account and still on the device, and left there they
+    would be adopted again after the traveller removed one, putting it back.
+  */
+  if (epoch === startedIn) await deviceSavedStore.removeSavedIds(ids);
+  return ids;
 }

@@ -449,6 +449,78 @@ describe("signed in: saves on the account", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps an emptied list and its Undo when a refresh fails", async () => {
+    /*
+      TanStack keeps the last pages when a refetch fails and still reports
+      `isError`. The screen tested the error first, so removing the last save
+      and then missing one refresh replaced "Nothing saved yet" AND the only
+      way back with a full-screen "Try again".
+    */
+    const user = userEvent.setup();
+    __seedSavedMock(TOKEN, [first.id]);
+    const { client } = renderWithQuery(<SavedScreen />);
+    await user.click(
+      await screen.findByRole("button", { name: /remove .* from saved/i }),
+    );
+    expect(await screen.findByText("Nothing saved yet")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(calls).toContain(`DELETE /me/saved/${first.id}`),
+    );
+
+    server.use(
+      http.get(`${BASE}/me/saved`, () =>
+        HttpResponse.json(
+          { error: { code: "internal_error", message: "Down." } },
+          { status: 500 },
+        ),
+      ),
+    );
+    await client.invalidateQueries({ queryKey: ["listSavedExperiences"] });
+
+    expect(
+      await screen.findByText(/this list may be behind/i, undefined, {
+        timeout: 5_000,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nothing saved yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /undo/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("does not call a session that ended on Show more a wrong code", async () => {
+    const user = userEvent.setup();
+    /*
+      The session answer is held at "signed in", so the screen stays put with
+      the failed page under it. Otherwise the 401 flips it to this browser's
+      list first and the panel is never on screen to be wrong.
+    */
+    server.use(
+      http.get("*/api/session", () => HttpResponse.json({ signedIn: true })),
+    );
+    server.use(
+      http.get(`${BASE}/me/saved`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get("cursor");
+        return cursor
+          ? HttpResponse.json(
+              { error: { code: "unauthorized", message: "Sign in." } },
+              { status: 401 },
+            )
+          : HttpResponse.json({
+              items: [{ ...first, bookable: true }],
+              nextCursor: "c1",
+              complete: false,
+            });
+      }),
+    );
+
+    renderWithQuery(<SavedScreen />);
+    await user.click(await screen.findByRole("button", { name: "Show more" }));
+    await waitFor(() => expect(screen.queryByText("Loading more…")).toBeNull());
+
+    // describeError reads a bare 401 as the sign-in form's wrong code.
+    expect(screen.queryByText(/that code did not work/i)).toBeNull();
+  });
+
   it("falls back to this browser when the session has ended", async () => {
     /*
       The proxy drops the cookie on a 401, and the session answer is asked

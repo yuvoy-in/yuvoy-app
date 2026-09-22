@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
   type InfiniteData,
+  type MutateOptions,
   type QueryClient,
 } from "@tanstack/react-query";
 import { CACHE, qk } from "@/lib/query/policy";
@@ -20,6 +21,7 @@ import {
   readAccountSavedIds,
   removeFromAccount,
   saveToAccount,
+  savedSessionEpoch,
   type SavedExperience,
 } from "./account-saved";
 import type { components } from "@/lib/api/schema.gen";
@@ -220,6 +222,17 @@ export interface SavedWrite {
   item?: SavedExperience;
 }
 
+/** A write as queued: stamped with the session it was made in. */
+interface QueuedWrite extends SavedWrite {
+  epoch: number;
+}
+
+/** What `onMutate` keeps, to put back if the write fails. */
+interface Previous {
+  ids: string[] | undefined;
+  list: unknown;
+}
+
 /** The set with this write applied. `undefined` stays `undefined`: see below. */
 function applyToIds(current: string[] | undefined, write: SavedWrite) {
   /*
@@ -290,13 +303,29 @@ function applyToPages(
 export function useSavedWrite() {
   const client = useQueryClient();
 
-  return useMutation({
+  const mutation = useMutation({
     mutationKey: WRITE_KEY,
     scope: WRITE_SCOPE,
-    mutationFn: async (write: SavedWrite) => {
+    mutationFn: async (write: QueuedWrite) => {
       if (write.where === "account") {
-        if (write.next) await saveToAccount(write.id);
-        else await removeFromAccount(write.id);
+        /*
+          Queued under a session that has since ended (sign out, then another
+          number signs in, while this waited behind a slow request). The proxy
+          would send it with the NEW session's cookie, onto somebody else's
+          account, so it is dropped instead.
+        */
+        if (write.epoch !== savedSessionEpoch()) return;
+        if (write.next) {
+          await saveToAccount(write.id);
+        } else {
+          await removeFromAccount(write.id);
+          /*
+            And off the device, if a copy is still there. A copy the account
+            already holds is only waiting to be adopted, and adopting it after
+            this removal would put the save straight back.
+          */
+          await deviceSavedStore.removeSaved(write.id);
+        }
         return;
       }
       if (write.next) {
@@ -305,7 +334,7 @@ export function useSavedWrite() {
         await deviceSavedStore.removeSaved(write.id);
       }
     },
-    onMutate: async (write) => {
+    onMutate: async (write): Promise<Previous> => {
       const idsKey = qk.savedIds(write.where);
       const listKey = qk.savedList(write.where);
       /* Stop an in-flight read from landing on top of the optimistic set. */
@@ -333,13 +362,19 @@ export function useSavedWrite() {
       return previous;
     },
     onError: (error, write, previous) => {
-      if (previous) {
+      /*
+        Only into the session it came from. Once who is signed in has changed,
+        these keys belong to somebody else, and the previous number's saves
+        would paint on the next number's screens until a refetch.
+      */
+      if (previous && write.epoch === savedSessionEpoch()) {
         client.setQueryData(qk.savedIds(write.where), previous.ids);
         client.setQueryData(qk.savedList(write.where), previous.list);
       }
       if (isSignedOutError(error)) sessionEnded(client);
     },
     onSettled: (_data, _error, write) => {
+      if (write.epoch !== savedSessionEpoch()) return;
       /*
         This write still counts as in flight during its own `onSettled`, so
         one means the queue is empty after it.
@@ -354,6 +389,18 @@ export function useSavedWrite() {
       void client.invalidateQueries({ queryKey: qk.savedList(write.where) });
     },
   });
+
+  const { mutate: queue } = mutation;
+  /* Every write is stamped with the session it is made in. See above. */
+  const mutate = useCallback(
+    (
+      write: SavedWrite,
+      options?: MutateOptions<void, Error, QueuedWrite, Previous>,
+    ) => queue({ ...write, epoch: savedSessionEpoch() }, options),
+    [queue],
+  );
+
+  return { ...mutation, mutate };
 }
 
 /**

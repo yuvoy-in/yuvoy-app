@@ -13,6 +13,7 @@ import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
 import type { TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
+import { resetSavedSession } from "@/lib/feed/account-saved";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -58,6 +59,11 @@ interface SessionAnswer {
  * because signing in moves it onto the account underneath its cache.
  */
 function forgetSaved(qc: QueryClient): void {
+  /*
+    First, so nothing started for the previous number (an adoption, a queued
+    write) reaches the next one's account or cache. See `resetSavedSession`.
+  */
+  resetSavedSession();
   qc.removeQueries({ queryKey: qk.savedIds("account") });
   qc.removeQueries({ queryKey: qk.savedList("account") });
   qc.removeQueries({ queryKey: qk.savedIds("device") });

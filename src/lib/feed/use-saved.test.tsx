@@ -12,6 +12,7 @@ import { __seedSavedMock } from "../../../mocks/saved-handlers";
 import { renderWithQuery } from "@/test/render";
 import { useSaved } from "./use-saved";
 import { deviceSavedStore } from "./saved-store";
+import { resetSavedSession } from "./account-saved";
 import { qk } from "@/lib/query/policy";
 
 /**
@@ -153,6 +154,63 @@ describe("signed in", () => {
     await waitFor(() =>
       expect(bookmark).toHaveAttribute("aria-pressed", "false"),
     );
+  });
+
+  it("an unsave also removes a copy still waiting on the device", async () => {
+    /*
+      A copy the account already holds is only waiting to be adopted. Left
+      on the device after an unsave, the re-read that follows would adopt it
+      again and the bookmark would fill back up under the traveller's finger.
+    */
+    __seedSavedMock(TOKEN, ["exp_kayak"]);
+    const user = userEvent.setup();
+    const bookmark = await signedInAndLoaded();
+    await waitFor(() =>
+      expect(bookmark).toHaveAttribute("aria-pressed", "true"),
+    );
+    await deviceSavedStore.addSaved("exp_kayak", "mangrove-kayak-at-dawn");
+
+    await user.click(bookmark);
+
+    await waitFor(() => expect(calls).toContain("DELETE /me/saved/exp_kayak"));
+    await waitFor(() =>
+      expect(calls.filter((c) => c === "GET /me/saved/ids")).toHaveLength(2),
+    );
+    expect(await deviceSavedStore.listSavedIds()).toEqual([]);
+    expect(calls).not.toContain("POST /me/saved/adopt");
+    expect(bookmark).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("drops a write queued under a session that has since ended", async () => {
+    /*
+      Sign out, and another number signs in, while an unsave waits behind a
+      slow save. The proxy attaches whatever cookie is current when a request
+      leaves, so sending it would unsave on somebody else's account.
+    */
+    const order: string[] = [];
+    server.use(
+      http.post(`${BASE}/me/saved`, async () => {
+        order.push("save started");
+        await delay(150);
+        order.push("save ended");
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.delete(`${BASE}/me/saved/:experienceId`, () => {
+        order.push("unsave started");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    const bookmark = await signedInAndLoaded();
+
+    await user.click(bookmark);
+    await user.click(bookmark);
+    // Who is signed in changes while the unsave is still queued.
+    resetSavedSession();
+
+    await waitFor(() => expect(order).toContain("save ended"));
+    await delay(100);
+    expect(order).toEqual(["save started", "save ended"]);
   });
 
   it("shows what the account already holds", async () => {
