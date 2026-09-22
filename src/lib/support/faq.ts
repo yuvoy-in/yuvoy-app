@@ -188,7 +188,7 @@ export const FAQ: FaqCategory[] = [
         question: "Where are my saved experiences?",
         answer: [
           "Under Saved, from your account.",
-          "Saves currently live in the browser you made them in, so they will not follow you to another phone.",
+          "Signed in, they are kept on your account, so they are there on any phone you sign in on. Saved while signed out, they stay in that browser until you sign in, and then they move to your account.",
         ],
       },
     ],

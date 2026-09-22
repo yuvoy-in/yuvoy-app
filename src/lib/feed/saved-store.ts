@@ -13,17 +13,18 @@
  * "like" to everybody who has used a phone, and a like is a gesture this
  * product does not have.
  *
- * ## Why this file is an interface with one implementation
+ * ## The DEVICE half of saving
  *
  * Saves belong on the account, not on one device: a traveller who saves on
- * their phone and opens a laptop should see the same list. That is yuvoy-api
- * #192, and it does not exist yet.
+ * their phone and opens a laptop should see the same list. yuvoy-api#192 put
+ * them there, and `account-saved.ts` is that half. This file is where a save
+ * lives while nobody is signed in, and `use-saved.ts` picks between the two.
  *
- * So the UI is written against {@link SavedStore} and never against IndexedDB,
- * and the swap when #192 lands is this file gaining a second implementation
- * rather than every component learning about a network. The shape here is
- * deliberately the shape those endpoints will have: list ids, list bodies, add
- * one, remove one, all idempotent.
+ * The device is not retired by the account. Somebody who lands on a shared
+ * reel and saves three things before signing in has to keep them, so they are
+ * held here and moved onto the account when a session appears (see
+ * `adoptDeviceSavesOnce`). This file therefore keeps the account's shape:
+ * list ids, list entries, add one, remove one, all idempotent.
  *
  * ## Why an entry carries a slug, and why that is not redundant
  *
@@ -45,14 +46,13 @@
  * `localStorage` outright so it cannot drift: it is synchronous and blocks the
  * main thread on a slow device, and it is the first place an XSS payload looks.
  *
- * ## The gap this leaves, stated rather than hidden
+ * ## Signed out, a save is on this device only
  *
- * Until #192 lands, saves are on one device. The app does not claim otherwise
- * in its copy, and the adoption path is already precedented here: guest
- * bookings live on the device and are adopted into the account on sign in
- * (`merge-trips.ts`, `adopt-stored-session.tsx`). Saving will follow the same
- * route, which is why {@link listSavedIds} returns the whole set rather than
- * answering one id at a time.
+ * The copy says so on the list screen, with the way to fix it: signing in
+ * moves every save here onto the account. The adoption path follows the
+ * precedent guest bookings set (`adopt-stored-session.tsx`), which is why
+ * {@link listSavedIds} returns the whole set rather than answering one id at a
+ * time.
  */
 import { get, set } from "idb-keyval";
 
@@ -108,6 +108,14 @@ export interface SavedStore {
   addSaved(experienceId: string, slug: string, savedAt?: number): Promise<void>;
   /** Idempotent: removing something absent is not an error. */
   removeSaved(experienceId: string): Promise<void>;
+  /**
+   * Several at once, in one read and one write.
+   *
+   * What adoption uses once the account holds a batch. Removal by id rather
+   * than "clear everything", so a save made on this device while adoption was
+   * in flight survives it and moves next time.
+   */
+  removeSavedIds(experienceIds: string[]): Promise<void>;
 }
 
 /**
@@ -257,13 +265,20 @@ export const deviceSavedStore: SavedStore = {
       /* As above. */
     }
   },
-};
 
-/**
- * The store the app uses.
- *
- * One indirection, so the day yuvoy-api#192 lands this becomes a choice between
- * two implementations (device when signed out, API when signed in, and an
- * adoption step between) and nothing that renders has to change.
- */
-export const savedStore: SavedStore = deviceSavedStore;
+  async removeSavedIds(experienceIds) {
+    if (!available() || experienceIds.length === 0) return;
+    const gone = new Set(experienceIds);
+    try {
+      const entries = await read();
+      if (!entries.some((entry) => gone.has(entry.id))) return;
+      await set(
+        KEY,
+        entries.filter((entry) => !gone.has(entry.id)),
+      );
+    } catch {
+      /* As above. Adoption tries again next time; the account's union makes
+         sending a save twice harmless. */
+    }
+  },
+};

@@ -12,6 +12,7 @@ import {
   mockHeaders,
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
+import { savedHandlers } from "./saved-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -754,4 +755,5 @@ export const handlers = [
   }),
 
   ...bookingHandlers,
+  ...savedHandlers,
 ];

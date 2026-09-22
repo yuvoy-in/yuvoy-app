@@ -117,20 +117,30 @@ export const ERROR_CODES = [
   "already_reviewed",
   "review_window_closed",
   /*
-    DOCUMENTED BY THE API, AND ABSENT FROM ITS OWN ENUM.
+    `POST /reservations` refuses with `409 price_moved` when the departure no
+    longer costs the `expectTotalPaise` the traveller agreed to
+    (yuvoy-app#62 item 7).
 
-    `POST /reservations` answers `409 price_moved` "when the listing no longer
-    costs that", and says so in `expectedTotalMinor`'s description. It is not
-    in `ErrorCode`, so branching on it does not type-check against the
-    generated union and `YuvoyError.code` falls to `unknown_error` without
-    this line.
-
-    That is the same shape as `paid_pending_ops` on yuvoy-app#29, which cost
-    two production defects before the enum grew: a state outside a closed set
-    does not fail to compile, it silently stops matching. Raised on
-    yuvoy-api#193; delete this entry once it is declared upstream, not before.
+    This list carried it before the contract did: the API documented the
+    refusal and left it out of its own `ErrorCode` enum, so it existed here
+    alone. yuvoy-api#193 declared it upstream, and it now stays for the reason
+    every other entry does: `pnpm qa` refuses a declared code this list
+    cannot name.
   */
   "price_moved",
+  /*
+    Booking by invitation (yuvoy-api#195).
+
+    `invite_required` is a 403 from `POST /reservations` while the server's
+    invite gate is on; the other three are the refusals of
+    `POST /me/invite-codes/redeem`. Each leaves the traveller with a different
+    next step, which is why they are four codes and four sentences rather than
+    one "invalid code".
+  */
+  "invite_required",
+  "invite_code_unknown",
+  "invite_code_used",
+  "invite_code_expired",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

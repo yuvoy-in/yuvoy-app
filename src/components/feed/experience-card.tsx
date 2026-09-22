@@ -340,9 +340,9 @@ export function ExperienceCard({
               Save: a private wishlist, not a like.
 
               Nothing here is counted, published, or shown to an operator, which
-              is why it is a bookmark and not a heart. It is device-local until
-              yuvoy-api#192 lands; `use-saved` is written against an interface so
-              that is a one-file swap.
+              is why it is a bookmark and not a heart. Signed in it is kept on the
+              account (yuvoy-api#192), signed out on this device; `use-saved`
+              chooses, so this control never has to know which.
             */}
             <IconButton
               label={

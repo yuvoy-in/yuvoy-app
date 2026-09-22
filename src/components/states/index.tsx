@@ -194,6 +194,39 @@ export function describeError(
           body: "Nothing was sent and no seats are held. Try again, or pick another departure.",
           canRetry: true,
         };
+      /*
+        THE CALENDAR WAS OUT OF DATE - yuvoy-app#62 item 7, yuvoy-api#193.
+
+        Both are checkout refusals about the availability the page was drawn
+        from, not about the form. The screen above refetches the dates and puts
+        the API's own sentence over the calendar; these are what the panel
+        beside the button says. They used to fall through to the default, so a
+        traveller whose price had just moved read "It is us, not you, and
+        trying again often fixes it". Sending the same total again is refused
+        the same way, which is why neither offers a retry: the next attempt is
+        a new agreement at the new total, not a replay.
+      */
+      /*
+        Worded for both of the API's reasons. It sends this code when the
+        seats went while somebody was deciding AND when the party is larger
+        than the trip takes ("that is a larger party than this experience
+        takes"), so a sentence that named one cause would contradict the
+        API's own sentence, which checkout shows above the calendar.
+      */
+      case "capacity_unavailable":
+        return {
+          ...base,
+          title: "Not enough room for that party",
+          body: "This departure cannot take that many people now. Nothing was held and nothing was charged. Try fewer people, or pick another departure above.",
+          canRetry: false,
+        };
+      case "price_moved":
+        return {
+          ...base,
+          title: "The price has changed",
+          body: "This departure no longer costs what you were shown, so nothing was held and nothing was charged. The prices have been refreshed. Check the total below before you book again.",
+          canRetry: false,
+        };
       case "cutoff_passed":
         return {
           ...base,
@@ -373,6 +406,46 @@ export function describeError(
           ...base,
           title: "Not found",
           body: "This is not something we have, or it is no longer listed.",
+          canRetry: false,
+        };
+      /*
+        BOOKING BY INVITATION - yuvoy-api#195.
+
+        `invite_required` is what checkout gets while the server's gate is on
+        and the traveller is not signed in with an admitted number. The code
+        screen is the real answer to it; this is what is read anywhere that
+        screen is not. The other three are the code screen's own refusals, and
+        each names the one thing that helps, because "invalid code" for all
+        three is the sentence that turns into a support message.
+
+        None offers a retry: the same code sent again is refused identically.
+      */
+      case "invite_required":
+        return {
+          ...base,
+          title: "Yuvoy is by invitation",
+          body: "Booking needs an invite code. Sign in with your number, then enter the code you were given. Nothing was held and nothing was charged.",
+          canRetry: false,
+        };
+      case "invite_code_unknown":
+        return {
+          ...base,
+          title: "We do not recognise that code",
+          body: "Check it against the one you were given. If it still does not work, it may have been withdrawn, so ask for a new one.",
+          canRetry: false,
+        };
+      case "invite_code_used":
+        return {
+          ...base,
+          title: "That code has already been used",
+          body: "Each code lets one person in, once. Ask whoever gave it to you for another.",
+          canRetry: false,
+        };
+      case "invite_code_expired":
+        return {
+          ...base,
+          title: "That code has expired",
+          body: "Ask whoever gave it to you for a new one.",
           canRetry: false,
         };
       default:

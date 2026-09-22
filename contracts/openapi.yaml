@@ -597,14 +597,28 @@ paths:
         the unfiltered feed, unchanged.
 
 
+        **Ranges** (since 2026-09-21). `minDurationMinutes`,
+        `maxDurationMinutes`, `minPriceMinor` and `maxPriceMinor` are optional
+        whole numbers, each bound inclusive, and combine with the filters
+        above and with each other. Duration is the listing's
+        `durationMinutes`. Price is in minor units (paise) and is compared with
+        the same amount `fromPrice` shows. A negative number, a value that is
+        not a whole number, or a minimum above its maximum is a `400` whose
+        message and `details` name the parameter. **When any price bound is
+        set, listings priced `per_group` are left out**, because a price for
+        the whole group is not comparable with a price for one person.
+        Duration bounds do not leave them out. These four are on this feed
+        only; `/search` does not take them.
+
+
         Filters **narrow, they never rank**. The order is still the rotation,
         counted within the filtered set, so under "scuba at Havelock" every
         business's first matching reel still comes before anybody's second.
         There is no relevance ordering here; that is what `/search` is for.
 
 
-        **A cursor belongs to the filters it was minted under.** Sending it
-        with any different filter set is a `400`, because the rotation is
+        **A cursor belongs to the filters it was minted under**, the ranges
+        included. Sending it with any different filter set is a `400`, because the rotation is
         counted within the filters and the same position means a different
         card under different ones. When the chips change, drop the cursor and
         start from the first page. The same words typed with different case or
@@ -650,6 +664,31 @@ paths:
           description: >-
             Only reels of listings that can actually be booked that day, in the
             market's timezone.
+        - name: minDurationMinutes
+          in: query
+          description: >-
+            Only listings lasting at least this many minutes. Inclusive. Does
+            not leave out `per_group` listings.
+          schema: { type: integer, minimum: 0 }
+        - name: maxDurationMinutes
+          in: query
+          description: >-
+            Only listings lasting at most this many minutes. Inclusive. Not
+            below `minDurationMinutes`.
+          schema: { type: integer, minimum: 0 }
+        - name: minPriceMinor
+          in: query
+          description: >-
+            Only listings whose `fromPrice.amountMinor` is at least this, in minor
+            units. Inclusive. Setting it leaves out `per_group` listings.
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: maxPriceMinor
+          in: query
+          description: >-
+            Only listings whose `fromPrice.amountMinor` is at most this, in minor
+            units. Inclusive, not below `minPriceMinor`. Setting it leaves out
+            `per_group` listings.
+          schema: { type: integer, format: int64, minimum: 0 }
       responses:
         "200":
           description: Reels, each with the listing it sells.
@@ -867,6 +906,16 @@ paths:
         unknown, or a booking's status token) is `401 unauthorized`, never a
         guest checkout: sign in again, or retry without the header. With no
         `Authorization` header, checkout is exactly the guest checkout above.
+
+
+        **By invitation (yuvoy-api#195).** While the server's invite gate is
+        on, creating a reservation needs a signed-in traveller whose number is
+        admitted (`GET /me` says `admitted: true`; see `redeemInviteCode`).
+        Anybody else, including a guest checkout with no `Authorization`
+        header and a request to book, is `403 invite_required`, before
+        anything is checked or held. While the gate is off, nothing here
+        changes. Browsing, booking links, shared trips and everything about a
+        booking that already exists are never gated.
       operationId: createReservation
       security: [{}, { travellerSession: [] }]
       parameters:
@@ -910,6 +959,15 @@ paths:
             object with `questionId` and `text`, in the listing's order. Nothing
             was held, and the same `Idempotency-Key` can be sent again with the
             answers. A body without `answers` is never refused this way.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: >
+            `invite_required`: booking is by invitation and the caller is not a
+            signed-in, admitted traveller. The message says what to do next:
+            sign in, then enter an invite code. Only answered while the invite
+            gate is on.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1309,6 +1367,124 @@ paths:
         "429": { $ref: "#/components/responses/RateLimited" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
+  /me/saved:
+    get:
+      tags: [me]
+      operationId: listSavedExperiences
+      summary: The traveller's private saved experiences
+      description: >-
+        Newest saves first. Unpublished experiences stay in this list with
+        bookable false and their summary when saved. No save counts or
+        caller-specific fields are added to the public catalog. Cursor is
+        opaque; pass nextCursor back unchanged. Responses are private and
+        must not be cached by shared caches.
+      security: [{ travellerSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: Saved experiences, including unavailable ones
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+    post:
+      tags: [me]
+      operationId: saveExperience
+      summary: Save an experience privately
+      description: >-
+        Idempotent. Repeating a save does not change its position in the list.
+        Only public or withdrawn listings may be newly saved. Existing saves
+        survive unpublication. A recovery credential is not a travellerSession.
+      security: [{ travellerSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [experienceId]
+              additionalProperties: false
+              properties:
+                experienceId: { type: string, format: uuid }
+      responses:
+        "204": { description: Saved already or now saved }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /me/saved/ids:
+    get:
+      tags: [me]
+      operationId: listSavedExperienceIds
+      summary: All ids in this traveller's private saved set
+      security: [{ travellerSession: [] }]
+      responses:
+        "200":
+          description: All saved ids, including unpublished experiences
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedIds" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+  /me/saved/adopt:
+    post:
+      tags: [me]
+      operationId: adoptSavedExperiences
+      summary: Union device saves into the account and return the full set
+      description: >-
+        Atomic union, never replace. Idempotent; duplicates are ignored. At most
+        200 ids per request. An invalid, unknown or never-public id refuses the
+        entire request without changing the set. An existing saved id remains
+        valid after unpublication. Adopt in batches when more than 200 device
+        saves exist. Remove only through DELETE; adoption never removes saves.
+      security: [{ travellerSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [experienceIds]
+              additionalProperties: false
+              properties:
+                experienceIds:
+                  type: array
+                  maxItems: 200
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The resulting full saved set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedIds" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /me/saved/{experienceId}:
+    delete:
+      tags: [me]
+      operationId: removeSavedExperience
+      summary: Remove one private save
+      description: Idempotent. Removing an absent save also answers 204.
+      security: [{ travellerSession: [] }]
+      parameters:
+        - name: experienceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: No longer saved }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
   /me/bookings:
     get:
       tags: [me]
@@ -1407,7 +1583,7 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [reference, reservationId, experience, operator, localDate, localTime, state, guests, statusToken, experienceSlug, operatorSlug, heroImageUrl, destination, startsAt, timezone, createdAt, price, reviewed, canReview]
+                      required: [reference, reservationId, experience, operator, localDate, localTime, state, guests, statusToken, experienceSlug, operatorSlug, heroImageUrl, destination, startsAt, timezone, createdAt, price, reviewed, canReview, unreadCount]
                       properties:
                         reference:
                           type: string
@@ -1549,6 +1725,18 @@ paths:
                             no review yet, and ended no more than 30 days ago.
                             When true, `leaveReview` with this row's
                             `statusToken` will accept one.
+                        unreadCount:
+                          type: integer
+                          minimum: 0
+                          description: >-
+                            Messages from the business on this booking that the
+                            traveller has not marked read (since 2026-09-21).
+                            Counted exactly as `BookingMessageThread.unreadCount`
+                            is, from the same marker, so only
+                            `markBookingMessagesRead` lowers it and fetching the
+                            conversation lowers nothing. Always present: `0`
+                            when there is nothing new, no conversation yet, or
+                            no booking yet.
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
@@ -1689,6 +1877,11 @@ paths:
         in, and absent for a recovery token. `session.expiresAt` is when that
         session now ends, 14 days since this use. Keep a cookie or any stored
         expiry in step with it rather than with the value sign-in returned.
+
+
+        `admitted` is whether the number may book when booking is by
+        invitation. False means show the invite code screen
+        (`redeemInviteCode`).
       security: [{ travellerSession: [] }, { statusToken: [] }]
       responses:
         "200":
@@ -1802,7 +1995,121 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
+  /me/invite-codes/redeem:
+    post:
+      tags: [me]
+      summary: Redeem an invite code
+      operationId: redeemInviteCode
+      description: >-
+        Admits the signed-in traveller's number to booking with a code Yuvoy
+        gave them. Sign in first (`verifyTravellerSignIn`), then redeem.
+        **Redeeming never creates a session**: the number admitted is the one
+        the session already proved, so a traveller who signs in again on a new
+        phone with the same number keeps their access.
+
+
+        Codes are 8 characters from an alphabet with no 0, O, 1, I or L, shown
+        as `XXXX-XXXX`. Case, spaces and hyphens do not matter on input, so
+        `k7qm 4xrd` is the same code as `K7QM-4XRD`. One code admits one
+        person, once.
+
+
+        A number that is already admitted gets `200` with
+        `alreadyAdmitted: true` whatever code it sends, and the code is **not**
+        used up, so it can go to somebody else.
+
+
+        Refusals: `404 invite_code_unknown` (no such code, or one that was
+        withdrawn, which read alike on purpose), `409 invite_code_used`,
+        `410 invite_code_expired`. Throttled per IP and per number, `429`.
+
+
+        `GET /me` reports the result as `admitted`. Whether booking actually
+        needs it is a server switch; see `createReservation`.
+      security: [{ travellerSession: [] }, { statusToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  examples: ["K7QM-4XRD"]
+                  description: As typed. Case, spaces and hyphens are ignored.
+      responses:
+        "200":
+          description: The number is admitted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [admitted]
+                properties:
+                  admitted: { type: boolean, enum: [true] }
+                  alreadyAdmitted:
+                    type: boolean
+                    enum: [true]
+                    description: >-
+                      Present only when the number was admitted before this
+                      request. The code sent was left unused.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: "`invite_code_unknown`: no such code, or one that was withdrawn."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: "`invite_code_used`: somebody has already used this code."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "410":
+          description: "`invite_code_expired`: the code is past its expiry."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
   /support/requests:
+    get:
+      tags: [me]
+      summary: The help requests this number has sent
+      operationId: listSupportRequests
+      description: >-
+        Every request sent with `createSupportRequest` from the signed-in
+        number, whether it was sent signed in or through a booking link for a
+        booking on that number. Newest first, paged like `listSavedExperiences`:
+        pass `nextCursor` back unchanged as `cursor`, and stop on
+        `complete: true`.
+
+
+        **Signed in only.** A booking link's status token proves one booking,
+        not the number on it, so it cannot list; it is a `401` here. It can
+        open a request raised about this booking or its reservation with
+        `getSupportRequest`.
+
+
+        What is not here, so it is not faked: no staff replies (the
+        conversation happens on WhatsApp and is not stored) and no
+        `waiting_on_traveller` state (staff do not record one).
+      security: [{ travellerSession: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/Cursor" }
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: This number's help requests, newest first.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportRequestPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
     post:
       tags: [me]
       summary: Send Yuvoy a message from the app
@@ -1861,6 +2168,39 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
         "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /support/requests/{reference}:
+    get:
+      tags: [me]
+      summary: One help request, by its reference
+      operationId: getSupportRequest
+      description: >-
+        Takes the same credentials as `createSupportRequest`. A signed-in
+        session opens the requests its number sent. A booking link's status
+        token opens only the requests raised about this booking or its
+        reservation, whoever sent them, so a guest who booked without signing
+        in can look up the reference they were given, including one sent while
+        the trip was still a hold or an unanswered request.
+
+
+        A reference that does not exist and one that belongs to somebody else
+        are the same `404`, word for word, so the answer never says whether a
+        reference exists. The reference is matched without regard to case.
+      security: [{ travellerSession: [] }, { statusToken: [] }]
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string, example: SR-3F9A12C0 }
+      responses:
+        "200":
+          description: The request.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
   /bookings/share:
@@ -2829,7 +3169,7 @@ components:
 
     TravellerAccount:
       type: object
-      required: [phone, name, email, interests, onboardingRequired, memberSince, trips, reviews, support]
+      required: [phone, name, email, interests, onboardingRequired, memberSince, trips, reviews, support, admitted]
       properties:
         phone: { type: string, description: "The proven number, in E.164." }
         name:
@@ -2860,6 +3200,13 @@ components:
           properties:
             count: { type: integer, description: "Reviews this number wrote, published or not." }
         support: { $ref: "#/components/schemas/SupportContact" }
+        admitted:
+          type: boolean
+          description: >-
+            Whether this number may book when booking is by invitation: it
+            redeemed a code, or it already held a booking when invitations
+            began. Reported whether or not the gate is on. Show the code screen
+            while it is false.
         session:
           type: object
           description: >-
@@ -2972,6 +3319,7 @@ components:
         # confirmation back, pick a role that exists.
         - invalid_reason_code
         - refund_quote_moved
+        - price_moved
         # Safety refusals. Distinct codes because each leaves the traveller with
         # a different next step, and "talk to us first" is not the same message
         # as "this trip has a minimum age".
@@ -2998,6 +3346,13 @@ components:
         # trip that ended longer ago than messages stay open. `details.reason`
         # says which.
         - messages_closed
+        # Booking by invitation (yuvoy-api#195). `invite_required` is a 403 from
+        # createReservation while the gate is on; the other three are
+        # redeemInviteCode's refusals (404, 409, 410).
+        - invite_required
+        - invite_code_unknown
+        - invite_code_used
+        - invite_code_expired
 
     Money:
       type: object
@@ -3119,6 +3474,83 @@ components:
           type: array
           description: Human-readable statements of what was checked, each backed by a record.
           items: { type: string }
+
+    SavedIds:
+      type: object
+      additionalProperties: false
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items: { type: string, format: uuid }
+    SavedExperience:
+      allOf:
+        - { $ref: "#/components/schemas/ExperienceSummary" }
+        - type: object
+          required: [bookable]
+          properties:
+            bookable:
+              type: boolean
+              description: False when unavailable; a save never grants access to drafts.
+    SupportRequest:
+      type: object
+      required: [reference, status, topic, createdAt, updatedAt, message]
+      description: >-
+        A help request as the traveller who sent it sees it. Staff notes, how
+        the case was graded and internal ids are never included.
+      properties:
+        reference:
+          type: string
+          example: SR-3F9A12C0
+          description: What `createSupportRequest` returned.
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+          description: >-
+            `open`: received, nobody has picked it up. `in_progress`: somebody
+            is on it. `resolved`: dealt with. `closed`: closed without action.
+            Sending the same message again reopens a `resolved` or `closed`
+            request as `open`.
+        topic:
+          type: string
+          enum: [booking, payment, cancellation, other]
+        createdAt:
+          type: string
+          format: date-time
+          description: When the request was first sent.
+        updatedAt:
+          type: string
+          format: date-time
+          description: >-
+            The latest of: the request being sent again, picked up, or
+            resolved.
+        message:
+          type: string
+          description: The traveller's own text. Staff replies are not stored.
+        bookingReference:
+          type: string
+          example: YV-8K2M4PQR
+          description: Present only when the request is about a booking.
+
+    SupportRequestPage:
+      type: object
+      required: [items, nextCursor, complete]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SupportRequest" }
+        nextCursor: { type: [string, "null"] }
+        complete: { type: boolean }
+
+    SavedPage:
+      type: object
+      required: [items, nextCursor, complete]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SavedExperience" }
+        nextCursor: { type: string, nullable: true }
+        complete: { type: boolean }
 
     ExperienceSummary:
       type: object

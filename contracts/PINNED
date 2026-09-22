@@ -371,7 +371,56 @@ repo=yuvoy-in/yuvoy-api
 #     rather than maintained; not done here to keep this change to app#29.
 #
 # Checked with `git ls-remote`, per the note above.
+#
+# ---------------------------------------------------------------------------
+#
+# 21 Sep 2026. Forward from 0dffd253 to 6caa7289, across yuvoy-api #194,
+# #198, #199, #208, #209 and #210. Additive to every path this app already
+# calls.
+#
+# The removals were read first. There are four lines and none of them narrows
+# anything:
+#   - two are the `/reels` cursor sentence, rewrapped around "the ranges
+#     included". Same rule, now naming the four new range filters.
+#   - two are `required:` lists on RESPONSES that each gained one entry:
+#     `unreadCount` on a `/me/bookings` row and `admitted` on
+#     `TravellerAccount`. A response widening its required set cannot break a
+#     client that reads the new field as optional, which this app does.
+# No REQUEST gained a required field on a path that already existed.
+#
+# New, and each one is consumed by a named issue:
+#   - `GET /me/saved`, `GET /me/saved/ids`, `POST /me/saved`,
+#     `DELETE /me/saved/{experienceId}`, `POST /me/saved/adopt` and
+#     `SavedIds`, `SavedExperience`, `SavedPage` (yuvoy-api#192). Saves move
+#     onto the account. Session only: a booking's status token can neither
+#     read nor write them.
+#   - `price_moved` joins `ErrorCode` (yuvoy-api#193). This app declared it
+#     locally before the enum did; the note saying the enum lacked it goes.
+#   - `unreadCount` on each `/me/bookings` row (yuvoy-api#207).
+#   - `minDurationMinutes`, `maxDurationMinutes`, `minPriceMinor` and
+#     `maxPriceMinor` on `GET /reels` (yuvoy-api#197). Setting a price bound
+#     leaves `per_group` listings out, by the owner's decision.
+#   - `GET /support/requests`, `GET /support/requests/{reference}`,
+#     `SupportRequest` and `SupportRequestPage` (yuvoy-api#196).
+#   - `POST /me/invite-codes/redeem`, `admitted` on `GET /me`,
+#     `403 invite_required` on `POST /reservations`, and four new `ErrorCode`
+#     entries (yuvoy-api#195). The four are added to `ERROR_CODES` in this
+#     change, each with a sentence, because `pnpm qa` refuses a declared code
+#     the client cannot name. They are string-keyed, so they are inert until
+#     the API sends them.
+#
+# NOT LIVE when this was pinned, and every consumer is built for that. From
+# 20 Sep GitHub refused to start yuvoy-api's deploy jobs ("recent account
+# payments have failed or your spending limit needs to be increased"), so
+# #208, #209 and #210 were merged and not deployed: on 21 Sep
+# `POST /me/invite-codes/redeem` answered 404, `GET /support/requests` 405,
+# and the four `/reels` ranges were ignored rather than refused.
+# `GET /me/saved/ids` (deployed 16 Sep) answered 401 signed out, as it should.
+# So every field above is read as OPTIONAL and every new route degrades to what
+# this app did before the route existed.
+#
+# Checked with `git ls-remote`, per the note above.
 
-ref=0dffd253854785c5c4b62bd8c1df9bb1699c96c5
+ref=6caa728932d08e02f2b9746f20930cda9ebb8af9
 branch=master
-pinned_on=2026-09-15
+pinned_on=2026-09-21

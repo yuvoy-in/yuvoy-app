@@ -226,9 +226,11 @@ export interface paths {
          *
          *     **Filters.** `q`, `destinationKey`, `category`, `activityType` and `bookableOn` narrow the feed with the same meaning and the same validation as `GET /search`: an unknown `category` is a `400`, an unknown `activityType` is an empty page, and a `q` with nothing searchable in it (only punctuation, or only exclusions) is an empty page rather than the words being ignored. Omit all of them and this is the unfiltered feed, unchanged.
          *
+         *     **Ranges** (since 2026-09-21). `minDurationMinutes`, `maxDurationMinutes`, `minPriceMinor` and `maxPriceMinor` are optional whole numbers, each bound inclusive, and combine with the filters above and with each other. Duration is the listing's `durationMinutes`. Price is in minor units (paise) and is compared with the same amount `fromPrice` shows. A negative number, a value that is not a whole number, or a minimum above its maximum is a `400` whose message and `details` name the parameter. **When any price bound is set, listings priced `per_group` are left out**, because a price for the whole group is not comparable with a price for one person. Duration bounds do not leave them out. These four are on this feed only; `/search` does not take them.
+         *
          *     Filters **narrow, they never rank**. The order is still the rotation, counted within the filtered set, so under "scuba at Havelock" every business's first matching reel still comes before anybody's second. There is no relevance ordering here; that is what `/search` is for.
          *
-         *     **A cursor belongs to the filters it was minted under.** Sending it with any different filter set is a `400`, because the rotation is counted within the filters and the same position means a different card under different ones. When the chips change, drop the cursor and start from the first page. The same words typed with different case or spacing are the same filter set. Unfiltered cursors are unchanged from before filters existed.
+         *     **A cursor belongs to the filters it was minted under**, the ranges included. Sending it with any different filter set is a `400`, because the rotation is counted within the filters and the same position means a different card under different ones. When the chips change, drop the cursor and start from the first page. The same words typed with different case or spacing are the same filter set. Unfiltered cursors are unchanged from before filters existed.
          *
          *     The order is stable between requests, so a grid can open a reel and swipe on through the same sequence by paging with the same filters. As with the unfiltered feed, a listing published, withdrawn or sold out (under `bookableOn`) between two pages can move later cards by a place.
          */
@@ -360,6 +362,8 @@ export interface paths {
          *       - Anything sent in `name` or `email` is used as sent.
          *
          *     A Bearer credential that is not a live sign-in (expired, signed out, unknown, or a booking's status token) is `401 unauthorized`, never a guest checkout: sign in again, or retry without the header. With no `Authorization` header, checkout is exactly the guest checkout above.
+         *
+         *     **By invitation (yuvoy-api#195).** While the server's invite gate is on, creating a reservation needs a signed-in traveller whose number is admitted (`GET /me` says `admitted: true`; see `redeemInviteCode`). Anybody else, including a guest checkout with no `Authorization` header and a request to book, is `403 invite_required`, before anything is checked or held. While the gate is off, nothing here changes. Browsing, booking links, shared trips and everything about a booking that already exists are never gated.
          */
         post: operations["createReservation"];
         delete?: never;
@@ -556,6 +560,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/saved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The traveller's private saved experiences
+         * @description Newest saves first. Unpublished experiences stay in this list with bookable false and their summary when saved. No save counts or caller-specific fields are added to the public catalog. Cursor is opaque; pass nextCursor back unchanged. Responses are private and must not be cached by shared caches.
+         */
+        get: operations["listSavedExperiences"];
+        put?: never;
+        /**
+         * Save an experience privately
+         * @description Idempotent. Repeating a save does not change its position in the list. Only public or withdrawn listings may be newly saved. Existing saves survive unpublication. A recovery credential is not a travellerSession.
+         */
+        post: operations["saveExperience"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/saved/ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All ids in this traveller's private saved set */
+        get: operations["listSavedExperienceIds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/saved/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Union device saves into the account and return the full set
+         * @description Atomic union, never replace. Idempotent; duplicates are ignored. At most 200 ids per request. An invalid, unknown or never-public id refuses the entire request without changing the set. An existing saved id remains valid after unpublication. Adopt in batches when more than 200 device saves exist. Remove only through DELETE; adoption never removes saves.
+         */
+        post: operations["adoptSavedExperiences"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/saved/{experienceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove one private save
+         * @description Idempotent. Removing an absent save also answers 204.
+         */
+        delete: operations["removeSavedExperience"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/bookings": {
         parameters: {
             query?: never;
@@ -670,6 +755,8 @@ export interface paths {
          *     `support.whatsappE164` is null until Yuvoy has a support number. Hide "Chat with us" while it is null. When present, open `https://wa.me/<number without +>?text=<message>` with the booking reference in the message; the traveller starts the chat, so nothing is sent on their behalf.
          *
          *     `session` is present only when a traveller session signed the request in, and absent for a recovery token. `session.expiresAt` is when that session now ends, 14 days since this use. Keep a cookie or any stored expiry in step with it rather than with the value sign-in returned.
+         *
+         *     `admitted` is whether the number may book when booking is by invitation. False means show the invite code screen (`redeemInviteCode`).
          */
         get: operations["getMyAccount"];
         put?: never;
@@ -714,7 +801,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/support/requests": {
+    "/me/invite-codes/redeem": {
         parameters: {
             query?: never;
             header?: never;
@@ -722,6 +809,42 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        put?: never;
+        /**
+         * Redeem an invite code
+         * @description Admits the signed-in traveller's number to booking with a code Yuvoy gave them. Sign in first (`verifyTravellerSignIn`), then redeem. **Redeeming never creates a session**: the number admitted is the one the session already proved, so a traveller who signs in again on a new phone with the same number keeps their access.
+         *
+         *     Codes are 8 characters from an alphabet with no 0, O, 1, I or L, shown as `XXXX-XXXX`. Case, spaces and hyphens do not matter on input, so `k7qm 4xrd` is the same code as `K7QM-4XRD`. One code admits one person, once.
+         *
+         *     A number that is already admitted gets `200` with `alreadyAdmitted: true` whatever code it sends, and the code is **not** used up, so it can go to somebody else.
+         *
+         *     Refusals: `404 invite_code_unknown` (no such code, or one that was withdrawn, which read alike on purpose), `409 invite_code_used`, `410 invite_code_expired`. Throttled per IP and per number, `429`.
+         *
+         *     `GET /me` reports the result as `admitted`. Whether booking actually needs it is a server switch; see `createReservation`.
+         */
+        post: operations["redeemInviteCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The help requests this number has sent
+         * @description Every request sent with `createSupportRequest` from the signed-in number, whether it was sent signed in or through a booking link for a booking on that number. Newest first, paged like `listSavedExperiences`: pass `nextCursor` back unchanged as `cursor`, and stop on `complete: true`.
+         *
+         *     **Signed in only.** A booking link's status token proves one booking, not the number on it, so it cannot list; it is a `401` here. It can open a request raised about this booking or its reservation with `getSupportRequest`.
+         *
+         *     What is not here, so it is not faked: no staff replies (the conversation happens on WhatsApp and is not stored) and no `waiting_on_traveller` state (staff do not record one).
+         */
+        get: operations["listSupportRequests"];
         put?: never;
         /**
          * Send Yuvoy a message from the app
@@ -734,6 +857,28 @@ export interface paths {
          *     Sending the same message about the same booking again returns the same `reference` rather than opening a second case. Five requests an hour per number, then `429`.
          */
         post: operations["createSupportRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support/requests/{reference}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One help request, by its reference
+         * @description Takes the same credentials as `createSupportRequest`. A signed-in session opens the requests its number sent. A booking link's status token opens only the requests raised about this booking or its reservation, whoever sent them, so a guest who booked without signing in can look up the reference they were given, including one sent while the trip was still a hold or an unanswered request.
+         *
+         *     A reference that does not exist and one that belongs to somebody else are the same `404`, word for word, so the answer never says whether a reference exists. The reference is matched without regard to case.
+         */
+        get: operations["getSupportRequest"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1230,6 +1375,8 @@ export interface components {
                 count: number;
             };
             support: components["schemas"]["SupportContact"];
+            /** @description Whether this number may book when booking is by invitation: it redeemed a code, or it already held a booking when invitations began. Reported whether or not the gate is on. Show the code screen while it is false. */
+            admitted: boolean;
             /** @description Present only when a traveller session signed the request in; absent for a recovery token. Additive: a client that ignores it loses nothing. */
             session?: {
                 /**
@@ -1260,7 +1407,7 @@ export interface components {
          * @description A closed set, so a client can branch on the machine-readable code and never on the message. Codes are added by contract change, never invented at the call site.
          * @enum {string}
          */
-        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "payload_too_large" | "unclassified_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "answers_closed" | "answers_required" | "not_reviewable_yet" | "already_reviewed" | "review_window_closed" | "invalid_reason_code" | "refund_quote_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable" | "unavailable" | "messages_closed";
+        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "payload_too_large" | "unclassified_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "answers_closed" | "answers_required" | "not_reviewable_yet" | "already_reviewed" | "review_window_closed" | "invalid_reason_code" | "refund_quote_moved" | "price_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable" | "unavailable" | "messages_closed" | "invite_required" | "invite_code_unknown" | "invite_code_used" | "invite_code_expired";
         Money: {
             /**
              * @description Amount in the currency's minor unit (paise for INR)
@@ -1329,6 +1476,55 @@ export interface components {
             logoUrl?: string;
             /** @description Human-readable statements of what was checked, each backed by a record. */
             credentialsSummary?: string[];
+        };
+        SavedIds: {
+            ids: string[];
+        };
+        SavedExperience: components["schemas"]["ExperienceSummary"] & {
+            /** @description False when unavailable; a save never grants access to drafts. */
+            bookable: boolean;
+        };
+        /** @description A help request as the traveller who sent it sees it. Staff notes, how the case was graded and internal ids are never included. */
+        SupportRequest: {
+            /**
+             * @description What `createSupportRequest` returned.
+             * @example SR-3F9A12C0
+             */
+            reference: string;
+            /**
+             * @description `open`: received, nobody has picked it up. `in_progress`: somebody is on it. `resolved`: dealt with. `closed`: closed without action. Sending the same message again reopens a `resolved` or `closed` request as `open`.
+             * @enum {string}
+             */
+            status: "open" | "in_progress" | "resolved" | "closed";
+            /** @enum {string} */
+            topic: "booking" | "payment" | "cancellation" | "other";
+            /**
+             * Format: date-time
+             * @description When the request was first sent.
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description The latest of: the request being sent again, picked up, or resolved.
+             */
+            updatedAt: string;
+            /** @description The traveller's own text. Staff replies are not stored. */
+            message: string;
+            /**
+             * @description Present only when the request is about a booking.
+             * @example YV-8K2M4PQR
+             */
+            bookingReference?: string;
+        };
+        SupportRequestPage: {
+            items: components["schemas"]["SupportRequest"][];
+            nextCursor: string | null;
+            complete: boolean;
+        };
+        SavedPage: {
+            items: components["schemas"]["SavedExperience"][];
+            nextCursor: string | null;
+            complete: boolean;
         };
         ExperienceSummary: {
             id: string;
@@ -2527,6 +2723,14 @@ export interface operations {
                 activityType?: string;
                 /** @description Only reels of listings that can actually be booked that day, in the market's timezone. */
                 bookableOn?: string;
+                /** @description Only listings lasting at least this many minutes. Inclusive. Does not leave out `per_group` listings. */
+                minDurationMinutes?: number;
+                /** @description Only listings lasting at most this many minutes. Inclusive. Not below `minDurationMinutes`. */
+                maxDurationMinutes?: number;
+                /** @description Only listings whose `fromPrice.amountMinor` is at least this, in minor units. Inclusive. Setting it leaves out `per_group` listings. */
+                minPriceMinor?: number;
+                /** @description Only listings whose `fromPrice.amountMinor` is at most this, in minor units. Inclusive, not below `minPriceMinor`. Setting it leaves out `per_group` listings. */
+                maxPriceMinor?: number;
             };
             header?: never;
             path?: never;
@@ -2687,6 +2891,15 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             /** @description A Bearer credential was sent and is not a live sign-in. Only ever answered to a request that sent `Authorization`; a guest checkout never sees it. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invite_required`: booking is by invitation and the caller is not a signed-in, admitted traveller. The message says what to do next: sign in, then enter an invite code. Only answered while the invite gate is on. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3008,6 +3221,136 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    listSavedExperiences: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved experiences, including unavailable ones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    saveExperience: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    experienceId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved already or now saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listSavedExperienceIds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All saved ids, including unpublished experiences */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedIds"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    adoptSavedExperiences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    experienceIds: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The resulting full saved set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedIds"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    removeSavedExperience: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experienceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No longer saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     listMyBookings: {
         parameters: {
             query?: {
@@ -3116,6 +3459,8 @@ export interface operations {
                             reviewed: boolean;
                             /** @description Offer "leave a review": the trip is `completed`, has no review yet, and ended no more than 30 days ago. When true, `leaveReview` with this row's `statusToken` will accept one. */
                             canReview: boolean;
+                            /** @description Messages from the business on this booking that the traveller has not marked read (since 2026-09-21). Counted exactly as `BookingMessageThread.unreadCount` is, from the same marker, so only `markBookingMessagesRead` lowers it and fetching the conversation lowers nothing. Always present: `0` when there is nothing new, no conversation yet, or no booking yet. */
+                            unreadCount: number;
                         }[];
                     };
                 };
@@ -3307,6 +3652,101 @@ export interface operations {
             503: components["responses"]["ServiceUnavailable"];
         };
     };
+    redeemInviteCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description As typed. Case, spaces and hyphens are ignored.
+                     * @example K7QM-4XRD
+                     */
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The number is admitted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        admitted: true;
+                        /**
+                         * @description Present only when the number was admitted before this request. The code sent was left unused.
+                         * @enum {boolean}
+                         */
+                        alreadyAdmitted?: true;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `invite_code_unknown`: no such code, or one that was withdrawn. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invite_code_used`: somebody has already used this code. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `invite_code_expired`: the code is past its expiry. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listSupportRequests: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description This number's help requests, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportRequestPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     createSupportRequest: {
         parameters: {
             query?: never;
@@ -3350,6 +3790,31 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getSupportRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reference: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportRequest"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };

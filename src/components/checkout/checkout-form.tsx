@@ -20,6 +20,7 @@ import {
   type AnswerDraft,
 } from "@/lib/booking/answers";
 import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
+import { checkoutTotal } from "@/lib/booking/checkout-total";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
 import { civilFromDate, weekdayDayMonth } from "@/lib/format/date";
@@ -205,12 +206,11 @@ function CheckoutFields({
   );
   const enforceAnswers = canEnforceAnswers(questions);
 
-  const total = slot.price
-    ? {
-        amountMinor: slot.price.amountMinor * guests,
-        currency: slot.price.currency,
-      }
-    : null;
+  /*
+    Per the listing's pricing unit, the way the API computes it: a price for
+    the whole group is not multiplied by the party. See `checkoutTotal`.
+  */
+  const total = checkoutTotal(slot.price, guests, experience.pricingUnit);
 
   /** Everything that must be true before the button does anything. */
   const blockers = useMemo(() => {
@@ -331,8 +331,16 @@ function CheckoutFields({
         Sent only when there is a price to state. It is part of the body, so it
         is inside the idempotency fingerprint, which is correct: a retry after
         the price moved is a different agreement.
+
+        `expectTotalPaise`, the contract's name, and a DIRECT property on
+        purpose. From 15 Sep this sent `expectedTotalMinor`, a name the API
+        does not read: its binder drops unknown keys, so no total was ever
+        checked and `price_moved` could not happen. It went in through a
+        conditional spread, which TypeScript does not check for unknown keys.
+        Written like this, a misspelt key is a compile error. `undefined`
+        leaves it out of the JSON and out of the idempotency fingerprint.
       */
-      ...(total ? { expectedTotalMinor: total.amountMinor } : {}),
+      expectTotalPaise: total?.amountMinor,
       authenticated: contact.authenticated,
       contact: contact.contactFor({ name, phone: whatsapp, email }),
       ...(attribution ? { attribution } : {}),

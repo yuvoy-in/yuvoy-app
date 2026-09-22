@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
+import { useHasMounted } from "@/lib/react/use-has-mounted";
 import { ButtonLink } from "@/components/ui/button";
 import { nextParamFor } from "@/lib/site/next-path";
 import { cn } from "@/lib/cn";
@@ -36,14 +37,26 @@ import { cn } from "@/lib/cn";
 
 function LoginButtonInner({ className }: { className?: string }) {
   const { signedIn } = useTravellerSession();
+  const mounted = useHasMounted();
   const pathname = usePathname();
   const search = useSearchParams();
 
   // The screen it would send you to. See above.
   if (pathname === "/account") return null;
 
-  // Still reading. See HeldSpace.
-  if (signedIn === undefined) return <HeldSpace className={className} />;
+  /*
+    Still reading, OR still hydrating, and the second is not the same thing.
+
+    This boundary hydrates after the rest of the page. Anything above it that
+    reads the session (every feed card does, for saves) can have
+    `/api/session` answered before this renders on the client, and then the
+    first client render would draw the button over the server's held space:
+    React #418, caught by `e2e/hydration.spec.ts` on WebKit. Until hydrated,
+    this draws exactly what the server drew, whatever the cache already knows.
+  */
+  if (!mounted || signedIn === undefined) {
+    return <HeldSpace className={className} />;
+  }
 
   if (signedIn) return null;
 

@@ -26,6 +26,8 @@ const dive = EXPERIENCE_DETAIL["try-dive-nemo-reef"];
 const diveSlot = availabilityFor("try-dive-nemo-reef")[0];
 const kayak = EXPERIENCE_DETAIL["mangrove-kayak-at-dawn"];
 const kayakSlot = availabilityFor("mangrove-kayak-at-dawn")[0];
+const charter = EXPERIENCE_DETAIL["private-boat-charter"];
+const charterSlot = availabilityFor("private-boat-charter")[0];
 
 // vi.fn() persists across cases; without this, "was never called" assertions
 // pass or fail depending on what ran before them.
@@ -185,6 +187,85 @@ describe("CheckoutForm — the money rules", () => {
       await screen.findByRole("button", { name: "Book 2 instead" }),
     ).toBeInTheDocument();
     expect(screen.getByText("01JCAP")).toBeInTheDocument();
+  });
+
+  it("charges a price for the whole group once, and says so on the button", async () => {
+    /*
+      A ₹18,000 charter for three is ₹18,000. The form multiplied every price
+      by the party, so it read ₹54,000 on the button, and the moment the agreed
+      total reached the API under its real name, every such booking would have
+      been refused `price_moved`: the API prices `per_group` whole.
+    */
+    expect(charter.pricingUnit).toBe("per_group");
+    let sent: Record<string, unknown> | undefined;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            reservationId: "res_charter",
+            state: "active",
+            guests: 3,
+            holdExpiresAt: "2026-09-14T04:10:00Z",
+            requestExpiresAt: null,
+            statusToken: "tok_charter",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(
+      <CheckoutForm
+        experience={charter}
+        slot={charterSlot}
+        initialGuests={3}
+      />,
+    );
+    await fillContact(user);
+    const unit = charterSlot.price!.amountMinor;
+    const button = screen.getByRole("button", { name: /hold these seats/i });
+    expect(button).toHaveAccessibleName(/₹18,000/);
+    expect(button).not.toHaveAccessibleName(/₹54,000/);
+
+    await user.click(button);
+
+    await waitFor(() => expect(sent).toBeDefined());
+    expect(sent!.guests).toBe(3);
+    // The contract's name, the API's arithmetic.
+    expect(sent!.expectTotalPaise).toBe(unit);
+    expect(sent).not.toHaveProperty("expectedTotalMinor");
+  });
+
+  it("multiplies a per-person price by the party, and sends that", async () => {
+    let sent: Record<string, unknown> | undefined;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            reservationId: "res_kayak",
+            state: "active",
+            guests: 2,
+            holdExpiresAt: "2026-09-14T04:10:00Z",
+            requestExpiresAt: null,
+            statusToken: "tok_kayak",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(
+      <CheckoutForm experience={kayak} slot={kayakSlot} initialGuests={2} />,
+    );
+    await fillContact(user);
+    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+
+    await waitFor(() => expect(sent).toBeDefined());
+    expect(sent!.expectTotalPaise).toBe(kayakSlot.price!.amountMinor * 2);
   });
 
   /*

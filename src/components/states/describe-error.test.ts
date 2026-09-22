@@ -122,3 +122,76 @@ describe("describeError — codes the client used to not recognise", () => {
     }
   });
 });
+
+/*
+  The two checkout refusals that mean "the calendar was out of date"
+  (yuvoy-app#62 item 7, yuvoy-api#193). Both fell through to the default, so a
+  traveller whose price had moved read "It is us, not you, and trying again
+  often fixes it", and sending the same total again is refused identically.
+*/
+describe("describeError: the calendar was out of date", () => {
+  const GENERIC = /trying again often fixes it/;
+
+  it("says a moved price is a moved price, and that nothing was charged", () => {
+    const d = describeError(err("price_moved", 409));
+    expect(d.title).toBe("The price has changed");
+    expect(d.body).not.toMatch(GENERIC);
+    expect(d.body).toMatch(/nothing was charged/i);
+    expect(d.canRetry).toBe(false);
+    expect(d.requestId).toBe("01J");
+  });
+
+  it("says there is not room for the party, without guessing why", () => {
+    /*
+      The API sends this code for two different reasons: the seats went, or
+      the party is larger than the trip takes. The sentence must be true of
+      both, because checkout shows the API's own reason above the calendar.
+    */
+    const d = describeError(err("capacity_unavailable", 409, { remaining: 2 }));
+    expect(d.title).toBe("Not enough room for that party");
+    expect(d.body).not.toMatch(GENERIC);
+    expect(d.body).not.toMatch(/somebody booked|while you were deciding/i);
+    expect(d.body).toMatch(/nothing was charged/i);
+    expect(d.canRetry).toBe(false);
+  });
+});
+
+/*
+  Booking by invitation (yuvoy-api#195). Declared in the contract before the
+  API that returns them was deployed, so nothing in production sends them yet.
+  Each still has to say something true the day it does, and none may offer a
+  retry: the same code sent again is refused the same way.
+*/
+describe("describeError: booking by invitation", () => {
+  const GENERIC = /trying again often fixes it/;
+  const CASES: [string, number][] = [
+    ["invite_required", 403],
+    ["invite_code_unknown", 404],
+    ["invite_code_used", 409],
+    ["invite_code_expired", 410],
+  ];
+
+  it("gives each refusal its own sentence, and never a retry", () => {
+    const titles = new Set<string>();
+    for (const [code, status] of CASES) {
+      expect(new YuvoyError({ code, message: "raw", status }).code, code).toBe(
+        code,
+      );
+      const d = describeError(err(code, status));
+      expect(d.body, code).not.toMatch(GENERIC);
+      expect(d.canRetry, code).toBe(false);
+      titles.add(d.title);
+    }
+    // Four next steps, so four sentences: "invalid code" for all of them is
+    // the answer that turns into a support message.
+    expect(titles.size).toBe(CASES.length);
+  });
+
+  it("tells somebody refused at checkout how to get in", () => {
+    const d = describeError(err("invite_required", 403));
+    expect(d.body).toMatch(/sign in/i);
+    expect(d.body).toMatch(/code/i);
+    // A refusal at the pay step must say that no money moved.
+    expect(d.body).toMatch(/nothing was charged/i);
+  });
+});
