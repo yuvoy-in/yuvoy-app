@@ -52,6 +52,15 @@ What fail while the search box, the grid and the When chips keep working)
 `partial-refund` (routes to a human) · `not-cancellable` · `quote-moved` ·
 `already-reviewed`
 
+**Booking by invitation** (yuvoy-api#195)
+`invite-required` (the API's gate is on: a guest or a number without a code is
+refused `403 invite_required` at checkout) · `not-admitted` (`GET /me` says
+`admitted: false` until a code is redeemed) · `admitted-absent` (an API from
+before #195, which does not say) · `invite-rate-limited` (redeeming is `429`).
+The mock's codes are `K7QM-4XRD` (admits), `USED-2345` (used) and `PAST-6789`
+(expired); any other well-formed code is unknown. The app's own gate is
+`NEXT_PUBLIC_INVITE_ONLY=true` at build time, not a scenario.
+
 The dive listing (`try-dive-nemo-reef`) carries a health screener and a minimum
 age; the kayak (`mangrove-kayak-at-dawn`) has neither, and no contracted price.
 The snorkel trip is request-mode.

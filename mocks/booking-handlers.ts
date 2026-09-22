@@ -352,6 +352,25 @@ export const bookingHandlers = [
 
   http.post(url("/reservations"), async ({ request }) => {
     const scenario = scenarioOf(request);
+
+    /*
+      THE API'S INVITE GATE, SWITCHED ON (yuvoy-api#195).
+
+      `?__scenario=invite-required` is production after Hima flips the server
+      switch: a guest checkout, or a signed-in number that has not redeemed a
+      code, is refused with `403 invite_required` "before anything is checked
+      or held", so it comes before the key and the body are even read. A
+      number that redeemed a code here (see `isAdmitted`) books as usual,
+      which is how the whole way through the gate stays walkable.
+    */
+    if (scenario === "invite-required" && !isAdmitted(request)) {
+      return envelope(
+        "invite_required",
+        "Booking is by invitation. Sign in with your number, then enter your invite code.",
+        403,
+      );
+    }
+
     const key = request.headers.get("idempotency-key");
     const body = (await request.json()) as {
       slotId: string;
@@ -1501,6 +1520,21 @@ export const bookingHandlers = [
           hours: "9am to 7pm, every day",
         },
         /*
+          Booking by invitation (yuvoy-api#195). Production has sent this
+          since 6caa728, so the mock does too: a screen that never sees the
+          field is green against data production never sends.
+
+          True by default, because this number held a booking before
+          invitations began and the migration admitted every such number.
+          `?__scenario=not-admitted` (and the two scenarios below that need
+          a number that is not in) says false until a code is redeemed, and
+          `?__scenario=admitted-absent` leaves the field out, as an API from
+          before #195 would.
+        */
+        ...(scenarioOf(request) === "admitted-absent"
+          ? {}
+          : { admitted: isAdmitted(request) }),
+        /*
           Present only under a traveller session. The mock cannot tell a
           session token from a status token by inspection, so it keys on the
           prefix the verify handler mints.
@@ -1517,6 +1551,85 @@ export const bookingHandlers = [
       },
       { headers: mockHeaders(rid()) },
     );
+  }),
+
+  /*
+    Redeeming an invite code (yuvoy-api#195), modelled on the API as Hima
+    described it on the issue and on the contract:
+
+      - Signed in only. No `Authorization` is a 401, and a finished session
+        is a 401 too (`?__scenario=session-expired`).
+      - `?__scenario=invite-rate-limited` is the throttle: ten tries an hour
+        per number and a limit per connection, answered `429`.
+      - A number that is already admitted gets `200` with
+        `alreadyAdmitted: true` WHATEVER it sends, even a malformed code, and
+        the code is not used up.
+      - Otherwise the code decides: `MOCK_INVITE_CODES.valid` admits the
+        number, `.used` is `409 invite_code_used`, `.expired` is
+        `410 invite_code_expired`, any other well-formed code is
+        `404 invite_code_unknown`, and a malformed one is a `400`.
+
+    The valid code is not consumed, unlike production's one-person-once.
+    Two e2e projects run the same walk at the same time against one server,
+    and a code that could be spent once would fail whichever came second.
+    Admission is still per number, which is the part the client reads.
+  */
+  http.post(url("/me/invite-codes/redeem"), async ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (!auth) {
+      return envelope("unauthorized", "Sign in to use an invite code.", 401);
+    }
+    const scenario = scenarioOf(request);
+    if (scenario === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+    if (scenario === "invite-rate-limited") {
+      return envelope(
+        "rate_limited",
+        "Too many invite codes tried. Try again later.",
+        429,
+      );
+    }
+    if (isAdmitted(request)) {
+      return HttpResponse.json(
+        { admitted: true, alreadyAdmitted: true },
+        { headers: mockHeaders(rid()) },
+      );
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      code?: unknown;
+    };
+    const code =
+      typeof body.code === "string"
+        ? body.code.replace(/[\s-]/g, "").toUpperCase()
+        : "";
+    if (!/^[A-HJKMNP-Z2-9]{8}$/.test(code)) {
+      return envelope("invalid_input", "That is not an invite code.", 400);
+    }
+
+    switch (code) {
+      case MOCK_INVITE_CODES.used:
+        return envelope(
+          "invite_code_used",
+          "Somebody has already used this code.",
+          409,
+        );
+      case MOCK_INVITE_CODES.expired:
+        return envelope("invite_code_expired", "This code has expired.", 410);
+      case MOCK_INVITE_CODES.valid:
+        admittedByCode.add(auth);
+        return HttpResponse.json(
+          { admitted: true },
+          { headers: mockHeaders(rid()) },
+        );
+      default:
+        return envelope(
+          "invite_code_unknown",
+          "There is no such code, or it was withdrawn.",
+          404,
+        );
+    }
   }),
 
   /* -------------------------------------------------- invited trips ---- */
@@ -1965,6 +2078,45 @@ export const bookingHandlers = [
 const DEV_SIGN_IN_CODE = "123456";
 
 /**
+ * The invite codes the mock knows (yuvoy-api#195), normalised: no hyphen,
+ * capitals. Each is eight characters of the real alphabet, which has no
+ * 0, O, 1, I or L, so every one passes the client's own check and reaches
+ * the handler.
+ */
+export const MOCK_INVITE_CODES = {
+  valid: "K7QM4XRD",
+  used: "USED2345",
+  expired: "PAST6789",
+} as const;
+
+/**
+ * Numbers admitted by a code redeemed here, keyed by the credential that
+ * redeemed it (a session names its number). Module state, reset between tests
+ * by `__resetBookingMocks` like everything else in this file.
+ */
+const admittedByCode = new Set<string>();
+
+/** The scenarios whose number is NOT admitted until it redeems a code. */
+const NOT_ADMITTED_SCENARIOS = new Set([
+  "not-admitted",
+  "invite-required",
+  "invite-rate-limited",
+]);
+
+/**
+ * Whether the number behind this request may book.
+ *
+ * Yes, unless a scenario says it is one of the numbers invitations left out,
+ * in which case only a code redeemed through this mock lets it in. A guest
+ * sends no credential and is never admitted.
+ */
+function isAdmitted(request: Request): boolean {
+  if (!NOT_ADMITTED_SCENARIOS.has(scenarioOf(request))) return true;
+  const auth = request.headers.get("authorization");
+  return auth !== null && admittedByCode.has(auth);
+}
+
+/**
  * A trip somebody else booked and invited this number to.
  *
  * No price, no payment, no reference, and nothing about the booker. The
@@ -2256,4 +2408,6 @@ export function __resetBookingMocks(): void {
   guestSeq = 1;
   // And the help requests one test sent.
   supportRequests.length = 0;
+  // And the numbers one test let in with a code.
+  admittedByCode.clear();
 }
