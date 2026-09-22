@@ -100,16 +100,36 @@ test.describe("the rendered audit", () => {
       ).toBe(false);
     }
 
-    // A draft guide renders locally for a reviewer and is noindex. Listing one
-    // invites a crawler to exactly what the review gate holds back.
+    /*
+      A draft guide renders for a reviewer and is never indexed. Listing one
+      invites a crawler to exactly what the review gate holds back.
+
+      Two checks, and neither is "the page does not say noindex". That was
+      true of a published guide only by accident: it rendered NO robots tag,
+      while every other page carried the site-wide one, so before launch (when
+      the whole app is noindex) a live guide was the one page that said
+      nothing. A published guide now carries the site-wide policy, which
+      before launch IS noindex, so the old check failed every guide.
+
+      - The draft banner, which a draft or review record always renders and a
+        published guide never does. It holds with indexing on or off.
+      - The same robots policy as the home page: a guide in the sitemap is as
+        indexable as the rest of the site, never less.
+    */
+    const home = await (await request.get("/")).text();
+    const sitePolicy = meta(home, "robots");
     const guides = paths.filter((p) => p.startsWith("/guides/"));
     for (const g of guides) {
       const res = await request.get(g);
       const html = await res.text();
       expect(
-        meta(html, "robots") ?? "",
-        `${g} is in the sitemap but is noindex`,
-      ).not.toMatch(/noindex/);
+        html.includes("It is not indexed and"),
+        `${g} is in the sitemap but renders as a draft`,
+      ).toBe(false);
+      expect(
+        meta(html, "robots"),
+        `${g} is in the sitemap but its robots policy is not the site's`,
+      ).toBe(sitePolicy);
     }
 
     // No duplicates. A URL listed twice is a crawl budget spent twice.
