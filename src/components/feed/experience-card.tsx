@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
@@ -8,6 +8,7 @@ import { ReelDetails } from "./reel-details";
 import { useFeedStore } from "@/lib/feed/store";
 import { useSwipeToOpen } from "@/lib/feed/use-swipe-to-open";
 import { useSaved } from "@/lib/feed/use-saved";
+import { useSaveGate } from "@/components/auth/invite-guard";
 import { nextDepartureSentence } from "@/lib/feed/availability";
 import { IconButton } from "@/components/ui/icon-button";
 import {
@@ -122,6 +123,33 @@ export function ExperienceCard({
   const toggleMuted = useFeedStore((s) => s.toggleMuted);
   const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
   const { isSaved, toggleSaved } = useSaved();
+  /*
+    SAVING ASKS THE GATE FIRST (yuvoy-api#195).
+
+    This card is on the feed and on `/search/r/`, which the server never
+    renders for somebody who is not admitted, and on a SHARED reel, which
+    stays open to anybody with the link. So this is the one Save control a
+    visitor who is not in can reach, and the gate is raised here rather than
+    inside `useSaved`: only a control knows whether a tap was a person asking
+    for something, and the wishlist's own remove and undo are already behind
+    the gate with the page they are on.
+
+    With the switch off `useSaveGate` runs its argument at once, so nothing
+    about this tap changes.
+  */
+  const askToSave = useSaveGate();
+  /*
+    The LATEST toggle, not the one this render closed over.
+
+    A save can be held open while the visitor signs in and enters a code
+    inside the sheet, and signing in moves saving from the device onto the
+    account. The callback the gate is holding would otherwise still write to
+    the device store, where the account's list will never show it.
+  */
+  const toggle = useRef(toggleSaved);
+  useEffect(() => {
+    toggle.current = toggleSaved;
+  }, [toggleSaved]);
 
   const departure = nextDepartureSentence(experience);
   const saved = isSaved(experience.id);
@@ -364,7 +392,9 @@ export function ExperienceCard({
               className={
                 saved ? "text-terra-soft ring-terra-soft/45" : undefined
               }
-              onClick={() => toggleSaved(experience.id, experience.slug)}
+              onClick={() =>
+                askToSave(() => toggle.current(experience.id, experience.slug))
+              }
             >
               {saved ? <BookmarkFilledIcon /> : <BookmarkIcon />}
             </IconButton>
