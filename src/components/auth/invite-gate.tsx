@@ -466,6 +466,13 @@ export function InviteCodeForm({
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
+        /*
+          This form is drawn inside checkout's own form (`variant="panel"`),
+          and React dispatches `submit` up its tree. Without this, "Use this
+          code" would also run the Hold these seats handler and try to book
+          the very reservation the gate has just refused.
+        */
+        e.stopPropagation();
         void submit();
       }}
     >

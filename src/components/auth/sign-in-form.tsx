@@ -137,6 +137,14 @@ export function SignInSteps({
         className="mt-8 space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
+          /*
+            These steps are asked for INSIDE other forms (yuvoy-api#195): the
+            invite gate draws them in checkout's own form, where a submit that
+            went on bubbling would reach the Hold these seats handler and try
+            to book. React dispatches `submit` up its tree, so preventing the
+            default is not enough; the event has to stop here.
+          */
+          e.stopPropagation();
           if (sent) void submit();
           else void flow.askForCode();
         }}
