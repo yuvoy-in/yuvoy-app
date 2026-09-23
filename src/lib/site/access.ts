@@ -91,7 +91,7 @@ export function accessOfStanding(standing: Standing): Access {
 }
 
 /** Whether a page shows its own content, rather than the gate. */
-export function showsContent(access: Access): boolean {
+export function showsContent(access: Access): access is "open" | "admitted" {
   return access === "open" || access === "admitted";
 }
 

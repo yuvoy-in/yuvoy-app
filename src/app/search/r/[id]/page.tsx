@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SearchReelScreen } from "@/components/search/search-reel-screen";
+import { gatedRoute } from "@/components/auth/gated-route";
 import { pageMetadata } from "@/lib/site/metadata";
 import { privateRobotsMeta } from "@/lib/site/indexing";
 
@@ -28,9 +29,20 @@ export const metadata: Metadata = {
 
 export default async function SearchReelPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  return <SearchReelScreen mediaId={id} />;
+  /*
+    Behind the invite gate when it is on (yuvoy-api#195): it is search, one
+    tap in. The gate keeps a way back to search, which is where it leads.
+  */
+  return gatedRoute({
+    purpose: "search",
+    searchParams,
+    back: { href: "/search", label: "search" },
+    content: () => <SearchReelScreen mediaId={id} />,
+  });
 }

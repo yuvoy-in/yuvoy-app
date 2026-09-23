@@ -13,14 +13,30 @@
 */
 import type { Metadata } from "next";
 import { SearchScreen } from "@/components/search/search-screen";
+import { gatedRoute } from "@/components/auth/gated-route";
 import { pageMetadata } from "@/lib/site/metadata";
+import { gatedRobots } from "@/lib/site/indexing";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Search",
-  description:
-    "What is on in the Andamans, by the day. Only departures an operator can actually sell.",
-  path: "/search",
-});
+export const metadata: Metadata = {
+  ...pageMetadata({
+    title: "Search",
+    description:
+      "What is on in the Andamans, by the day. Only departures an operator can actually sell.",
+    path: "/search",
+  }),
+  /*
+    OUT OF THE INDEX WHILE THE INVITE GATE IS ON (yuvoy-api#195).
+
+    A crawler is a signed-out visitor, so with the gate on this route serves
+    it the invite landing: a page whose only content is "sign in". Indexing
+    that would put a gate in a search result under the word Search.
+
+    Nothing at all with the gate off, so the page inherits the app-wide policy
+    exactly as it always did. `gatedRobots` and `SITEMAP_FIXED_ROUTES` read
+    one list, so this tag and the sitemap cannot disagree.
+  */
+  ...gatedRobots("/search"),
+};
 
 /**
  * T4 — date-first discovery.
@@ -50,6 +66,15 @@ export const metadata: Metadata = pageMetadata({
  */
 export const dynamic = "force-dynamic";
 
-export default function SearchPage() {
-  return <SearchScreen />;
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Behind the invite gate when it is on (yuvoy-api#195). See gatedRoute.
+  return gatedRoute({
+    purpose: "search",
+    searchParams,
+    content: () => <SearchScreen />,
+  });
 }

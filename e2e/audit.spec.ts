@@ -78,13 +78,50 @@ test.describe("the rendered audit", () => {
     request,
   }) => {
     const paths = await sitemapPaths(request);
+    const home = await (await request.get("/")).text();
+    const sitePolicy = meta(home, "robots");
 
-    // The three fixed indexable routes, from lib/site/inventory.ts. Named here
+    // The fixed indexable routes, from lib/site/inventory.ts. Named here
     // rather than imported so this suite stays a black-box check of a running
     // origin — importing the app's own module would let a wrong inventory
     // agree with itself.
-    for (const required of ["/", "/search", "/guides"]) {
+    for (const required of ["/", "/guides"]) {
       expect(paths, `${required} must be in the sitemap`).toContain(required);
+    }
+
+    /*
+      `/search` IS CONDITIONAL, and the condition is its own robots tag.
+
+      The invite gate (yuvoy-api#195) takes it out of the index while it is
+      on: a crawler is a signed-out visitor, so the route serves it the gate,
+      and a gate in a search result under the word Search is worse than no
+      result. Both halves derive from `GATED_FROM_INDEX`, and this is the
+      check that they agree on a LIVE origin, which is the only place the
+      deployed switch exists.
+
+      Compared against the SITE's policy rather than tested for the word
+      "index", because before launch the whole app is `noindex, nofollow` and
+      `/search` is still in the sitemap, correctly. The gate's own policy is
+      `noindex, follow`, which matches neither site-wide answer, so "differs
+      from the site's" is exactly "this route is gated". `indexing.test.ts`
+      pins that the three policies stay distinguishable.
+    */
+    const searchPolicy = meta(
+      await (await request.get("/search")).text(),
+      "robots",
+    );
+    const searchGated = searchPolicy !== sitePolicy;
+    expect(
+      paths.includes("/search"),
+      `/search says "${searchPolicy}" while the site says "${sitePolicy}", so ` +
+        `it is ${searchGated ? "gated and must NOT be" : "not gated and must be"} ` +
+        `in the sitemap`,
+    ).toBe(!searchGated);
+    if (searchGated) {
+      // And it is the gate's policy, not some third thing nobody intended.
+      expect(searchPolicy, "a gated route is noindex, follow").toMatch(
+        /^noindex,\s*follow$/,
+      );
     }
 
     // Nothing private, ever. Each of these is keyed by a secret, personal, or
@@ -116,8 +153,6 @@ test.describe("the rendered audit", () => {
       - The same robots policy as the home page: a guide in the sitemap is as
         indexable as the rest of the site, never less.
     */
-    const home = await (await request.get("/")).text();
-    const sitePolicy = meta(home, "robots");
     const guides = paths.filter((p) => p.startsWith("/guides/"));
     for (const g of guides) {
       const res = await request.get(g);
@@ -388,10 +423,24 @@ test.describe("the rendered audit", () => {
       cards: /aria-posinset=/.test(html),
       empty: html.includes("Nothing bookable here yet"),
       error: html.includes("Booking is paused") || html.includes("Try again"),
+      /*
+        THE INVITE LANDING IS A RESOLVED FRONT DOOR TOO (yuvoy-api#195).
+
+        With the gate on, a signed-out visitor and a crawler are served the
+        landing instead of the feed, and the feed's first page is deliberately
+        not even fetched for somebody who will not see it. That is the server
+        doing its job, not failing to: the thing this check exists to catch is
+        a SKELETON, which means the prefetch returned null and the work was
+        handed to a browser on an island connection.
+
+        Keyed on the attribute the gate puts in the HTML rather than on its
+        copy, so rewording the landing never turns this into a false alarm.
+      */
+      landing: html.includes('data-invite-gate="page"'),
     };
 
     expect(
-      resolved.cards || resolved.empty || resolved.error,
+      resolved.cards || resolved.empty || resolved.error || resolved.landing,
       "the homepage served a loading skeleton, which means the server-side " +
         "prefetch returned null and the feed is being fetched by the browser " +
         "instead. Check the API is reachable from the deployment at request " +
