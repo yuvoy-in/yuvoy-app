@@ -65,6 +65,27 @@ The dive listing (`try-dive-nemo-reef`) carries a health screener and a minimum
 age; the kayak (`mangrove-kayak-at-dawn`) has neither, and no contracted price.
 The snorkel trip is request-mode.
 
+### Turning the invite gate on
+
+Two switches, one on each side, and they are independent on purpose.
+
+| Switch                                         | Owner       | What it does                                                                                                                                                                             |
+| ---------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_INVITE_ONLY` (Vercel, build time) | this repo   | The feed, `/search`, `/search/r/`, `/saved` and checkout serve the invite landing or the code screen to anybody who is not admitted. `/search` leaves the index and the sitemap with it. |
+| The API's gate                                 | `yuvoy-api` | `POST /reservations` answers `403 invite_required` for a number that is not admitted. Nothing else.                                                                                      |
+
+Either order is safe. The API's gate on first means a traveller is refused at
+checkout and is asked for a code there, with their form intact, because that
+panel ships regardless of this repo's switch. This repo's switch on first
+means the app asks for a code before it needs to, and a number that never
+redeems one is still refused by the API when it books.
+
+Set it as a NORMAL Vercel variable and **not Sensitive**: a Sensitive
+`NEXT_PUBLIC_` value arrives at the build as the literal `[SENSITIVE]`, which
+is not `"true"`, so the gate would silently stay off. Redeploy, then check
+`/` served to a signed-out visitor carries `data-invite-gate="page"`, that
+`/search` says `noindex, follow`, and that `/sitemap.xml` no longer lists it.
+
 ## What is built
 
 Every traveller screen from the approved prototype, T1–T12.
