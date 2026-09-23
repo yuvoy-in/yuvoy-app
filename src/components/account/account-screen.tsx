@@ -15,6 +15,9 @@ import { civilInZone, monthName } from "@/lib/format/date";
 import { HelpSection } from "@/components/support/help-section";
 import { EditProfileSheet } from "./edit-profile-sheet";
 import { FirstSignIn } from "./first-sign-in";
+import { InviteCodeForm } from "@/components/auth/invite-gate";
+import { Panel } from "@/components/ui/panel";
+import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 
 /**
  * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
@@ -75,6 +78,23 @@ export function AccountScreen() {
     const next = safeNextPath(
       new URLSearchParams(window.location.search).get("next"),
     );
+
+    /*
+      THE ROUTER CACHE IS HOLDING THE GATE (yuvoy-api#195).
+
+      With the invite gate on, the page `?next=` names was decided on the
+      SERVER for a visitor who was signed out, and the client router may have
+      that decision cached from a prefetch (`staleTimes.dynamic`). Replacing
+      into it would paint the gate at somebody who has just signed in, and
+      `GatedPage` would then notice and ask for it again: a gate for a frame,
+      then the page.
+
+      `refresh` invalidates that cache before the navigation, so the server is
+      asked once, with the cookie, and the traveller lands on the page they
+      wanted. With the switch off there is no gate to cache and this compiles
+      out, so nothing changes for anybody.
+    */
+    if (INVITE_ONLY) router.refresh();
     if (next) router.replace(next);
   }
 
@@ -105,7 +125,21 @@ export function AccountScreen() {
       <p className="text-forest/70 mt-3 text-sm">
         {flow.sent
           ? `We sent a six-digit code to ${flow.phone}. It is good for a few minutes.`
-          : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up."}
+          : INVITE_ONLY
+            ? /*
+                NOT "booking never needs one" (yuvoy-api#195).
+
+                That sentence is the most reassuring true thing this product
+                could say, and with the gate on it is simply untrue: booking
+                needs a signed-in number that has redeemed a code. Saying it
+                here would send somebody to checkout to find out otherwise,
+                on the screen that exists to tell them how signing in works.
+
+                What survives is the rest of it, which is still true and is
+                still the reason to sign in at all.
+              */
+              "Yuvoy is by invitation for now, so booking needs your number and a code. Sign in and every trip on that number is in one place, including ones booked on another phone. No password and no sign-up."
+            : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up."}
       </p>
 
       <SignInSteps
@@ -159,6 +193,16 @@ export function AccountScreen() {
 function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
   const account = useMyAccount(true);
   const [editing, setEditing] = useState(false);
+  /*
+    A code redeemed on this screen, a moment ago.
+
+    Held HERE because redeeming writes `admitted: true` straight into the
+    cached account, so the condition that put the entry on screen stops being
+    true the instant it succeeds. Without this latch the panel would vanish
+    mid-sentence, taking "you are in" and the way onward with it: the same
+    dead end the revamp audit found in saving.
+  */
+  const [redeemed, setRedeemed] = useState(false);
 
   if (account.isPending) {
     return (
@@ -213,6 +257,27 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
           We could not load your profile just now. Everything below still works.
         </p>
       )}
+
+      {/*
+        THE WAY IN, FOR A NUMBER THAT IS NOT IN YET (yuvoy-api#195).
+
+        Above Trips on purpose: with the gate on, this traveller cannot browse,
+        search, save or book, and a trip they already hold is the one thing
+        they CAN still reach. So the thing that unblocks everything else comes
+        first.
+
+        Behind the switch, like the rest of the app's posture. `admitted` is
+        on `GET /me` on production today, so with the switch off every number
+        that has not redeemed a code would otherwise be shown an invite panel
+        on an app where nothing is by invitation. A traveller refused by the
+        API's own gate while this switch is off is met at checkout instead,
+        which is where the refusal actually happens.
+      */}
+      {INVITE_ONLY &&
+      me &&
+      (standingOfAccount(me) === "not-admitted" || redeemed) ? (
+        <InviteEntry admitted={redeemed} onAdmitted={() => setRedeemed(true)} />
+      ) : null}
 
       <ButtonLink href="/trips" size="lg" block className="mt-6">
         Go to my trips
@@ -286,6 +351,50 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         <EditProfileSheet account={me} onClose={() => setEditing(false)} />
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * "Enter your invite code", on the one screen a traveller who is not in can
+ * always reach (yuvoy-api#195).
+ *
+ * The gate itself asks for a code wherever somebody is stopped by it. This is
+ * the standing place for it: somebody who was given a code and has not used
+ * it yet has nowhere else to type it, because every screen that would ask is
+ * behind the gate and shows the landing instead.
+ *
+ * The SAME form as the gate's, not a second one, so there is one set of
+ * sentences for a code that is unknown, used, expired or throttled.
+ *
+ * No `autoFocus`. This renders with the page rather than after a tap, and a
+ * field that takes the focus on load moves a screen reader away from the
+ * heading and opens the keyboard over the rest of the screen.
+ */
+function InviteEntry({
+  admitted,
+  onAdmitted,
+}: {
+  admitted: boolean;
+  onAdmitted: () => void;
+}) {
+  return (
+    <Panel className="mt-6">
+      <p className="text-sm font-bold">Enter your invite code</p>
+      <p className="text-forest/70 mt-1.5 text-sm">
+        Yuvoy is by invitation for now. Enter the code you were given, once, and
+        this number is in on any phone you sign in on.
+      </p>
+      <InviteCodeForm onAdmitted={onAdmitted} />
+      {/*
+        A way onward rather than a screen that congratulates you and stops.
+        The form says what happened; this is where to go with it.
+      */}
+      {admitted ? (
+        <ButtonLink href="/" size="sm" className="mt-4">
+          Start looking
+        </ButtonLink>
+      ) : null}
+    </Panel>
   );
 }
 
