@@ -2203,6 +2203,21 @@ function publicSupportRequest(request: MockSupportRequest) {
   };
 }
 
+/**
+ * A day that has not happened yet, under either clock.
+ *
+ * The mock's own clock starts at `FIXTURE_NOW` and the device's is whatever
+ * the machine says, so a fixture date is only reliably in the future when it
+ * is ahead of BOTH. A literal is ahead of neither for long: this trip was
+ * written as `2026-09-22` and quietly moved itself into the Past tab on
+ * 23 September, failing two tests that had nothing to do with whatever
+ * anybody was changing that day.
+ */
+function daysAhead(days: number): string {
+  const now = Math.max(Date.now(), mockNow());
+  return new Date(now + days * 86_400_000).toISOString().slice(0, 10);
+}
+
 const INVITED_TRIP = {
   id: "inv_joined",
   role: "guest" as const,
@@ -2210,7 +2225,8 @@ const INVITED_TRIP = {
   experience: "Try-dive at Nemo Reef",
   experienceSlug: "try-dive-nemo-reef",
   operator: "Sample Dive Operator",
-  localDate: "2026-09-22",
+  // Upcoming, and it stays upcoming. See `daysAhead`.
+  localDate: daysAhead(3),
   localTime: "07:00",
   meetingPoint: "Jetty 2, Havelock",
   landmark: "Beside the blue ticket hut",
@@ -2226,7 +2242,12 @@ const INVITED_CANCELLED = {
   id: "inv_called_off",
   guestState: "joined" as const,
   status: "called_off" as const,
-  localDate: "2026-09-10",
+  /*
+    In the past, and that is the point of the pair: a called-off trip belongs
+    in Cancelled whatever its date says, so this one has a date that would put
+    it in Past if the status did not win.
+  */
+  localDate: daysAhead(-13),
 };
 
 /** A trip on this number that this device has never seen. */
