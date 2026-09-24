@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import { marketingRedirects } from "./src/lib/site/marketing-redirects";
 import { cspHeaders } from "./src/lib/site/csp";
 import { assertNoSecretPublicVars } from "./src/lib/site/public-env";
+import { swVersion } from "./src/lib/site/sw-version";
 
 /*
   Before anything is built: a public variable stored in Vercel as a Secret
@@ -43,24 +44,14 @@ const securityHeaders = [
   },
 ];
 
-/**
- * The service worker's version, stamped at build time.
- *
- * The commit on a Vercel or GitHub build; a timestamp anywhere else, so every
- * local production build is its own version too. Inlined into the client as
- * NEXT_PUBLIC_SW_VERSION and passed to `register("/sw.js?v=…")` — a changed
- * URL is a new worker, which is the whole invalidation mechanism.
- */
-const swVersion = (
-  process.env.VERCEL_GIT_COMMIT_SHA ??
-  process.env.GITHUB_SHA ??
-  Date.now().toString(36)
-).slice(0, 12);
-
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  env: { NEXT_PUBLIC_SW_VERSION: swVersion },
+  /*
+    The service worker's version: a changed URL is a new worker, which is the
+    whole invalidation mechanism. Never empty; see src/lib/site/sw-version.ts.
+  */
+  env: { NEXT_PUBLIC_SW_VERSION: swVersion() },
   /**
    * The client router cache, switched back on for dynamic routes.
    *

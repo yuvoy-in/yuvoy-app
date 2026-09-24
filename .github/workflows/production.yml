@@ -1,18 +1,21 @@
-# app.yuvoy.in
+# app.yuvoy.in: a MANUAL redeploy, and nothing else.
+#
+# Vercel's Git integration deploys `main` on every push (connected 20 Sep
+# 2026), so this workflow no longer runs on push. For four days it did both:
+# every release deployed production twice, the two builds raced for the
+# domain, and this one, built with no `.git`, stamped the service worker with
+# an empty version (see src/lib/site/sw-version.ts). The audit that used to
+# follow this deploy now follows Vercel's: audit-after-deploy.yml.
 #
 # There is ONE Vercel project for now (owner decision, 1 Sep 2026), so `main`
-# is the only branch that deploys and `dev` deploys nowhere. When a staging
-# project exists, add staging.yml on `push: [dev]` with its own
-# VERCEL_PROJECT_ID and this file does not change.
+# is the only branch that deploys and `dev` deploys nowhere.
 name: Production deployment
 
 on:
   # Manual redeploy. NEXT_PUBLIC_* values are inlined at BUILD time, so
-  # changing one in Vercel does nothing until a rebuild — which would
-  # otherwise mean pushing a commit for a config-only change.
+  # changing one in Vercel does nothing until a rebuild. Vercel's own
+  # Redeploy button does the same job; this one also runs the audit.
   workflow_dispatch:
-  push:
-    branches: [main]
 
 concurrency:
   group: production
