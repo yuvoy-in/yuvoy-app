@@ -11,6 +11,7 @@ import {
 } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { OwnForm } from "@/components/ui/own-form";
 import { Panel } from "@/components/ui/panel";
 import { maskPhone } from "@/components/auth/contact-fields";
 import { SignInSteps, useSignInFlow } from "./sign-in-form";
@@ -461,67 +462,77 @@ export function InviteCodeForm({
   }
 
   return (
-    <form
+    <OwnForm
       className="mt-6 space-y-4"
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
         /*
-          This form is drawn inside checkout's own form (`variant="panel"`),
-          and React dispatches `submit` up its tree. Without this, "Use this
-          code" would also run the Hold these seats handler and try to book
-          the very reservation the gate has just refused.
+          This form is drawn inside checkout's own form (`variant="panel"`).
+          `OwnForm` keeps it out of that form in the DOM (see its note), and
+          this keeps the submit out of it in React's tree: a portal's events
+          still bubble through the components that drew it, and "Use this
+          code" would otherwise also run the Hold these seats handler and try
+          to book the very reservation the gate has just refused.
         */
         e.stopPropagation();
         void submit();
       }}
     >
-      <Field
-        label="Invite code"
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setProblem(null);
-          if (redeem.isError) redeem.reset();
-        }}
-        onBlur={() => {
-          // Shown the way codes are written, once it is one.
-          if (isInviteCode(value)) setValue(formatInviteCode(value));
-        }}
-        autoComplete="off"
-        autoCapitalize="characters"
-        autoCorrect="off"
-        spellCheck={false}
-        enterKeyHint="go"
-        maxLength={32}
-        className="font-mono"
-        hint={`8 letters and numbers, like ${INVITE_CODE_EXAMPLE}. Capitals, spaces and the hyphen do not matter.`}
-        error={problem ?? failure?.onField}
-        autoFocus={autoFocus}
-        required
-      />
+      {(form) => (
+        <>
+          <Field
+            form={form}
+            label="Invite code"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setProblem(null);
+              if (redeem.isError) redeem.reset();
+            }}
+            onBlur={() => {
+              // Shown the way codes are written, once it is one.
+              if (isInviteCode(value)) setValue(formatInviteCode(value));
+            }}
+            autoComplete="off"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="go"
+            maxLength={32}
+            className="font-mono"
+            hint={`8 letters and numbers, like ${INVITE_CODE_EXAMPLE}. Capitals, spaces and the hyphen do not matter.`}
+            error={problem ?? failure?.onField}
+            autoFocus={autoFocus}
+            required
+          />
 
-      <Button
-        type="submit"
-        size="lg"
-        block
-        disabled={redeem.isPending || value.trim().length === 0}
-      >
-        {redeem.isPending ? "Checking your code…" : "Use this code"}
-      </Button>
+          <Button
+            form={form}
+            type="submit"
+            size="lg"
+            block
+            disabled={redeem.isPending || value.trim().length === 0}
+          >
+            {redeem.isPending ? "Checking your code…" : "Use this code"}
+          </Button>
 
-      {failure?.panel ? (
-        <Panel tone="alert" role="alert">
-          <p className="text-sm font-bold">{failure.panel.title}</p>
-          <p className="text-forest/70 mt-1.5 text-sm">{failure.panel.body}</p>
-          {failure.panel.requestId ? (
-            <p className="text-forest/70 mt-3 font-mono text-[10px]">
-              {failure.panel.requestId}
-            </p>
+          {failure?.panel ? (
+            <Panel tone="alert" role="alert">
+              <p className="text-sm font-bold">{failure.panel.title}</p>
+              <p className="text-forest/70 mt-1.5 text-sm">
+                {failure.panel.body}
+              </p>
+              {failure.panel.requestId ? (
+                <p className="text-forest/70 mt-3 font-mono text-[10px]">
+                  {failure.panel.requestId}
+                </p>
+              ) : null}
+            </Panel>
           ) : null}
-        </Panel>
-      ) : null}
-    </form>
+        </>
+      )}
+    </OwnForm>
   );
 }
 

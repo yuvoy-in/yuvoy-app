@@ -273,6 +273,59 @@ describe("the API refuses with 403 invite_required", () => {
   });
 });
 
+/*
+  NO FORM INSIDE A FORM (yuvoy-api#195).
+
+  The gate is drawn inside checkout's own form. A browser stops a nested form's
+  `submit` at the outer form element, so React (listening at the document)
+  never runs the gate's handler and the browser submits natively: "Send me a
+  code" reloaded checkout onto its first step and dropped the booking form.
+  jsdom does not model that rule, so these assert the structure that avoids it:
+  no `form` element inside another, and the gate's controls owned by their own
+  form rather than checkout's. The browser half is e2e/invite-gate.spec.ts.
+*/
+describe("the gate inside checkout's form", () => {
+  function checkoutForm(): HTMLFormElement {
+    const form = hold().closest("form");
+    expect(form).not.toBeNull();
+    return form!;
+  }
+
+  it("nests no form in it, and the sign-in steps submit their own", async () => {
+    serverGateOn({ yes: false });
+    const user = await checkout("false");
+    await fillIn(user);
+    await user.click(hold());
+    await screen.findByText("Booking is by invitation for now");
+
+    expect(document.querySelector("form form")).toBeNull();
+    const send = await screen.findByRole("button", { name: "Send me a code" });
+    const own = (send as HTMLButtonElement).form;
+    expect(own).not.toBeNull();
+    expect(own).not.toBe(checkoutForm());
+    // The number field belongs to the same form, so Enter in it submits it.
+    const number = screen.getByLabelText("Your WhatsApp number");
+    expect((number as HTMLInputElement).form).toBe(own);
+  });
+
+  it("nests no form for the invite code either", async () => {
+    __signInAppRouteMock("sess_919000003210");
+    meSays(false);
+    serverGateOn({ yes: false });
+    const user = await checkout("false");
+    await signedInFormReady();
+    await user.click(hold());
+    const code = await screen.findByLabelText("Invite code");
+
+    expect(document.querySelector("form form")).toBeNull();
+    const use = screen.getByRole("button", { name: "Use this code" });
+    const own = (use as HTMLButtonElement).form;
+    expect(own).not.toBeNull();
+    expect(own).not.toBe(checkoutForm());
+    expect((code as HTMLInputElement).form).toBe(own);
+  });
+});
+
 describe("with the switch on, a device that signed out mid-form", () => {
   it("is refused here rather than sent as a guest booking", async () => {
     /*

@@ -8,6 +8,7 @@ import {
   useVerifySignInCode,
 } from "@/lib/auth/use-traveller";
 import { Field } from "@/components/ui/field";
+import { OwnForm } from "@/components/ui/own-form";
 import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -133,69 +134,78 @@ export function SignInSteps({
 
   return (
     <>
-      <form
+      <OwnForm
         className="mt-8 space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
           /*
-            These steps are asked for INSIDE other forms (yuvoy-api#195): the
-            invite gate draws them in checkout's own form, where a submit that
-            went on bubbling would reach the Hold these seats handler and try
-            to book. React dispatches `submit` up its tree, so preventing the
-            default is not enough; the event has to stop here.
+            These steps are asked for INSIDE checkout's form too (yuvoy-api#195).
+            `OwnForm` keeps the DOM honest there (no form nested in a form, see
+            its note), and this keeps React's tree honest: a portal's events
+            still bubble through the components that drew it, so without this
+            the submit would reach the Hold these seats handler and try to book.
           */
           e.stopPropagation();
           if (sent) void submit();
           else void flow.askForCode();
         }}
       >
-        {sent ? (
-          <Field
-            label="The code we sent"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="font-mono"
-            error={failure?.field === "code" ? failure.body : undefined}
-            hint={
-              devCode ? `Development build: the code is ${devCode}.` : undefined
-            }
-            autoFocus
-            required
-          />
-        ) : (
-          <PhoneField
-            label="Your WhatsApp number"
-            value={phone}
-            onChange={setPhone}
-            error={failure?.field === "phone" ? failure.body : undefined}
-            hint="The number you book with. Any number works, whether or not it has booked before."
-            autoFocus={autoFocusPhone}
-            required
-          />
-        )}
+        {(form) => (
+          <>
+            {sent ? (
+              <Field
+                form={form}
+                label="The code we sent"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="font-mono"
+                error={failure?.field === "code" ? failure.body : undefined}
+                hint={
+                  devCode
+                    ? `Development build: the code is ${devCode}.`
+                    : undefined
+                }
+                autoFocus
+                required
+              />
+            ) : (
+              <PhoneField
+                form={form}
+                label="Your WhatsApp number"
+                value={phone}
+                onChange={setPhone}
+                error={failure?.field === "phone" ? failure.body : undefined}
+                hint="The number you book with. Any number works, whether or not it has booked before."
+                autoFocus={autoFocusPhone}
+                required
+              />
+            )}
 
-        <Button
-          type="submit"
-          size="lg"
-          block
-          disabled={
-            request.isPending ||
-            verify.isPending ||
-            (sent ? code.trim().length === 0 : !phoneGiven)
-          }
-        >
-          {request.isPending
-            ? "Sending a code…"
-            : verify.isPending
-              ? "Signing you in…"
-              : sent
-                ? submitLabel
-                : "Send me a code"}
-        </Button>
-      </form>
+            <Button
+              form={form}
+              type="submit"
+              size="lg"
+              block
+              disabled={
+                request.isPending ||
+                verify.isPending ||
+                (sent ? code.trim().length === 0 : !phoneGiven)
+              }
+            >
+              {request.isPending
+                ? "Sending a code…"
+                : verify.isPending
+                  ? "Signing you in…"
+                  : sent
+                    ? submitLabel
+                    : "Send me a code"}
+            </Button>
+          </>
+        )}
+      </OwnForm>
 
       {/*
         THE TWO WAYS OUT, as buttons rather than small print (yuvoy-app#34).

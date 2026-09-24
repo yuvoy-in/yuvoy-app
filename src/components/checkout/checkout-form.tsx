@@ -33,6 +33,7 @@ import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { useStanding } from "@/lib/auth/use-access";
 import { INVITE_ONLY } from "@/lib/site/access";
 import { InviteGate, type GateView } from "@/components/auth/invite-gate";
+import { InsideAnotherForm } from "@/components/ui/own-form";
 import { PartyStepper } from "@/components/ui/party-stepper";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -730,12 +731,20 @@ function CheckoutFields({
         */}
         {showGate ? (
           <Panel tone="alert" role="alert">
-            <InviteGate
-              view={gateView}
-              variant="panel"
-              purpose="book"
-              retryLabel={action}
-            />
+            {/*
+              Inside THIS form, so the gate's own forms must not nest in it:
+              a browser stops a nested form's submit at this element, and the
+              gate's sign-in then reloaded checkout onto its first step with
+              everything typed gone. See `OwnForm`.
+            */}
+            <InsideAnotherForm>
+              <InviteGate
+                view={gateView}
+                variant="panel"
+                purpose="book"
+                retryLabel={action}
+              />
+            </InsideAnotherForm>
           </Panel>
         ) : failure ? (
           <FailurePanel failure={failure}>
