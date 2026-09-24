@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 import { marketingRedirects } from "./src/lib/site/marketing-redirects";
 import { cspHeaders } from "./src/lib/site/csp";
+import { assertNoSecretPublicVars } from "./src/lib/site/public-env";
+
+/*
+  Before anything is built: a public variable stored in Vercel as a Secret
+  arrives here as "[SENSITIVE]" and would be inlined as that. Stop the build
+  and name it instead. See src/lib/site/public-env.ts.
+*/
+assertNoSecretPublicVars();
 
 /**
  * The app is a different security surface from the marketing site: it holds a
