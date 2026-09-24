@@ -70,6 +70,33 @@ const MUST_BE_DYNAMIC = {
   "/search": "Reads the wall clock during render — see the day pills.",
 };
 
+/*
+  `/saved` is the only entry either list moves, and only one way. The other
+  four gated routes (`/`, `/search`, `/search/r/[id]`, `/e/[slug]/book`) are
+  already dynamic with the gate off, for reasons of their own.
+*/
+
+/**
+ * The invite gate (yuvoy-api#195) moves a route between the two lists.
+ *
+ * With `NEXT_PUBLIC_INVITE_ONLY=true`, a gated route reads the session cookie
+ * during render, so Next renders it per request and `/saved` stops being
+ * prerendered. That is correct and it is the whole risk the gate carries: the
+ * SAME build with the switch off must go back to static, or every traveller
+ * pays a server render for a page that holds no server data.
+ *
+ * So the sign-off is read per build rather than written once. Run this with
+ * the same environment as the `next build` it is checking — `pnpm verify`
+ * does, and so does Vercel, where both read the project's variables.
+ */
+const INVITE_ONLY = process.env.NEXT_PUBLIC_INVITE_ONLY === "true";
+
+if (INVITE_ONLY) {
+  delete ALLOWED["/saved"];
+  MUST_BE_DYNAMIC["/saved"] =
+    "Behind the invite gate, which reads the session cookie per request.";
+}
+
 if (!existsSync(MANIFEST)) {
   console.error(
     `\n✗ ${MANIFEST} is missing. Run \`pnpm build\` before this check.\n`,

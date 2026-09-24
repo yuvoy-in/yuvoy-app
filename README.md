@@ -52,9 +52,39 @@ What fail while the search box, the grid and the When chips keep working)
 `partial-refund` (routes to a human) · `not-cancellable` · `quote-moved` ·
 `already-reviewed`
 
+**Booking by invitation** (yuvoy-api#195)
+`invite-required` (the API's gate is on: a guest or a number without a code is
+refused `403 invite_required` at checkout) · `not-admitted` (`GET /me` says
+`admitted: false` until a code is redeemed) · `admitted-absent` (an API from
+before #195, which does not say) · `invite-rate-limited` (redeeming is `429`).
+The mock's codes are `K7QM-4XRD` (admits), `USED-2345` (used) and `PAST-6789`
+(expired); any other well-formed code is unknown. The app's own gate is
+`NEXT_PUBLIC_INVITE_ONLY=true` at build time, not a scenario.
+
 The dive listing (`try-dive-nemo-reef`) carries a health screener and a minimum
 age; the kayak (`mangrove-kayak-at-dawn`) has neither, and no contracted price.
 The snorkel trip is request-mode.
+
+### Turning the invite gate on
+
+Two switches, one on each side, and they are independent on purpose.
+
+| Switch                                         | Owner       | What it does                                                                                                                                                                             |
+| ---------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_INVITE_ONLY` (Vercel, build time) | this repo   | The feed, `/search`, `/search/r/`, `/saved` and checkout serve the invite landing or the code screen to anybody who is not admitted. `/search` leaves the index and the sitemap with it. |
+| The API's gate                                 | `yuvoy-api` | `POST /reservations` answers `403 invite_required` for a number that is not admitted. Nothing else.                                                                                      |
+
+Either order is safe. The API's gate on first means a traveller is refused at
+checkout and is asked for a code there, with their form intact, because that
+panel ships regardless of this repo's switch. This repo's switch on first
+means the app asks for a code before it needs to, and a number that never
+redeems one is still refused by the API when it books.
+
+Set it as a NORMAL Vercel variable and **not Sensitive**: a Sensitive
+`NEXT_PUBLIC_` value arrives at the build as the literal `[SENSITIVE]`, which
+is not `"true"`, so the gate would silently stay off. Redeploy, then check
+`/` served to a signed-out visitor carries `data-invite-gate="page"`, that
+`/search` says `noindex, follow`, and that `/sitemap.xml` no longer lists it.
 
 ## What is built
 

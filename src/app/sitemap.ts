@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { publishedGuides } from "@/lib/guides/guides";
 import { createApiClient } from "@/lib/api/client";
 import { SITE_URL } from "@/lib/site/metadata";
-import { INDEXABLE_FIXED_ROUTES } from "@/lib/site/inventory";
+import { SITEMAP_FIXED_ROUTES } from "@/lib/site/inventory";
 
 /**
  * The sitemap.
@@ -28,8 +28,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     suite used to keep a second copy of this list; two lists of the same thing
     drift the moment a page is added, and a page missing from the sitemap
     fails nothing and is found by nobody.
+
+    `SITEMAP_FIXED_ROUTES`, not the inventory itself: a route the invite gate
+    has taken out of the index (yuvoy-api#195) leaves the sitemap with it, so
+    a crawler is never invited to a page whose own tag says noindex.
   */
-  const stat: MetadataRoute.Sitemap = INDEXABLE_FIXED_ROUTES.map((r) => ({
+  const stat: MetadataRoute.Sitemap = SITEMAP_FIXED_ROUTES.map((r) => ({
     url: new URL(r.path, BASE).toString(),
     lastModified: now,
     changeFrequency: r.changeFrequency,

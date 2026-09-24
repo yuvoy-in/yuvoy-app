@@ -176,3 +176,52 @@ describe("the allowlist itself", () => {
     }
   });
 });
+
+describe("the scenario switch, for a call a page makes", () => {
+  /*
+    yuvoy-api#195. The invite gate asks `GET /me` from a Server Component,
+    which has no incoming Request to read `x-yuvoy-scenario` off, so the
+    page's own `?__scenario=` is handed over by value. It must reach the mocks
+    in a mocked build and nothing anywhere else: the real API does not honour
+    it, and should never be offered the chance.
+  */
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("forwards a page's scenario in a mocked build", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_MOCKING", "enabled");
+    await callUpstream({
+      method: "GET",
+      path: "/me",
+      token: "sess_abc",
+      scenario: "not-admitted",
+    });
+    expect(sentHeaders()["x-yuvoy-scenario"]).toBe("not-admitted");
+  });
+
+  it("drops it in any build that is not mocked", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_MOCKING", "disabled");
+    await callUpstream({
+      method: "GET",
+      path: "/me",
+      token: "sess_abc",
+      scenario: "not-admitted",
+      from: new Request("https://app.yuvoy.in/api/v1/me", {
+        headers: { "x-yuvoy-scenario": "not-admitted" },
+      }),
+    });
+    expect("x-yuvoy-scenario" in sentHeaders()).toBe(false);
+  });
+
+  it("still reads the incoming request's header when no scenario is given", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_MOCKING", "enabled");
+    await callUpstream({
+      method: "GET",
+      path: "/me",
+      token: "sess_abc",
+      from: new Request("https://app.yuvoy.in/api/v1/me", {
+        headers: { "x-yuvoy-scenario": "session-expired" },
+      }),
+    });
+    expect(sentHeaders()["x-yuvoy-scenario"]).toBe("session-expired");
+  });
+});
