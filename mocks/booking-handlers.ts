@@ -81,6 +81,12 @@ interface MockReservation {
   /** Given back by the traveller. `released` on status, final. */
   released?: boolean;
   /**
+   * The reason an operator turned this request down (yuvoy-api#225), for a
+   * listed row the operator declined. Its booking link reads `released` with
+   * the API's sentence for this code and the listing's next date.
+   */
+  declineReasonCode?: string;
+  /**
    * The reference minted by `POST /cash-booking` — yuvoy-app#29.
    *
    * Remembered so a RETRY returns the first one. "The second tap on ferry
@@ -851,6 +857,28 @@ export const bookingHandlers = [
     if (scenario === "cash-collected") record.cashCollected = true;
     if (record.released) state = "released";
 
+    /*
+      A request the operator turned down (yuvoy-api#225, #229): the decline's
+      code, the API's own sentence for it, and the listing's next bookable
+      departure, a few days out so it moves with the clock. `bookUrl` is what
+      the API sends, `https://yuvoy.in/e/<slug>`, dead link and all: the app
+      must not follow it, and a mock that sent a working one would hide that.
+    */
+    const declined =
+      state === "released" && record.declineReasonCode
+        ? {
+            cancellation: {
+              reasonCode: record.declineReasonCode,
+              message: declineSentence(record.declineReasonCode),
+              nextDeparture: {
+                ...marketDayFromNow(3, "09:00"),
+                timezone: "Asia/Kolkata",
+                bookUrl: "https://yuvoy.in/e/try-dive-nemo-reef",
+              },
+            },
+          }
+        : {};
+
     const final = [
       "confirmed",
       "declined",
@@ -882,6 +910,7 @@ export const bookingHandlers = [
           timezone: "Asia/Kolkata",
         },
         price: { totalPaise: 450000 * record.guests, currency: "INR" },
+        ...declined,
         /*
           Present ONLY for a cash booking — D-034. `collected` flips when the
           operator records taking the money, and `cashCollected` is what the
@@ -2355,6 +2384,54 @@ const DECLINED_REQUEST = {
   tab: "cancelled" as const,
 };
 
+/**
+ * The API's sentence for each decline code, word for word
+ * (`internal/booking/decline.go` at yuvoy-api 2afd7b4).
+ */
+const DECLINE_SENTENCES: Record<string, string> = {
+  no_capacity: "The operator is full on that departure. Nothing was charged.",
+  weather:
+    "The operator isn't running that date because of the conditions. Nothing was charged.",
+  not_operating:
+    "The operator isn't running that departure after all. Nothing was charged.",
+  party_too_large:
+    "The operator can't take a group that size on this one. Nothing was charged.",
+  unsafe_for_party:
+    "The operator doesn't think this trip is right for your group. Nothing was charged.",
+};
+
+function declineSentence(code: string): string {
+  return (
+    DECLINE_SENTENCES[code] ??
+    "The operator couldn't take this one. Nothing was charged."
+  );
+}
+
+/**
+ * A departure `days` market days from today in Port Blair, at `time` there,
+ * as `date` (the market's day) and `startsAt` (the instant, in UTC).
+ */
+function marketDayFromNow(
+  days: number,
+  time: string,
+): { date: string; startsAt: string } {
+  const IST_MS = 5.5 * 3600_000;
+  const wall = new Date(Date.now() + IST_MS);
+  wall.setUTCDate(wall.getUTCDate() + days);
+  const date = wall.toISOString().slice(0, 10);
+  const [h, m] = time.split(":").map(Number);
+  const startsAt = new Date(
+    Date.UTC(
+      Number(date.slice(0, 4)),
+      Number(date.slice(5, 7)) - 1,
+      Number(date.slice(8, 10)),
+      h,
+      m,
+    ) - IST_MS,
+  ).toISOString();
+  return { date, startsAt };
+}
+
 /** Every row the API lists that this device did not create. */
 const LISTED_TRIPS = [
   ANOTHER_PHONES_TRIP,
@@ -2410,6 +2487,11 @@ function seedListedTrips(): void {
         where `declined` means money was taken (yuvoy-api#225).
       */
       listedState: isDeclinedRequestRow(trip) ? "released" : trip.state,
+      ...(isDeclinedRequestRow(trip) &&
+      "reasonCode" in trip &&
+      typeof trip.reasonCode === "string"
+        ? { declineReasonCode: trip.reasonCode }
+        : {}),
     });
     byToken.set(trip.statusToken, trip.reservationId);
   }
