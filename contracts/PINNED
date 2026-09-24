@@ -502,6 +502,15 @@ repo=yuvoy-in/yuvoy-api
 # Checked with `git ls-remote` immediately before pinning; the API is deployed
 # (the new operator take-back route answers 401 on api.yuvoy.in).
 
-ref=2afd7b4f2d1b6b75626505eab6e38bed3e36a7e6
+# 24 Sep 2026. Forward from 2afd7b4f2d1b to c363196060b1 (yuvoy-api #238,
+# #239), with no change to this document: both commits changed only the
+# operator contract, and `contracts/openapi.yaml` is byte-identical at the two
+# refs. Bumped so this app and yuvoy-operator pin one commit again, as the
+# operator's PINNED says they do. Nothing to consume.
+#
+# Checked with `git ls-remote` immediately before pinning: master is
+# c363196060b1.
+
+ref=c363196060b190ddd8ee24b3ec9a6beafcde7dd0
 branch=master
 pinned_on=2026-09-24
