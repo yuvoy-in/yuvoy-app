@@ -27,6 +27,7 @@ import type { components } from "@/lib/api/schema.gen";
 import { PayButton, ReleaseButton } from "./pay-actions";
 import {
   cancellationReason,
+  declineView,
   formatDeparture,
   formatTotal,
   stateCopy,
@@ -154,6 +155,13 @@ function StatusBody({
 }) {
   const copy = stateCopy(status.state);
   /*
+    A request the operator turned down, when the API says so in words
+    (yuvoy-api#225). `null` for every other booking, and for a status from an
+    API that does not send `cancellation.message`: then this page says what it
+    always said. See `declineView`.
+  */
+  const declined = declineView(status);
+  /*
     A CANCELLED BOOKING THAT PAID NOTHING ONLINE HAS NO REFUND COMING —
     yuvoy-app#48 §2.
 
@@ -169,8 +177,14 @@ function StatusBody({
     both cases, and `RefundProgress` below renders the refund the moment there
     is one, from the server's own state rather than from static copy.
   */
-  const body =
-    status.state === "cancelled" && !status.refund
+  const body = declined
+    ? /*
+        The API's sentence already says why and that nothing was charged, so
+        the state's own hedge ("Either you gave it up or the operator could
+        not take it") would only take back what it has just said.
+      */
+      null
+    : status.state === "cancelled" && !status.refund
       ? "Rebooking is a fresh booking rather than a silent move. The price you see will be the price you pay."
       : copy.body;
 
@@ -235,13 +249,26 @@ function StatusBody({
   // these is derived rather than read straight off the response.
   const meetingText = status.meetingPoint?.text?.trim();
   const meetingLandmark = status.meetingPoint?.landmark?.trim();
-  const reason = cancellationReason(status.cancellation?.reasonCode);
+  /*
+    The decline's own sentence, when there is one, in place of the mapped
+    cancellation code: a decline code is not a cancellation code, and mapped
+    it read "The operator or we called it off." about a request.
+  */
+  const reason =
+    declined?.message ?? cancellationReason(status.cancellation?.reasonCode);
 
   return (
     <div>
-      <p className="eyebrow text-terra-deep">{copy.eyebrow}</p>
+      {/*
+        "Not accepted", the word Trips already uses for a declined request
+        (yuvoy-app#100), rather than "Released", which reads as though the
+        traveller let it go.
+      */}
+      <p className="eyebrow text-terra-deep">
+        {declined ? "Not accepted" : copy.eyebrow}
+      </p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight sm:text-4xl">
-        {copy.title}
+        {declined ? "Your request was not accepted" : copy.title}
       </h1>
       {/*
         WHY the trip is off — yuvoy-app#22 §2.
@@ -262,7 +289,9 @@ function StatusBody({
       {reason ? (
         <p className="mt-3 max-w-prose text-sm font-bold">{reason}</p>
       ) : null}
-      <p className="text-forest/70 mt-3 max-w-prose text-sm">{body}</p>
+      {body ? (
+        <p className="text-forest/70 mt-3 max-w-prose text-sm">{body}</p>
+      ) : null}
 
       {/*
         THE WAY ON FROM A REQUEST THAT WAS LET GO (yuvoy-api#225).
@@ -280,7 +309,9 @@ function StatusBody({
         rather than as a link to `/e/undefined/book`: a pinned contract says
         what the API WILL send.
       */}
-      {status.state === "released" && status.experience?.slug ? (
+      {declined ? (
+        <DeclineOffer view={declined} />
+      ) : status.state === "released" && status.experience?.slug ? (
         <ButtonLink
           href={`/e/${encodeURIComponent(status.experience.slug)}/book`}
           variant="outline"
@@ -747,5 +778,58 @@ function Shell({ children }: { children: React.ReactNode }) {
     <Screen back={BACK} stageLabel="Your booking">
       {children}
     </Screen>
+  );
+}
+
+/**
+ * What to do instead, after a request was turned down (yuvoy-api#225).
+ *
+ * The review asked for "the next open departure of the same listing in the
+ * same message". The API sends it when there is one: then it is the one loud
+ * control, opening this app's checkout on that date with the same party size,
+ * and "See other dates" sits beside it. When there is none in the next 90
+ * days that is said plainly, and the way on is somewhere else to go rather
+ * than a calendar with nothing on it.
+ */
+function DeclineOffer({
+  view,
+}: {
+  view: NonNullable<ReturnType<typeof declineView>>;
+}) {
+  if (view.next) {
+    return (
+      <div className="mt-4">
+        <p className="max-w-prose text-sm">
+          The next date on this trip is{" "}
+          <span className="font-bold">{view.next.when}</span>.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ButtonLink href={view.next.href} size="sm">
+            Book that date
+          </ButtonLink>
+          {view.otherDates ? (
+            <ButtonLink href={view.otherDates} variant="outline" size="sm">
+              See other dates
+            </ButtonLink>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  /*
+    Only when the page knows the listing: a status too old to say which one
+    it was cannot claim there is nothing else on it.
+  */
+  if (!view.otherDates) return null;
+  return (
+    <div className="mt-4">
+      <p className="text-forest/70 max-w-prose text-sm">
+        Nothing else is on sale for this trip in the next 90 days.
+      </p>
+      <ButtonLink href="/" variant="outline" size="sm" className="mt-3">
+        Find something else
+      </ButtonLink>
+    </div>
   );
 }

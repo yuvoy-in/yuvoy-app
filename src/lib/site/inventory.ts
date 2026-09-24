@@ -18,6 +18,8 @@
  * would be a third copy of data that already has an owner.
  */
 
+import { isGatedFromIndex } from "./access";
+
 export interface FixedRoute {
   path: string;
   changeFrequency: "daily" | "weekly" | "monthly";
@@ -39,6 +41,26 @@ export const INDEXABLE_FIXED_ROUTES: readonly FixedRoute[] = [
   */
   { path: "/help", changeFrequency: "monthly", priority: 0.6 },
 ] as const;
+
+/**
+ * The fixed routes the SITEMAP publishes, which is the list above minus
+ * whatever the invite gate has taken out of the index (yuvoy-api#195).
+ *
+ * Two halves of one answer again, and the same failure mode as robots.txt and
+ * the meta tag: a route that says `noindex` and is still in the sitemap is an
+ * invitation to crawl a page that refuses to be indexed, and nothing about
+ * that fails on its own. Both halves therefore derive from `GATED_FROM_INDEX`
+ * in `lib/site/access.ts` (the page through `gatedRobots`, this through the
+ * filter below), and `e2e/audit.spec.ts` asserts against a live origin that
+ * they agree.
+ *
+ * The list above is deliberately NOT filtered in place. It is the inventory:
+ * "these are the fixed pages of this app that are public", which is what
+ * `pnpm qa` checks every page route against, and that answer does not change
+ * because a switch is on for a season.
+ */
+export const SITEMAP_FIXED_ROUTES: readonly FixedRoute[] =
+  INDEXABLE_FIXED_ROUTES.filter((route) => !isGatedFromIndex(route.path));
 
 /**
  * Dynamic route patterns that are indexable, as they appear on disk.

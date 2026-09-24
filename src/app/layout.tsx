@@ -6,6 +6,7 @@ import { AppShell } from "@/components/chrome/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { AttributionCapture } from "@/components/booking/attribution-capture";
 import { AdoptStoredSession } from "@/components/auth/adopt-stored-session";
+import { InviteGuard } from "@/components/auth/invite-guard";
 import { InstallObservability } from "@/components/observability/install";
 import { ConsentBanner } from "@/components/analytics/consent-banner";
 import { THEME_COLOR } from "@/lib/site/theme";
@@ -85,7 +86,16 @@ export default function RootLayout({
               One-time migration off IndexedDB; renders nothing. See #57.
             */}
             <AdoptStoredSession />
-            <AppShell>{children}</AppShell>
+            {/*
+              The invite gate over a page that is already open (yuvoy-api#195):
+              a Save tapped on a shared reel, which stays open to anybody. Here
+              rather than on each screen, because the sheet it raises is modal
+              and there is one of those per document. With the switch off it is
+              its children and nothing else.
+            */}
+            <InviteGuard>
+              <AppShell>{children}</AppShell>
+            </InviteGuard>
             <ConsentBanner />
           </Providers>
         </MswProvider>

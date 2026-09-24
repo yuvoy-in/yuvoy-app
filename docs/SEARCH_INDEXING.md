@@ -149,6 +149,34 @@ verified this way. It verifies exactly one origin.
   minutes. Search Console is what catches what Google decided to do about it,
   weeks later. They answer different questions.
 
+## `/search` leaves the index while the invite gate is on
+
+`NEXT_PUBLIC_INVITE_ONLY=true` (yuvoy-api#195) puts the feed, `/search`,
+`/search/r/`, `/saved` and checkout behind an invite code. A crawler is a
+signed-out visitor, so with the gate on `/search` serves it the gate: a page
+whose only content is "sign in". So while the gate is on that route says
+`noindex, follow` and leaves the sitemap, and both halves derive from
+`GATED_FROM_INDEX` in `src/lib/site/access.ts`, the way `robots.txt` and the
+meta tag derive from `INDEXABLE`.
+
+Three things about it are deliberate:
+
+- **`follow`, not `nofollow`.** The gate is not a secret and the links on it
+  (the guides, the front door) are worth finding. It also keeps the policy
+  distinguishable from both site-wide ones: before launch the site says
+  `noindex, nofollow`, after it `index, follow`, and this says neither, which
+  is what lets the production audit tell "gated" from "not launched yet".
+- **Not in `PRIVATE_ROUTES` and not disallowed in `robots.txt`.** A crawler
+  that is refused the page never reads the `noindex` on it, so a URL it
+  already knows would stay in the index with nothing behind it.
+- **`/` stays indexable.** It is the front door, and what a crawler gets there
+  is the invite landing: a page written for exactly that reader, saying what
+  Yuvoy is and how to get in.
+
+`e2e/audit.spec.ts` asserts against a live origin that `/search` is in the
+sitemap exactly when its robots tag is the site's own, so the two cannot
+drift. Turning the gate off puts the route back in both, with no code change.
+
 ## Launch checklist — `app.yuvoy.in` (decided 3 Sep 2026)
 
 The app launches where it already runs. Nothing moves; one switch flips.

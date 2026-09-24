@@ -132,6 +132,12 @@ server's invite gate is on; the other three are the refusals of `POST /me/invite
 Each has its own next step, so each has its own sentence. None offers a retry: the same code is
 refused the same way.
 
+`invite_required` is the one code in this file that is **not** rendered through `describeError`.
+It is not a failure to report, it is a step to take, so checkout replaces its failure panel with
+the invite gate itself: sign in, then a code, then the submit button again, with every field
+still holding what the traveller typed. That panel ships whatever `NEXT_PUBLIC_INVITE_ONLY` says,
+because the API's gate and this app's are two switches and the API's can be turned on first.
+
 | Code                  | Treatment                                                                                                |
 | --------------------- | -------------------------------------------------------------------------------------------------------- |
 | `invite_required`     | Booking needs a signed-in, admitted number. Sign in, then enter a code. Nothing held, nothing charged.   |

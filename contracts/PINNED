@@ -475,6 +475,33 @@ repo=yuvoy-in/yuvoy-api
 #
 # Checked with `git ls-remote`, per the note above.
 
-ref=e7291e3543072083cff851714b97fabe3cd4f111
+#
+# ---
+#
+# 24 Sep 2026. Forward from e7291e354307 to 2afd7b4f2d1b, yuvoy-api #229 to
+# #233. Read for removals first: nothing in the traveller document is removed
+# or changed shape; the other four commits touch only the operator and admin
+# documents.
+#
+# Consumed in this change (yuvoy-api#225, #229):
+#   - `BookingStatus.cancellation.message`, the operator's reason for turning a
+#     request down, in the traveller's words ("The operator is full on that
+#     departure. Nothing was charged."). Present only when the code on the page
+#     IS the decline's; rendered verbatim, never built from `reasonCode`.
+#   - `cancellation.nextDeparture` ({date, startsAt, timezone, bookUrl}), the
+#     same listing's next bookable departure, present only with `message`.
+#     Absent means nothing else is on sale in the next 90 days, not "not
+#     checked".
+#
+# Read but NOT taken at face value:
+#   - `bookUrl` is `https://yuvoy.in/e/<slug>` (`links.Experience`), and
+#     yuvoy.in/e/* answers 404: listings live on app.yuvoy.in since the
+#     root-domain move was deferred (D-026). This app links to its own
+#     `/e/{slug}/book?date=` instead, and the dead link is raised with the API.
+#
+# Checked with `git ls-remote` immediately before pinning; the API is deployed
+# (the new operator take-back route answers 401 on api.yuvoy.in).
+
+ref=2afd7b4f2d1b6b75626505eab6e38bed3e36a7e6
 branch=master
-pinned_on=2026-09-22
+pinned_on=2026-09-24

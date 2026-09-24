@@ -8,6 +8,29 @@ import type { components } from "@/lib/api/schema.gen";
 export type TravellerAccount = components["schemas"]["TravellerAccount"];
 
 /**
+ * The `GET /me` read, as one definition.
+ *
+ * Shared with `ensureStanding` (`use-access.ts`), which asks whether a number
+ * is admitted from inside a tap, before any component has rendered the
+ * answer. One key, one function and one freshness, so the two cannot differ.
+ */
+export const myAccountQuery = {
+  queryKey: qk.myAccount(),
+  queryFn: async ({ signal }: { signal?: AbortSignal }) => {
+    const client = createProxyClient();
+    const { data, error } = await client.GET("/me", { signal });
+    if (error) throw error;
+    return data;
+  },
+  /*
+    A profile does not change while a form is open, and both forms that read
+    it are opened repeatedly on one page. Without this, every open of the Ask
+    sheet is a fresh request before the fields can be drawn.
+  */
+  staleTime: 60_000,
+};
+
+/**
  * Who the signed-in traveller is — `GET /me`, through the proxy.
  *
  * One read for every screen that needs to stop asking a signed-in traveller
@@ -30,21 +53,9 @@ export type TravellerAccount = components["schemas"]["TravellerAccount"];
  */
 export function useMyAccount(signedIn: boolean | undefined) {
   return useQuery({
-    queryKey: qk.myAccount(),
+    ...myAccountQuery,
     enabled: signedIn === true,
     retry: false,
-    /*
-      A profile does not change while a form is open, and both forms that read
-      it are opened repeatedly on one page. Without this, every open of the Ask
-      sheet is a fresh request before the fields can be drawn.
-    */
-    staleTime: 60_000,
-    queryFn: async ({ signal }) => {
-      const client = createProxyClient();
-      const { data, error } = await client.GET("/me", { signal });
-      if (error) throw error;
-      return data;
-    },
   });
 }
 

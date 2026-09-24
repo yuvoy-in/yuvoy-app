@@ -2114,6 +2114,42 @@ export interface components {
             /** @description Why the trip is off. Present only when it is. The app was hedging with "if the sea called it off", which is a guess dressed as information and the wrong guess for anything cancelled otherwise. */
             cancellation?: {
                 reasonCode?: string;
+                /**
+                 * @description Why it is off, written for the traveller. **Render it verbatim; do not build one from `reasonCode`.**
+                 *
+                 *     Present only when this booking is a 2B request an operator turned down, and the code above is that decline's own. One of six sentences, decided by the API so that this page and the message sent to the traveller's phone cannot say different things about one decision. It names no person, carries no code, and always states that nothing was charged, because a request never takes money and "declined" on its own reads as a charge to go and check.
+                 *
+                 *     Absent for a departure called off or a booking cancelled: those reason codes are a different vocabulary with no traveller wording behind them.
+                 * @example The operator is full on that departure. Nothing was charged.
+                 */
+                message?: string;
+                /**
+                 * @description The same listing's next departure the traveller could book right now, offered alongside the decline.
+                 *
+                 *     **Absent means there is nothing else on sale in the next 90 days** — not "we did not check". Present only with `message`. Read from the same view the feed and availability read, so it is never a date checkout would then refuse. Bounded at 90 days for the reason `nextAvailable` is: a departure in March is not usable by somebody with three days on an island.
+                 */
+                nextDeparture?: {
+                    /**
+                     * Format: date
+                     * @description The departure's day in the MARKET's timezone, not a UTC one. A 06:00 Andaman departure falls on the previous UTC day, and an offer naming the wrong day is worse than no offer.
+                     */
+                    date: string;
+                    /**
+                     * Format: date-time
+                     * @description When it leaves, in UTC, for printing a time.
+                     */
+                    startsAt: string;
+                    /**
+                     * @description The market's IANA zone, the one `date` is in.
+                     * @example Asia/Kolkata
+                     */
+                    timezone: string;
+                    /**
+                     * Format: uri
+                     * @description Where to book this listing again. The public listing page, the same link a lapsed hold is sent.
+                     */
+                    bookUrl: string;
+                };
             };
             /**
              * Format: date-time

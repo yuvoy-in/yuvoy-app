@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
 import { pageMetadata } from "@/lib/site/metadata";
 import { Feed } from "@/components/feed/feed";
+import { gatedRoute } from "@/components/auth/gated-route";
 import { REELS_PAGE_SIZE, type ReelsPage } from "@/lib/feed/reels";
 
 /**
@@ -136,6 +137,19 @@ export default async function FeedPage({
   const raw = query.__scenario;
   const scenario = typeof raw === "string" ? raw : undefined;
 
-  const { page, fetchedAt } = await getFirstPage(scenario);
-  return <Feed initialPage={page} initialFetchedAt={fetchedAt} />;
+  /*
+    Behind the invite gate when it is on (yuvoy-api#195). The first page is
+    fetched INSIDE the content, so it is only asked for when the feed is going
+    to be shown: a crawler and a signed-out visitor get the invite landing,
+    and the API is not asked for reels nobody will see. With the switch off
+    this is exactly the feed it always was.
+  */
+  return gatedRoute({
+    purpose: "browse",
+    searchParams,
+    content: async () => {
+      const { page, fetchedAt } = await getFirstPage(scenario);
+      return <Feed initialPage={page} initialFetchedAt={fetchedAt} />;
+    },
+  });
 }

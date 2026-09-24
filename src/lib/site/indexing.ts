@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { isGatedFromIndex } from "./access";
 
 /**
  * Whether this deployment may be indexed — and the single place that decides.
@@ -152,3 +153,48 @@ export const unpublishedRobotsMeta: Metadata["robots"] = {
   index: false,
   follow: false,
 };
+
+/**
+ * For a public route whose page is the invite gate while the gate is on
+ * (yuvoy-api#195): `/search`, today. See `GATED_FROM_INDEX` in
+ * `lib/site/access.ts`, which decides WHICH routes carry it.
+ *
+ * `noindex`, because a crawler is a signed-out visitor and the page it is
+ * served says "sign in": a gate in a search result is worse than no result.
+ *
+ * `follow`, and that is deliberate on two counts. The gate is not a secret,
+ * and the links on it (the guides, the front door) are ones worth finding.
+ * And it keeps this policy distinguishable from both site-wide ones, which is
+ * what lets the production audit tell "left the index because it is gated"
+ * from "noindex because the whole site is": before launch the site says
+ * `noindex, nofollow`, after it `index, follow`, and this says neither.
+ *
+ * Not in `PRIVATE_ROUTES` and not disallowed in `robots.txt`: a crawler that
+ * is refused the page never reads the `noindex` on it, and a URL it already
+ * knows would stay in the index with no page behind it.
+ */
+export const gatedRobotsMeta: Metadata["robots"] = {
+  index: false,
+  follow: true,
+};
+
+/**
+ * A page's `robots`, for a route that may be behind the invite gate.
+ *
+ * Returns nothing at all when the route is not gated, so the page inherits
+ * the app-wide `robotsMeta` exactly as it did before the gate existed, and
+ * the pair of halves stays derived from one place rather than two ternaries
+ * on two pages. `GATED_FROM_INDEX` in `lib/site/access.ts` is the list, and
+ * `sitemap.ts` reads the same list through `SITEMAP_FIXED_ROUTES`, so a route
+ * cannot say `noindex` and stay in the sitemap.
+ *
+ * Spread into a page's metadata:
+ *
+ *     export const metadata: Metadata = {
+ *       ...pageMetadata({ ... }),
+ *       ...gatedRobots("/search"),
+ *     };
+ */
+export function gatedRobots(path: string): Pick<Metadata, "robots"> {
+  return isGatedFromIndex(path) ? { robots: gatedRobotsMeta } : {};
+}

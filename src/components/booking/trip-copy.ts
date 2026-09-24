@@ -1,5 +1,11 @@
 import { formatMoney } from "@/lib/format/money";
-import { civilInZone, weekdayDayMonth, clockTime } from "@/lib/format/date";
+import {
+  civilFromDate,
+  civilInZone,
+  weekdayDayMonth,
+  clockTime,
+} from "@/lib/format/date";
+import { dedash } from "@/lib/format/dedash";
 import type { components } from "@/lib/api/schema.gen";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
@@ -245,6 +251,72 @@ export function cancellationReason(code?: string): string | null {
   };
 
   return sentences[key] ?? "The operator or we called it off.";
+}
+
+/**
+ * A request the OPERATOR turned down, said as the API says it (yuvoy-api#225).
+ *
+ * A declined request arrives here as `released`, the same state as one the
+ * traveller gave up, and the page could only hedge: "Either you gave it up or
+ * the operator could not take it." Worse, the decline's own code (`no_capacity`,
+ * `weather` and the rest) is not a cancellation code, so the reason line read
+ * "The operator or we called it off." above that hedge.
+ *
+ * `cancellation.message` is present only when the code on the page IS the
+ * decline's, and it is the traveller's sentence, chosen by the API from the
+ * same table the notice to their phone uses, so the page and the message
+ * cannot disagree about one decision. It is rendered verbatim ("do not build
+ * one from `reasonCode`"), and it already says nothing was charged.
+ *
+ * `nextDeparture` is the same listing's next bookable departure, read from the
+ * view checkout itself reads, so it is never a date checkout would refuse.
+ * Absent means nothing else is on sale in the next 90 days, not that nobody
+ * looked. Its `bookUrl` is NOT used: it names `yuvoy.in/e/<slug>`, which is a
+ * 404 while listings live on app.yuvoy.in, so the offer opens this app's own
+ * checkout on that date, with the party size the request asked for.
+ */
+export interface DeclineView {
+  /** The API's sentence, long dashes taken out on the way in. */
+  message: string;
+  /**
+   * The next departure, or null when there is none to offer (nothing on sale
+   * in 90 days, or a status too old to say which listing it was).
+   */
+  next: { when: string; href: string } | null;
+  /** Where "See other dates" goes, when the page knows the listing. */
+  otherDates: string | null;
+}
+
+export function declineView(status: BookingStatus): DeclineView | null {
+  const raw = status.cancellation?.message?.trim();
+  if (!raw) return null;
+
+  const slug = status.experience?.slug?.trim();
+  const listing = slug ? `/e/${encodeURIComponent(slug)}/book` : null;
+  const offer = status.cancellation?.nextDeparture;
+
+  let next: DeclineView["next"] = null;
+  if (offer && listing && civilFromDate(offer.date)) {
+    /*
+      The day and the time in the MARKET's zone, from the instant. A 06:00
+      Andaman departure is the previous day in UTC, and an offer naming the
+      wrong day is worse than no offer. When the zone cannot be read, the
+      market day the API sent is still true, so it is said without a time.
+    */
+    const civil = civilInZone(offer.startsAt, offer.timezone);
+    const day = civil ?? civilFromDate(offer.date)!;
+    const when = civil
+      ? `${weekdayDayMonth(civil)} at ${clockTime(civil)}`
+      : weekdayDayMonth(day);
+
+    const query = new URLSearchParams({ date: offer.date });
+    if (Number.isInteger(status.guests) && status.guests > 0) {
+      query.set("guests", String(status.guests));
+    }
+    next = { when, href: `${listing}?${query.toString()}` };
+  }
+
+  return { message: dedash(raw), next, otherDates: listing };
 }
 
 /** Renders the departure in the MARKET's zone, never the device's. */

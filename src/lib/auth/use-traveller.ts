@@ -93,12 +93,25 @@ async function readSession(signal?: AbortSignal): Promise<SessionAnswer> {
   return { signedIn: Boolean(body?.signedIn) };
 }
 
+/**
+ * The session read, as one definition.
+ *
+ * Shared with `ensureStanding` (`use-access.ts`), which has to ask the same
+ * question from inside a tap, before any component has rendered the answer.
+ * One key, one function and one freshness, so the two can never be two
+ * different reads of the same cookie.
+ */
+export const sessionQuery = {
+  queryKey: qk.session(),
+  queryFn: ({ signal }: { signal?: AbortSignal }) => readSession(signal),
+  staleTime: 60_000,
+};
+
 export function useTravellerSession() {
   const qc = useQueryClient();
 
   const query = useQuery({
-    queryKey: qk.session(),
-    queryFn: ({ signal }) => readSession(signal),
+    ...sessionQuery,
     retry: false,
     /*
       The cookie can be cleared by the server underneath us: a revoked session
@@ -107,7 +120,6 @@ export function useTravellerSession() {
       screen that keeps failing.
     */
     refetchOnWindowFocus: true,
-    staleTime: 60_000,
   });
 
   /*

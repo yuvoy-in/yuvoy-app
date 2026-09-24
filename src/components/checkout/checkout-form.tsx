@@ -30,6 +30,10 @@ import {
   useContactState,
 } from "@/components/auth/contact-fields";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
+import { useStanding } from "@/lib/auth/use-access";
+import { INVITE_ONLY } from "@/lib/site/access";
+import { InviteGate, type GateView } from "@/components/auth/invite-gate";
+import { InsideAnotherForm } from "@/components/ui/own-form";
 import { PartyStepper } from "@/components/ui/party-stepper";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -130,7 +134,7 @@ function CheckoutFields({
 }) {
   const router = useRouter();
   const create = useCreateReservation();
-  const { refresh } = useTravellerSession();
+  const { refresh, signedIn } = useTravellerSession();
 
   /**
    * A synchronous guard against the fast double-tap.
@@ -145,6 +149,36 @@ function CheckoutFields({
    * the machine obeys.
    */
   const submitting = useRef(false);
+
+  /*
+    BOOKING BY INVITATION (yuvoy-api#195), and the one piece of this that
+    ships whatever this app's own switch says.
+
+    The API's gate and this app's are two switches, and Hima turns the API's
+    on the day the code screen is live. So a build with `NEXT_PUBLIC_INVITE_ONLY`
+    off can still meet `403 invite_required` here, and without this the
+    traveller would get the generic failure panel: a refusal they cannot act
+    on, over a form they have just filled in.
+
+    `gateOpen` is the OTHER half, and that one is behind the switch. With the
+    gate on, this form is only rendered for a number the server decided may
+    see it, and the device can sign out from under that decision (Account in
+    another tab, "Not you?" on a gate). The page asks the server again when it
+    notices, but a submit in that window would be a guest booking the gate is
+    supposed to be refusing, so it is refused here instead of sent.
+  */
+  const [gateOpen, setGateOpen] = useState(false);
+  const inviteRefused =
+    create.error instanceof YuvoyError &&
+    create.error.code === "invite_required";
+  const showGate = inviteRefused || gateOpen;
+  /*
+    Enabled only once the gate is showing, and then regardless of the switch:
+    this is the one caller of `useStanding` that has to ask `GET /me` in a
+    build where the app's own gate is off. Nothing is read before that, so a
+    checkout that is never refused costs no request.
+  */
+  const standing = useStanding(showGate);
 
   /*
     Seeded from the URL, and clamped, because `?guests=` survives a bookmark
@@ -281,6 +315,18 @@ function CheckoutFields({
 
   async function submit() {
     if (submitting.current) return;
+    /*
+      Refused here rather than sent, and only with the switch on. See
+      `gateOpen` above: signed OUT is the one state the server's decision
+      cannot survive, because it changes on this device after the HTML was
+      written. `signedIn === undefined` is not yet known and is never a
+      refusal, so it falls through to the API, which is the authority anyway.
+    */
+    if (INVITE_ONLY && signedIn === false) {
+      setGateOpen(true);
+      return;
+    }
+    setGateOpen(false);
     submitting.current = true;
     try {
       await hold();
@@ -457,6 +503,25 @@ function CheckoutFields({
     total ? formatMoney(total) : null,
   ].filter(Boolean) as string[];
 
+  /*
+    Which view the gate draws, from where this device stands.
+
+    `unknown` (a `GET /me` this device could not make) draws the code screen
+    rather than nothing. That is not a refusal invented here: the API refused
+    this booking for want of an invitation, and a read that failed says
+    nothing about the number. A code is what is missing either way, and the
+    one screen that can be wrong about it, "you are in", is the one that needs
+    a yes to draw.
+  */
+  const gateView: GateView =
+    standing === undefined
+      ? "checking"
+      : standing === "signed-out"
+        ? "signed-out"
+        : standing === "admitted"
+          ? "in"
+          : "code";
+
   const action = create.isPending
     ? isRequest
       ? "Sending…"
@@ -471,6 +536,17 @@ function CheckoutFields({
     <form
       className="flex flex-1 flex-col"
       onSubmit={(e) => {
+        /*
+          THIS FORM'S OWN SUBMIT, AND NOTHING ELSE'S.
+
+          The invite gate draws its sign-in steps and its code form inside
+          this one (yuvoy-api#195), and React dispatches `submit` up its tree,
+          so "Send me a code" or "Use this code" would otherwise also run this
+          handler and try to book. Both of those stop the event themselves;
+          this is the half that does not depend on them remembering to,
+          because what is downstream of forgetting is a reservation.
+        */
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         if (canSubmit) void submit();
       }}
@@ -641,7 +717,36 @@ function CheckoutFields({
           </label>
         </Panel>
 
-        {failure ? (
+        {/*
+          THE INVITATION, ASKED FOR IN PLACE (yuvoy-api#195).
+
+          Where the generic failure panel would go, and instead of it: a
+          refusal a traveller can act on, at the foot of the form they filled
+          in, with every field still holding what they typed. Nothing is
+          unmounted and no navigation happens, which is the whole point. The
+          API held nothing and charged nothing, and the panel says so.
+
+          `retryLabel` is the submit button's own words, so "tap it again"
+          names the control rather than describing it.
+        */}
+        {showGate ? (
+          <Panel tone="alert" role="alert">
+            {/*
+              Inside THIS form, so the gate's own forms must not nest in it:
+              a browser stops a nested form's submit at this element, and the
+              gate's sign-in then reloaded checkout onto its first step with
+              everything typed gone. See `OwnForm`.
+            */}
+            <InsideAnotherForm>
+              <InviteGate
+                view={gateView}
+                variant="panel"
+                purpose="book"
+                retryLabel={action}
+              />
+            </InsideAnotherForm>
+          </Panel>
+        ) : failure ? (
           <FailurePanel failure={failure}>
             {/* capacity_unavailable carries what is left — offer it. */}
             {capacityError?.remaining ? (

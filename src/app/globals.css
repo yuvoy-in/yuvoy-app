@@ -525,6 +525,30 @@
   backdrop-filter: blur(18px) saturate(1.15);
 }
 
+/*
+  The invite gate on the feed's own route (yuvoy-api#195).
+
+  `/` is a media route, so the bar is the translucent one above. With the
+  invite gate on, a signed-out visitor's `/` is the invite landing: a paper
+  sheet, not a moving picture, and the translucent pill over paper puts the
+  inactive glyphs at 2.74:1 (see above), under the 3:1 floor. So a page that
+  carries the gate as a whole route takes the solid chrome, exactly as every
+  other sheet does.
+
+  Decided in CSS rather than in `TabBar`, because the bar is in the layout
+  and never learns what the page decided on the server: the attribute is in
+  the HTML, so the bar is right from the first paint, with no script and no
+  flash. Keyed on `page` alone, so a gate in a sheet over a reel (a save
+  tapped on a shared clip) leaves the bar over that clip as it was.
+*/
+@layer utilities {
+  body:has([data-invite-gate="page"]) .tabbar-on-media {
+    background-color: var(--color-forest);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 @utility stage {
   background-color: var(--color-forest);
   color: var(--color-paper);

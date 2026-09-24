@@ -81,6 +81,12 @@ interface MockReservation {
   /** Given back by the traveller. `released` on status, final. */
   released?: boolean;
   /**
+   * The reason an operator turned this request down (yuvoy-api#225), for a
+   * listed row the operator declined. Its booking link reads `released` with
+   * the API's sentence for this code and the listing's next date.
+   */
+  declineReasonCode?: string;
+  /**
    * The reference minted by `POST /cash-booking` — yuvoy-app#29.
    *
    * Remembered so a RETRY returns the first one. "The second tap on ferry
@@ -352,6 +358,25 @@ export const bookingHandlers = [
 
   http.post(url("/reservations"), async ({ request }) => {
     const scenario = scenarioOf(request);
+
+    /*
+      THE API'S INVITE GATE, SWITCHED ON (yuvoy-api#195).
+
+      `?__scenario=invite-required` is production after Hima flips the server
+      switch: a guest checkout, or a signed-in number that has not redeemed a
+      code, is refused with `403 invite_required` "before anything is checked
+      or held", so it comes before the key and the body are even read. A
+      number that redeemed a code here (see `isAdmitted`) books as usual,
+      which is how the whole way through the gate stays walkable.
+    */
+    if (scenario === "invite-required" && !isAdmitted(request)) {
+      return envelope(
+        "invite_required",
+        "Booking is by invitation. Sign in with your number, then enter your invite code.",
+        403,
+      );
+    }
+
     const key = request.headers.get("idempotency-key");
     const body = (await request.json()) as {
       slotId: string;
@@ -832,6 +857,28 @@ export const bookingHandlers = [
     if (scenario === "cash-collected") record.cashCollected = true;
     if (record.released) state = "released";
 
+    /*
+      A request the operator turned down (yuvoy-api#225, #229): the decline's
+      code, the API's own sentence for it, and the listing's next bookable
+      departure, a few days out so it moves with the clock. `bookUrl` is what
+      the API sends, `https://yuvoy.in/e/<slug>`, dead link and all: the app
+      must not follow it, and a mock that sent a working one would hide that.
+    */
+    const declined =
+      state === "released" && record.declineReasonCode
+        ? {
+            cancellation: {
+              reasonCode: record.declineReasonCode,
+              message: declineSentence(record.declineReasonCode),
+              nextDeparture: {
+                ...marketDayFromNow(3, "09:00"),
+                timezone: "Asia/Kolkata",
+                bookUrl: "https://yuvoy.in/e/try-dive-nemo-reef",
+              },
+            },
+          }
+        : {};
+
     const final = [
       "confirmed",
       "declined",
@@ -863,6 +910,7 @@ export const bookingHandlers = [
           timezone: "Asia/Kolkata",
         },
         price: { totalPaise: 450000 * record.guests, currency: "INR" },
+        ...declined,
         /*
           Present ONLY for a cash booking — D-034. `collected` flips when the
           operator records taking the money, and `cashCollected` is what the
@@ -1501,6 +1549,21 @@ export const bookingHandlers = [
           hours: "9am to 7pm, every day",
         },
         /*
+          Booking by invitation (yuvoy-api#195). Production has sent this
+          since 6caa728, so the mock does too: a screen that never sees the
+          field is green against data production never sends.
+
+          True by default, because this number held a booking before
+          invitations began and the migration admitted every such number.
+          `?__scenario=not-admitted` (and the two scenarios below that need
+          a number that is not in) says false until a code is redeemed, and
+          `?__scenario=admitted-absent` leaves the field out, as an API from
+          before #195 would.
+        */
+        ...(scenarioOf(request) === "admitted-absent"
+          ? {}
+          : { admitted: isAdmitted(request) }),
+        /*
           Present only under a traveller session. The mock cannot tell a
           session token from a status token by inspection, so it keys on the
           prefix the verify handler mints.
@@ -1517,6 +1580,85 @@ export const bookingHandlers = [
       },
       { headers: mockHeaders(rid()) },
     );
+  }),
+
+  /*
+    Redeeming an invite code (yuvoy-api#195), modelled on the API as Hima
+    described it on the issue and on the contract:
+
+      - Signed in only. No `Authorization` is a 401, and a finished session
+        is a 401 too (`?__scenario=session-expired`).
+      - `?__scenario=invite-rate-limited` is the throttle: ten tries an hour
+        per number and a limit per connection, answered `429`.
+      - A number that is already admitted gets `200` with
+        `alreadyAdmitted: true` WHATEVER it sends, even a malformed code, and
+        the code is not used up.
+      - Otherwise the code decides: `MOCK_INVITE_CODES.valid` admits the
+        number, `.used` is `409 invite_code_used`, `.expired` is
+        `410 invite_code_expired`, any other well-formed code is
+        `404 invite_code_unknown`, and a malformed one is a `400`.
+
+    The valid code is not consumed, unlike production's one-person-once.
+    Two e2e projects run the same walk at the same time against one server,
+    and a code that could be spent once would fail whichever came second.
+    Admission is still per number, which is the part the client reads.
+  */
+  http.post(url("/me/invite-codes/redeem"), async ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (!auth) {
+      return envelope("unauthorized", "Sign in to use an invite code.", 401);
+    }
+    const scenario = scenarioOf(request);
+    if (scenario === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+    if (scenario === "invite-rate-limited") {
+      return envelope(
+        "rate_limited",
+        "Too many invite codes tried. Try again later.",
+        429,
+      );
+    }
+    if (isAdmitted(request)) {
+      return HttpResponse.json(
+        { admitted: true, alreadyAdmitted: true },
+        { headers: mockHeaders(rid()) },
+      );
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      code?: unknown;
+    };
+    const code =
+      typeof body.code === "string"
+        ? body.code.replace(/[\s-]/g, "").toUpperCase()
+        : "";
+    if (!/^[A-HJKMNP-Z2-9]{8}$/.test(code)) {
+      return envelope("invalid_input", "That is not an invite code.", 400);
+    }
+
+    switch (code) {
+      case MOCK_INVITE_CODES.used:
+        return envelope(
+          "invite_code_used",
+          "Somebody has already used this code.",
+          409,
+        );
+      case MOCK_INVITE_CODES.expired:
+        return envelope("invite_code_expired", "This code has expired.", 410);
+      case MOCK_INVITE_CODES.valid:
+        admittedByCode.add(auth);
+        return HttpResponse.json(
+          { admitted: true },
+          { headers: mockHeaders(rid()) },
+        );
+      default:
+        return envelope(
+          "invite_code_unknown",
+          "There is no such code, or it was withdrawn.",
+          404,
+        );
+    }
   }),
 
   /* -------------------------------------------------- invited trips ---- */
@@ -1965,6 +2107,45 @@ export const bookingHandlers = [
 const DEV_SIGN_IN_CODE = "123456";
 
 /**
+ * The invite codes the mock knows (yuvoy-api#195), normalised: no hyphen,
+ * capitals. Each is eight characters of the real alphabet, which has no
+ * 0, O, 1, I or L, so every one passes the client's own check and reaches
+ * the handler.
+ */
+export const MOCK_INVITE_CODES = {
+  valid: "K7QM4XRD",
+  used: "USED2345",
+  expired: "PAST6789",
+} as const;
+
+/**
+ * Numbers admitted by a code redeemed here, keyed by the credential that
+ * redeemed it (a session names its number). Module state, reset between tests
+ * by `__resetBookingMocks` like everything else in this file.
+ */
+const admittedByCode = new Set<string>();
+
+/** The scenarios whose number is NOT admitted until it redeems a code. */
+const NOT_ADMITTED_SCENARIOS = new Set([
+  "not-admitted",
+  "invite-required",
+  "invite-rate-limited",
+]);
+
+/**
+ * Whether the number behind this request may book.
+ *
+ * Yes, unless a scenario says it is one of the numbers invitations left out,
+ * in which case only a code redeemed through this mock lets it in. A guest
+ * sends no credential and is never admitted.
+ */
+function isAdmitted(request: Request): boolean {
+  if (!NOT_ADMITTED_SCENARIOS.has(scenarioOf(request))) return true;
+  const auth = request.headers.get("authorization");
+  return auth !== null && admittedByCode.has(auth);
+}
+
+/**
  * A trip somebody else booked and invited this number to.
  *
  * No price, no payment, no reference, and nothing about the booker. The
@@ -2051,6 +2232,21 @@ function publicSupportRequest(request: MockSupportRequest) {
   };
 }
 
+/**
+ * A day that has not happened yet, under either clock.
+ *
+ * The mock's own clock starts at `FIXTURE_NOW` and the device's is whatever
+ * the machine says, so a fixture date is only reliably in the future when it
+ * is ahead of BOTH. A literal is ahead of neither for long: this trip was
+ * written as `2026-09-22` and quietly moved itself into the Past tab on
+ * 23 September, failing two tests that had nothing to do with whatever
+ * anybody was changing that day.
+ */
+function daysAhead(days: number): string {
+  const now = Math.max(Date.now(), mockNow());
+  return new Date(now + days * 86_400_000).toISOString().slice(0, 10);
+}
+
 const INVITED_TRIP = {
   id: "inv_joined",
   role: "guest" as const,
@@ -2058,7 +2254,8 @@ const INVITED_TRIP = {
   experience: "Try-dive at Nemo Reef",
   experienceSlug: "try-dive-nemo-reef",
   operator: "Sample Dive Operator",
-  localDate: "2026-09-22",
+  // Upcoming, and it stays upcoming. See `daysAhead`.
+  localDate: daysAhead(3),
   localTime: "07:00",
   meetingPoint: "Jetty 2, Havelock",
   landmark: "Beside the blue ticket hut",
@@ -2074,7 +2271,12 @@ const INVITED_CANCELLED = {
   id: "inv_called_off",
   guestState: "joined" as const,
   status: "called_off" as const,
-  localDate: "2026-09-10",
+  /*
+    In the past, and that is the point of the pair: a called-off trip belongs
+    in Cancelled whatever its date says, so this one has a date that would put
+    it in Past if the status did not win.
+  */
+  localDate: daysAhead(-13),
 };
 
 /** A trip on this number that this device has never seen. */
@@ -2182,6 +2384,54 @@ const DECLINED_REQUEST = {
   tab: "cancelled" as const,
 };
 
+/**
+ * The API's sentence for each decline code, word for word
+ * (`internal/booking/decline.go` at yuvoy-api 2afd7b4).
+ */
+const DECLINE_SENTENCES: Record<string, string> = {
+  no_capacity: "The operator is full on that departure. Nothing was charged.",
+  weather:
+    "The operator isn't running that date because of the conditions. Nothing was charged.",
+  not_operating:
+    "The operator isn't running that departure after all. Nothing was charged.",
+  party_too_large:
+    "The operator can't take a group that size on this one. Nothing was charged.",
+  unsafe_for_party:
+    "The operator doesn't think this trip is right for your group. Nothing was charged.",
+};
+
+function declineSentence(code: string): string {
+  return (
+    DECLINE_SENTENCES[code] ??
+    "The operator couldn't take this one. Nothing was charged."
+  );
+}
+
+/**
+ * A departure `days` market days from today in Port Blair, at `time` there,
+ * as `date` (the market's day) and `startsAt` (the instant, in UTC).
+ */
+function marketDayFromNow(
+  days: number,
+  time: string,
+): { date: string; startsAt: string } {
+  const IST_MS = 5.5 * 3600_000;
+  const wall = new Date(Date.now() + IST_MS);
+  wall.setUTCDate(wall.getUTCDate() + days);
+  const date = wall.toISOString().slice(0, 10);
+  const [h, m] = time.split(":").map(Number);
+  const startsAt = new Date(
+    Date.UTC(
+      Number(date.slice(0, 4)),
+      Number(date.slice(5, 7)) - 1,
+      Number(date.slice(8, 10)),
+      h,
+      m,
+    ) - IST_MS,
+  ).toISOString();
+  return { date, startsAt };
+}
+
 /** Every row the API lists that this device did not create. */
 const LISTED_TRIPS = [
   ANOTHER_PHONES_TRIP,
@@ -2237,6 +2487,11 @@ function seedListedTrips(): void {
         where `declined` means money was taken (yuvoy-api#225).
       */
       listedState: isDeclinedRequestRow(trip) ? "released" : trip.state,
+      ...(isDeclinedRequestRow(trip) &&
+      "reasonCode" in trip &&
+      typeof trip.reasonCode === "string"
+        ? { declineReasonCode: trip.reasonCode }
+        : {}),
     });
     byToken.set(trip.statusToken, trip.reservationId);
   }
@@ -2256,4 +2511,6 @@ export function __resetBookingMocks(): void {
   guestSeq = 1;
   // And the help requests one test sent.
   supportRequests.length = 0;
+  // And the numbers one test let in with a code.
+  admittedByCode.clear();
 }
