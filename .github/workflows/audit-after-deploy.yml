@@ -1,0 +1,27 @@
+# The rendered audit, after every production deploy Vercel makes.
+#
+# Vercel's Git integration deploys `main` and reports each deploy back to
+# GitHub as a deployment status. That report is the trigger, so the audit
+# runs once per production deploy, against what is actually live, however the
+# deploy was started. production.yml no longer deploys on push (it raced
+# Vercel's deploy for the domain), so without this file a release would ship
+# unaudited.
+#
+# Previews report here too, and so does every failed deploy. Only a
+# successful production deploy starts the job; the rest end as skipped, which
+# costs no runner minutes.
+#
+# audit.yml resolves the target from the PRODUCTION_URL repo variable and
+# spends about a minute installing before it reads a page, so it reads the
+# build this deploy put live, not the one before it.
+name: Audit after deploy
+
+on:
+  deployment_status:
+
+jobs:
+  audit:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      startsWith(github.event.deployment.environment, 'Production')
+    uses: ./.github/workflows/audit.yml
