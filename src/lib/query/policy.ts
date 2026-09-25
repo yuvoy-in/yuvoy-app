@@ -202,6 +202,16 @@ export const qk = {
    */
   availabilityForCheckout: (slug: string, slotId: string) =>
     ["getAvailability", "checkout", slug, slotId] as const,
+  /**
+   * The listing bar's "next open" read (yuvoy-app#111).
+   *
+   * Its own entry for the reason above, turned around: the bar reads the same
+   * window checkout's calendar does, and sharing that entry would hand
+   * checkout a seat count fetched while the traveller was still reading the
+   * listing. Same endpoint, same window, same rule; separate cache.
+   */
+  availabilityForListing: (slug: string, from: string, to: string) =>
+    ["getAvailability", "listing", slug, from, to] as const,
   /*
     Every axis is part of the key. Leaving one out means two different
     searches share a cache entry and the second renders the first's results —

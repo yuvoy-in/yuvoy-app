@@ -1,10 +1,14 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { BookingLayer } from "./booking-layer";
+import { server } from "../../../mocks/server";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
+
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 /**
  * The listing page's one action (yuvoy-app#62 item 1).
@@ -15,8 +19,8 @@ type Experience = components["schemas"]["Experience"];
  * decisions onto checkout on 14 September.
  *
  * What is left to defend is small and worth defending exactly: one button, no
- * query string on it, no price beside it, and a truthful label when there is
- * nothing to book.
+ * query string on it, the price and the next open day beside it
+ * (yuvoy-app#111), and a truthful label when there is nothing to book.
  */
 
 const experience = (over: Partial<Experience> = {}): Experience =>
@@ -61,13 +65,90 @@ describe("the sticky bar", () => {
     );
   });
 
-  it("carries no price", () => {
+  it("carries the price, with the server's unit phrase beside it", async () => {
     /*
-      Removed by the owner and kept removed. The bar is the last thing read
-      before committing, and a per-person figure there reads as the total.
+      yuvoy-app#111 reverses an earlier owner call, with the owner's approval
+      (25 Sep). The price was removed because a bare per-person figure read as
+      the total; the unit phrase, verbatim from the API, is what answers that.
+    */
+    renderWithQuery(
+      <BookingLayer
+        experience={experience({
+          fromPrice: { amountMinor: 450000, currency: "INR" },
+          pricingUnit: "per_person",
+          pricingUnitLabel: "per person",
+        })}
+        bookable
+      />,
+    );
+    expect(screen.getByText("₹4,500")).toBeInTheDocument();
+    expect(screen.getByText("per person")).toBeInTheDocument();
+    await screen.findByText(/^Next open:/);
+  });
+
+  it("names the day checkout will open on, from live availability", async () => {
+    /*
+      The mock's clock is 19 Aug. That morning's departure is past its cutoff,
+      so the first day a traveller could book is Thursday the 20th: the same
+      rule and the same server clock checkout uses, which is why the two agree.
     */
     renderWithQuery(<BookingLayer experience={experience()} bookable />);
-    expect(document.body.textContent).not.toMatch(/₹/);
+    expect(
+      await screen.findByText("Next open: Thu, 20 Aug"),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing about dates while it is still asking", () => {
+    // "No dates" is a claim, and a read still in flight has not earned it.
+    renderWithQuery(<BookingLayer experience={experience()} bookable />);
+    expect(screen.queryByText(/No dates/)).toBeNull();
+    expect(screen.queryByText(/Next open/)).toBeNull();
+  });
+
+  it("says so plainly when nothing is open in the window", async () => {
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () =>
+        HttpResponse.json({
+          slots: [],
+          bookable: true,
+          availabilityAsOf: "2026-08-19T02:00:00Z",
+          marketTimezone: "Asia/Kolkata",
+          staleSlotsSuppressed: 0,
+        }),
+      ),
+    );
+    renderWithQuery(<BookingLayer experience={experience()} bookable />);
+    expect(
+      await screen.findByText("No dates in the next 90 days"),
+    ).toBeInTheDocument();
+  });
+
+  it("claims nothing about dates when the read fails", async () => {
+    /*
+      A 404 rather than a 500: the client retries a failed GET with backoff,
+      and the test must reach the FAILED state, not sit in the loading one
+      where "no date text" would pass for the wrong reason. The placeholder
+      going away is what proves the read has settled.
+    */
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () =>
+        HttpResponse.json(
+          { error: { code: "not_found", message: "Not found." } },
+          { status: 404 },
+        ),
+      ),
+    );
+    const { container } = renderWithQuery(
+      <BookingLayer experience={experience()} bookable />,
+    );
+    expect(container.querySelector(".skeleton")).not.toBeNull();
+    await waitFor(() =>
+      expect(container.querySelector(".skeleton")).toBeNull(),
+    );
+    expect(screen.queryByText(/No dates/)).toBeNull();
+    expect(screen.queryByText(/Next open/)).toBeNull();
+    // And the way in is still there.
+    expect(screen.getByRole("link", { name: /Pick a day/ })).toBeVisible();
   });
 
   it("asks for no date and no party size on this page", () => {
@@ -96,6 +177,23 @@ describe("a listing that is not on sale", () => {
     const button = screen.getByRole("button", { name: "No dates open" });
     expect(button).toBeDisabled();
     expect(screen.queryByRole("link", { name: /Pick a day/ })).toBeNull();
+  });
+
+  it("does not ask for availability it could never sell", async () => {
+    // `bookable: false` always comes with empty availability, so the read
+    // would be a request for an answer already known.
+    let asked = 0;
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () => {
+        asked += 1;
+        return HttpResponse.json({ slots: [] });
+      }),
+    );
+    renderWithQuery(
+      <BookingLayer experience={experience()} bookable={false} />,
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(asked).toBe(0);
   });
 
   it("says it in the body too, and gives no reason", () => {
