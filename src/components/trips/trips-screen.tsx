@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   useTravellerSession,
   useMyBookings,
@@ -296,34 +295,49 @@ function Header() {
 }
 
 /**
- * Signed out: no tabs, no trips, one way in.
+ * Signed out: no tabs, no trips, and two ways in, the guest's first.
  *
  * Not an empty LIST. There is no list to be empty, and "No upcoming trips"
  * shown to somebody who has booked three would be a false statement rather
- * than an empty state. The copy is the owner's, verbatim.
+ * than an empty state.
  *
- * Recovery stays as a quieter second route, because the two are genuinely
- * different: signing in works for a number that has never booked and revokes
- * nothing, while recovery mints one booking's link and rotates the old one.
- * Somebody who booked as a guest on a different phone needs the second.
+ * ## Finding a booking leads (yuvoy-app#113)
+ *
+ * Checkout needs no account, so most people who land here signed out booked
+ * as guests. This screen used to open on a sign-in wall and offer the way to
+ * their booking as a small link underneath, so a guest had to work out that
+ * signing in was not what they needed. Now the guest's route leads: the link
+ * in their booking message, or `/trips/recover`, which sends a code to the
+ * number they booked with and needs no account at all.
+ *
+ * Signing in stays, second and in the owner's words, verbatim. The two are
+ * genuinely different: signing in works for a number that has never booked
+ * and revokes nothing, while recovery mints one booking's link and rotates
+ * the old one.
  */
 function SignedOut() {
   return (
     <Screen>
       <Header />
+      <Panel className="mt-6">
+        <h2 className="text-base font-bold">Find my booking</h2>
+        <p className="text-forest/70 mt-1.5 text-sm">
+          Open the link in your booking message. No message to hand? Use the
+          number you booked with and we will send you a code. No account needed.
+        </p>
+        <ButtonLink href="/trips/recover" className="mt-4">
+          Find my booking
+        </ButtonLink>
+      </Panel>
       <EmptyState
         title="Sign in to see your trips"
         body="Your bookings are kept in your account. Sign in with the WhatsApp number you booked with."
-        action={<ButtonLink href="/account?next=/trips">Sign in</ButtonLink>}
+        action={
+          <ButtonLink href="/account?next=/trips" variant="outline">
+            Sign in
+          </ButtonLink>
+        }
       />
-      <p className="text-forest/70 mt-6 text-center text-sm">
-        <Link
-          href="/trips/recover"
-          className="text-terra-deep tap-target underline"
-        >
-          Lost your booking link?
-        </Link>
-      </p>
     </Screen>
   );
 }
