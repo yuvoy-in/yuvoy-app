@@ -203,7 +203,9 @@ describe("ExperienceDetail", () => {
         pricingUnitLabel: "for the group",
       };
       renderWithQuery(<ExperienceDetail experience={group} />);
-      expect(screen.getByText(/for the group/)).toBeInTheDocument();
+      // Twice since yuvoy-app#111: the price panel and the sticky bar, and
+      // both follow the server's phrase.
+      expect(screen.getAllByText(/for the group/)).toHaveLength(2);
       expect(screen.queryByText(/per person/)).not.toBeInTheDocument();
     });
 
@@ -220,7 +222,8 @@ describe("ExperienceDetail", () => {
         pricingUnitLabel: "per boat",
       };
       renderWithQuery(<ExperienceDetail experience={odd} />);
-      expect(screen.getByText(/per boat/)).toBeInTheDocument();
+      // The panel and the sticky bar (yuvoy-app#111), both by the LABEL.
+      expect(screen.getAllByText(/per boat/)).toHaveLength(2);
       expect(screen.queryByText(/for the group/)).not.toBeInTheDocument();
     });
 
@@ -416,6 +419,61 @@ describe("ExperienceDetail", () => {
       );
       expect(screen.getByText(operator.name)).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: operator.name })).toBeNull();
+    });
+  });
+
+  /*
+    The lines a traveller weighs with the price (yuvoy-app#110, #112). Both are
+    the API's to word (yuvoy-api#248); see `listing-lines.ts`.
+  */
+  describe("beside the price", () => {
+    it("says how it is paid for, before anybody reaches the pay step", () => {
+      renderWithQuery(<ExperienceDetail experience={withGallery} />);
+      expect(
+        screen.getByText("Pay at the counter on the day"),
+      ).toBeInTheDocument();
+    });
+
+    it("says it for a request listing too", () => {
+      renderWithQuery(
+        <ExperienceDetail
+          experience={EXPERIENCE_DETAIL["night-fishing-with-a-local-crew"]}
+        />,
+      );
+      expect(
+        screen.getByText("Pay at the counter on the day"),
+      ).toBeInTheDocument();
+    });
+
+    it("invents no cancellation line when the API sends no summary", () => {
+      // The fixture has a policy paragraph and no summary: the paragraph stays
+      // where it is and nothing is cut out of it for the price panel.
+      renderWithQuery(<ExperienceDetail experience={withGallery} />);
+      expect(screen.queryByRole("link", { name: "Full policy" })).toBeNull();
+      expect(screen.getByText(withGallery.cancellationPolicy!)).toBeVisible();
+    });
+
+    it("prints the API's summary, and leads to the full policy", () => {
+      renderWithQuery(
+        <ExperienceDetail
+          experience={
+            {
+              ...withGallery,
+              cancellationSummary: "Full refund until 48 hours before",
+            } as Experience
+          }
+        />,
+      );
+      expect(
+        screen.getByText(/Full refund until 48 hours before/),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Full policy" })).toHaveAttribute(
+        "href",
+        "#cancellation",
+      );
+      expect(document.getElementById("cancellation")).toHaveTextContent(
+        withGallery.cancellationPolicy!,
+      );
     });
   });
 });

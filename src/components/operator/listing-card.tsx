@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { formatFromPrice } from "@/lib/format/money";
+import { nextDepartureSentence } from "@/lib/feed/availability";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import type { OperatorProfile } from "@/lib/operator/use-operator";
 
@@ -50,14 +51,16 @@ export function ListingCard({
           )}
         </p>
         {/*
-          `nextAvailable` absent means "no dates in the next 90 days", the same
-          as on the feed. It is a meaningful value rather than a missing one,
-          so it gets a sentence rather than a blank.
+          The feed's own sentence for the same field (yuvoy-app#113). This
+          printed `nextAvailable` as it arrived, so the page read "2026-09-25"
+          where the feed reads "Fri, 25 Sep". Absent still means "no dates in
+          the next 90 days", and `nextDepartureSentence` says so, as it does
+          for a date it cannot read.
         */}
         <p className="text-forest/70 mt-1 text-xs">
           {!bookable
             ? "Not available right now"
-            : (experience.nextAvailable ?? "No dates in the next 90 days")}
+            : nextDepartureSentence(experience).short}
         </p>
       </div>
       <ChevronRightIcon className="text-forest/70 size-5 shrink-0" />

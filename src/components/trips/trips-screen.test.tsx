@@ -147,23 +147,42 @@ describe("signed out", () => {
     expect(called).toBe(false);
   });
 
-  it("offers signing in, and recovery as the quieter second route", async () => {
+  it("leads with finding a booking, and keeps signing in second", async () => {
     /*
-      Both, because they are genuinely different. Signing in works for a number
-      that has never booked and revokes nothing; recovery mints one booking's
-      link and rotates the old one, which is what somebody who booked as a
-      guest on another phone needs.
+      yuvoy-app#113. Checkout needs no account, so most people here signed out
+      booked as guests, and the way to their booking used to be a small link
+      under a sign-in wall. Now it leads, and it goes to recovery, which needs
+      no account at all.
 
-      `next=/trips` is asserted because without it signing in lands on Account
-      and the traveller has to find their own way back.
+      Both routes stay, because they are genuinely different: signing in works
+      for a number that has never booked and revokes nothing; recovery mints
+      one booking's link and rotates the old one. `next=/trips` is asserted
+      because without it signing in lands on Account and the traveller has to
+      find their own way back.
     */
     renderWithQuery(<TripsScreen />);
+    const find = await screen.findByRole("link", { name: "Find my booking" });
+    const signIn = screen.getByRole("link", { name: /^Sign in$/ });
+
+    expect(find).toHaveAttribute("href", "/trips/recover");
+    expect(signIn).toHaveAttribute("href", "/account?next=/trips");
+    // First in reading order, which is what "leads" means to a screen reader
+    // as much as to the eye.
     expect(
-      await screen.findByRole("link", { name: /^Sign in$/ }),
-    ).toHaveAttribute("href", "/account?next=/trips");
+      find.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("keeps the owner's sign-in words, verbatim", async () => {
+    renderWithQuery(<TripsScreen />);
     expect(
-      screen.getByRole("link", { name: /Lost your booking link/ }),
-    ).toHaveAttribute("href", "/trips/recover");
+      await screen.findByText("Sign in to see your trips"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Your bookings are kept in your account. Sign in with the WhatsApp number you booked with.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("promises nothing about signal or this device", async () => {
