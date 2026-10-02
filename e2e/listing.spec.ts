@@ -92,14 +92,69 @@ test.describe("one button, and it opens checkout", () => {
     }
   });
 
-  test("the bar carries no price", async ({ page }) => {
-    // Removed by the owner and kept removed. The bar is the last thing read
-    // before committing, and a per-person figure there reads as the total.
-    await page.goto(REQUEST);
-    const bar = page.getByRole("link", { name: /^Pick a day/ });
-    await expect(bar).toBeVisible();
-    expect(await bar.innerText()).not.toMatch(/₹/);
+  test("the bar carries the price, and the day checkout opens on", async ({
+    page,
+  }) => {
+    /*
+      yuvoy-app#111, reversing an earlier owner call with the owner's approval
+      (25 Sep). The price comes back WITH the server's unit phrase, which is
+      what answers the old objection that a bare figure read as the total.
+
+      The mock's clock is 19 Aug and that morning's dive is past its cutoff,
+      so the first day anybody could book is Thursday the 20th. The bar names
+      it from a live availability read, by checkout's own rule, and checkout's
+      calendar must then open with that same day as its first open square.
+    */
+    await page.goto(INSTANT);
+    const bar = page.locator("div.sticky", {
+      has: page.getByRole("link", { name: /^Pick a day/ }),
+    });
+    await expect(bar).toContainText("₹4,500");
+    await expect(bar).toContainText("per person");
+    await expect(bar).toContainText("Next open: Thu, 20 Aug");
+
+    await page.getByRole("link", { name: /^Pick a day/ }).click();
+    await page.waitForURL(/\/book$/);
+    const firstOpen = page
+      .getByRole("region", { name: "Pick a day" })
+      .locator("button[aria-pressed]:not([disabled])")
+      .first();
+    await expect(firstOpen).toHaveAttribute("aria-label", /^Thu 20 Aug/);
   });
+
+  test("a request listing's bar carries them too", async ({ page }) => {
+    await page.goto(REQUEST);
+    const bar = page.locator("div.sticky", {
+      has: page.getByRole("link", { name: /^Pick a day/ }),
+    });
+    await expect(bar).toContainText("₹2,200");
+    await expect(bar).toContainText("Next open: Thu, 20 Aug");
+  });
+});
+
+test.describe("how it is paid for", () => {
+  /*
+    yuvoy-app#110. Paying at the counter on the day is the only way a booking
+    can be finished today, and a traveller used to learn that at the pay step.
+    It is said beside the price and again at the top of checkout, for both
+    booking modes.
+  */
+  for (const listing of [INSTANT, REQUEST]) {
+    test(`is said on the listing and at the top of checkout (${listing})`, async ({
+      page,
+    }) => {
+      await page.goto(listing);
+      await expect(
+        page.getByText("Pay at the counter on the day"),
+      ).toBeVisible();
+
+      await page.getByRole("link", { name: /^Pick a day/ }).click();
+      await page.waitForURL(/\/book$/);
+      await expect(
+        page.getByText("Pay at the counter on the day"),
+      ).toBeVisible();
+    });
+  }
 });
 
 test.describe("choosing a departure on checkout", () => {

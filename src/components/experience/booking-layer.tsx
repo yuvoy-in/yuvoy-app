@@ -3,6 +3,9 @@
 import { type ReactNode } from "react";
 import { StickyBar } from "@/components/ui/sticky-bar";
 import { Button, ButtonArrow, ButtonLink } from "@/components/ui/button";
+import { Skeleton } from "@/components/states";
+import { formatFromPrice } from "@/lib/format/money";
+import { nextOpenSentence, useNextOpenDay } from "@/lib/booking/next-open-day";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -31,9 +34,22 @@ type Experience = components["schemas"]["Experience"];
  * why a business stopped selling is a supply judgement about them and does not
  * belong on a traveller screen.
  *
- * **No price in the bar**, removed by the owner earlier and kept removed. It
- * is the last thing read before committing, and a per-person figure there
- * reads as the total.
+ * ## The price and the next open day, beside the button (yuvoy-app#111)
+ *
+ * The price was taken out of this bar by the owner, because a bare
+ * per-person figure read as the total. The owner reversed that on 25 Sep,
+ * after the product review rated it the biggest conversion lever found: on a
+ * long listing the price sat in the panel at the top, and a traveller
+ * scrolled back up to check what it cost. So it is back, with the server's
+ * unit phrase beside it ("per person", "for the group"), which is what
+ * answers the original objection.
+ *
+ * The next open day comes from a live availability read (`useNextOpenDay`),
+ * never from the statically cached listing, and by checkout's own rule, so
+ * the day named here is the day checkout's calendar opens on. While that read
+ * is in flight the line is held open rather than filled, and a failed read
+ * says nothing: "no dates" is a claim a read that did not come back has not
+ * earned.
  *
  * It wraps the WHOLE page body, because a sticky element sticks only while its
  * parent is on screen, so the bar has to belong to a box that reaches the end
@@ -63,6 +79,10 @@ export function BookingLayer({
   before?: ReactNode;
   after?: ReactNode;
 }) {
+  const next = useNextOpenDay(experience.slug, bookable);
+  const nextLine = nextOpenSentence(next);
+  const price = formatFromPrice(experience.fromPrice);
+
   return (
     <>
       {before}
@@ -86,10 +106,36 @@ export function BookingLayer({
 
       <StickyBar>
         {bookable ? (
-          <ButtonLink href={`/e/${experience.slug}/book`} size="lg" block>
-            Pick a day
-            <ButtonArrow />
-          </ButtonLink>
+          <div className="flex items-center gap-4">
+            <div className="min-w-0 flex-1">
+              {price ? (
+                <p className="text-lg leading-tight font-bold">
+                  {price}
+                  {/* The server's phrase, verbatim, as on the price panel. */}
+                  {experience.pricingUnitLabel ? (
+                    <span className="text-forest/70 ml-1.5 text-xs font-normal">
+                      {experience.pricingUnitLabel}
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
+              <div className="text-forest/70 mt-0.5 min-h-4 text-xs">
+                {nextLine ? (
+                  <p>{nextLine}</p>
+                ) : next.state === "pending" ? (
+                  <Skeleton className="mt-1 h-3 w-28" />
+                ) : null}
+              </div>
+            </div>
+            <ButtonLink
+              href={`/e/${experience.slug}/book`}
+              size="lg"
+              className="shrink-0"
+            >
+              Pick a day
+              <ButtonArrow />
+            </ButtonLink>
+          </div>
         ) : (
           /*
             Disabled rather than absent. A bar that vanishes on some listings

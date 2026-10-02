@@ -82,12 +82,19 @@ export function RecoverScreen() {
       stageLabel="Your booking link"
     >
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        Get your booking back
+        Find your booking
       </h1>
+      {/*
+        Where the code goes, said plainly (yuvoy-app#113). It said "to the
+        number you booked with", and with no WhatsApp sender in production the
+        code goes to the email given at checkout instead (the API picks
+        WhatsApp when it can send, then that email). A guest watching their
+        messages for a code sitting in their inbox gives up.
+      */}
       <p className="text-forest/70 mt-3 text-sm">
-        We will send a code to the number you booked with. Your booking link
-        cannot be looked up any other way. It is not stored anywhere we can read
-        it.
+        Enter the number you booked with. We will send a code by WhatsApp, or to
+        the email you gave when you booked. Your booking link cannot be looked
+        up any other way. It is not stored anywhere we can read it.
       </p>
 
       <form
@@ -149,9 +156,9 @@ export function RecoverScreen() {
 
       {sent && !failure ? (
         <p className="text-forest/70 mt-4 text-xs" role="status">
-          If that number has a booking with us, a code is on its way. We answer
-          the same way for every number, so this is not a way to check whether
-          somebody has booked.
+          If that number has a booking with us, a code is on its way by WhatsApp
+          or email. We answer the same way for every number, so this is not a
+          way to check whether somebody has booked.
         </p>
       ) : null}
 

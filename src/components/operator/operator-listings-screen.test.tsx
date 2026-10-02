@@ -117,6 +117,32 @@ describe("OperatorListingsScreen", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("prints the next date the way the feed does, never as it arrived", async () => {
+    /*
+      yuvoy-app#113. The card printed `nextAvailable` straight off the wire, so
+      this page read "2026-09-25" where the feed reads "Fri, 25 Sep".
+    */
+    const profile = operatorProfileFor(SLUG);
+    server.use(
+      http.get(`${BASE}/operators/${SLUG}`, () =>
+        HttpResponse.json({
+          ...profile,
+          listings: profile.listings.map((l) => ({
+            ...l,
+            bookable: true,
+            experience: { ...l.experience, nextAvailable: "2026-09-25" },
+          })),
+        }),
+      ),
+    );
+
+    renderWithQuery(<OperatorListingsScreen slug={SLUG} />);
+    expect((await screen.findAllByText("Fri, 25 Sep")).length).toBeGreaterThan(
+      0,
+    );
+    expect(document.body.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
   it("says a business with nothing on sale has nothing on sale", async () => {
     /*
       Reachable even though the profile only shows the door when there is

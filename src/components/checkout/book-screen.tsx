@@ -11,6 +11,8 @@ import {
   CALENDAR_WINDOW_DAYS,
 } from "@/lib/booking/availability-window";
 import { clockOffsetMs } from "@/lib/booking/clock";
+import { fetchAvailability } from "@/lib/booking/availability-query";
+import { paymentLine } from "@/lib/booking/listing-lines";
 import {
   daysFromSlots,
   firstOpenDay,
@@ -110,17 +112,7 @@ export function BookScreen({ slug }: { slug: string }) {
   */
   const availability = useQuery({
     queryKey: qk.availability(slug, range.from, range.to),
-    queryFn: async ({ signal }) => {
-      const { data, error } = await api.GET(
-        "/experiences/{slug}/availability",
-        {
-          params: { path: { slug }, query: { from: range.from, to: range.to } },
-          signal,
-        },
-      );
-      if (error) throw error;
-      return data;
-    },
+    queryFn: ({ signal }) => fetchAvailability(slug, range, signal),
     ...CACHE.getAvailability,
   });
 
@@ -265,6 +257,13 @@ export function BookScreen({ slug }: { slug: string }) {
           ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
           : "When would you like to go?"}
       </h1>
+      {/*
+        Said before a day is chosen, not discovered at the pay step
+        (yuvoy-app#110). The same line, from the same source, as the listing.
+      */}
+      <p className="text-forest/80 mt-2 text-sm">
+        {paymentLine(experience.data)}
+      </p>
 
       {/*
         The API's own sentence, above the calendar, after it refuses. Seats

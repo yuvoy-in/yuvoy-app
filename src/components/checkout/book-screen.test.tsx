@@ -92,6 +92,26 @@ describe("opening with nothing chosen", () => {
     expect(screen.queryByText(/No departure chosen/)).toBeNull();
   });
 
+  it("says how it is paid for before a day is chosen", async () => {
+    /*
+      yuvoy-app#110. A traveller used to learn that the counter was the only
+      way to finish at the pay step, after choosing a day, a time, a party and
+      typing their details.
+    */
+    server.use(availability([slot()]));
+    renderWithQuery(<BookScreen slug="try-dive-nemo-reef" />);
+
+    const line = await screen.findByText("Pay at the counter on the day");
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(
+      heading.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      line.compareDocumentPosition(screen.getByText("Pick a day")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("opens on the month of the first open day, not on today", async () => {
     /*
       A calendar that opens on today for a listing whose next departure is

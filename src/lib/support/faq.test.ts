@@ -26,6 +26,25 @@ describe("the answers", () => {
     expect(offenders.map((o) => o.id)).toEqual([]);
   });
 
+  it("describes finding a booking as it works: a code, then a new link", () => {
+    /*
+      yuvoy-app#113. Two answers said a booking could be reached with no code
+      at all, and that the lost LINK would arrive again. Recovery sends a code
+      (by WhatsApp, or to the email given at checkout) and the code opens the
+      booking on a fresh link, retiring the old one.
+    */
+    const text = (id: string) =>
+      allFaqItems()
+        .find((item) => item.id === id)!
+        .answer.join(" ");
+
+    expect(text("lost-link")).toMatch(/Find my booking/);
+    expect(text("lost-link")).toMatch(/send you a code/);
+    expect(text("lost-link")).toMatch(/old link stops working/);
+    expect(text("sign-in-code")).not.toMatch(/do not need a code/);
+    expect(text("sign-in-code")).toMatch(/Find my booking/);
+  });
+
   it("promises no ticket tracking, because there is no endpoint behind one", () => {
     /*
       `POST /support/requests` is the whole support surface: a message in, a

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
+import { cancellationLine, paymentLine } from "@/lib/booking/listing-lines";
 import { paragraphsOf } from "@/lib/format/paragraphs";
 import { formatDuration } from "@/lib/format/time";
 import { Screen } from "@/components/chrome/screen";
@@ -39,6 +40,7 @@ type Experience = components["schemas"]["Experience"];
  */
 export function ExperienceDetail({ experience }: { experience: Experience }) {
   const price = formatFromPrice(experience.fromPrice);
+  const cancellation = cancellationLine(experience);
   const instant = experience.bookingMode === "allotment";
   const duration = formatDuration(experience.durationMinutes);
   /*
@@ -194,6 +196,37 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                     commit.
                   </p>
                 )}
+
+                {/*
+                  How it is paid for, before anybody reaches the pay step
+                  (yuvoy-app#110). A traveller used to find out on the last
+                  screen that the counter was the only way to finish.
+                */}
+                <p className="text-forest/80 mt-3 text-sm">
+                  {paymentLine(experience)}
+                </p>
+
+                {/*
+                  The cancellation rule in one line, weighed with the price
+                  (yuvoy-app#112). Only the server's own summary, and nothing
+                  when it sends none: see `cancellationLine`.
+                */}
+                {cancellation ? (
+                  <p className="text-forest/70 mt-1 text-sm">
+                    {cancellation}
+                    {experience.cancellationPolicy ? (
+                      <>
+                        {" · "}
+                        <a
+                          href="#cancellation"
+                          className="text-terra-deep tap-target underline"
+                        >
+                          Full policy
+                        </a>
+                      </>
+                    ) : null}
+                  </p>
+                ) : null}
               </div>
             </Panel>
 
@@ -372,7 +405,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
 
             {/* Shown before payment, never after. */}
             {experience.cancellationPolicy ? (
-              <section className="mt-8">
+              <section id="cancellation" className="mt-8 scroll-mt-6">
                 <h2 className="label text-forest/75">If it is called off</h2>
                 <p className="text-forest/70 mt-2 max-w-prose text-sm">
                   {experience.cancellationPolicy}
