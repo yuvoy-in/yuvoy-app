@@ -904,6 +904,15 @@ export const bookingHandlers = [
           slug: "try-dive-nemo-reef",
           title: "Try-dive at Nemo Reef",
           operator: "Sample Dive Operator",
+          /*
+            Both required by the contract and both absent here until the
+            redesign put the listing's picture on this page (3 Oct 2026): a
+            field the mock never sends is a screen the suite never draws.
+          */
+          operatorSlug: "sample-dive-operator",
+          heroImageUrl:
+            EXPERIENCE_DETAIL["try-dive-nemo-reef"]?.heroMedia?.posterUrl ??
+            null,
         },
         slot: {
           startsAt: SLOT_STARTS_AT,

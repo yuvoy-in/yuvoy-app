@@ -75,11 +75,11 @@ describe("palette", () => {
       */
       "src/components/experience/gallery.tsx",
       /*
-        The listing's picture at the top of checkout (the approved redesign,
-        3 Oct 2026), and the ground it holds while checkout loads: the same
-        media use as the gallery's, a ground behind a poster.
+        The listing's picture over the top of checkout and of a booking (the
+        approved redesign, 3 Oct 2026), and the ground it holds while either
+        loads: the same media use as the gallery's, a ground behind a poster.
       */
-      "src/components/checkout/checkout-picture.tsx",
+      "src/components/chrome/picture-strip.tsx",
       "src/components/search/search-screen.tsx",
       /*
         The operator page's poster grounds — the profile's logo tile and photo

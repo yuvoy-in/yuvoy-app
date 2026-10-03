@@ -374,6 +374,38 @@ export function declineView(status: BookingStatus): DeclineView | null {
 }
 
 /** Renders the departure in the MARKET's zone, never the device's. */
+/**
+ * When the trip leaves, as the page's headline: "Tomorrow, 07:00", "Today,
+ * 15:30", or "Sat, 17 Oct, 07:00" further out (the approved redesign,
+ * traveller A, 3 Oct 2026). "You are going" told a traveller nothing they did
+ * not know; the hour is the thing they open the page for on the morning.
+ *
+ * In the trip's own zone, on both sides: the departure's day and today are
+ * read in `slot.timezone`, and `now` is the server's clock, so a phone in
+ * another zone or running fast cannot call tomorrow's boat today's. `null`
+ * for a departure or a zone it cannot read, and the page keeps its words.
+ */
+export function tripWhen(
+  slot: BookingStatus["slot"],
+  now: number,
+): string | null {
+  const at = civilInZone(slot.startsAt, slot.timezone);
+  const today = civilInZone(new Date(now).toISOString(), slot.timezone);
+  if (!at || !today) return null;
+  const tomorrow = civilInZone(
+    new Date(now + 86_400_000).toISOString(),
+    slot.timezone,
+  );
+  const same = (a: typeof at, b: typeof at | null) =>
+    b !== null && a.year === b.year && a.month === b.month && a.day === b.day;
+  const day = same(at, today)
+    ? "Today"
+    : same(at, tomorrow)
+      ? "Tomorrow"
+      : weekdayDayMonth(at);
+  return `${day}, ${clockTime(at)}`;
+}
+
 export function formatDeparture(slot: BookingStatus["slot"]): string {
   const when = new Date(slot.startsAt);
   const date = new Intl.DateTimeFormat("en-IN", {
