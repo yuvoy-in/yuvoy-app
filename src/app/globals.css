@@ -344,6 +344,13 @@
  * below is darker — so a scrim safe at the TOP of the caption is safe through
  * all of it. Above 58% nothing is written; that band is atmosphere.
  *
+ * Corrected by measurement, 4 Oct 2026. A title is clamped at THREE lines,
+ * and a three-line title lifts the caption's top to 61.5% on a 375 x 667
+ * phone (60.2% on a 412px one), where `paper` is 4.7:1 and `paper/90` only
+ * 4.2:1. So the top line, the activity label, is full `paper`, and
+ * `e2e/caption-contrast.spec.ts` measures every caption line where it really
+ * lands, on four phones, with the feed's titles and with a three-line one.
+ *
  * Those two numbers are not typed here on trust. `palette.test.ts` parses
  * these stops, composites them and recomputes both at exactly those two
  * positions, so lightening the ramp fails the suite rather than the next

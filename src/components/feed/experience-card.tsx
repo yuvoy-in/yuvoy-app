@@ -307,18 +307,20 @@ export function ExperienceCard({
           still be reachable by a keyboard.
         */}
         {/*
-          Every line in the caption is at least `paper/90`. The scrim's floor is
-          measured at the caption's top edge, 58% of its height at worst (a
-          narrow phone, a two-line title), and every line sits at or below that
-          edge, so a line that clears 4.5:1 there clears it wherever it lands.
-          `paper/90` is 4.57:1 there over the brightest frame a clip can show;
-          the `/70` and `/60` these lines used were 3.48:1 and 3.01:1 (the
-          colour audit of the redesign, 4 Oct 2026). `palette.test.ts` holds it.
+          The caption's lines clear AA over the brightest frame a clip can
+          show, wherever they land (the colour audit of the redesign, 4 Oct
+          2026). The top line, the activity label, is full `paper`: a
+          three-line title lifts it to 61.5% of the scrim on a 375 x 667
+          phone, where `paper` is 4.7:1 and `paper/90` 4.2:1. The departure
+          row sits near 30% at worst, where `paper/90` is about 8:1. They
+          were `paper/70` and `paper/60`, 3.48:1 and 3.01:1 at the top edge.
+          `e2e/caption-contrast.spec.ts` measures the real layout and
+          `palette.test.ts` holds the numbers.
         */}
         <div className="feed-foot tabbar-clearance absolute inset-x-0 bottom-0 flex items-end gap-4 px-5">
           <div className="min-w-0 flex-1">
             {experience.activityTypeLabel || experience.location ? (
-              <p className="label text-paper/90 mb-2">
+              <p className="label text-paper mb-2">
                 {[experience.activityTypeLabel, experience.location]
                   .filter(Boolean)
                   .join(" · ")}

@@ -585,23 +585,36 @@ describe("measured contrast", () => {
       const ramp = stops("feed-scrim");
       expect(paperOverScrim(alphaAt(ramp, 40))).toBeGreaterThanOrEqual(7);
       expect(paperOverScrim(alphaAt(ramp, 58))).toBeGreaterThanOrEqual(4.5);
+      /*
+        And where the top edge really reaches. Measured on 4 Oct 2026 by
+        `e2e/caption-contrast.spec.ts`: a three-line title (the clamp's
+        limit) puts it at 61.5% on a 375 x 667 phone. Rounded up.
+      */
+      expect(paperOverScrim(alphaAt(ramp, 62))).toBeGreaterThanOrEqual(4.5);
     });
 
-    it("keeps the caption's dimmer lines legible at its worst edge too", () => {
+    it("keeps the caption's dimmer lines legible where they land", () => {
       /*
         The test above measured `paper`, and the line actually at the
         caption's top edge was the activity label at `paper/70`: 3.48:1 at
-        58% over the brightest frame. The no-dates line was `paper/60`,
-        3.01:1. Found by the colour audit of the redesign (4 Oct 2026).
+        58%, and 3.2:1 where a three-line title lifts it. The no-dates line
+        was `paper/60`. Found by the colour audit of the redesign (4 Oct
+        2026), with the positions measured by `e2e/caption-contrast.spec.ts`.
 
-        Every caption line sits at or below the top edge, so each opacity the
-        caption uses for text is measured THERE, and the card's own classes
-        are read so a dimmer line cannot come back unmeasured. Icons draw no
-        words (3:1 is their floor), and the 3xl title on the poster's own
-        placeholder sits on the solid media ground, not on the scrim.
+        The top line takes no opacity at all, because it is the one at the
+        top edge. Every other dimmed line in the caption sits in the
+        departure row, at most 30% up the scrim, and is measured there. The
+        card's own classes are read so a dimmer line cannot come back
+        unmeasured. Icons draw no words (3:1 is their floor), and the 3xl
+        title on the poster's own placeholder sits on the solid media
+        ground, not on the scrim.
       */
       const ramp = stops("feed-scrim");
       const card = read(join(SRC, "components/feed/experience-card.tsx"));
+      const top = /<p className="label (text-paper[^\s"]*)/.exec(card)?.[1];
+      expect(top, "the activity label at the top of the caption").toBe(
+        "text-paper",
+      );
       const used = new Set<number>();
       for (const line of card.split("\n")) {
         if (/Icon\b|text-3xl/.test(line)) continue;
@@ -609,14 +622,10 @@ describe("measured contrast", () => {
           used.add(Number(m[1]));
         }
       }
-      expect(
-        used.size,
-        "the caption reads no dimmed paper at all",
-      ).toBeGreaterThan(0);
       for (const opacity of used) {
         expect(
-          paperOverScrim(alphaAt(ramp, 58), opacity / 100),
-          `text-paper/${opacity} at the caption's top edge`,
+          paperOverScrim(alphaAt(ramp, 30), opacity / 100),
+          `text-paper/${opacity} in the departure row`,
         ).toBeGreaterThanOrEqual(4.5);
       }
     });
