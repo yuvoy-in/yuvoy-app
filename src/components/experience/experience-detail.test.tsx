@@ -50,9 +50,17 @@ describe("ExperienceDetail", () => {
     const gallery = screen.getByRole("group", {
       name: /Photographs and clips of/,
     });
+    /*
+      Every frame is in the one strip. A clip with a stream is a slide that
+      plays where it is (the approved redesign, 3 Oct 2026); a photograph, and
+      a clip with no stream yet, open full screen.
+    */
+    expect(
+      within(gallery).getByRole("group", { name: "1 of 3, a clip" }),
+    ).toBeInTheDocument();
     expect(
       within(gallery).getAllByRole("button", { name: /^Open \d+ of/ }),
-    ).toHaveLength(withGallery.gallery.length);
+    ).toHaveLength(2);
     expect(screen.getByAltText("Divers at the reef")).toBeInTheDocument();
 
     // One badge per clip, and none on a photograph — it is the only thing

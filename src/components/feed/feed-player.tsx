@@ -86,6 +86,7 @@ export function FeedPlayer({
   onRequestPlay,
   hidden,
   watch,
+  sizes = "(min-width: 1024px) 480px, 100vw",
   className,
 }: {
   media: Media;
@@ -113,6 +114,12 @@ export function FeedPlayer({
    * absent, nothing is measured at all.
    */
   watch?: ReelWatch;
+  /**
+   * The poster's `sizes`. The feed's well is 480px wide from `lg` up; a
+   * listing's gallery is wider, and a poster fetched for the narrower well
+   * would be upscaled there.
+   */
+  sizes?: string;
   className?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -427,7 +434,7 @@ export function FeedPlayer({
         src={media.posterUrl}
         alt={media.alt ?? ""}
         fill
-        sizes="(min-width: 1024px) 480px, 100vw"
+        sizes={sizes}
         className="object-cover"
         // The first card is the LCP element; the rest are below the fold.
         priority={active}
