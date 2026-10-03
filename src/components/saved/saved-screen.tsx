@@ -36,7 +36,12 @@ import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
 
-const BACK = { href: "/account", label: "your account" };
+/*
+  Back follows the trail (the approved redesign, 3 Oct 2026): Saved is reached
+  from Account and, signed out, from the sign-in screen, and Back returns to
+  whichever it was. Account is the fallback.
+*/
+const BACK = { href: "/account", label: "your account", followTrail: true };
 
 /** Where signing in returns to: here, with the saves now on the account. */
 const SIGN_IN_HREF = `/account?next=${encodeURIComponent("/saved")}`;
@@ -223,6 +228,7 @@ function AccountSaved() {
               posterUrl={item.heroMedia?.posterUrl}
               bookable={item.bookable}
               fromPrice={item.fromPrice}
+              unit={item.pricingUnitLabel}
               onRemove={() => remove(item)}
             />
           </li>
@@ -428,6 +434,7 @@ function DeviceTile({
         posterUrl={data.heroMedia?.posterUrl}
         bookable={data.bookable}
         fromPrice={data.fromPrice}
+        unit={data.pricingUnitLabel}
         onRemove={() => onRemove(entry)}
       />
     </li>
@@ -553,6 +560,7 @@ function SavedCard({
   posterUrl,
   bookable,
   fromPrice,
+  unit,
   onRemove,
 }: {
   slug: string;
@@ -561,6 +569,8 @@ function SavedCard({
   posterUrl?: string;
   bookable: boolean;
   fromPrice?: Experience["fromPrice"];
+  /** The server's unit phrase, verbatim: "per person", "for the group". */
+  unit?: string;
   onRemove: () => void;
 }) {
   return (
@@ -594,11 +604,23 @@ function SavedCard({
           <p className="text-forest/70 mt-0.5 text-xs">{location}</p>
         ) : null}
         <p className="mt-1 text-xs font-bold">
-          {!bookable
-            ? "Not taking bookings"
-            : fromPrice
-              ? formatMoney(fromPrice)
-              : ""}
+          {!bookable ? (
+            "Not taking bookings"
+          ) : fromPrice ? (
+            <>
+              {formatMoney(fromPrice)}
+              {/*
+                The unit, as the listing says it. Without it a whole-group
+                charter read "₹18,000" here, as though it were per person
+                (cited in the redesign's before page, 3 Oct 2026).
+              */}
+              {unit ? (
+                <span className="text-forest/70 font-normal"> {unit}</span>
+              ) : null}
+            </>
+          ) : (
+            ""
+          )}
         </p>
       </Link>
 

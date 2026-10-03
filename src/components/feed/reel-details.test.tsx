@@ -203,6 +203,14 @@ describe("the panel's departures", () => {
 });
 
 describe("the panel's focus", () => {
+  it("links the business to its own page", () => {
+    // It named them and went nowhere (cited 3 Oct 2026).
+    panel();
+    expect(
+      screen.getByRole("link", { name: DIVE.operator.name }),
+    ).toHaveAttribute("href", `/o/${DIVE.operator.slug}`);
+  });
+
   it("takes focus when it opens, so the next Tab starts inside it", async () => {
     serve([slot({})]);
     const { rerender } = panel(DIVE, false);

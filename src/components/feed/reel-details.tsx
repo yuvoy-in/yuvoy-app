@@ -284,8 +284,24 @@ export function ReelDetails({
           is no pending state to draw.
         */}
             <div className="reel-sheet-operator">
+              {/*
+                Their page, one tap away (cited in the redesign's before page,
+                3 Oct 2026): the panel named the business and went nowhere.
+                `slug` is required on the summary and guarded anyway; without
+                it the name stays plain text rather than a link to
+                `/o/undefined`.
+              */}
               <p className="reel-sheet-operator-name">
-                {experience.operator.name}
+                {experience.operator.slug ? (
+                  <Link
+                    href={`/o/${experience.operator.slug}`}
+                    className="tap-target decoration-paper/40 hover:decoration-paper underline underline-offset-4"
+                  >
+                    {experience.operator.name}
+                  </Link>
+                ) : (
+                  experience.operator.name
+                )}
               </p>
               {experience.operator.verified ? (
                 <p className="reel-sheet-evidence">

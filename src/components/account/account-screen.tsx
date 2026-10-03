@@ -152,6 +152,15 @@ export function AccountScreen() {
         onSignedIn={afterSignIn}
       />
 
+      {/*
+        Saved, signed out (cited in the redesign's before page, 3 Oct 2026).
+        Saving works without an account and keeps to this phone, and the only
+        way back to those saves was through a signed-in Account.
+      */}
+      <ButtonLink href="/saved" variant="outline" block className="mt-8">
+        Saved on this phone
+      </ButtonLink>
+
       <p className="text-forest/70 mt-8 text-xs">
         Lost the link to a booking?{" "}
         <Link
