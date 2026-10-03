@@ -50,9 +50,17 @@ describe("ExperienceDetail", () => {
     const gallery = screen.getByRole("group", {
       name: /Photographs and clips of/,
     });
+    /*
+      Every frame is in the one strip. A clip with a stream is a slide that
+      plays where it is (the approved redesign, 3 Oct 2026); a photograph, and
+      a clip with no stream yet, open full screen.
+    */
+    expect(
+      within(gallery).getByRole("group", { name: "1 of 3, a clip" }),
+    ).toBeInTheDocument();
     expect(
       within(gallery).getAllByRole("button", { name: /^Open \d+ of/ }),
-    ).toHaveLength(withGallery.gallery.length);
+    ).toHaveLength(2);
     expect(screen.getByAltText("Divers at the reef")).toBeInTheDocument();
 
     // One badge per clip, and none on a photograph — it is the only thing
@@ -353,8 +361,16 @@ describe("ExperienceDetail", () => {
       renderWithQuery(
         <ExperienceDetail experience={{ ...written, activityType: "scuba" }} />,
       );
-      expect(screen.getByText("Scuba diving")).toBeInTheDocument();
-      expect(screen.queryByText("scuba")).toBeNull();
+      expect(screen.getByText(/^Scuba diving · /)).toBeInTheDocument();
+      expect(screen.queryByText(/scuba(?! diving)/)).toBeNull();
+    });
+
+    it("says what it is and where once, in the line above the title", () => {
+      // The place used to be that line AND a chip, and the noun a chip too.
+      renderWithQuery(<ExperienceDetail experience={written} />);
+      const place = written.location ?? "Andaman";
+      expect(screen.getByText(`Scuba diving · ${place}`).tagName).toBe("P");
+      expect(screen.queryAllByText(place, { exact: true })).toHaveLength(0);
     });
 
     it("renders nothing for the fields a listing has not filled in", () => {

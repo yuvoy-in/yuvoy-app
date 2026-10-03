@@ -14,8 +14,13 @@ const REQUEST = "/e/snorkel-elephant-beach";
 const INSTANT = "/e/try-dive-nemo-reef";
 
 test.describe("the gallery", () => {
+  /*
+    The lightbox tests use the REQUEST listing, whose frame is a poster: the
+    instant listing's is a clip with a stream, which plays where it is rather
+    than opening full screen (below).
+  */
   test("swipes, and opens full screen", async ({ page }) => {
-    await page.goto(INSTANT);
+    await page.goto(REQUEST);
     const gallery = page.getByRole("group", {
       name: /Photographs and clips of/,
     });
@@ -40,7 +45,7 @@ test.describe("the gallery", () => {
   });
 
   test("the full-screen view is accessible", async ({ page }) => {
-    await page.goto(INSTANT);
+    await page.goto(REQUEST);
     await page
       .getByRole("group", { name: /Photographs and clips of/ })
       .getByRole("button", { name: /^Open 1 of/ })
@@ -57,6 +62,47 @@ test.describe("the gallery", () => {
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+});
+
+test.describe("clips in the gallery", () => {
+  /*
+    The approved redesign (traveller A, 3 Oct 2026): a clip with a stream plays
+    where it is, through the feed's player. The fixture's stream does not
+    resolve, so what this can prove is the shape, not playback: the frame is a
+    slide holding the player, and never a button that opens a still of it.
+  */
+  test("a clip with a stream is a slide that plays, not a poster to open", async ({
+    page,
+  }) => {
+    await page.goto(INSTANT);
+    const gallery = page.getByRole("group", {
+      name: /Photographs and clips of/,
+    });
+    await expect(
+      gallery.getByRole("group", { name: "1 of 1, a clip" }),
+    ).toBeVisible();
+    await expect(
+      gallery.getByRole("button", { name: /^Open 1 of/ }),
+    ).toHaveCount(0);
+  });
+
+  test("what a frame draws at its foot is never under the sheet", async ({
+    page,
+  }) => {
+    /*
+      On a phone the sheet rises 32px over the picture, and the dots and the
+      Clip badge used to sit 12px from the picture's foot: under the sheet's
+      rounded top, where nobody could see them. `--hero-overlap` lifts them.
+    */
+    await page.goto(REQUEST);
+    const badge = page
+      .getByRole("group", { name: /Photographs and clips of/ })
+      .getByText("Clip", { exact: true });
+    await expect(badge).toBeVisible();
+    const sheet = (await page.locator(".sheet").first().boundingBox())!;
+    const box = (await badge.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(sheet.y);
   });
 });
 
@@ -177,6 +223,25 @@ test.describe("one button, and it opens checkout", () => {
     await expect(firstOpen).toHaveAttribute("aria-label", /^Thu 20 Aug/);
     // And it is the day already chosen: the traveller does not find it twice.
     await expect(firstOpen).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("with nothing open in the window, it offers no calendar to page through", async ({
+    page,
+  }) => {
+    // Production offered "Pick a day" here (Night fishing, 3 Oct 2026), into
+    // a calendar with no day in it.
+    await page.setExtraHTTPHeaders({ "x-yuvoy-scenario": "empty" });
+    await page.goto(INSTANT);
+    const bar = page.locator("div.sticky", {
+      has: page.getByRole("button", { name: "No dates open" }),
+    });
+    await expect(bar).toContainText("No dates in the next 90 days");
+    await expect(
+      page.getByRole("button", { name: "No dates open" }),
+    ).toBeDisabled();
+    await expect(page.getByRole("link", { name: /^Pick a day/ })).toHaveCount(
+      0,
+    );
   });
 
   test("a request listing's bar carries them too", async ({ page }) => {

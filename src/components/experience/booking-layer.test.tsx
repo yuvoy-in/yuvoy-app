@@ -136,11 +136,15 @@ describe("the sticky bar", () => {
     expect(
       await screen.findByText("No dates in the next 90 days"),
     ).toBeInTheDocument();
-    // No day to carry, so checkout opens bare.
-    expect(screen.getByRole("link", { name: /Pick a day/ })).toHaveAttribute(
-      "href",
-      "/e/try-dive-nemo-reef/book",
-    );
+    /*
+      And no way into a calendar with nothing in it: a disabled button that
+      says so, as for a listing that is not on sale. Production offered "Pick
+      a day" here (Night fishing, 3 Oct 2026).
+    */
+    expect(
+      screen.getByRole("button", { name: "No dates open" }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /Pick a day/ })).toBeNull();
   });
 
   it("claims nothing about dates when the read fails", async () => {

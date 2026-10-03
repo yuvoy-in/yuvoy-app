@@ -89,6 +89,14 @@ export function Screen({
         className={cn(
           "flex flex-1 flex-col lg:mx-auto lg:w-full lg:flex-none",
           width === "lg" ? "lg:max-w-3xl" : "lg:max-w-xl",
+          /*
+            How far the sheet rises over the hero: the depth of its rounded
+            top, and nothing from `lg` up, where the sheet sits below a panel's
+            picture. One number for both sides of the seam, so the hero can
+            keep whatever it draws at its foot (a gallery's dots, a clip's
+            sound) clear of the sheet rather than under it.
+          */
+          hero && "[--hero-overlap:2rem] lg:[--hero-overlap:0px]",
         )}
       >
         {hero ? (
@@ -164,7 +172,7 @@ export function Screen({
           className={cn(
             "sheet rounded-t-sheet lg:rounded-sheet flex flex-1 flex-col",
             // Above the sticky picture, so it slides over it.
-            hero && "relative z-10 -mt-8 lg:mt-0 lg:rounded-t-none",
+            hero && "relative z-10 -mt-(--hero-overlap) lg:rounded-t-none",
           )}
         >
           <div
