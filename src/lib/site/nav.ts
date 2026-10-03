@@ -66,8 +66,10 @@ export const NAV: readonly NavItem[] = [
  *
  * The tab bar names four things and a fifth is a design change, not a routing
  * one — so guides live here instead. They are reachable from the rail's
- * secondary list, from the search prompt, from each other, and from the
- * sitemap.
+ * secondary list, from each other, and from the sitemap, and on a phone, which
+ * never draws the rail, from Search before anything is typed and from Account
+ * beside Saved (yuvoy-app#116 item 3: "the search prompt" this named had gone
+ * when Search started opening on the grid, so a phone had no way in).
  */
 export const SECONDARY_ROUTES = [{ href: "/guides", label: "Guides" }] as const;
 

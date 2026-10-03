@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useDeferredValue } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   EmptyState,
@@ -180,6 +181,25 @@ export function SearchScreen() {
         looking for a private boat reads its absence as "none exist".
       */}
       {filters.price ? <GroupPricedNote className="mt-2" /> : null}
+
+      {/*
+        A door to the guides, for somebody who opened Search without a plan
+        (yuvoy-app#116 item 3). Guides were in the desktop rail only, so a
+        phone had no way in. Shown only while nothing is typed or applied,
+        where it is the next thing such a person needs; once they are
+        searching it would be a line in the way.
+      */}
+      {q.trim() === "" && active === 0 ? (
+        <p className="text-forest/70 mt-4 text-sm">
+          Not sure where to start?{" "}
+          <Link
+            href="/guides"
+            className="text-forest tap-target font-bold underline underline-offset-4"
+          >
+            Read a guide
+          </Link>
+        </p>
+      ) : null}
 
       {/*
         Mounted only while open, which is what seeds the draft afresh each time

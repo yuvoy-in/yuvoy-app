@@ -116,6 +116,35 @@ describe("the default state is the grid, not a prompt", () => {
   });
 });
 
+/*
+  yuvoy-app#116 item 3. Guides were in the desktop rail only, so a phone had
+  no way in. The door is here for somebody who opened Search without a plan,
+  and gone the moment they are searching.
+*/
+describe("the way to the guides", () => {
+  it("is offered while nothing is typed or applied, and only then", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+
+    expect(screen.getByRole("link", { name: "Read a guide" })).toHaveAttribute(
+      "href",
+      "/guides",
+    );
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search experiences" }),
+      "kayak",
+    );
+    expect(screen.queryByRole("link", { name: "Read a guide" })).toBeNull();
+  });
+
+  it("is not offered while a filter is applied", () => {
+    nav.url = "/search?kind=adventure";
+    renderWithQuery(<SearchScreen />);
+    expect(screen.queryByRole("link", { name: "Read a guide" })).toBeNull();
+  });
+});
+
 describe("the filter set lives in the address", () => {
   it("writes the typed words there, and searches on them", async () => {
     const user = userEvent.setup();

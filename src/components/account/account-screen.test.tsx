@@ -353,6 +353,19 @@ describe("the account", () => {
     expect(screen.getByText("3 trips · 1 review")).toBeInTheDocument();
   });
 
+  it("opens the guides beside Saved, the only way in on a phone", async () => {
+    // yuvoy-app#116 item 3: the desktop rail is the other door, and a phone
+    // never draws it.
+    signedIn();
+    expect(await screen.findByRole("link", { name: "Guides" })).toHaveAttribute(
+      "href",
+      "/guides",
+    );
+    expect(
+      screen.getByRole("link", { name: "Saved experiences" }),
+    ).toBeInTheDocument();
+  });
+
   it("uses the singular where there is one of something", async () => {
     server.use(
       http.get(`${BASE}/me`, () =>

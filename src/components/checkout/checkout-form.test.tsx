@@ -137,6 +137,11 @@ describe("CheckoutForm — the money rules", () => {
     );
 
     expect(await screen.findByText("Let us talk first")).toBeInTheDocument();
+    // And a way to have that word (yuvoy-app#116 item 2), which needs no
+    // WhatsApp and no session: this traveller may be a guest.
+    expect(
+      screen.getByRole("link", { name: "Call Yuvoy on +91 81216 57657" }),
+    ).toHaveAttribute("href", "tel:+918121657657");
     // Nothing has been booked and nothing charged — and the button must not
     // let them proceed into a refusal.
     expect(
@@ -236,6 +241,48 @@ describe("CheckoutForm — the money rules", () => {
     // The contract's name, the API's arithmetic.
     expect(sent!.expectTotalPaise).toBe(unit);
     expect(sent).not.toHaveProperty("expectedTotalMinor");
+  });
+
+  /*
+    yuvoy-app#116 item 1. The box was kept in state and never sent, so a
+    traveller who ticked it was recorded as never asked. The box is on the
+    form every time, so the answer is always a boolean: `false` is "asked and
+    declined", which the contract records apart from "never asked".
+  */
+  it.each([
+    [true, "ticked"],
+    [false, "left unticked"],
+  ])("sends marketingConsent %s when the box is %s", async (ticked) => {
+    let sent: { contact?: Record<string, unknown> } | undefined;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        sent = (await request.json()) as typeof sent;
+        return HttpResponse.json(
+          {
+            reservationId: "res_consent",
+            state: "active",
+            guests: 1,
+            holdExpiresAt: "2026-09-14T04:10:00Z",
+            requestExpiresAt: null,
+            statusToken: "tok_consent",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+    await fillContact(user);
+    if (ticked) {
+      await user.click(
+        screen.getByRole("checkbox", { name: /occasional thing worth doing/i }),
+      );
+    }
+    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+
+    await waitFor(() => expect(sent).toBeDefined());
+    expect(sent!.contact?.marketingConsent).toBe(ticked);
   });
 
   it("multiplies a per-person price by the party, and sends that", async () => {

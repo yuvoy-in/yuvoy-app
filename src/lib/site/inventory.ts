@@ -75,13 +75,10 @@ export const INDEXABLE_DYNAMIC_ROUTES = [
     A business's own page — yuvoy-app#30. Public and worth indexing: it is what
     somebody searching an operator's name should land on.
 
-    NOT in the sitemap yet, and that is a gap rather than a decision.
-    `GET /catalog/index` enumerates `experience`, `destination` and `market`
-    and has no `operator` kind, so there is nothing to build the URL list from
-    — and inventing one by walking every listing's operator would be a third
-    copy of data that already has an owner, which is what the comment at the
-    top of this file refuses. Raised on yuvoy-app#30; the entries appear the
-    day the catalog index carries operators.
+    In the sitemap since yuvoy-app#116, for every business with a listing on
+    sale. `GET /catalog/index` still has no `operator` kind; the API's owner
+    asked for the businesses to be read off the listings instead, which carry
+    each operator's slug, and that is what `businessEntries` does.
   */
   "/o/[slug]",
   /*
@@ -90,9 +87,8 @@ export const INDEXABLE_DYNAMIC_ROUTES = [
     page, so this is where that content lives and there is no duplicate to
     compete with.
 
-    Not in the sitemap, for the same reason as `/o/[slug]` above and not a
-    separate decision: `GET /catalog/index` has no `operator` kind, so there is
-    nothing to build the URL list from. Both appear the day it does.
+    Not in the sitemap yet: yuvoy-app#116 asked for the business page, and
+    this one can follow it the same way (the listings name the business).
   */
   "/o/[slug]/listings",
 ] as const;

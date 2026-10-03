@@ -9,6 +9,7 @@ import { robotsMeta, unpublishedRobotsMeta } from "@/lib/site/indexing";
 import { Screen } from "@/components/chrome/screen";
 import { ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import { GuideListings } from "@/components/guides/guide-listings";
 
 /**
  * One guide. Statically generated, revalidated daily.
@@ -116,7 +117,6 @@ export default async function GuidePage({
               silently when a file is missing. The build already refuses a
               published guide whose hero is not on disk.
             */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             {/*
               EAGER, and `fetchPriority="high"`, where it was `loading="lazy"`.
 
@@ -128,6 +128,7 @@ export default async function GuidePage({
               which is later than it needed to be. Lazy is right for images
               below the fold, and this is not one.
             */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
             <img
               src={guide.hero.src}
               alt={guide.hero.alt}
@@ -155,6 +156,13 @@ export default async function GuidePage({
         <div className="guide-prose mt-10">
           <MDXRemote source={guide.body} />
         </div>
+
+        {/*
+          What the guide is about, running now (yuvoy-app#116 item 4), read in
+          the browser. Straight after the reading, because it is the next
+          thing to do. See `GuideListings`.
+        */}
+        {guide.listings ? <GuideListings filter={guide.listings} /> : null}
 
         {/* Every factual claim traceable to something we can point at. */}
         {guide.sources?.length ? (

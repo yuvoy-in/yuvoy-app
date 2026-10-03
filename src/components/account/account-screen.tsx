@@ -295,6 +295,16 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         Saved experiences
       </ButtonLink>
 
+      {/*
+        The guides, the other place a traveller goes INTO from here
+        (yuvoy-app#116 item 3). They were in the desktop rail only, which a
+        phone never draws, so on a phone there was no way in at all. Search
+        has the other door, for somebody signed out.
+      */}
+      <ButtonLink href="/guides" variant="outline" block className="mt-3">
+        Guides
+      </ButtonLink>
+
       {me ? (
         <Button
           variant="outline"
