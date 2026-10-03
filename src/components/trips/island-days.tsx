@@ -202,11 +202,13 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
                         href={bookingUrl(trip.statusToken)}
                         className="tap-target underline"
                       >
-                        <span className="tabular-nums">{trip.localTime}</span>
-                        <span className="mx-1.5" aria-hidden="true">
-                          ·
-                        </span>
-                        {trip.experience}
+                        {/*
+                          Real spaces, not margins: a link's name is built from its text
+                          without layout, and margins alone read as "07:00Try-dive" to a
+                          screen reader.
+                        */}
+                        <span className="tabular-nums">{trip.localTime}</span>{" "}
+                        <span aria-hidden="true">·</span> {trip.experience}
                       </Link>
                       {trip.state === "pending_request" ? (
                         <StateChip state={trip.state} />

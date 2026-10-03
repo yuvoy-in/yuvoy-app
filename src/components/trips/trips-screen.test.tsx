@@ -817,7 +817,7 @@ describe("your island days", () => {
     });
     expect(free).toHaveAttribute("href", `/search?on=${today}`);
     expect(
-      within(plan).getByRole("link", { name: /07:00.*Try-dive at Nemo Reef/ }),
+      within(plan).getByRole("link", { name: "07:00 Try-dive at Nemo Reef" }),
     ).toHaveAttribute("href", "/booking#t=tok_day");
   });
 
