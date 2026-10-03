@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "vitest";
 import { act, render, screen, cleanup } from "@testing-library/react";
 import { FeedPlayer } from "./feed-player";
 import type { components } from "@/lib/api/schema.gen";
@@ -291,5 +299,89 @@ describe("the reel player, reporting what played", () => {
     );
     const video = container.querySelector("video")!;
     expect(() => at(video, 1)).not.toThrow();
+  });
+});
+
+describe("the reel player, tapped (tap is play and pause)", () => {
+  /*
+    The settled feed ruling production never built until the redesign
+    (traveller A, 3 Oct 2026), and the only way to stop a looping clip, which
+    WCAG 2.2.2 asks for. Native HLS, so the clip is attached without hls.js.
+  */
+  const canPlayType = HTMLMediaElement.prototype.canPlayType;
+  beforeAll(() => {
+    HTMLMediaElement.prototype.canPlayType = () => "maybe";
+  });
+  afterAll(() => {
+    HTMLMediaElement.prototype.canPlayType = canPlayType;
+  });
+
+  const pauseControl = () =>
+    screen.queryByRole("button", { name: "Pause video" });
+
+  const player = (over: Partial<Parameters<typeof FeedPlayer>[0]> = {}) => (
+    <FeedPlayer media={CLIP} active mounted muted autoplayAllowed {...over} />
+  );
+
+  it("makes the picture the pause control while the clip may play", () => {
+    render(player());
+    expect(pauseControl()).toBeInTheDocument();
+    expect(playControl()).not.toBeInTheDocument();
+  });
+
+  it("pauses on a tap, and the play control brings it back", async () => {
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    pause.mockClear();
+    render(player());
+
+    await act(async () => pauseControl()!.click());
+    expect(pause).toHaveBeenCalled();
+    // One named control for the clip at a time: the play control now.
+    expect(pauseControl()).not.toBeInTheDocument();
+    expect(playControl()).toBeInTheDocument();
+
+    play.mockClear();
+    await act(async () => playControl()!.click());
+    expect(play).toHaveBeenCalled();
+    expect(pauseControl()).toBeInTheDocument();
+    expect(playControl()).not.toBeInTheDocument();
+  });
+
+  it("plays again when the reel comes back on screen", async () => {
+    const { rerender } = render(player());
+    await act(async () => pauseControl()!.click());
+    expect(playControl()).toBeInTheDocument();
+
+    rerender(player({ active: false }));
+    rerender(player({ active: true }));
+    expect(playControl()).not.toBeInTheDocument();
+    expect(pauseControl()).toBeInTheDocument();
+  });
+
+  it("is no control at all while something covers the picture", () => {
+    render(player({ hidden: true }));
+    expect(pauseControl()).not.toBeInTheDocument();
+  });
+
+  it("plays a refused clip from a tap anywhere on the picture", async () => {
+    const asked = vi.fn();
+    const { container } = render(
+      player({ autoplayAllowed: false, onRequestPlay: asked }),
+    );
+    // The named control is the play button; the picture is pointer-only.
+    expect(playControl()).toBeInTheDocument();
+    expect(pauseControl()).not.toBeInTheDocument();
+    const surface = container.querySelector<HTMLButtonElement>(
+      'button[aria-hidden="true"]',
+    );
+    expect(surface).not.toBeNull();
+    await act(async () => surface!.click());
+    expect(asked).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws nothing to tap on a card that is not in view", () => {
+    render(player({ active: false }));
+    expect(pauseControl()).not.toBeInTheDocument();
   });
 });

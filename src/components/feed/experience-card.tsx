@@ -59,8 +59,10 @@ type Media = components["schemas"]["Media"];
  *
  * Price, operator and evidence are behind the chevron. A feed that prices every
  * card invites comparison before understanding; a feed that never prices
- * anything makes every tap a coin flip. The panel is the middle, and it costs
- * no request: everything in it is already in this row.
+ * anything makes every tap a coin flip. The panel is the middle: what it says
+ * about the listing is already in this row, and since the redesign (3 Oct
+ * 2026) it also reads the next departures once, on the first open, so a
+ * traveller can book one from here (`reel-details.tsx`).
  *
  * ## One job per control
  *
@@ -165,7 +167,25 @@ export function ExperienceCard({
   */
   if (!active && detailsOpen) setDetailsOpen(false);
 
-  const closeDetails = useCallback(() => setDetailsOpen(false), []);
+  /*
+    Closing hands focus back to the line that opened the panel, but only when
+    focus was IN the panel. The panel takes focus as it opens (the line steps
+    aside with the caption); without this the next Tab after Escape started
+    from the top of the document. A panel closed because the traveller
+    scrolled on is left alone: focus follows them, not the card they left.
+  */
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocus = useRef(false);
+  const closeDetails = useCallback(() => {
+    const panel = document.getElementById(panelId);
+    restoreFocus.current = Boolean(panel?.contains(document.activeElement));
+    setDetailsOpen(false);
+  }, [panelId]);
+  useEffect(() => {
+    if (detailsOpen || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    openerRef.current?.focus({ preventScroll: true });
+  }, [detailsOpen]);
 
   return (
     <article
@@ -180,7 +200,7 @@ export function ExperienceCard({
       onKeyDown={(e) => {
         if (e.key === "Escape" && detailsOpen) {
           e.stopPropagation();
-          setDetailsOpen(false);
+          closeDetails();
         }
       }}
       /*
@@ -323,6 +343,7 @@ export function ExperienceCard({
               "looks large" call.
             */}
             <button
+              ref={openerRef}
               type="button"
               aria-expanded={detailsOpen}
               aria-controls={panelId}

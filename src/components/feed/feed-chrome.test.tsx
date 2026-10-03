@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, screen, within, cleanup } from "@testing-library/react";
+import { act, screen, within, cleanup, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { Feed } from "./feed";
 import { ExperienceCard } from "./experience-card";
@@ -34,6 +35,17 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => nav.pathname,
 }));
+
+/*
+  jsdom has no ResizeObserver, and the panel uses one to mark when its body
+  overflows (the fade). Nothing here measures layout, so a no-op stands in.
+*/
+class NoResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+vi.stubGlobal("ResizeObserver", NoResizeObserver);
 
 /** Moves the strip as the IntersectionObserver would, without jsdom layout. */
 const scrollTo = (index: number) =>
@@ -310,5 +322,26 @@ describe("the caption leaves room for the bar", () => {
     expect(captions.length).toBeGreaterThan(1);
     expect(container.querySelector(".feed-caption")).toBeNull();
     expect(container.querySelector("[data-chrome]")).toBeNull();
+  });
+});
+
+describe("the details panel and focus", () => {
+  it("takes focus as it opens, and Escape hands it back to the line", async () => {
+    /*
+      The line that opens the panel steps aside with the caption, so focus
+      used to be left on a control nobody could see (the redesign's audit,
+      traveller A). Now the panel takes it, and closing returns it.
+    */
+    const card = await firstCard();
+    const line = card.querySelector<HTMLButtonElement>("button[aria-controls]");
+    expect(line).not.toBeNull();
+
+    await userEvent.click(line!);
+    const panel = within(card).getByRole("group", { name: /^Details, / });
+    await waitFor(() => expect(document.activeElement).toBe(panel));
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(document.activeElement).toBe(line));
+    expect(line).toHaveAttribute("aria-expanded", "false");
   });
 });

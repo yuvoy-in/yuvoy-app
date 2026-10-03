@@ -813,17 +813,59 @@
   @apply text-paper/70 text-base;
 }
 
-@utility reel-sheet-facts {
-  @apply mb-3 grid gap-2;
+/* How long, and how booking works: one line where three facts were. */
+@utility reel-sheet-line {
+  @apply text-paper/70 mb-3 text-sm;
 }
-@utility reel-sheet-fact {
-  @apply flex items-baseline justify-between gap-4;
 
-  & dt {
-    @apply flex-none text-xs;
+/*
+  "Coming up": the next open departures, each a row into checkout on it.
+
+  Rows are 48px, the system's comfortable target over a moving picture, and
+  separated by the panel's own hairline. The time is the heaviest thing in a
+  row because it is what a traveller is choosing; the seat sentence is the
+  server's, printed as it comes.
+*/
+@utility reel-sheet-deps {
+  @apply mb-2;
+}
+@utility reel-sheet-deps-head {
+  @apply mb-1 flex items-baseline justify-between gap-3;
+}
+@utility reel-sheet-dep-list {
+  @apply m-0 list-none p-0;
+}
+@utility reel-sheet-dep {
+  @apply text-paper ease-interaction border-paper/14 grid min-h-12 items-center gap-3 border-b no-underline transition-opacity duration-200;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, auto) auto;
+
+  &:hover {
+    opacity: 0.8;
   }
-  & dd {
-    @apply m-0 text-right text-base text-pretty;
+  &:focus-visible {
+    @apply outline-paper rounded-tile outline-2 outline-offset-2;
+  }
+}
+@utility reel-sheet-dep-day {
+  @apply truncate text-base;
+}
+@utility reel-sheet-dep-time {
+  @apply text-base font-bold tabular-nums;
+}
+@utility reel-sheet-dep-seats {
+  @apply text-paper/70 truncate text-right text-sm;
+}
+@utility reel-sheet-dep-skeleton {
+  @apply skeleton rounded-tile text-paper my-2 block h-8;
+}
+@utility reel-sheet-deps-note {
+  @apply text-paper/70 py-2 text-sm;
+}
+@utility reel-sheet-more {
+  @apply text-paper/75 ease-interaction text-sm font-bold underline underline-offset-4 transition-opacity duration-200;
+
+  &:hover {
+    opacity: 0.8;
   }
 }
 

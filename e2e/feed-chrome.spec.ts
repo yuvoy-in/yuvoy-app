@@ -166,8 +166,9 @@ test.describe("the reel keeps the screen", () => {
     /*
       The middle this screen was missing. A feed that prices every card invites
       comparison before understanding; a feed that never prices anything makes
-      every tap a coin flip. The panel is the answer and it costs no request:
-      every field in it came down with the reel.
+      every tap a coin flip. The panel is the answer: its facts came down with
+      the reel and cost no request, and since the redesign (traveller A) it
+      also lists the next departures, read once on this first open.
     */
     const card = page.locator('article[aria-posinset="1"]');
 
@@ -177,8 +178,9 @@ test.describe("the reel keeps the screen", () => {
     await expect(panel).toBeVisible();
     await expect(panel.getByText(/₹/)).toBeVisible();
     await expect(panel.getByText(/Sample Dive Operator/)).toBeVisible();
+    // The action books the first departure once the panel knows it.
     await expect(
-      panel.getByRole("link", { name: /See dates|Have a look/ }),
+      panel.getByRole("link", { name: /^Book .+ at \d\d:\d\d$/ }),
     ).toBeVisible();
 
     /* The clip is still playing above it: the panel may not take the screen. */
@@ -193,6 +195,31 @@ test.describe("the reel keeps the screen", () => {
     // Tapping the picture puts it away.
     await page.mouse.click(cardBox.x + cardBox.width / 2, cardBox.y + 80);
     await expect(panel).not.toBeVisible();
+  });
+
+  test("a departure in the panel opens checkout on it", async ({ page }) => {
+    /*
+      The redesign's point (traveller A): from a reel to a chosen departure in
+      two taps, without a page load in between. Checkout must open on the very
+      departure the panel named, by the parameters it already reads.
+    */
+    const card = page.locator('article[aria-posinset="1"]');
+    await card.getByRole("button", { name: /Aug|No dates/ }).click();
+
+    const comingUp = card
+      .getByRole("group", { name: /^Details, / })
+      .getByRole("region", { name: "Coming up" });
+    const first = comingUp.getByRole("link").first();
+    await expect(first).toHaveAccessibleName(/^Book .+ 07:00 4 seats left$/);
+    await first.click();
+
+    await expect(page).toHaveURL(
+      /\/e\/try-dive-nemo-reef\/book\?date=\d{4}-\d{2}-\d{2}&slot=slot_try-dive-nemo-reef_a$/,
+    );
+    await expect(page.getByRole("button", { name: "07:00" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   test("the caption clears the bar rather than sitting under it", async ({
