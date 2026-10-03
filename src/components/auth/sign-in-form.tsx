@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { YuvoyError } from "@/lib/api/errors";
+import { dedash } from "@/lib/format/dedash";
 import {
   useTravellerSession,
   useRequestSignInCode,
@@ -14,8 +15,8 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 
 /**
- * Signing in with a number and a WhatsApp code: the steps, wherever they are
- * asked for.
+ * Signing in with a number and a code: the steps, wherever they are asked
+ * for.
  *
  * Lifted out of the Account screen, unchanged, so the invite gate
  * (yuvoy-api#195) can ask for them in place rather than send somebody to
@@ -32,6 +33,7 @@ export function useSignInFlow() {
   const [phone, setPhone] = useState(DEFAULT_DIAL_CODE);
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
+  const [sentMessage, setSentMessage] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [resent, setResent] = useState(false);
 
@@ -46,6 +48,7 @@ export function useSignInFlow() {
     const answer = await request.mutateAsync(phone).catch(() => null);
     if (!answer) return;
     setSent(true);
+    setSentMessage(answer.message ? dedash(answer.message) : null);
     setDevCode(answer.devCode);
     setResent(again);
   }
@@ -62,12 +65,14 @@ export function useSignInFlow() {
     if (!answer?.signedIn) return false;
     await signIn();
     setSent(false);
+    setSentMessage(null);
     setCode("");
     return true;
   }
 
   function changeNumber() {
     setSent(false);
+    setSentMessage(null);
     setCode("");
     setDevCode(undefined);
     setResent(false);
@@ -81,6 +86,7 @@ export function useSignInFlow() {
     code,
     setCode,
     sent,
+    sentMessage,
     devCode,
     resent,
     request,
@@ -94,6 +100,26 @@ export function useSignInFlow() {
 }
 
 export type SignInFlow = ReturnType<typeof useSignInFlow>;
+
+/**
+ * What a screen says once a code has been asked for: the API's own sentence.
+ *
+ * Since yuvoy-api#254 a code goes by email to the address on the number's
+ * latest booking (there is no WhatsApp sender yet), and a number with no
+ * booking is sent nothing, which the answer must not reveal. The API words
+ * its `message` to hold for every number and will reword it when delivery
+ * changes, so the screens print it rather than a promise of their own.
+ * "Check your WhatsApp" was one of those, and it stopped being true.
+ *
+ * The fallback only covers an answer with no `message`, which the contract
+ * does not allow, and it promises nothing either.
+ */
+export function codeSentSentence(flow: Pick<SignInFlow, "sentMessage">) {
+  const said = flow.sentMessage?.trim() || CODE_MAY_COME;
+  return `${/[.!?]$/.test(said) ? said : `${said}.`} It is good for a few minutes.`;
+}
+
+const CODE_MAY_COME = "If this number can get a code, it is on its way.";
 
 /**
  * The form, the two ways out of the code step, and what went wrong.
@@ -178,7 +204,7 @@ export function SignInSteps({
                 value={phone}
                 onChange={setPhone}
                 error={failure?.field === "phone" ? failure.body : undefined}
-                hint="The number you book with. Any number works, whether or not it has booked before."
+                hint="The number you book with."
                 autoFocus={autoFocusPhone}
                 required
               />
@@ -232,7 +258,7 @@ export function SignInSteps({
 
       {resent && !failure ? (
         <p role="status" className="text-forest/70 mt-4 text-xs">
-          A new code is on its way. The older one stops working.
+          A new code was requested. The older one stops working.
         </p>
       ) : null}
 

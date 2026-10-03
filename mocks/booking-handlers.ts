@@ -1461,14 +1461,17 @@ export const bookingHandlers = [
     }
 
     /*
-      202 and a plain answer. Unlike recovery, this one has nothing to reveal:
-      "there is no booking for the answer to reveal, so it says plainly that a
-      code was sent."
+      202 and the API's own sentence, word for word since yuvoy-api#254: a code
+      goes by email to the latest booking's address, a number with no booking
+      gets nothing, and the answer is the same for every number so it reveals
+      neither. The screens print this `message`, so the mock must carry the
+      real one.
     */
     return HttpResponse.json(
       {
         sent: true,
-        message: "A code is on its way to that number.",
+        message:
+          "If your latest booking with this number has an email, a code is on its way to that email.",
         devCode: DEV_SIGN_IN_CODE,
       },
       { status: 202, headers: mockHeaders(rid()) },

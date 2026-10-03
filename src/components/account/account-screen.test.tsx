@@ -670,3 +670,51 @@ describe("first sign-in", () => {
     );
   });
 });
+
+describe("what the code step says (yuvoy-api#254)", () => {
+  /*
+    A code goes by email to the address on the number's latest booking, and a
+    number with no booking is sent nothing. The screen prints the API's own
+    sentence, which holds for every number, where it used to say "Check your
+    WhatsApp" and "We sent a six-digit code", neither of them true any more.
+  */
+  async function askForCode() {
+    const user = userEvent.setup();
+    renderWithQuery(<AccountScreen />);
+    await user.type(
+      await screen.findByLabelText("Your WhatsApp number"),
+      "9000000000",
+    );
+    await user.click(screen.getByRole("button", { name: "Send me a code" }));
+    await screen.findByLabelText("The code we sent");
+  }
+
+  it("says what the API says, and promises no WhatsApp message", async () => {
+    await askForCode();
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Enter your code",
+    );
+    expect(
+      screen.getByText(
+        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes.",
+      ),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/whatsapp/i);
+  });
+
+  it("takes the long dashes out of the API's sentence", async () => {
+    server.use(
+      http.post(`${BASE}/me/sign-in/request`, () =>
+        HttpResponse.json(
+          { sent: true, message: "A code is on its way — check your email" },
+          { status: 202 },
+        ),
+      ),
+    );
+    await askForCode();
+
+    expect(document.body).toHaveTextContent(/A code is on its way/);
+    expect(document.body.textContent).not.toMatch(/[–—―]/);
+  });
+});
