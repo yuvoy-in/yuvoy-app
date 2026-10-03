@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { pollIntervalMs, shouldKeepPolling, POLL_CEILING_MS } from "./poll";
+import {
+  overdueAtCeiling,
+  pollIntervalMs,
+  shouldKeepPolling,
+  POLL_CEILING_MS,
+} from "./poll";
 
 describe("pollIntervalMs", () => {
   it("backs off rather than hammering", () => {
@@ -43,5 +48,17 @@ describe("shouldKeepPolling", () => {
 
   it("polls before the first response has arrived", () => {
     expect(shouldKeepPolling(undefined, 0)).toBe(true);
+  });
+});
+
+describe("overdueAtCeiling", () => {
+  it("hands over only a payment that has not settled", () => {
+    expect(overdueAtCeiling("verifying")).toBe(true);
+  });
+
+  it("never calls a wait that is supposed to last too long", () => {
+    for (const state of ["holding", "awaiting_operator", "confirmed"]) {
+      expect(overdueAtCeiling(state), state).toBe(false);
+    }
   });
 });

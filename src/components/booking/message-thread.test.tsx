@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { MessageThread } from "./message-thread";
@@ -96,6 +96,41 @@ describe("MessageThread", () => {
     const items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Bring a towel");
     expect(items[1]).toHaveTextContent("Will do");
+  });
+
+  it("announces arrivals in a log that holds a real list", async () => {
+    /*
+      `role="log"` sat on the `ol` and replaced its list role, so its items
+      were listitems with no list (cited 3 Oct 2026). The log is a wrapper now.
+    */
+    serveThread();
+    renderWithQuery(
+      <MessageThread
+        token="t"
+        operatorName="Sample Dive Operator"
+        bookingState="confirmed"
+      />,
+    );
+    await screen.findByText("Bring a towel, the wind is up.");
+    const log = screen.getByRole("log", { name: "Messages" });
+    const list = within(log).getByRole("list");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("draws the operator's side on paper, apart from the panel it sits in", async () => {
+    serveThread();
+    renderWithQuery(
+      <MessageThread
+        token="t"
+        operatorName="Sample Dive Operator"
+        bookingState="confirmed"
+      />,
+    );
+    const theirs = (
+      await screen.findByText("Bring a towel, the wind is up.")
+    ).closest("li")!.firstElementChild!;
+    expect(theirs.className).toMatch(/\bbg-paper\b/);
+    expect(theirs.className).not.toMatch(/\bbg-paper-deep\b/);
   });
 
   /*

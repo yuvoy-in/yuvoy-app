@@ -48,10 +48,19 @@ const DURATION_BUDGET_MS = 1500;
  */
 const NOT_HAPPENING = ["cancelled", "declined", "expired", "released"];
 
+/**
+ * Not booked YET: a request nobody has answered, and a hold not yet paid
+ * for. An entry now is a claim the trip is on, made before anybody has said
+ * so, and it would outlive a "no" (cited in the redesign's before page,
+ * 3 Oct 2026). The offer arrives with the booking.
+ */
+const NOT_BOOKED_YET = ["awaiting_operator", "holding"];
+
 export function AddToCalendar({ status }: { status: BookingStatus }) {
   const [working, setWorking] = useState(false);
 
   if (NOT_HAPPENING.includes(status.state)) return null;
+  if (NOT_BOOKED_YET.includes(status.state)) return null;
   if (!status.slot?.startsAt || !status.experience?.title) return null;
 
   const title = status.experience.title;
