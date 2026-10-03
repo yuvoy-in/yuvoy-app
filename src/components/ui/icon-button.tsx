@@ -1,5 +1,5 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from "react";
-import Link from "next/link";
+import Link, { type LinkProps } from "next/link";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
@@ -74,10 +74,12 @@ export function IconLink({
   className,
   href,
   ...props
-}: Variants & { label: string; href: string } & Omit<
-    AnchorHTMLAttributes<HTMLAnchorElement>,
-    "aria-label" | "href"
-  >) {
+}: Variants & {
+  label: string;
+  href: string;
+  /** Next's own: runs on a client-side navigation only, never a new tab. */
+  onNavigate?: LinkProps["onNavigate"];
+} & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "aria-label" | "href">) {
   return (
     <Link
       href={href}

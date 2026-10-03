@@ -5,6 +5,7 @@ import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { AttributionCapture } from "@/components/booking/attribution-capture";
+import { RouteTrail } from "@/components/chrome/route-trail";
 import { AdoptStoredSession } from "@/components/auth/adopt-stored-session";
 import { InviteGuard } from "@/components/auth/invite-guard";
 import { InstallObservability } from "@/components/observability/install";
@@ -79,6 +80,8 @@ export default function RootLayout({
         <InstallObservability />
         <RegisterServiceWorker />
         <AttributionCapture />
+        {/* Where the traveller has been, for a Back that returns there. */}
+        <RouteTrail />
         <MswProvider>
           <Providers>
             {/*
