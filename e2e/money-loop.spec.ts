@@ -261,10 +261,14 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   await page.getByRole("button", { name: /Hold these seats/i }).click();
   await expect(page).toHaveURL(/\/booking#t=/);
 
-  // The payment step, and the way out of it that actually exists.
-  await page.getByRole("button", { name: /^Pay /i }).click();
+  /*
+    The payment step leads with the way that finishes (the approved redesign,
+    3 Oct 2026): cash, asked for on arrival, and no "Pay" button while paying
+    online is not open (the mock answers `coming_soon`, as production did).
+  */
   const cash = page.getByRole("button", { name: /Book now, pay .* cash/i });
   await expect(cash).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Pay /i })).toHaveCount(0);
   await cash.click();
 
   /*
@@ -418,7 +422,6 @@ test("the conversation refuses a phone number and takes a date", async ({
   await expect(page.getByLabel("Write to the operator")).toHaveCount(0);
 
   // Book it, which is what opens the conversation.
-  await page.getByRole("button", { name: /^Pay /i }).click();
   await page.getByRole("button", { name: /Book now, pay .* cash/i }).click();
   await expect(page.getByText("You are going")).toBeVisible();
 
