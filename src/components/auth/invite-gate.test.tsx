@@ -179,6 +179,34 @@ describe("the landing, for somebody signed out", () => {
     ).toBeInTheDocument();
   });
 
+  it("says what the API says once a code is asked for (yuvoy-api#254)", async () => {
+    /*
+      The code goes by email to the latest booking, or nowhere for a number
+      that has never booked, so the gate prints the API's sentence rather than
+      promising a WhatsApp message.
+    */
+    __resetAppRouteMocks();
+    const user = userEvent.setup();
+    renderWithQuery(
+      <InviteGate view="signed-out" variant="page" purpose="browse" />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.type(
+      screen.getByLabelText("Your WhatsApp number"),
+      "9000003210",
+    );
+    await user.click(screen.getByRole("button", { name: "Send me a code" }));
+    await screen.findByLabelText("The code we sent");
+
+    expect(
+      screen.getByText(
+        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes.",
+      ),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/on whatsapp/i);
+  });
+
   it("opens the steps at once in a sheet, where somebody has just tried to act", () => {
     __resetAppRouteMocks();
     renderWithQuery(

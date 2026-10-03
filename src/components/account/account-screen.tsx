@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Screen } from "@/components/chrome/screen";
-import { SignInSteps, useSignInFlow } from "@/components/auth/sign-in-form";
+import {
+  SignInSteps,
+  codeSentSentence,
+  useSignInFlow,
+} from "@/components/auth/sign-in-form";
 import { LegalLinks } from "@/components/site/legal-links";
 import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
@@ -120,11 +124,11 @@ export function AccountScreen() {
   return (
     <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        {flow.sent ? "Check your WhatsApp" : "Sign in"}
+        {flow.sent ? "Enter your code" : "Sign in"}
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
         {flow.sent
-          ? `We sent a six-digit code to ${flow.phone}. It is good for a few minutes.`
+          ? codeSentSentence(flow)
           : INVITE_ONLY
             ? /*
                 NOT "booking never needs one" (yuvoy-api#195).

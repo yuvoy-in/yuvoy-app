@@ -180,8 +180,8 @@ export function InviteLanding({ token }: { token: string }) {
             Sign in to join
           </ButtonLink>
           <p className="text-forest/70 mt-3 text-xs">
-            With your own number. There is no account to make, and it takes a
-            code on WhatsApp.
+            With your own number and a sign-in code. There is no account to
+            make.
           </p>
         </>
       )}
