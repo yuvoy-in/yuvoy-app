@@ -304,6 +304,34 @@ test.describe("choosing a departure on checkout", () => {
     ).toBeVisible();
   });
 
+  test("the form fits a 375px phone, and every tick is a real target", async ({
+    page,
+  }) => {
+    /*
+      Two cited production defects (the redesign's before page, 3 Oct 2026).
+      The screener's age select could not shrink, so checkout scrolled
+      sideways on a 375px phone; and every tick and radio was 16px.
+    */
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.goto(INSTANT);
+    await chooseDeparture(page);
+    await expect(page.getByLabel("Your age range")).toBeVisible();
+
+    const sideways = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    );
+    expect(sideways, "checkout scrolls sideways").toBe(false);
+
+    const ticks = page.locator('input[type="checkbox"], input[type="radio"]');
+    expect(await ticks.count()).toBeGreaterThan(2);
+    for (const tick of await ticks.all()) {
+      const box = (await tick.boundingBox())!;
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(24);
+    }
+  });
+
   test("opens on the next two weeks, with the month one tap away", async ({
     page,
   }) => {

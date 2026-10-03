@@ -246,9 +246,9 @@ function ChoiceCard({
         checked={checked}
         onChange={onSelect}
         disabled={disabled}
-        className="accent-terra-deep mt-0.5 size-4 shrink-0"
+        className="accent-terra-deep size-6 shrink-0"
       />
-      <span className="text-forest/80">{label}</span>
+      <span className="text-forest/80 pt-0.5">{label}</span>
     </label>
   );
 }
