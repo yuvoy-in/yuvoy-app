@@ -113,7 +113,24 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
         bookable={bookable}
         before={
           <>
-            <p className="eyebrow text-terra-deep">{location}</p>
+            {/*
+              WHAT the thing is and WHERE, said once. The place used to be
+              this line AND a chip below it, two lines apart, and the noun was
+              a chip of its own.
+
+              The noun is yuvoy-app#21 §4: the card says "Scuba diving" and
+              the page a traveller opens from it did not, so the second screen
+              dropped the word the first one used to earn the tap. The LABEL,
+              never the key, from the same vocabulary table the operator's own
+              picker reads, so the word here cannot disagree with the word
+              they chose. Absent on listings that predate the vocabulary, and
+              then the place stands alone rather than beside a placeholder.
+            */}
+            <p className="eyebrow text-terra-deep">
+              {[experience.activityTypeLabel, location]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
 
             <h1 className="font-display tracking-display mt-4 text-4xl leading-[1.05] sm:text-5xl">
               {experience.title}
@@ -125,32 +142,13 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
               </p>
             ) : null}
 
-            {/* The facts, as chips: where, how long, and how it sells. */}
+            {/* The facts, as chips: how long, and how it sells. */}
             <div className="mt-5 flex flex-wrap gap-2">
-              <Chip>
-                <MapPinIcon className="size-4" />
-                {location}
-              </Chip>
               {duration ? (
                 <Chip>
                   <ClockIcon className="size-4" />
                   {duration}
                 </Chip>
-              ) : null}
-              {/*
-                WHAT the thing is — yuvoy-app#21 §4. The card says "Scuba
-                diving" and the page a traveller opens from it did not, so the
-                second screen dropped the noun the first one used to earn the
-                tap.
-
-                The LABEL, never the key, and from the same vocabulary table
-                the operator's own picker reads — so the word here cannot
-                disagree with the word they chose. Absent on listings that
-                predate the vocabulary, and nothing is rendered rather than a
-                placeholder noun.
-              */}
-              {experience.activityTypeLabel ? (
-                <Chip>{experience.activityTypeLabel}</Chip>
               ) : null}
               <Chip tone={instant ? "accent" : "neutral"}>
                 {instant ? <ZapIcon className="size-4" /> : null}

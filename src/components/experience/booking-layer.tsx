@@ -131,14 +131,26 @@ export function BookingLayer({
                 ) : null}
               </div>
             </div>
-            <ButtonLink
-              href={pickADayHref(experience.slug, next)}
-              size="lg"
-              className="shrink-0"
-            >
-              Pick a day
-              <ButtonArrow />
-            </ButtonLink>
+            {next.state === "none" ? (
+              /*
+                Nothing open in checkout's whole window, by checkout's own
+                rule: "Pick a day" would open a calendar with no day in it.
+                Said on a disabled button instead, as for a listing that is
+                not on sale, beside the line that says why.
+              */
+              <Button size="lg" className="shrink-0" disabled>
+                No dates open
+              </Button>
+            ) : (
+              <ButtonLink
+                href={pickADayHref(experience.slug, next)}
+                size="lg"
+                className="shrink-0"
+              >
+                Pick a day
+                <ButtonArrow />
+              </ButtonLink>
+            )}
           </div>
         ) : (
           /*

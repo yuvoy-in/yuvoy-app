@@ -225,6 +225,25 @@ test.describe("one button, and it opens checkout", () => {
     await expect(firstOpen).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("with nothing open in the window, it offers no calendar to page through", async ({
+    page,
+  }) => {
+    // Production offered "Pick a day" here (Night fishing, 3 Oct 2026), into
+    // a calendar with no day in it.
+    await page.setExtraHTTPHeaders({ "x-yuvoy-scenario": "empty" });
+    await page.goto(INSTANT);
+    const bar = page.locator("div.sticky", {
+      has: page.getByRole("button", { name: "No dates open" }),
+    });
+    await expect(bar).toContainText("No dates in the next 90 days");
+    await expect(
+      page.getByRole("button", { name: "No dates open" }),
+    ).toBeDisabled();
+    await expect(page.getByRole("link", { name: /^Pick a day/ })).toHaveCount(
+      0,
+    );
+  });
+
   test("a request listing's bar carries them too", async ({ page }) => {
     await page.goto(REQUEST);
     const bar = page.locator("div.sticky", {

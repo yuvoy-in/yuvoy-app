@@ -361,8 +361,16 @@ describe("ExperienceDetail", () => {
       renderWithQuery(
         <ExperienceDetail experience={{ ...written, activityType: "scuba" }} />,
       );
-      expect(screen.getByText("Scuba diving")).toBeInTheDocument();
-      expect(screen.queryByText("scuba")).toBeNull();
+      expect(screen.getByText(/^Scuba diving · /)).toBeInTheDocument();
+      expect(screen.queryByText(/scuba(?! diving)/)).toBeNull();
+    });
+
+    it("says what it is and where once, in the line above the title", () => {
+      // The place used to be that line AND a chip, and the noun a chip too.
+      renderWithQuery(<ExperienceDetail experience={written} />);
+      const place = written.location ?? "Andaman";
+      expect(screen.getByText(`Scuba diving · ${place}`).tagName).toBe("P");
+      expect(screen.queryAllByText(place, { exact: true })).toHaveLength(0);
     });
 
     it("renders nothing for the fields a listing has not filled in", () => {
