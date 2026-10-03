@@ -86,3 +86,34 @@ test("a save made signed out follows the traveller onto the account", async ({
     page.getByRole("link", { name: literally(title) }),
   ).toBeVisible();
 });
+
+test("saves play as a reel, and Back is the way to the grid", async ({
+  page,
+}) => {
+  /*
+    The approved redesign (traveller A, 3 Oct 2026): "Saved plays as a reel,
+    with a grid toggle". Saved signed out, so nothing else is in the way.
+  */
+  await page.goto("/");
+  const save = page.getByRole("button", { name: /^Save / }).first();
+  const title = ((await save.getAttribute("aria-label")) ?? "").replace(
+    /^Save /,
+    "",
+  );
+  await save.click();
+  await expect(
+    page.getByRole("button", { name: `Saved. Remove ${title}` }).first(),
+  ).toBeVisible();
+
+  await page.goto("/saved");
+  await page.getByRole("link", { name: "Play them" }).click();
+  await page.waitForURL(/\/saved\/r\//);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+
+  await page
+    .getByRole("link", { name: "Back to your saved experiences" })
+    .first()
+    .click();
+  await page.waitForURL(/\/saved$/);
+  await expect(page.getByRole("link", { name: "Play them" })).toBeVisible();
+});

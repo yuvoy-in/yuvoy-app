@@ -216,7 +216,12 @@ function AccountSaved() {
   }
 
   return (
-    <Shell count={count} undoBar={undoBar} failure={writeFailure}>
+    <Shell
+      count={count}
+      undoBar={undoBar}
+      failure={writeFailure}
+      playFrom={items.find((item) => item.heroMedia)?.id ?? null}
+    >
       {stale}
       <Grid>
         {items.map((item) => (
@@ -355,8 +360,12 @@ function DeviceSaved() {
     );
   }
 
+  // The first save whose listing has arrived with a clip to play.
+  const playFrom =
+    results.find((result) => result.data?.heroMedia)?.data?.id ?? null;
+
   return (
-    <Shell count={saved.length} undoBar={undoBar} device>
+    <Shell count={saved.length} undoBar={undoBar} device playFrom={playFrom}>
       <Grid>
         {resolvable.map((entry, i) => (
           <DeviceTile
@@ -450,11 +459,18 @@ function Shell({
   undoBar,
   failure,
   device = false,
+  playFrom,
 }: {
   children: React.ReactNode;
   count?: number;
   undoBar?: React.ReactNode;
   failure?: ReturnType<typeof describeError> | null;
+  /**
+   * The first save with a clip, when there is one: the grid's way into the
+   * same saves as a reel (the approved redesign, 3 Oct 2026). The reel's Back
+   * is the other half of that toggle.
+   */
+  playFrom?: string | null;
   /**
    * Signed out with saves on this device: say they are here only, and how to
    * keep them. Not said over an empty list, where there is nothing to lose.
@@ -484,6 +500,16 @@ function Shell({
           </>
         ) : null}
       </p>
+      {playFrom ? (
+        <ButtonLink
+          href={`/saved/r/${encodeURIComponent(playFrom)}`}
+          variant="outline"
+          size="sm"
+          className="mt-4"
+        >
+          Play them
+        </ButtonLink>
+      ) : null}
       {undoBar}
       {failure ? <FailurePanel failure={failure} className="mt-6" /> : null}
       <div className="mt-8">{children}</div>
