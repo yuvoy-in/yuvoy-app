@@ -709,10 +709,11 @@ function CheckoutFields({
               type="checkbox"
               checked={policyAccepted}
               onChange={(e) => setPolicyAccepted(e.target.checked)}
-              className="accent-terra-deep mt-0.5 size-4 shrink-0"
+              // 24px: a tick is a target (WCAG 2.5.8; `pnpm qa` holds it).
+              className="accent-terra-deep size-6 shrink-0"
               aria-describedby="policy-text"
             />
-            <span className="text-forest/80">
+            <span className="text-forest/80 pt-0.5">
               I have read what happens if it is called off
             </span>
           </label>
@@ -724,9 +725,9 @@ function CheckoutFields({
               type="checkbox"
               checked={marketing}
               onChange={(e) => setMarketing(e.target.checked)}
-              className="accent-terra-deep mt-0.5 size-4 shrink-0"
+              className="accent-terra-deep size-6 shrink-0"
             />
-            <span className="text-forest/70">
+            <span className="text-forest/70 pt-0.5">
               Send me the occasional thing worth doing. Optional.
             </span>
           </label>

@@ -83,7 +83,10 @@ export function ScreeningFields({
                     still at 14px, and it sits in checkout — the worst place to
                     throw somebody's viewport off mid-form.
                   */
-                  className="rounded-control border-paper-line bg-paper-deep focus:border-forest/60 ease-interaction h-12 flex-1 border px-4 text-base transition-colors duration-200 outline-none"
+                  // `min-w-0`: a select is as wide as its widest option
+                  // unless told it may shrink, and the fieldset's own floor
+                  // is lifted in globals.css.
+                  className="rounded-control border-paper-line bg-paper-deep focus:border-forest/60 ease-interaction h-12 min-w-0 flex-1 border px-4 text-base transition-colors duration-200 outline-none"
                 >
                   <option value="" disabled>
                     Choose a range
@@ -205,9 +208,9 @@ function ScreenerChoice({
         name={name}
         checked={checked}
         onChange={onSelect}
-        className="accent-terra-deep mt-0.5 size-4 shrink-0"
+        className="accent-terra-deep size-6 shrink-0"
       />
-      <span className="text-forest/80">{label}</span>
+      <span className="text-forest/80 pt-0.5">{label}</span>
     </label>
   );
 }

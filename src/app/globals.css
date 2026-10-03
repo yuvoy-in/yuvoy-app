@@ -176,6 +176,17 @@
     font-size: max(1rem, 16px);
   }
 
+  /*
+    A fieldset shrinks like any other box. Its default is `min-inline-size:
+    min-content`, so a wide control inside one holds the whole form open: the
+    screener's age select, whose longest option reads "Under 10 · too young
+    for this", made checkout wider than a 375px phone and it scrolled sideways
+    (cited in the redesign's before page, 3 Oct 2026).
+  */
+  fieldset {
+    min-inline-size: 0;
+  }
+
   body {
     @apply bg-paper text-forest font-sans antialiased;
     text-rendering: optimizeLegibility;
