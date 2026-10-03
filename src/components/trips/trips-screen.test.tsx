@@ -658,3 +658,100 @@ describe("the date filter", () => {
     ).toBeInTheDocument();
   });
 });
+
+/**
+ * The Next up pass (the approved redesign: traveller A with C's pass,
+ * 3 Oct 2026). `nextUpTrip`'s rules are in `lib/trips/next-up.test.ts`; these
+ * pin what the screen draws from them.
+ */
+describe("the next up pass", () => {
+  const inHours = (h: number) =>
+    new Date(Date.now() + h * 3_600_000).toISOString();
+
+  it("draws the trip leaving within the day whole, above the list, and once", async () => {
+    signIn();
+    noInvites();
+    server.use(
+      serverBookings([
+        {
+          reference: "YV-NEXTUP01",
+          reservationId: "res_next",
+          experience: "Try-dive at Nemo Reef",
+          statusToken: "tok_next",
+          startsAt: inHours(3),
+          meetingPoint: "Jetty 2, Havelock",
+          payment: { method: "cash", collected: false, amountPaise: 900000 },
+          unreadCount: 2,
+        },
+        {
+          reference: "YV-LATER001",
+          reservationId: "res_later",
+          experience: "Snorkel trip to Elephant Beach",
+          statusToken: "tok_later",
+          startsAt: inHours(72),
+        },
+      ]),
+      // The one trip's own status, for the landmark and the operator's note.
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json({
+          reservationId: "res_next",
+          state: "confirmed",
+          final: false,
+          guests: 2,
+          experience: {
+            slug: "try-dive-nemo-reef",
+            title: "Try-dive at Nemo Reef",
+            operator: "Sample Dive Operator",
+            operatorSlug: "sample-dive-operator",
+            heroImageUrl: null,
+          },
+          slot: { startsAt: inHours(3), timezone: "Asia/Kolkata" },
+          price: { totalPaise: 900000, currency: "INR" },
+          review: { reviewed: false, canReview: false },
+          meetingPoint: {
+            text: "Jetty 2, Havelock",
+            landmark: "The blue kiosk",
+          },
+          operatorUpdates: [
+            {
+              kind: "relay",
+              detail: "Meet at jetty 2, not 1",
+              sentAt: new Date().toISOString(),
+            },
+          ],
+        }),
+      ),
+    );
+    renderWithQuery(<TripsScreen />);
+
+    const pass = (await screen.findByText("Next up")).closest("section")!;
+    expect(within(pass).getByText("in 3 h")).toBeInTheDocument();
+    expect(within(pass).getByText("YV-NEXTUP01")).toBeInTheDocument();
+    expect(within(pass).getByText("Jetty 2, Havelock")).toBeInTheDocument();
+    expect(within(pass).getByText("₹9,000 in cash")).toBeInTheDocument();
+    expect(
+      within(pass).getByText("2 new from the operator"),
+    ).toBeInTheDocument();
+    expect(await within(pass).findByText("The blue kiosk")).toBeInTheDocument();
+    expect(
+      within(pass).getByText(/Meet at jetty 2, not 1/),
+    ).toBeInTheDocument();
+    expect(
+      within(pass).getByRole("link", { name: /Everything for the morning/ }),
+    ).toHaveAttribute("href", "/booking#t=tok_next");
+
+    // Drawn once: the list below holds only the later trip.
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent("Snorkel trip to Elephant Beach");
+  });
+
+  it("draws no pass for a trip more than a day away", async () => {
+    signIn();
+    noInvites();
+    server.use(serverBookings([{ startsAt: inHours(30) }]));
+    renderWithQuery(<TripsScreen />);
+    await screen.findByText("Snorkel trip to Elephant Beach");
+    expect(screen.queryByText("Next up")).toBeNull();
+  });
+});
