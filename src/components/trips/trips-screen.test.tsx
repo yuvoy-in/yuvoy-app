@@ -15,6 +15,7 @@ import { TripsScreen } from "./trips-screen";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { rememberBooking } from "@/lib/booking/token-store";
+import { marketDaysFrom, marketToday } from "@/lib/booking/availability-window";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -753,5 +754,107 @@ describe("the next up pass", () => {
     renderWithQuery(<TripsScreen />);
     await screen.findByText("Snorkel trip to Elephant Beach");
     expect(screen.queryByText("Next up")).toBeNull();
+  });
+});
+
+/**
+ * Your island days (the approved redesign: traveller A with C's day plan in
+ * Trips, 3 Oct 2026). The plan's rules are `lib/trips/stay.test.ts`; these
+ * pin the screen: setting the days, what a day says, and what it never claims.
+ */
+describe("your island days", () => {
+  const STAY_KEY = "yuvoy:stay:v1";
+  const days = (n: number) => marketDaysFrom(marketToday(), n);
+
+  it("asks for the days, keeps them on the phone, and lays them out", async () => {
+    signIn();
+    noInvites();
+    server.use(serverBookings([]));
+    const user = userEvent.setup();
+    renderWithQuery(<TripsScreen />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Set your days" }),
+    );
+    const [first, , last] = days(3);
+    await user.type(screen.getByLabelText("Arriving"), first);
+    await user.type(screen.getByLabelText("Leaving"), last);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Today")).toBeInTheDocument();
+    expect(screen.getByText("Tomorrow")).toBeInTheDocument();
+    expect(idb.store.get(STAY_KEY)).toEqual({ from: first, to: last });
+    expect(
+      screen.getAllByText("Your dates are kept on this phone."),
+    ).toHaveLength(1);
+  });
+
+  it("puts each trip on its day, and offers what runs on a free one", async () => {
+    const [today, tomorrow] = days(2);
+    idb.store.set(STAY_KEY, { from: today, to: tomorrow });
+    signIn();
+    noInvites();
+    server.use(
+      serverBookings([
+        {
+          reference: "YV-DAYPLAN1",
+          reservationId: "res_day",
+          experience: "Try-dive at Nemo Reef",
+          statusToken: "tok_day",
+          localDate: tomorrow,
+          localTime: "07:00",
+          startsAt: new Date(Date.now() + 30 * 3_600_000).toISOString(),
+        },
+      ]),
+    );
+    renderWithQuery(<TripsScreen />);
+
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    const free = await within(plan).findByRole("link", {
+      name: "See what runs",
+    });
+    expect(free).toHaveAttribute("href", `/search?on=${today}`);
+    expect(
+      within(plan).getByRole("link", { name: /07:00.*Try-dive at Nemo Reef/ }),
+    ).toHaveAttribute("href", "/booking#t=tok_day");
+  });
+
+  it("never calls a day free that it has not read", async () => {
+    // More than a page of trips in the stay: days past the last row read say
+    // so, rather than "Nothing booked".
+    const [today, , third] = days(3);
+    idb.store.set(STAY_KEY, { from: today, to: third });
+    signIn();
+    noInvites();
+    server.use(
+      serverBookings([{ localDate: today, localTime: "07:00" }], {
+        nextCursor: "c2",
+      }),
+    );
+    renderWithQuery(<TripsScreen />);
+    expect(
+      (
+        await screen.findAllByText(
+          "More trips than shown here: see your trips below.",
+        )
+      ).length,
+    ).toBe(2);
+  });
+
+  it("says when the days are over, and lets them go", async () => {
+    idb.store.set(STAY_KEY, { from: "2026-01-01", to: "2026-01-03" });
+    signIn();
+    noInvites();
+    server.use(serverBookings([]));
+    const user = userEvent.setup();
+    renderWithQuery(<TripsScreen />);
+    expect(await screen.findByText(/They ended on/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear them" }));
+    expect(
+      await screen.findByRole("button", { name: "Set your days" }),
+    ).toBeInTheDocument();
+    expect(idb.store.has(STAY_KEY)).toBe(false);
   });
 });

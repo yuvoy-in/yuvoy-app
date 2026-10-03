@@ -100,6 +100,11 @@ export const CACHE = {
 /** Query keys derive from the operationId so invalidation is mechanical. */
 export const qk = {
   /**
+   * The days a traveller said they are on the island, kept on this device
+   * (`lib/trips/stay.ts`). Not keyed by anything: there is one per device.
+   */
+  deviceStay: () => ["deviceStay"] as const,
+  /**
    * How one hold can be paid: its payment order, asked for when the booking
    * page opens on it (`PayButton`). One reservation has at most one order by
    * construction, so the answer is the reservation's, and asking again is

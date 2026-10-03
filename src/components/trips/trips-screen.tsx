@@ -29,6 +29,7 @@ import { ChipButton } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
 import { TripCard, InvitedTripCard } from "./trip-card";
 import { NextUpPass } from "./next-up-pass";
+import { IslandDays } from "./island-days";
 import { nextUpTrip } from "@/lib/trips/next-up";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { marketDayOf } from "@/lib/booking/availability-window";
@@ -210,6 +211,15 @@ export function TripsScreen() {
       ) : null}
 
       {/*
+        What is next, then the days, then the record. The pass is the trip
+        leaving within the day; the island days are the stay laid out by day
+        (C's day plan, approved 3 Oct 2026), drawn on Upcoming whether or not
+        anything is booked yet, since an empty stay is where planning starts.
+      */}
+      {nextUp ? <NextUpPass trip={nextUp} now={serverNow} /> : null}
+      {tab === "upcoming" ? <IslandDays signedIn={signedIn} /> : null}
+
+      {/*
         The server's failure is now the whole screen's failure, where it used to
         be a line over a list this device could still show. So it no longer
         promises that anything survived it: there is nothing left to survive.
@@ -257,8 +267,6 @@ export function TripsScreen() {
         />
       ) : (
         <>
-          {nextUp ? <NextUpPass trip={nextUp} now={serverNow} /> : null}
-
           <ul className="mt-6 space-y-3">
             {listed.map((trip) => (
               <li key={trip.reference || trip.reservationId}>
