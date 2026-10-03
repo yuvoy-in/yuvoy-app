@@ -126,9 +126,9 @@ export const FOCUSED_ROUTE_PREFIXES = [
 /**
  * Routes whose ground is the MEDIA rather than a paper sheet.
  *
- * The feed, a shared reel, a search result played in place, and a business's
- * own reels: on all four the bar floats over `abyss` and a moving picture.
- * Everywhere else it floats over a paper sheet.
+ * The feed, a shared reel, a search result played in place, a business's own
+ * reels, and a traveller's saves playing: on all five the ground is `abyss`
+ * and a moving picture. Everywhere else it is a paper sheet.
  *
  * ## Why this exists, and why it is not `pathname === "/"`
  *
@@ -140,7 +140,7 @@ export const FOCUSED_ROUTE_PREFIXES = [
  * about 6.6:1, because what shows through is the caption scrim's own dark foot.
  *
  * So the pill is translucent here and solid everywhere else, and the list is
- * the four routes rather than the one, because all four have the same ground
+ * every such route rather than the one, because they all have the same ground
  * and would otherwise disagree with each other.
  *
  * `palette.test.ts` pins the measurement; this pins which routes it applies to.
@@ -150,6 +150,8 @@ export const MEDIA_GROUND_ROUTES = [
   "/r/",
   "/search/r/",
   "/o/*/r/",
+  // A traveller's saves, playing (the approved redesign, 3 Oct 2026).
+  "/saved/r/",
 ] as const;
 
 export function isMediaGroundRoute(
