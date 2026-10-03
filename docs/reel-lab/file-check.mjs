@@ -6,7 +6,7 @@
   That is not a formality. Three things here can only fail over `file://`, and
   all three would look like a broken design rather than a broken load:
 
-    - the real Fraunces and Satoshi faces, which is why they are copied into
+    - the real faces (Anek Latin's two cuts), which is why they are copied into
       `assets/` instead of linked across the repository,
     - the mark,
     - Concept 04's canvas read, which is same-origin for a data URI and tainted
@@ -76,8 +76,8 @@ for (const reduced of [false, true]) {
 
   const state = await page.evaluate(() => {
     const fontOk =
-      document.fonts.check('16px "Fraunces Yuvoy"') &&
-      document.fonts.check('16px "Satoshi"');
+      document.fonts.check('16px "Anek Yuvoy Display"') &&
+      document.fonts.check('16px "Anek Yuvoy"');
     const mark = document.querySelector(".masthead-mark");
     const poster = document.querySelector(".reel-poster");
     const anim = getComputedStyle(

@@ -340,9 +340,9 @@
         is comparing two of them and the only thing distinguishing the panels
         would have been a number.
 
-        Satoshi rather than the display face. The reel above is still showing
-        the thing; this is a label on a panel, not a headline, and a second
-        Fraunces title inside a panel would compete with the one behind it.
+        The text face rather than the display face. The reel above is still
+        showing the thing; this is a label on a panel, not a headline, and a
+        second display title inside a panel would compete with the one behind it.
       */
       el("div", { class: "col-sheet-titlerow" }, [
         /*

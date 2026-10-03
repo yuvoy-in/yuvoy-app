@@ -87,18 +87,12 @@
   --color-abyss: #0a100e;
 
   /* ----------------------------------------------------------------- type */
-  /* Fraunces, tuned into the site's own cut — optical size at 144 for
-     display-grade contrast, SOFT 75 for sea-glass terminals, WONK 0. The
-     variation settings ride the `font-display` utility itself, so every
-     headline gets the cut for free. Display weight is 400; the turn is a
-     TRUE italic at `font-turn` (480). Satoshi is the one text voice. */
-  --font-display: var(--font-fraunces);
-  --font-display--font-variation-settings: "opsz" 144, "SOFT" 75, "WONK" 0;
-  --font-sans: var(--font-satoshi); /* body + UI + labels */
-
-  /* The turn's weight: 80 above the display's 400. A token, not a magic
-     number, so the upright/turn relationship is stated once. */
-  --font-weight-turn: 480;
+  /* Anek Latin, one family in two voices (v3.0, src/lib/fonts.ts). Display is
+     the condensed bold cut, baked and registered at 400, so `font-display` at
+     the default weight is the one display voice. Text is the same family at
+     normal width, 400/500/700. Both draw the rupee sign. */
+  --font-display: var(--font-anek-display);
+  --font-sans: var(--font-anek); /* body + UI + labels */
 
   /* --------------------------------------------------------------- layout */
   --container-page: 70rem; /* the page measure — `max-w-page` */
@@ -145,7 +139,7 @@
   /* ------------------------------------------------------------- tracking */
   --tracking-wordmark: 0.34em;
   --tracking-label: 0.18em;
-  --tracking-display: -0.01em; /* Fraunces sets looser than a grotesque */
+  --tracking-display: 0em; /* a condensed bold sets at its own spacing */
 }
 
 @layer base {
@@ -1038,7 +1032,6 @@
 
   & h2 {
     font-family: var(--font-display);
-    font-variation-settings: var(--font-display--font-variation-settings);
     letter-spacing: var(--tracking-display);
     font-size: 1.75rem;
     line-height: 1.15;

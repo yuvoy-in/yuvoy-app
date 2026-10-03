@@ -171,7 +171,7 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
           somebody will read out to no effect.
         */}
         {trip.reference ? (
-          <p className="text-forest/70 mt-2 font-mono text-xs tracking-wider">
+          <p className="text-forest/70 mt-2 text-xs tracking-wider slashed-zero tabular-nums">
             {trip.reference}
           </p>
         ) : null}

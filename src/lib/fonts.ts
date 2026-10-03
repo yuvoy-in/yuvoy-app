@@ -1,64 +1,61 @@
 import localFont from "next/font/local";
 
 /**
- * Brand Kit v2.5: Fraunces (display) + Satoshi (everything else).
+ * Brand Kit v3.0: Anek Latin, one family in two voices (owner-approved 3 Oct
+ * 2026, the type study's option 1, "Jetty board").
  *
- * Fraunces is the open-license member of the soft-serif family premium travel
- * brands set their identities in, picked over ~350 candidates across seven
- * rounds. It ships variable and is tuned into the site's own cut in
- * globals.css: opsz 144, SOFT 75, WONK 0. Display weight is 400; the turn
- * rides at 480 via `font-turn` and is a TRUE drawn italic, not a synthesized
- * oblique.
+ * Why it replaced Fraunces + Satoshi: the soft serif on a light page with a
+ * terracotta accent is the look the design authority names as the AI default,
+ * Fraunces is on its list of reflex faces, and NEITHER of the old files had a
+ * rupee sign, so every "₹4,500" borrowed its ₹ from a system font. Anek is Ek
+ * Type's (Mumbai), draws ₹ itself, carries tabular figures and a slashed zero,
+ * and has Devanagari, Bangla, Tamil and Telugu siblings for later. One family
+ * for the app and the operator portal keeps them visibly one Yuvoy.
  *
- * Satoshi (400/500/700) carries body, UI and labels. It has no italic file
- * and no 600: body emphasis is `font-bold` upright, and `font-semibold` must
- * not appear anywhere in the tree.
+ * Two files, both built by scripts/build-fonts.py from one pinned upstream
+ * file (SIL OFL 1.1; the licence is src/fonts/Anek-OFL.txt):
  *
- * Five files, self-hosted, no runtime request to Google. Dancing Script is
- * deliberately NOT ported — it exists for the marketing site's brand veil
- * alone and has no place in the app.
+ *   anek         the text voice: width 100, variable weight 400 to 700. Body,
+ *                UI, labels. Three weights are used (400/500/700) and
+ *                `font-semibold` stays banned: three weights, not a continuum.
+ *
+ *   anekDisplay  the display voice: the condensed bold (width 75, weight 700),
+ *                baked 12% large. It is REGISTERED here at weight 400 so that
+ *                `font-display` with the default weight keeps meaning the one
+ *                display cut, exactly as the Fraunces cut was registered;
+ *                palette.test.ts still bans `font-display` at any other weight,
+ *                which would make the browser synthesise a heavier one.
+ *
+ * Self-hosted, no runtime request to Google.
  */
 
-export const fraunces = localFont({
+export const anek = localFont({
+  src: [
+    { path: "../fonts/Anek-Yuvoy.woff2", weight: "400 700", style: "normal" },
+  ],
+  variable: "--font-anek",
+  display: "swap",
+  preload: true,
+});
+
+export const anekDisplay = localFont({
   src: [
     {
-      path: "../fonts/Fraunces-Yuvoy.woff2",
+      path: "../fonts/Anek-Yuvoy-Display.woff2",
       weight: "400",
       style: "normal",
     },
   ],
-  variable: "--font-fraunces",
-  display: "optional",
+  variable: "--font-anek-display",
   /*
-    THE YUVOY CUT, BAKED. 118 KB -> 13 KB, an 89% saving, and this was the
-    single biggest lever on the app's LCP.
-
-    Two reductions, in order:
-
-    1. The italic is gone. It is 146 KB, `preload` covers every file in a
-       family, and the app never sets display type in italic — the terracotta
-       "turn" is the marketing site's move, not this one.
-
-    2. The variable font is INSTANCED to the axis values globals.css already
-       pins: opsz 144, SOFT 75, WONK 0, weight 400. Nothing in the app renders
-       display type at any other weight, so four axes of interpolation data
-       were being shipped to a 0.5-3 Mbps connection to produce one cut. The
-       letterforms are identical; the machinery for producing others is not.
-
-    Regenerate with scripts/build-display-font.py if the cut ever changes, and
-    note that a NEW WEIGHT means going back to the variable file first — a
-    static 400 cannot serve 480, and the browser would synthesise it.
+    `optional`, as the Fraunces cut was, and for the same measured reason: the
+    feed headline is the LCP element, and swapping it repainted at 4.1s against
+    a first paint of 0.8s. At 16 KB, preloaded, the cut usually wins its block
+    window; on a genuinely bad connection the visitor keeps the fallback for
+    that page rather than watching the headline change under them. The
+    fallback is metric-matched by next/font from the file itself, which is why
+    the 12% is baked into the file and not declared.
   */
-  preload: true,
-});
-
-export const satoshi = localFont({
-  src: [
-    { path: "../fonts/Satoshi-Regular.woff2", weight: "400", style: "normal" },
-    { path: "../fonts/Satoshi-Medium.woff2", weight: "500", style: "normal" },
-    { path: "../fonts/Satoshi-Bold.woff2", weight: "700", style: "normal" },
-  ],
-  variable: "--font-satoshi",
-  display: "swap",
+  display: "optional",
   preload: true,
 });

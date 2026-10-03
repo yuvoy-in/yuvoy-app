@@ -208,7 +208,7 @@ export function HandOver({ status }: { status: BookingStatus }) {
       <p className="text-forest/70 mt-1.5 text-sm">
         We have stopped checking automatically. Nothing is lost. Your booking
         reference is{" "}
-        <span className="font-mono font-bold">
+        <span className="font-bold slashed-zero tabular-nums">
           {status.bookingReference ?? status.reservationId}
         </span>
         . Send us that on WhatsApp and someone will sort it out.
@@ -311,7 +311,7 @@ export function CashBooked({
           Selectable, and big. Somebody reads this to an operator over the
           noise of an outboard motor.
         */}
-        <p className="mt-5 font-mono text-3xl font-bold tracking-wider select-all">
+        <p className="mt-5 text-3xl font-bold tracking-wider slashed-zero tabular-nums select-all">
           {booking.bookingReference}
         </p>
 

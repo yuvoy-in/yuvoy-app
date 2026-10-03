@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { fraunces, satoshi } from "@/lib/fonts";
+import { anek, anekDisplay } from "@/lib/fonts";
 import { Providers } from "@/components/providers";
 import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
@@ -63,7 +63,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${satoshi.variable}`}>
+    <html lang="en" className={`${anekDisplay.variable} ${anek.variable}`}>
       <body className="bg-forest text-paper">
         {/* Emitted once for the whole site. Interior pages add their own
             breadcrumb and article nodes, linked to these by @id. */}

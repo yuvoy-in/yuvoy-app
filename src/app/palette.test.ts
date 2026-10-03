@@ -98,16 +98,20 @@ describe("palette", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("never uses font-semibold — Satoshi ships no 600", () => {
-    // The browser would synthesise it, which is the exact tell the type
-    // system was rebuilt to remove.
+  it("never uses font-semibold: the type system has three weights", () => {
+    // 400, 500 and 700, and nothing between. The text face is variable, so a
+    // 600 would render rather than be synthesised; it is banned so the three
+    // stay three instead of drifting into a continuum.
     const offenders = FILES.filter((f) => /font-semibold/.test(read(f))).map(
       rel,
     );
     expect(offenders).toEqual([]);
   });
 
-  it("never puts a display face at a weight other than 400 or the turn", () => {
+  it("never puts the display face at a weight other than its own", () => {
+    // The display cut is ONE baked instance (condensed bold), registered at
+    // 400 in src/lib/fonts.ts. Any heavier class would make the browser
+    // synthesise a bolder copy of an already bold face.
     const offenders = FILES.filter((f) => {
       const s = read(f);
       /*
