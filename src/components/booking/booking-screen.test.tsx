@@ -1516,7 +1516,7 @@ describe("finishing a booking in cash", () => {
       );
       renderWithQuery(<BookingScreen />);
 
-      expect(await screen.findByText("Paid")).toBeInTheDocument();
+      expect(await screen.findByText("Paid in cash")).toBeInTheDocument();
       expect(screen.queryByText(/Bring ₹/)).not.toBeInTheDocument();
       expect(screen.queryByText("To pay on the day")).not.toBeInTheDocument();
     });
@@ -1685,6 +1685,31 @@ describe("add to calendar", () => {
     expect(
       await screen.findByRole("button", { name: /Add to calendar/ }),
     ).toBeInTheDocument();
+  });
+
+  it("is not offered before there is a booking to put in it", async () => {
+    /*
+      A request nobody has answered, and a hold not yet paid for: an entry now
+      claims the trip is on before anybody has said so, and outlives a "no"
+      (cited in the redesign's before page, 3 Oct 2026).
+    */
+    for (const state of ["awaiting_operator", "holding"]) {
+      cleanup();
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(
+            statusBody({ state, final: false, bookingReference: undefined }),
+          ),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText(/Try-dive at Nemo Reef/);
+      expect(
+        screen.queryByRole("button", { name: /Add to calendar/ }),
+        state,
+      ).toBeNull();
+    }
   });
 
   it("is hidden on a trip that is not happening", async () => {

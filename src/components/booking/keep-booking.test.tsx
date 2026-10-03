@@ -176,6 +176,20 @@ describe("when the image cannot be made", () => {
   });
 });
 
+describe("one Share on the page", () => {
+  it("draws no Share of its own where the page already has one", async () => {
+    // Both mint the same /trip/ link (cited 3 Oct 2026).
+    patchNavigator({ canShareFiles: false });
+    renderWithQuery(
+      <KeepBooking status={status()} token="tok_1" offerShare={false} />,
+    );
+    expect(
+      await screen.findByRole("button", { name: "Download" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^Share$/ })).toBeNull();
+  });
+});
+
 describe("Share", () => {
   it("sends the /trip/ link, never the booking page", async () => {
     /*
