@@ -50,6 +50,7 @@ export function TimePicker({
             suggest different next moves.
           */
           const why = slot.soldOut ? "Full" : "Closed";
+          const seatsId = `seats-${slot.id}`;
 
           return (
             <button
@@ -58,28 +59,41 @@ export function TimePicker({
               disabled={!open}
               aria-pressed={chosen}
               aria-label={open ? time : `${time}, ${why.toLowerCase()}`}
+              // The seats as a description: the name stays the time, which is
+              // what a traveller asks for ("the 07:00"), and they still hear
+              // what is left on it.
+              aria-describedby={
+                open && slot.remainingDisplay ? seatsId : undefined
+              }
               onClick={() => onSelect(slot)}
+              /*
+                One line, the time and then the seats, with a gap between them.
+                They used to be two `block` spans inside `tap-target`, which is
+                `inline-flex` and so laid them side by side with nothing
+                between: "07:003 seats left" (cited in the redesign's before
+                page, 3 Oct 2026). `min-h-11` is the 44px target the utility
+                was standing in for.
+              */
               className={cn(
-                "rounded-control ease-interaction tap-target border px-4 py-2 text-left transition-colors duration-200",
+                "ease-interaction inline-flex min-h-11 items-center gap-2 rounded-full border px-4 transition-colors duration-200",
                 !open && "cursor-not-allowed opacity-40",
                 chosen
                   ? "border-forest bg-forest text-paper"
-                  : "border-paper-line bg-paper text-forest hover:border-forest/40",
+                  : "border-paper-line bg-paper-deep text-forest hover:border-forest/40",
               )}
             >
-              <span className="block text-sm font-bold">{time}</span>
+              <span className="text-[15px] font-bold tabular-nums">{time}</span>
               {/*
                 The server's own sentence about seats, or the reason there are
                 none. Never a number this client worked out.
               */}
               {!open ? (
-                <span className="mt-0.5 block text-[11px] leading-none">
-                  {why}
-                </span>
+                <span className="text-[13px]">{why}</span>
               ) : slot.remainingDisplay ? (
                 <span
+                  id={seatsId}
                   className={cn(
-                    "mt-0.5 block text-[11px] leading-none",
+                    "text-[13px]",
                     chosen ? "text-paper/80" : "text-forest/70",
                   )}
                 >

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { BookScreen } from "@/components/checkout/book-screen";
+import { PicturePlaceholder } from "@/components/checkout/checkout-picture";
 import { LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { gatedRoute } from "@/components/auth/gated-route";
@@ -66,6 +67,7 @@ function CheckoutSkeleton({ slug }: { slug: string }) {
     <Screen
       back={{ href: `/e/${slug}`, label: "the dates" }}
       stageLabel="Checkout"
+      hero={<PicturePlaceholder />}
     >
       <LoadingState label="Loading checkout">
         <div className="space-y-4">

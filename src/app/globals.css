@@ -479,6 +479,35 @@
 }
 
 /**
+ * The picture strip at the top of checkout (the approved redesign, 3 Oct
+ * 2026): the listing's poster, with the price and the title written over its
+ * foot. Measured the feed's way, against the palest highlight a poster has
+ * shown (#E8E2D4), because the strip is the listing's own picture and can be
+ * white surf as easily as a dark reef.
+ *
+ * The caption's top edge is highest on the shortest strip (144px, a phone in
+ * landscape): the sheet's 32px rise, 16px of air, then a two-line title and
+ * the price line, which tops out at 81% of the strip's height. The ramp holds
+ * 60% abyss or darker to that mark, which puts `paper` at about 6:1 there and
+ * darker everywhere below it. Above it is only the Back disc, which carries
+ * its own ground, so the ramp eases off to a tint rather than ending.
+ * `palette.test.ts` recomputes this from the stops below.
+ */
+@utility strip-scrim {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-abyss) 84%, transparent) 0%,
+    color-mix(in srgb, var(--color-abyss) 80%, transparent) 20%,
+    color-mix(in srgb, var(--color-abyss) 74%, transparent) 40%,
+    color-mix(in srgb, var(--color-abyss) 68%, transparent) 60%,
+    color-mix(in srgb, var(--color-abyss) 64%, transparent) 72%,
+    color-mix(in srgb, var(--color-abyss) 60%, transparent) 82%,
+    color-mix(in srgb, var(--color-abyss) 52%, transparent) 90%,
+    color-mix(in srgb, var(--color-abyss) 36%, transparent) 100%
+  );
+}
+
+/**
  * The chrome surfaces — the floating tab bar, the rail, the circular controls
  * that float over media. `forest`, not `abyss`: chrome stays chrome, and the
  * 1.47:1 between them is what separates the controls from the picture behind

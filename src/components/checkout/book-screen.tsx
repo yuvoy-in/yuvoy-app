@@ -21,7 +21,8 @@ import {
 import { monthStart } from "@/lib/search/month-grid";
 import { civilFromDate, civilInZone, weekdayDayMonth } from "@/lib/format/date";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
-import { DatePicker } from "./date-picker";
+import { DateChooser } from "./day-strip";
+import { CheckoutPicture, PicturePlaceholder } from "./checkout-picture";
 import { slotIsOpen } from "@/lib/booking/slot-open";
 import { TimePicker } from "./time-picker";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
@@ -225,7 +226,7 @@ export function BookScreen({ slug }: { slug: string }) {
 
   if (experience.isPending) {
     return (
-      <Screen back={back} stageLabel="Checkout">
+      <Screen back={back} stageLabel="Checkout" hero={<PicturePlaceholder />}>
         <LoadingState label="Loading checkout">
           <div className="space-y-4">
             <Skeleton className="h-20 w-full" />
@@ -248,10 +249,26 @@ export function BookScreen({ slug }: { slug: string }) {
   }
 
   const chosenCivil = date ? civilFromDate(date) : null;
+  /*
+    The listing's picture over the top of checkout (the approved redesign,
+    3 Oct 2026), with the title on it, so the eyebrow can say where they are.
+    A listing with no picture keeps the plain header and its title here.
+  */
+  const pictured = Boolean(
+    experience.data.heroMedia ?? experience.data.gallery?.[0],
+  );
 
   return (
-    <Screen back={back} stageLabel="Checkout">
-      <p className="eyebrow text-terra-deep">{experience.data.title}</p>
+    <Screen
+      back={back}
+      stageLabel="Checkout"
+      hero={
+        pictured ? <CheckoutPicture experience={experience.data} /> : undefined
+      }
+    >
+      <p className="eyebrow text-terra-deep">
+        {pictured ? "Checkout" : experience.data.title}
+      </p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight">
         {chosenCivil && slot
           ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
@@ -277,7 +294,7 @@ export function BookScreen({ slug }: { slug: string }) {
       ) : null}
 
       <div className="mt-8">
-        <DatePicker
+        <DateChooser
           anchor={anchor}
           onAnchor={setUserAnchor}
           days={days}

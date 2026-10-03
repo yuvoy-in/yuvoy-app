@@ -304,6 +304,23 @@ test.describe("choosing a departure on checkout", () => {
     ).toBeVisible();
   });
 
+  test("opens on the next two weeks, with the month one tap away", async ({
+    page,
+  }) => {
+    // The approved redesign (traveller A, 3 Oct 2026).
+    await page.goto(INSTANT);
+    await page.getByRole("link", { name: /^Pick a day/ }).click();
+    await page.waitForURL(/\/book(\?|$)/);
+    const days = page.getByRole("group", { name: "The next two weeks" });
+    await expect(days.getByRole("button")).toHaveCount(14);
+
+    await page.getByRole("button", { name: "More dates" }).click();
+    await expect(page.getByText("August 2026")).toBeVisible();
+    await expect(days).toHaveCount(0);
+    await page.getByRole("button", { name: "Next two weeks" }).click();
+    await expect(days).toBeVisible();
+  });
+
   test("the calendar is accessible", async ({ page }) => {
     await page.goto(INSTANT);
     await page.getByRole("link", { name: /^Pick a day/ }).click();

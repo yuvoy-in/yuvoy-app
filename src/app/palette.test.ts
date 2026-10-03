@@ -74,6 +74,12 @@ describe("palette", () => {
         feed.
       */
       "src/components/experience/gallery.tsx",
+      /*
+        The listing's picture at the top of checkout (the approved redesign,
+        3 Oct 2026), and the ground it holds while checkout loads: the same
+        media use as the gallery's, a ground behind a poster.
+      */
+      "src/components/checkout/checkout-picture.tsx",
       "src/components/search/search-screen.tsx",
       /*
         The operator page's poster grounds — the profile's logo tile and photo
@@ -575,6 +581,22 @@ describe("measured contrast", () => {
       const ramp = stops("feed-scrim");
       expect(paperOverScrim(alphaAt(ramp, 40))).toBeGreaterThanOrEqual(7);
       expect(paperOverScrim(alphaAt(ramp, 58))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("keeps the checkout strip's caption legible over the brightest frame", () => {
+      /*
+        The strip's caption tops out at 81% of its height on the shortest strip
+        (see `strip-scrim`). `paper` must clear 4.5:1 there, as body text, and
+        it is measured, not assumed, so lightening the ramp fails here first.
+      */
+      const ramp = stops("strip-scrim");
+      expect(paperOverScrim(alphaAt(ramp, 81))).toBeGreaterThanOrEqual(5.5);
+      for (let i = 1; i < ramp.length; i++) {
+        expect(
+          ramp[i][1],
+          "strip-scrim lightens then darkens",
+        ).toBeLessThanOrEqual(ramp[i - 1][1]);
+      }
     });
 
     it("only ever gets lighter on the way up", () => {
