@@ -14,7 +14,7 @@ import { Field } from "@/components/ui/field";
 import { OwnForm } from "@/components/ui/own-form";
 import { Panel } from "@/components/ui/panel";
 import { maskPhone } from "@/components/auth/contact-fields";
-import { SignInSteps, useSignInFlow } from "./sign-in-form";
+import { SignInSteps, codeSentSentence, useSignInFlow } from "./sign-in-form";
 import {
   useRedeemInviteCode,
   type RedeemAnswer,
@@ -276,7 +276,7 @@ function SignedOut({
 
       <p className={cn(body, variant === "page" && "mt-6")}>
         {flow.sent
-          ? `We sent a six-digit code to ${flow.phone} on WhatsApp. It is good for a few minutes.`
+          ? codeSentSentence(flow)
           : "Have a code? Sign in with your number, then enter it."}
       </p>
 
