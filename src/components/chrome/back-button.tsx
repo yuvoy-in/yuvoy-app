@@ -19,17 +19,24 @@ export function BackButton({
   href,
   label,
   over = "stage",
+  onNavigate,
 }: {
   href: string;
   /** Where it leads, for the name: "Back to the feed". */
   label: string;
   over?: "stage" | "media";
+  /**
+   * Called when pressing it navigates this tab (Next's `onNavigate`), so a
+   * modifier-click that opens a new tab is not mistaken for a step back here.
+   */
+  onNavigate?: () => void;
 }) {
   return (
     <IconLink
       href={href}
       label={`Back to ${label}`}
       variant={over === "media" ? "chrome" : "onDark"}
+      onNavigate={onNavigate}
     >
       <ArrowLeftIcon />
     </IconLink>

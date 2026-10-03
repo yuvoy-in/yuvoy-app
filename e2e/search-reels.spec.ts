@@ -143,6 +143,36 @@ test.describe("results as reels", () => {
     }
   });
 
+  test("a listing opened from a result returns to that result", async ({
+    page,
+  }) => {
+    /*
+      Back returns to where the traveller came from (the approved redesign,
+      traveller A, 3 Oct 2026), not always to the feed: here, the result they
+      were watching, query and all, whose own Back still leads to the grid.
+    */
+    await page.goto("/search?q=dive");
+    const grid = page.getByRole("list", { name: "Search results" });
+    await grid.getByRole("link").first().click();
+    await page.waitForURL(/\/search\/r\//);
+    const result = new URL(page.url()).pathname;
+
+    await page
+      .locator("article")
+      .first()
+      .getByRole("link", { name: /^(Book|View)$/ })
+      .click();
+    await page.waitForURL(/\/e\/[^/]+$/);
+
+    const back = page.getByRole("link", { name: "Back to the reel" });
+    await expect(back).toBeVisible();
+    await back.click();
+    await page.waitForURL((url) => url.pathname === result);
+    await expect(
+      page.getByRole("link", { name: /^Back to/ }).first(),
+    ).toBeVisible();
+  });
+
   test("back returns to the same grid, filters intact", async ({ page }) => {
     await page.goto("/search?q=dive");
     const grid = page.getByRole("list", { name: "Search results" });

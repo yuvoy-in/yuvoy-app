@@ -23,14 +23,13 @@ describe("focused routes", () => {
     ["/trips", false],
     ["/account", false],
     ["/guides", false],
-    // yuvoy-app#33. The profile itself is a destination and keeps the bar;
-    // what they run and one of their reels are steps inside it.
-    ["/o/hc-diving-skl", false],
+    // A business's page and the two inside it. The profile kept the bar as a
+    // destination of its own (yuvoy-app#33) until the approved redesign
+    // (traveller A, 3 Oct 2026) gave it a way back instead.
+    ["/o/hc-diving-skl", true],
     ["/o/hc-diving-skl/listings", true],
     ["/o/hc-diving-skl/r/med_dive", true],
-    // The wildcard matches ONE segment, so a deeper path that merely starts
-    // the same way is not swallowed.
-    ["/o/listings", false],
+    // The wildcard needs a segment to match: `/o` alone is no business.
     ["/o", false],
   ])("%s → focused: %s", (pathname, focused) => {
     expect(isFocusedRoute(pathname)).toBe(focused);

@@ -93,17 +93,20 @@ export const FOCUSED_ROUTE_PREFIXES = [
   "/guides/",
   "/offline",
   /*
-    A business's own pages, one level in — yuvoy-app#33. `/o/{slug}` itself is
-    a tab-less destination a traveller can arrive at from a listing or a search
-    result and keeps the bar; what they run and one of their reels are places
-    they go INTO from it, and both carry their own way back.
+    A business's pages: the profile, what they run, and one of their reels.
+
+    The profile itself used to keep the bar, as a destination of its own
+    (yuvoy-app#33), with only the two pages inside it focused. The approved
+    redesign (traveller A, 3 Oct 2026) made it a place a traveller goes INTO
+    from a listing or a search, with a way back to wherever that was, so all
+    three are focused now.
 
     `*` matches one path segment, because the slug sits in the middle. The same
     wildcard `PRIVATE_ROUTES` uses for `/e/*​/book`, and the reason
-    `isFocusedRoute` is not a plain `startsWith` any more.
+    `isFocusedRoute` is not a plain `startsWith` any more. As a prefix it also
+    covers the two pages below the profile.
   */
-  "/o/*/listings",
-  "/o/*/r/",
+  "/o/*",
   // A search result, playing. `/search` itself is a tab root and keeps the bar.
   "/search/r/",
   /*

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Wordmark } from "@/components/ui/wordmark";
 import { BackButton } from "./back-button";
+import { TrailBackButton } from "./trail-back-button";
 import { LoginButton } from "@/components/auth/login-button";
 
 /**
@@ -28,6 +29,28 @@ export interface BackTarget {
   href: string;
   /** Where it leads, for the control's name. */
   label: string;
+  /**
+   * Return to the screen the traveller came from when it is one of ours, and
+   * use `href` only when it is not (`TrailBackButton`). For a screen reached
+   * from many places, like a listing; a step inside one place keeps its
+   * fixed parent.
+   */
+  followTrail?: boolean;
+}
+
+function Back({
+  target,
+  over,
+}: {
+  target: BackTarget;
+  over?: "stage" | "media";
+}) {
+  const { followTrail, ...link } = target;
+  return followTrail ? (
+    <TrailBackButton {...link} over={over} />
+  ) : (
+    <BackButton {...link} over={over} />
+  );
 }
 
 export function Screen({
@@ -83,7 +106,7 @@ export function Screen({
             <div className="pointer-events-none sticky top-0 z-20 h-0 lg:relative">
               <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
                 <div className="pointer-events-auto">
-                  {back ? <BackButton {...back} over="media" /> : null}
+                  {back ? <Back target={back} over="media" /> : null}
                 </div>
                 <div className="pointer-events-auto flex gap-2">
                   {heroActions}
@@ -111,7 +134,7 @@ export function Screen({
             )}
           >
             {back ? (
-              <BackButton {...back} />
+              <Back target={back} />
             ) : (
               <Wordmark tone="paper" className="h-7" priority />
             )}

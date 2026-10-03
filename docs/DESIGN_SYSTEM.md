@@ -326,6 +326,13 @@ MOBILE  (< 1024px)                           DESKTOP  (>= 1024px)
 - **The back control is a link to a stated fallback, never `history.back()`.**
   A shared link opened in a fresh tab has no in-app history, and search keeps
   its results in component state, so a true back would restore nothing anyway.
+- **A screen reached from many places follows the trail** (approved redesign,
+  3 Oct 2026). The listing and a business's page set `back.followTrail`: the
+  link goes to the screen of ours the traveller came from when Back can name
+  it ("Back to search", query and all), and to the stated fallback otherwise.
+  The trail is in memory only (`route-trail`), a step back takes a screen off
+  it so two screens that link to each other never loop, and a reload or an
+  arrival from outside simply has no trail.
 
 ### Measured, and one thing ruled out
 

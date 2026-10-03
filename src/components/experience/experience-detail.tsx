@@ -90,7 +90,9 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
 
   return (
     <Screen
-      back={{ href: "/", label: "the feed" }}
+      // Reached from the feed, search, saves and a business's page: Back
+      // returns to whichever it was, and to the feed from outside.
+      back={{ href: "/", label: "the feed", followTrail: true }}
       stageLabel="Experience"
       width="lg"
       hero={
