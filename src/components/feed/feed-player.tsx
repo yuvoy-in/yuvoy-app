@@ -131,6 +131,36 @@ export function FeedPlayer({
    * they asked for, and the derivation below simply stops matching.
    */
   const [rejectedFor, setRejectedFor] = useState<"auto" | "asked" | null>(null);
+  /*
+    The traveller paused this clip (a tap on the picture).
+
+    A settled feed ruling production never built until the redesign (traveller
+    A, 3 Oct 2026): tap is play and pause. It is also the only way to stop a
+    looping clip, which WCAG 2.2.2 asks for of anything that moves for more
+    than five seconds. A clip paused and scrolled past plays again when it is
+    back on screen, as every reel feed does: the pause is about this viewing,
+    not a setting. Reset during render, not in an effect, for the reason
+    `rejectedFor` gives.
+  */
+  const [userPaused, setUserPaused] = useState(false);
+  if (!active && userPaused) setUserPaused(false);
+
+  /*
+    Play, from either way in: the play control or a tap on a stopped picture.
+    A traveller's own pause is simply lifted; a browser's refusal is answered
+    the way it always was, by recording that they asked.
+  */
+  const resume = () => {
+    if (userPaused) setUserPaused(false);
+    else {
+      setAsked(true);
+      onRequestPlay?.();
+    }
+    // Already attached: start it here, inside the gesture, rather than
+    // waiting a render. Muted playback needs no gesture, but spending one
+    // when we have it is free.
+    void videoRef.current?.play().catch(() => {});
+  };
 
   const src = media.hlsUrl;
 
@@ -270,7 +300,7 @@ export function FeedPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !playable) return;
-    if (active && mayPlay) {
+    if (active && mayPlay && !userPaused) {
       // Captured at the moment of the attempt, so a refusal is filed against
       // the try that earned it and not against whatever is current when the
       // promise settles.
@@ -290,7 +320,7 @@ export function FeedPlayer({
     } else {
       video.pause();
     }
-  }, [active, playable, mayPlay, asked]);
+  }, [active, playable, mayPlay, asked, userPaused]);
 
   /*
     Whether it is actually running, read from the element rather than assumed.
@@ -457,18 +487,51 @@ export function FeedPlayer({
         decision, the source attach, the manifest, the buffer. A control that
         appears and then withdraws on its own teaches a traveller that the app
         is unsure, and it was the first thing anybody saw.
+
+        And on the traveller's own pause (a tap on the picture, below), which
+        is a refusal they gave themselves: the same control brings it back.
       */}
-      {hasClip && active && !playing && !hidden && refused ? (
+      {/*
+        The picture as the clip's control.
+
+        While the clip is meant to be playing, the whole picture is a real
+        button named "Pause video": reachable without a pointer, and as big as
+        the place a thumb lands. Once it is stopped (paused, or refused by the
+        browser) the play control below is the one named control, and the
+        picture steps down to a pointer-only surface that does the same thing,
+        so there is exactly one control for the clip in the accessibility tree
+        at a time.
+
+        No z-index, on purpose: by document order it sits over the video and
+        under the caption, the rail and any panel, which all come later, so
+        Book and the discs keep their own taps. A swipe never reaches it (the
+        card swallows the click a drag ends in, `useSwipeToOpen`) and a scroll
+        produces no click at all.
+      */}
+      {hasClip && active && !hidden && (refused || userPaused) ? (
         <button
           type="button"
+          aria-hidden="true"
+          tabIndex={-1}
+          onClick={resume}
+          className="absolute inset-0 cursor-default"
+        />
+      ) : hasClip && active && !hidden && mayPlay ? (
+        <button
+          type="button"
+          aria-label="Pause video"
           onClick={() => {
-            setAsked(true);
-            onRequestPlay?.();
-            // Already attached: start it here, inside the gesture, rather than
-            // waiting a render. Muted playback needs no gesture, but spending
-            // one when we have it is free.
-            void videoRef.current?.play().catch(() => {});
+            setUserPaused(true);
+            videoRef.current?.pause();
           }}
+          className="focus-visible:ring-paper absolute inset-0 cursor-default focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+        />
+      ) : null}
+
+      {hasClip && active && !playing && !hidden && (refused || userPaused) ? (
+        <button
+          type="button"
+          onClick={resume}
           aria-label={`Play ${media.alt ?? "this clip"}`}
           className={cn(
             "absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2",
