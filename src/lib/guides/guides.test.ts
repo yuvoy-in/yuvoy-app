@@ -19,6 +19,39 @@ const base = {
 };
 
 describe("guide frontmatter", () => {
+  /*
+    yuvoy-app#116 item 4: the listings at the foot of a guide, found by the
+    filter Search uses. A filter, not slugs, so it never names a listing
+    that stopped selling.
+  */
+  it("takes a listings filter by category or activity, and needs one of them", () => {
+    expect(
+      guideFrontmatter.safeParse({
+        ...base,
+        listings: { activityType: "scuba" },
+      }).success,
+    ).toBe(true);
+    expect(
+      guideFrontmatter.safeParse({
+        ...base,
+        listings: { category: "adventure" },
+      }).success,
+    ).toBe(true);
+    expect(guideFrontmatter.safeParse({ ...base, listings: {} }).success).toBe(
+      false,
+    );
+    expect(
+      guideFrontmatter.safeParse({ ...base, listings: { category: "diving" } })
+        .success,
+    ).toBe(false);
+    expect(
+      guideFrontmatter.safeParse({
+        ...base,
+        listings: { activityType: "Scuba diving" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts a well-formed record", () => {
     expect(guideFrontmatter.safeParse(base).success).toBe(true);
   });

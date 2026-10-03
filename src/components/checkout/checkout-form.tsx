@@ -388,7 +388,22 @@ function CheckoutFields({
       */
       expectTotalPaise: total?.amountMinor,
       authenticated: contact.authenticated,
-      contact: contact.contactFor({ name, phone: whatsapp, email }),
+      contact: {
+        ...contact.contactFor({ name, phone: whatsapp, email }),
+        /*
+          THE MARKETING TICK, SENT (yuvoy-app#116 item 1). It was kept in
+          state and never left the browser, so a traveller who ticked it was
+          recorded as never asked: the safe direction, and still a promise
+          the box did not keep.
+
+          Always a boolean, never left out: the box is on this form every
+          time, so the question WAS asked, and the contract records absent
+          ("never asked") and `false` ("asked and declined") differently. It
+          is part of the body, so changing the tick mints a new idempotency
+          key, which is right: it is a different answer.
+        */
+        marketingConsent: marketing,
+      },
       ...(attribution ? { attribution } : {}),
       ...(safety?.screener || safety?.minAge
         ? {

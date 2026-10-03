@@ -167,6 +167,35 @@ test.describe("the rendered audit", () => {
       ).toBe(sitePolicy);
     }
 
+    /*
+      Businesses (yuvoy-app#116 item 5). The sitemap carried none, because
+      the catalog index enumerates none; they are read off the listings on
+      sale now. Each is as indexable as the rest of the site, and the test
+      below holds every one to a 200 with no redirect.
+
+      Required only where the sitemap has listings too. Both are read from
+      the API while the sitemap is built, and the e2e build reads none (its
+      mocks start with the server, after the build), so there it has neither
+      and `business-sitemap.test.ts` holds the derivation. On a live origin,
+      a listing on sale with no business beside it is the failure this
+      exists to catch.
+    */
+    const businesses = paths.filter((p) => /^\/o\/[^/]+$/.test(p));
+    const listings = paths.filter((p) => /^\/e\/[^/]+$/.test(p));
+    if (listings.length > 0) {
+      expect(
+        businesses.length,
+        "a business with a listing on sale must be in the sitemap",
+      ).toBeGreaterThan(0);
+    }
+    for (const b of businesses) {
+      const html = await (await request.get(b)).text();
+      expect(
+        meta(html, "robots"),
+        `${b} is in the sitemap but its robots policy is not the site's`,
+      ).toBe(sitePolicy);
+    }
+
     // No duplicates. A URL listed twice is a crawl budget spent twice.
     expect(new Set(paths).size, "the sitemap must not repeat a URL").toBe(
       paths.length,
