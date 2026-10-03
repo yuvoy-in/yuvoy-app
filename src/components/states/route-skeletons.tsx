@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 
@@ -53,13 +54,16 @@ export function SheetSkeleton({
   width = "md",
   back,
   stageLabel,
+  hero,
 }: {
   width?: "md" | "lg";
   back?: { href: string; label: string };
   stageLabel?: string;
+  /** The ground of a picture the screen opens with, held at its height. */
+  hero?: ReactNode;
 }) {
   return (
-    <Screen width={width} back={back} stageLabel={stageLabel}>
+    <Screen width={width} back={back} stageLabel={stageLabel} hero={hero}>
       <LoadingState label="Loading">
         <div className="space-y-6">
           <div className="space-y-3">
