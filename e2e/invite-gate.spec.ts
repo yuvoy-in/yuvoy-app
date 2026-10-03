@@ -25,7 +25,7 @@ import { chooseDeparture } from "./support/checkout";
  */
 
 const LISTING = "/e/private-boat-charter";
-const HOLD = /Hold these seats/i;
+const HOLD = /^Book now/i;
 
 /** Every reservation that actually left the browser. */
 function countReservations(page: Page) {
@@ -90,7 +90,7 @@ test("the gate's own steps do not submit the booking form under them", async ({
 
     The gate draws its sign-in steps inside checkout's own `<form>`, and React
     dispatches `submit` up its tree: "Send me a code" would otherwise also run
-    the Hold these seats handler and send a reservation nobody asked for. A
+    the Book now handler and send a reservation nobody asked for. A
     unit test pins it in jsdom; this pins it in a real browser, which is the
     one that decides what a form element does.
   */

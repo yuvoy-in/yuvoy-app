@@ -119,7 +119,7 @@ async function fillIn(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("checkbox", { name: /called off/i }));
 }
 
-const hold = () => screen.getByRole("button", { name: /hold these seats/i });
+const hold = () => screen.getByRole("button", { name: /^book now/i });
 
 /** Waits for a signed-in form to settle: the fields collapse into a line. */
 async function signedInFormReady() {
@@ -256,20 +256,20 @@ describe("the API refuses with 403 invite_required", () => {
       The gate's code form is a `<form>` drawn inside checkout's own form, and
       React dispatches `submit` up its tree: without the two guards ("Use this
       code" stopping the event, and checkout ignoring a submit that is not its
-      own) this tap would run the Hold these seats handler as well and send a
+      own) this tap would run the Book now handler as well and send a
       reservation the traveller never asked for.
     */
     expect(posted).toBe(1);
 
     // It names the control rather than describing one.
     expect(
-      await screen.findByText(/Tap Hold these seats.*again to book/),
+      await screen.findByText(/Tap Book now again to book/),
     ).toBeInTheDocument();
 
     // And the same button, tapped again, books.
     await user.click(hold());
     await waitFor(() => expect(replace).toHaveBeenCalled());
-    expect(screen.queryByText(/Tap Hold these seats/)).toBeNull();
+    expect(screen.queryByText(/Tap Book now again/)).toBeNull();
   });
 });
 

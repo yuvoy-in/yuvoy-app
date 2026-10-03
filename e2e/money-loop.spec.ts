@@ -37,7 +37,7 @@ test("a traveller can go from the feed to a held booking", async ({ page }) => {
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();
-  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await page.getByRole("button", { name: /^Book now/i }).click();
 
   // Landed on the booking, with the token in the FRAGMENT.
   await expect(page).toHaveURL(/\/booking#t=/);
@@ -182,9 +182,7 @@ test("the health check blocks a dive booking until it is answered", async ({
   await page.getByRole("checkbox", { name: /called off/i }).check();
 
   // Omitted is not false — the form must not let this through.
-  await expect(
-    page.getByRole("button", { name: /Hold these seats/i }),
-  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Book now/i })).toBeDisabled();
   // The blocker list specifically, not the fieldset legend — both contain the
   // words "health check", and asserting on the vaguer one is how a test starts
   // passing for the wrong reason.
@@ -227,7 +225,9 @@ test("a listing with no cancellation terms says so, and offers no dead button", 
     is what shipped — so the assertion is that none of it is reachable.
   */
   await expect(
-    page.getByRole("button", { name: /Hold these seats|Ask the operator/i }),
+    page.getByRole("button", {
+      name: /^Book now|Send request|Ask the operator/i,
+    }),
   ).toHaveCount(0);
   await expect(page.getByLabel(/Your name/i)).toHaveCount(0);
   await expect(page.getByText(/Still needed:/i)).toHaveCount(0);
@@ -250,7 +250,13 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
 
     This is the whole journey, in the state production is actually in.
   */
-  await page.goto("/e/mangrove-kayak-at-dawn");
+  /*
+    ONE TAP (owner ruling, 3 Oct 2026). "Book now, pay ₹X cash on the day"
+    takes the seats and books them in cash before the booking page opens, so
+    there is no pay step left to walk through. A priced listing: the API takes
+    no money against one without a contracted price (the kayak).
+  */
+  await page.goto("/e/private-boat-charter");
   await page.waitForLoadState("networkidle");
 
   await chooseDeparture(page);
@@ -258,18 +264,13 @@ test("a traveller can finish a booking by paying the operator in cash", async ({
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();
-  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await page
+    .getByRole("button", { name: /^Book now, pay ₹[\d,]+ cash on the day$/ })
+    .click();
   await expect(page).toHaveURL(/\/booking#t=/);
-
-  /*
-    The payment step leads with the way that finishes (the approved redesign,
-    3 Oct 2026): cash, asked for on arrival, and no "Pay" button while paying
-    online is not open (the mock answers `coming_soon`, as production did).
-  */
-  const cash = page.getByRole("button", { name: /Book now, pay .* cash/i });
-  await expect(cash).toBeVisible();
+  // No hold to finish, and no Pay button left over.
+  await expect(page.getByText("Your seats are held")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Pay /i })).toHaveCount(0);
-  await cash.click();
 
   /*
     Booked, and this asserts the SETTLED screen rather than the moment.
@@ -352,9 +353,7 @@ test("a required question stops a booking, and answering it books", async ({
   await page.getByLabel("Your age range").selectOption("18_plus");
 
   // Blocked, and it names the operator's questions rather than only going grey.
-  await expect(
-    page.getByRole("button", { name: /Hold these seats/i }),
-  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Book now/i })).toBeDisabled();
   await expect(
     page.getByText(/Still needed:.*the operator's questions/i),
   ).toBeVisible();
@@ -366,7 +365,7 @@ test("a required question stops a booking, and answering it books", async ({
     .selectOption("SSI");
 
   await page.getByRole("radio", { name: "Yes" }).check();
-  const hold = page.getByRole("button", { name: /Hold these seats/i });
+  const hold = page.getByRole("button", { name: /^Book now/i });
   await expect(hold).toBeEnabled();
   await hold.click();
 
@@ -404,6 +403,12 @@ test("the conversation refuses a phone number and takes a date", async ({
     Nothing here re-implements that rule. The server owns it, the app renders
     the sentence it answers with, and this walks both sides.
   */
+  /*
+    A hold is not a booking, so there is nobody to write to yet, and that is
+    a state with a sentence, not an error. The unpriced kayak is the hold that
+    stays a hold: checkout books in one tap since 3 Oct 2026, and a listing
+    with no contracted price is the one the API will not take money for.
+  */
   await page.goto("/e/mangrove-kayak-at-dawn");
   await page.waitForLoadState("networkidle");
 
@@ -411,18 +416,22 @@ test("the conversation refuses a phone number and takes a date", async ({
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();
-  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await page.getByRole("button", { name: /^Book now/i }).click();
   await expect(page).toHaveURL(/\/booking#t=/);
-
-  // A hold is not a booking, so there is nobody to write to yet — and that is
-  // a state with a sentence, not an error.
   await expect(
     page.getByText(/Messages open once the booking is made/),
   ).toBeVisible();
   await expect(page.getByLabel("Write to the operator")).toHaveCount(0);
 
-  // Book it, which is what opens the conversation.
-  await page.getByRole("button", { name: /Book now, pay .* cash/i }).click();
+  // A booking is what opens the conversation: one tap on a priced listing.
+  await page.goto("/e/private-boat-charter");
+  await page.waitForLoadState("networkidle");
+  await chooseDeparture(page);
+  await page.getByLabel(/Your name/i).fill("Asha Menon");
+  await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
+  await page.getByRole("checkbox", { name: /called off/i }).check();
+  await page.getByRole("button", { name: /^Book now/i }).click();
+  await expect(page).toHaveURL(/\/booking#t=/);
   await expect(page.getByText("You are going")).toBeVisible();
 
   const box = page.getByLabel("Write to the operator");
@@ -477,7 +486,7 @@ test("a message whose text was removed reads as removed, never as blank", async 
   await page.getByLabel(/Your name/i).fill("Asha Menon");
   await page.getByLabel(/WhatsApp number/i).fill("+919000000000");
   await page.getByRole("checkbox", { name: /called off/i }).check();
-  await page.getByRole("button", { name: /Hold these seats/i }).click();
+  await page.getByRole("button", { name: /^Book now/i }).click();
   await expect(page).toHaveURL(/\/booking#t=/);
 
   await expect(

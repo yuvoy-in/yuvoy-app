@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
+import { http, HttpResponse } from "msw";
 import {
+  finishInCash,
   readPayAtCounter,
   amountToBring,
   isBooked,
   type CashBooking,
 } from "./cash-booking";
+import { server } from "../../../mocks/server";
+
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 const offer = {
   available: true,
@@ -140,5 +145,75 @@ describe("a retry is the same booking", () => {
 
   it("is not booked without a reference to say out loud", () => {
     expect(isBooked({ bookingReference: "  " } as CashBooking)).toBe(false);
+  });
+});
+
+/**
+ * The one tap (owner ruling, 3 Oct 2026): checkout finishes a live hold in
+ * cash in the tap that took it, and falls back to the booking page, never to
+ * an error, when it cannot.
+ */
+describe("finishInCash", () => {
+  const order = (body: object, status = 200) =>
+    http.post(`${BASE}/reservations/:id/payment-order`, () =>
+      HttpResponse.json(body, { status }),
+    );
+  const cashOffer = {
+    state: "coming_soon",
+    message: "Card and UPI are opening shortly.",
+    payAtCounter: {
+      available: true,
+      confirmAt: "/reservations/res_1/cash-booking",
+    },
+  };
+
+  it("asks how the hold can be paid, then books it in cash", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.post(`${BASE}/reservations/:id/payment-order`, ({ params }) => {
+        calls.push(`order:${params.id}`);
+        return HttpResponse.json(cashOffer);
+      }),
+      http.post(`${BASE}/reservations/:id/cash-booking`, ({ params }) => {
+        calls.push(`cash:${params.id}`);
+        return HttpResponse.json({ bookingReference: "YV-1" }, { status: 201 });
+      }),
+    );
+    expect(await finishInCash("res_1")).toBe(true);
+    expect(calls).toEqual(["order:res_1", "cash:res_1"]);
+  });
+
+  it("books nothing when cash is not offered, and says so by returning false", async () => {
+    let cash = 0;
+    server.use(
+      order({ state: "coming_soon", message: "Not yet." }),
+      http.post(`${BASE}/reservations/:id/cash-booking`, () => {
+        cash += 1;
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+    expect(await finishInCash("res_1")).toBe(false);
+    expect(cash).toBe(0);
+  });
+
+  it("is false, never a throw, when either call fails", async () => {
+    server.use(
+      order(
+        { error: { code: "reservation_not_payable", message: "Gone." } },
+        409,
+      ),
+    );
+    expect(await finishInCash("res_1")).toBe(false);
+
+    server.use(
+      order(cashOffer),
+      http.post(`${BASE}/reservations/:id/cash-booking`, () =>
+        HttpResponse.json(
+          { error: { code: "reservation_not_payable", message: "Gone." } },
+          { status: 409 },
+        ),
+      ),
+    );
+    expect(await finishInCash("res_1")).toBe(false);
   });
 });

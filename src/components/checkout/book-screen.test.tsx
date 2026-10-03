@@ -301,7 +301,7 @@ describe("when the calendar is out of date", () => {
     await user.type(await screen.findByLabelText(/Your name/i), "Asha Menon");
     await user.type(screen.getByLabelText(/WhatsApp number/i), "9000000000");
     await user.click(screen.getByRole("checkbox", { name: /called off/i }));
-    await user.click(screen.getByRole("button", { name: /Hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     expect(
       await screen.findByText("Those seats went while you were deciding."),
@@ -383,7 +383,9 @@ describe("when the calendar is out of date", () => {
     await user.type(screen.getByLabelText(/WhatsApp number/i), "9000000000");
     await user.click(screen.getByRole("checkbox", { name: /called off/i }));
     await user.click(
-      screen.getByRole("button", { name: /Hold these seats · ₹4,500/i }),
+      screen.getByRole("button", {
+        name: /^Book now, pay ₹4,500 cash on the day$/i,
+      }),
     );
 
     // 1 and 2: refused, and told the truth about it, above and beside.
@@ -395,7 +397,7 @@ describe("when the calendar is out of date", () => {
 
     // 3: the refetch lands and the bar carries the new total.
     const pay = await screen.findByRole("button", {
-      name: /Hold these seats · ₹5,000/i,
+      name: /^Book now, pay ₹5,000 cash on the day$/i,
     });
 
     // 4: the new agreement goes through, under its own key.
