@@ -4,6 +4,7 @@ import {
   finishInCash,
   readPayAtCounter,
   amountToBring,
+  cashToGetBack,
   isBooked,
   type CashBooking,
 } from "./cash-booking";
@@ -215,5 +216,49 @@ describe("finishInCash", () => {
       ),
     );
     expect(await finishInCash("res_1")).toBe(false);
+  });
+});
+
+/*
+  The cash a called-off trip does not refund (cross-product check, 4 Oct
+  2026): the operator is told to hand it back, and the traveller is told the
+  same thing, only when they actually handed it over.
+*/
+describe("the cash a cancelled trip gives back", () => {
+  const cash = (collected: boolean, amountPaise = 900_000) => ({
+    method: "cash",
+    collected,
+    amountPaise,
+  });
+
+  it("is the amount paid, once the operator recorded taking it", () => {
+    expect(cashToGetBack({ state: "cancelled", payment: cash(true) })).toBe(
+      900_000,
+    );
+  });
+
+  it("is nothing when the cash was never taken", () => {
+    expect(
+      cashToGetBack({ state: "cancelled", payment: cash(false) }),
+    ).toBeNull();
+  });
+
+  it("is nothing while the trip is going ahead, or for a card booking", () => {
+    expect(
+      cashToGetBack({ state: "confirmed", payment: cash(true) }),
+    ).toBeNull();
+    expect(
+      cashToGetBack({ state: "completed", payment: cash(true) }),
+    ).toBeNull();
+    expect(cashToGetBack({ state: "cancelled" })).toBeNull();
+  });
+
+  it("claims no amount the API did not send as a whole number", () => {
+    expect(
+      cashToGetBack({ state: "cancelled", payment: cash(true, 0) }),
+    ).toBeNull();
+    expect(
+      cashToGetBack({ state: "cancelled", payment: cash(true, 12.5) }),
+    ).toBeNull();
   });
 });
