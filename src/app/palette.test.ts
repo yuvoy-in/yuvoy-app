@@ -552,15 +552,19 @@ describe("measured contrast", () => {
      * gradient — blending in linear light gives a materially different answer
      * and would be measuring a scrim nobody will ever see.
      */
-    function paperOverScrim(alpha: number): number {
+    function paperOverScrim(alpha: number, opacity = 1): number {
       const ch = (hex: string) =>
         [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      const toHex = (rgb: number[]) =>
+        "#" + rgb.map((c) => c.toString(16).padStart(2, "0")).join("");
       const ground = ch(HIGHLIGHT).map((c, i) =>
         Math.round(alpha * ch(abyss)[i] + (1 - alpha) * c),
       );
-      const hex =
-        "#" + ground.map((c) => c.toString(16).padStart(2, "0")).join("");
-      return ratio(paper, hex);
+      // `paper/NN` is paper blended over whatever is under it, in sRGB too.
+      const text = ch(paper).map((c, i) =>
+        Math.round(opacity * c + (1 - opacity) * ground[i]),
+      );
+      return ratio(toHex(text), toHex(ground));
     }
 
     it("keeps the caption legible over the brightest frame a clip can show", () => {
@@ -581,6 +585,40 @@ describe("measured contrast", () => {
       const ramp = stops("feed-scrim");
       expect(paperOverScrim(alphaAt(ramp, 40))).toBeGreaterThanOrEqual(7);
       expect(paperOverScrim(alphaAt(ramp, 58))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("keeps the caption's dimmer lines legible at its worst edge too", () => {
+      /*
+        The test above measured `paper`, and the line actually at the
+        caption's top edge was the activity label at `paper/70`: 3.48:1 at
+        58% over the brightest frame. The no-dates line was `paper/60`,
+        3.01:1. Found by the colour audit of the redesign (4 Oct 2026).
+
+        Every caption line sits at or below the top edge, so each opacity the
+        caption uses for text is measured THERE, and the card's own classes
+        are read so a dimmer line cannot come back unmeasured. Icons draw no
+        words (3:1 is their floor), and the 3xl title on the poster's own
+        placeholder sits on the solid media ground, not on the scrim.
+      */
+      const ramp = stops("feed-scrim");
+      const card = read(join(SRC, "components/feed/experience-card.tsx"));
+      const used = new Set<number>();
+      for (const line of card.split("\n")) {
+        if (/Icon\b|text-3xl/.test(line)) continue;
+        for (const m of line.matchAll(/text-paper\/(\d+)\b/g)) {
+          used.add(Number(m[1]));
+        }
+      }
+      expect(
+        used.size,
+        "the caption reads no dimmed paper at all",
+      ).toBeGreaterThan(0);
+      for (const opacity of used) {
+        expect(
+          paperOverScrim(alphaAt(ramp, 58), opacity / 100),
+          `text-paper/${opacity} at the caption's top edge`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
     });
 
     it("keeps the checkout strip's caption legible over the brightest frame", () => {

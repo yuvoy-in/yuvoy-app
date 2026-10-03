@@ -1604,6 +1604,62 @@ describe("finishing a booking in cash", () => {
       expect(screen.queryByText("To pay on the day")).not.toBeInTheDocument();
     });
 
+    /*
+      A called-off trip the traveller paid for in cash (cross-product check,
+      4 Oct 2026). The operator is told to hand it back; this says the same
+      thing, and only when the money really changed hands.
+    */
+    it("tells a traveller whose cash trip was called off where the money is", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(
+            statusBody({
+              state: "cancelled",
+              final: true,
+              cancellation: { reasonCode: "OPERATOR_CANCELLED" },
+              payment: { method: "cash", collected: true, amountPaise: 900000 },
+            }),
+          ),
+        ),
+      );
+      renderWithQuery(<BookingScreen />);
+
+      expect(
+        await screen.findByText("You get your ₹9,000 back from the operator"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/nothing is refunded online/),
+      ).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(
+        /refund has already started/i,
+      );
+    });
+
+    it("says nothing about cash that was never handed over", async () => {
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(
+            statusBody({
+              state: "cancelled",
+              final: true,
+              payment: {
+                method: "cash",
+                collected: false,
+                amountPaise: 900000,
+              },
+            }),
+          ),
+        ),
+      );
+      renderWithQuery(<BookingScreen />);
+
+      await screen.findByText("This trip was called off");
+      expect(
+        screen.queryByText(/back from the operator/),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/Bring ₹/)).not.toBeInTheDocument();
+    });
+
     it("leaves a CARD booking alone, which carries no payment at all", async () => {
       // The distinction the screen now reads. A card booking is `confirmed`
       // too, and has genuinely been paid.

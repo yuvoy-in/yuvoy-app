@@ -306,10 +306,19 @@ export function ExperienceCard({
           because the panel covers them and a control nobody can see must not
           still be reachable by a keyboard.
         */}
+        {/*
+          Every line in the caption is at least `paper/90`. The scrim's floor is
+          measured at the caption's top edge, 58% of its height at worst (a
+          narrow phone, a two-line title), and every line sits at or below that
+          edge, so a line that clears 4.5:1 there clears it wherever it lands.
+          `paper/90` is 4.57:1 there over the brightest frame a clip can show;
+          the `/70` and `/60` these lines used were 3.48:1 and 3.01:1 (the
+          colour audit of the redesign, 4 Oct 2026). `palette.test.ts` holds it.
+        */}
         <div className="feed-foot tabbar-clearance absolute inset-x-0 bottom-0 flex items-end gap-4 px-5">
           <div className="min-w-0 flex-1">
             {experience.activityTypeLabel || experience.location ? (
-              <p className="label text-paper/70 mb-2">
+              <p className="label text-paper/90 mb-2">
                 {[experience.activityTypeLabel, experience.location]
                   .filter(Boolean)
                   .join(" · ")}
@@ -351,7 +360,7 @@ export function ExperienceCard({
               className="ease-interaction flex min-h-11 items-center text-left text-sm transition-opacity duration-200 hover:opacity-80"
             >
               <span
-                className={departure.bookable ? "text-paper" : "text-paper/60"}
+                className={departure.bookable ? "text-paper" : "text-paper/90"}
               >
                 {departure.short}
               </span>
@@ -362,7 +371,7 @@ export function ExperienceCard({
                 that below the caption. The scarcity is said by the words.
               */}
               {departure.seats ? (
-                <span className="text-paper/70">
+                <span className="text-paper/90">
                   <span aria-hidden="true" className="mx-[0.4em] opacity-60">
                     ·
                   </span>

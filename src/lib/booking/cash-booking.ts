@@ -143,6 +143,34 @@ export function cashOwedPaise(status: {
 }
 
 /**
+ * Cash the traveller handed over for a trip that is not going ahead, in
+ * paise, or `null`.
+ *
+ * Found by the cross-product check of the approved redesign (4 Oct 2026). The
+ * operator's portal tells them, after calling a departure off or cancelling
+ * one booking, "Anyone who paid you in cash gets it back from you": cash
+ * never reaches us, so nothing refunds it online. This page said nothing
+ * about it, only "Paid in cash" under "This trip was called off".
+ *
+ * `payment` stays on a cancelled cash booking (the API sends it for every
+ * booking whose method is cash), and `collected` is the operator recording
+ * that they took the money. Uncollected, nothing changed hands and nothing is
+ * owed back, so nothing is said.
+ */
+export function cashToGetBack(status: {
+  state?: string;
+  payment?: { method?: string; collected?: boolean; amountPaise?: number };
+}): number | null {
+  const payment = status.payment;
+  if (status.state !== "cancelled") return null;
+  if (payment?.method !== "cash" || payment.collected !== true) return null;
+  const paise = payment.amountPaise;
+  return Number.isInteger(paise) && (paise as number) > 0
+    ? (paise as number)
+    : null;
+}
+
+/**
  * Finish a live hold in cash, in the same tap that took it (owner ruling,
  * 3 Oct 2026: checkout books in one tap, as the approved redesign shows).
  *
