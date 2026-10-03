@@ -4,6 +4,8 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
+import { finishInCash } from "@/lib/booking/cash-booking";
+import { PAY_AT_COUNTER, paymentLine } from "@/lib/booking/listing-lines";
 import { readAttribution } from "@/lib/booking/attribution";
 import {
   ScreeningFields,
@@ -212,6 +214,8 @@ function CheckoutFields({
    * The schema allows it; a traveller must not be left on a frozen form.
    */
   const [tokenMissing, setTokenMissing] = useState(false);
+  /** The hold is taken and the same tap is finishing it in cash. */
+  const [finishing, setFinishing] = useState(false);
 
   const safety = experience.safety;
   const maxParty = slot.maxPartySize ?? experience.maxPartySize ?? 10;
@@ -433,14 +437,29 @@ function CheckoutFields({
         : {}),
     });
 
-    // The token goes in the FRAGMENT, immediately, and is never put in a path
-    // or a query — this API logs request URIs.
-    if (reservation.statusToken) {
-      router.replace(bookingUrl(reservation.statusToken));
-    } else {
+    if (!reservation.statusToken) {
       // Booked, and no way in. Say so, with the way in that does exist.
       setTokenMissing(true);
+      return;
     }
+
+    /*
+      ONE TAP (owner ruling, 3 Oct 2026). A live hold is finished in cash here,
+      in the tap that took it, because cash at the counter is how every booking
+      finishes today and the hold step was a second tap that did nothing else.
+      A request (`pending_request`) waits for the operator as it always did.
+      If cash is not offered, or a call fails, the traveller still lands on
+      the booking page with the hold alive, and it offers every way to finish,
+      cash first (`PayButton`). Nothing here is shown as an error.
+    */
+    if (reservation.state === "active") {
+      setFinishing(true);
+      await finishInCash(reservation.reservationId);
+    }
+
+    // The token goes in the FRAGMENT, immediately, and is never put in a path
+    // or a query — this API logs request URIs.
+    router.replace(bookingUrl(reservation.statusToken));
   }
 
   /*
@@ -537,15 +556,29 @@ function CheckoutFields({
           ? "in"
           : "code";
 
-  const action = create.isPending
-    ? isRequest
-      ? "Sending…"
-      : "Holding your seats…"
-    : isRequest
-      ? "Send request"
-      : total
-        ? `Hold these seats · ${formatMoney(total)}`
-        : "Hold these seats";
+  /*
+    "Book now, pay ₹4,500 cash on the day": the one tap books it, and says so
+    with the money in it, as the booking page's own cash button does. Only
+    where the listing is paid at the counter, which is every listing today
+    (`PAY_AT_COUNTER` is what `paymentLine` says when the API names no other
+    way); a listing the API says is paid otherwise is booked by "Book now"
+    and finished on the booking page, without a promise about cash.
+  */
+  const cashAtCounter = paymentLine(experience) === PAY_AT_COUNTER;
+  const action =
+    create.isPending || finishing
+      ? isRequest
+        ? "Sending…"
+        : "Booking…"
+      : isRequest
+        ? "Send request"
+        : total && cashAtCounter
+          ? `Book now, pay ${formatMoney(total)} cash on the day`
+          : total
+            ? `Book now · ${formatMoney(total)}`
+            : "Book now";
+  /** What the invite gate tells them to tap again: the button, in short. */
+  const retryAction = isRequest ? "Send request" : "Book now";
 
   return (
     <form
@@ -758,7 +791,7 @@ function CheckoutFields({
                 view={gateView}
                 variant="panel"
                 purpose="book"
-                retryLabel={action}
+                retryLabel={retryAction}
               />
             </InsideAnotherForm>
           </Panel>
@@ -809,13 +842,23 @@ function CheckoutFields({
         <p className="text-forest/75 mb-3 text-center text-xs">
           {summaryLine.join(" · ")}
         </p>
-        <Button type="submit" size="lg" block disabled={!canSubmit}>
+        <Button
+          type="submit"
+          size="lg"
+          block
+          disabled={!canSubmit}
+          // Two lines when the amount makes it long, rather than running to
+          // the pill's ends on a phone.
+          className="h-auto min-h-13 py-3.5 leading-snug text-balance whitespace-normal"
+        >
           {action}
         </Button>
         <p className="text-forest/70 mt-3 text-center text-xs">
           {isRequest
             ? "You pay only once the operator says yes."
-            : "We hold your seats for 10 minutes while you pay."}
+            : cashAtCounter
+              ? "You pay the operator at the meeting point. Nothing is charged now."
+              : "We hold your seats while you pay."}
         </p>
         {blockers.length > 0 ? (
           <p className="text-forest/70 mt-1 text-center text-xs">

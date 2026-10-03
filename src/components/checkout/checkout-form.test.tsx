@@ -39,6 +39,116 @@ async function fillContact(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("checkbox", { name: /called off/i }));
 }
 
+/**
+ * One tap (owner ruling, 3 Oct 2026): "Book now, pay ₹X cash on the day"
+ * takes the hold and finishes it in cash before the booking page opens.
+ */
+describe("CheckoutForm — one tap", () => {
+  const active = {
+    reservationId: "res_tap",
+    state: "active",
+    guests: 1,
+    holdExpiresAt: new Date(Date.now() + 600_000).toISOString(),
+    requestExpiresAt: null,
+    statusToken: "tok_tap",
+  };
+
+  it("says it books, with the amount and how it is paid", async () => {
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+    expect(
+      await screen.findByRole("button", {
+        name: /^Book now, pay ₹[\d,]+ cash on the day$/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("holds, asks how it can be paid, books in cash, then opens the booking", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.post(`${BASE}/reservations`, () => {
+        calls.push("reserve");
+        return HttpResponse.json(active, { status: 201 });
+      }),
+      http.post(`${BASE}/reservations/:id/payment-order`, () => {
+        calls.push("order");
+        return HttpResponse.json({
+          state: "coming_soon",
+          message: "Card and UPI are opening shortly.",
+          payAtCounter: {
+            available: true,
+            confirmAt: "/reservations/res_tap/cash-booking",
+          },
+        });
+      }),
+      http.post(`${BASE}/reservations/:id/cash-booking`, () => {
+        calls.push("cash");
+        return HttpResponse.json(
+          { bookingReference: "YV-TAP" },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+    await fillContact(user);
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/booking#t=tok_tap"),
+    );
+    expect(calls).toEqual(["reserve", "order", "cash"]);
+  });
+
+  it("sends a request as a request, and asks nothing about paying", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.post(`${BASE}/reservations`, () => {
+        calls.push("reserve");
+        return HttpResponse.json(
+          { ...active, state: "pending_request", holdExpiresAt: null },
+          { status: 201 },
+        );
+      }),
+      http.post(`${BASE}/reservations/:id/payment-order`, () => {
+        calls.push("order");
+        return HttpResponse.json({});
+      }),
+    );
+    const snorkel = EXPERIENCE_DETAIL["snorkel-elephant-beach"];
+    const snorkelSlot = availabilityFor("snorkel-elephant-beach")[0];
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={snorkel} slot={snorkelSlot} />);
+    await fillContact(user);
+    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/booking#t=tok_tap"),
+    );
+    expect(calls).toEqual(["reserve"]);
+  });
+
+  it("still opens the booking, with the hold alive, when cash cannot finish it", async () => {
+    server.use(
+      http.post(`${BASE}/reservations`, () =>
+        HttpResponse.json(active, { status: 201 }),
+      ),
+      http.post(`${BASE}/reservations/:id/payment-order`, () =>
+        HttpResponse.json(
+          { error: { code: "payments_unavailable", message: "x" } },
+          { status: 503 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+    await fillContact(user);
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/booking#t=tok_tap"),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
 describe("CheckoutForm — the money rules", () => {
   it("asks for a name and a WhatsApp number, and nothing else required", async () => {
     renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
@@ -79,7 +189,7 @@ describe("CheckoutForm — the money rules", () => {
     renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
     await fillContact(user);
 
-    const button = screen.getByRole("button", { name: /hold these seats/i });
+    const button = screen.getByRole("button", { name: /^book now/i });
     // Fire both without awaiting the first — a real double-tap.
     await Promise.all([user.click(button), user.click(button)]);
     await waitFor(() => expect(replace).toHaveBeenCalled());
@@ -92,19 +202,18 @@ describe("CheckoutForm — the money rules", () => {
     const user = userEvent.setup();
     renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
     await fillContact(user);
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    expect(
-      screen.getByRole("button", { name: /hold these seats/i }),
-    ).toBeDisabled();
+    // "Booking…" until the page changes, and dead.
+    expect(screen.getByRole("button", { name: "Booking…" })).toBeDisabled();
   });
 
   it("puts the status token in the FRAGMENT, never a query", async () => {
     const user = userEvent.setup();
     renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
     await fillContact(user);
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     await waitFor(() => expect(replace).toHaveBeenCalled());
     const url = replace.mock.calls.at(-1)![0] as string;
@@ -119,9 +228,7 @@ describe("CheckoutForm — the money rules", () => {
     renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
     await fillContact(user);
     // Age band still needed too, but the health check is the point here.
-    expect(
-      screen.getByRole("button", { name: /hold these seats/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^book now/i })).toBeDisabled();
     expect(
       screen.getByText(/Still needed:.*health check/i),
     ).toBeInTheDocument();
@@ -144,9 +251,7 @@ describe("CheckoutForm — the money rules", () => {
     ).toHaveAttribute("href", "tel:+918121657657");
     // Nothing has been booked and nothing charged — and the button must not
     // let them proceed into a refusal.
-    expect(
-      screen.getByRole("button", { name: /hold these seats/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^book now/i })).toBeDisabled();
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -184,7 +289,7 @@ describe("CheckoutForm — the money rules", () => {
     const user = userEvent.setup();
     renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
     await fillContact(user);
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     // details.remaining exists so the UI can offer the smaller party rather
     // than sending them back to start again.
@@ -230,7 +335,7 @@ describe("CheckoutForm — the money rules", () => {
     );
     await fillContact(user);
     const unit = charterSlot.price!.amountMinor;
-    const button = screen.getByRole("button", { name: /hold these seats/i });
+    const button = screen.getByRole("button", { name: /^book now/i });
     expect(button).toHaveAccessibleName(/₹18,000/);
     expect(button).not.toHaveAccessibleName(/₹54,000/);
 
@@ -279,7 +384,7 @@ describe("CheckoutForm — the money rules", () => {
         screen.getByRole("checkbox", { name: /occasional thing worth doing/i }),
       );
     }
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     await waitFor(() => expect(sent).toBeDefined());
     expect(sent!.contact?.marketingConsent).toBe(ticked);
@@ -309,7 +414,7 @@ describe("CheckoutForm — the money rules", () => {
       <CheckoutForm experience={kayak} slot={kayakSlot} initialGuests={2} />,
     );
     await fillContact(user);
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     await waitFor(() => expect(sent).toBeDefined());
     expect(sent!.expectTotalPaise).toBe(kayakSlot.price!.amountMinor * 2);
@@ -338,7 +443,7 @@ describe("CheckoutForm — the money rules", () => {
       ).toBeInTheDocument();
       // The dead button is the defect. There must be no submit at all.
       expect(
-        screen.queryByRole("button", { name: /hold these seats/i }),
+        screen.queryByRole("button", { name: /^book now/i }),
       ).not.toBeInTheDocument();
       expect(screen.queryByLabelText("Your name")).not.toBeInTheDocument();
       // And nothing may name a control that is not on the page.
@@ -381,13 +486,9 @@ describe("CheckoutForm — the money rules", () => {
     await user.type(screen.getByLabelText("WhatsApp number"), "+919000000000");
     // Blocked until it is ticked, and released by ticking it — which is the
     // thing that was impossible.
-    expect(
-      screen.getByRole("button", { name: /hold these seats/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^book now/i })).toBeDisabled();
     await user.click(box);
-    expect(
-      screen.getByRole("button", { name: /hold these seats/i }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^book now/i })).toBeEnabled();
   });
 
   it("says the operator answers first in request mode, and does not promise a seat", () => {
@@ -473,17 +574,13 @@ describe("CheckoutForm — what the operator asks", () => {
     renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
     await fillDive(user);
 
-    expect(
-      screen.getByRole("button", { name: /hold these seats/i }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^book now/i })).toBeDisabled();
     expect(
       screen.getByText(/Still needed:.*the operator's questions/i),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("radio", { name: "Yes" }));
-    expect(
-      screen.getByRole("button", { name: /hold these seats/i }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^book now/i })).toBeEnabled();
   });
 
   it("sends answers, which is what makes a required question count", async () => {
@@ -503,7 +600,7 @@ describe("CheckoutForm — what the operator asks", () => {
       screen.getByLabelText("Which agency certified you? (optional)"),
       "SSI",
     );
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     await waitFor(() => expect(sent).not.toBeNull());
     // The listing's order, and the untouched optional one left out rather than
@@ -526,7 +623,7 @@ describe("CheckoutForm — what the operator asks", () => {
     const user = userEvent.setup();
     renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
     await fillContact(user);
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     await waitFor(() => expect(sent).not.toBeNull());
     // Omitted, not empty. A listing with no questions books exactly as before.
@@ -560,7 +657,7 @@ describe("CheckoutForm — what the operator asks", () => {
     renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
     await fillDive(user);
     await user.click(screen.getByRole("radio", { name: "Yes" }));
-    await user.click(screen.getByRole("button", { name: /hold these seats/i }));
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     // The panel says what happened ...
     expect(
@@ -604,7 +701,7 @@ describe("CheckoutForm — what the operator asks", () => {
     renderWithQuery(<CheckoutForm experience={broken} slot={kayakSlot} />);
     await fillContact(user);
 
-    const submit = screen.getByRole("button", { name: /hold these seats/i });
+    const submit = screen.getByRole("button", { name: /^book now/i });
     expect(submit).toBeEnabled();
     await user.click(submit);
 

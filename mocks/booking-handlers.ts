@@ -652,6 +652,21 @@ export const bookingHandlers = [
         );
       }
 
+      /*
+        "An experience with no contracted price ... answer[s]
+        `reservation_not_payable`" (the contract). The mock took payment for
+        the unpriced kayak until checkout began finishing holds in one tap
+        (3 Oct 2026) and the gap showed: a hold the real API would refuse to
+        take money for was being booked here.
+      */
+      if (record.slug && !EXPERIENCE_DETAIL[record.slug]?.fromPrice) {
+        return envelope(
+          "reservation_not_payable",
+          "This experience has no price to pay against yet.",
+          409,
+        );
+      }
+
       // A transport can always say 503; the deliberate-stop copy stays
       // exercised. Forced, never the default.
       if (scenario === "payments-unavailable") {
