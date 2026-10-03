@@ -15,6 +15,12 @@ describe("StateChip", () => {
     expect(screen.getByText("Asked")).toBeInTheDocument();
   });
 
+  it("names a waiting request in Trips' own word for it too", () => {
+    // `GET /me/bookings` says `pending_request`; it drew no chip at all.
+    render(<StateChip state="pending_request" />);
+    expect(screen.getByText("Asked")).toBeInTheDocument();
+  });
+
   it("tells a declined traveller about their money, not our state machine", () => {
     // `declined` is the state name; "Refunded" is the fact that matters to
     // somebody who has been charged.

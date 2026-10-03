@@ -105,7 +105,13 @@ export function ChipButton({
   return (
     <button
       type={type}
-      aria-pressed={pressed}
+      /*
+        Not on a tab. A tab says it is chosen with `aria-selected`, which its
+        caller sets; `aria-pressed` is not allowed on `role="tab"` at all, and
+        Trips' tabs carried both (cited in the redesign's before page,
+        3 Oct 2026). `pressed` still draws the chosen look either way.
+      */
+      aria-pressed={props.role === "tab" ? undefined : pressed}
       className={cn(
         chipVariants({ surface, size, tone: pressed ? "selected" : "neutral" }),
         !pressed &&
