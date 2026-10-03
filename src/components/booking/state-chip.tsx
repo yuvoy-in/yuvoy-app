@@ -36,6 +36,14 @@ const LABEL: Record<string, string> = {
   paid_pending_ops: "Booked",
   holding: "Holding",
   awaiting_operator: "Asked",
+  /*
+    The same request, in Trips' own word for it: `GET /me/bookings` says
+    `pending_request` where the booking page says `awaiting_operator`. With no
+    label here a waiting request in Trips drew no chip at all, the one trip a
+    traveller is waiting to hear about (cited in the redesign's before page,
+    3 Oct 2026).
+  */
+  pending_request: "Asked",
   verifying: "Checking",
   confirmed: "Confirmed",
   declined: "Refunded",

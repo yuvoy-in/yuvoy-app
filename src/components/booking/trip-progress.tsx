@@ -200,18 +200,34 @@ export function RefundProgress({
   );
 }
 
-/** The ceiling. Stop, and put a person in front of them. */
+/**
+ * The ceiling, for `verifying` only: money may have moved and the outcome has
+ * not settled after five minutes. Stop, and put a person in front of them.
+ */
 export function HandOver({ status }: { status: BookingStatus }) {
   return (
     <Panel tone="alert" role="alert" className="mt-8">
       <p className="text-sm font-bold">This is taking longer than it should</p>
+      {/*
+        The reference when there is one, and never the reservation id: that is
+        our internal key, it means nothing to a person reading it out, and it
+        was printed here as if it were a booking reference (cited 3 Oct 2026).
+        Without a reference, the number they booked with is how we find it.
+      */}
       <p className="text-forest/70 mt-1.5 text-sm">
-        We have stopped checking automatically. Nothing is lost. Your booking
-        reference is{" "}
-        <span className="font-mono font-bold">
-          {status.bookingReference ?? status.reservationId}
-        </span>
-        . Send us that on WhatsApp and someone will sort it out.
+        We have stopped checking automatically. If money left your account it is
+        safe.{" "}
+        {status.bookingReference ? (
+          <>
+            Your booking reference is{" "}
+            <span className="font-bold slashed-zero tabular-nums">
+              {status.bookingReference}
+            </span>
+            . Send us that on WhatsApp and someone will sort it out.
+          </>
+        ) : (
+          "Write to us on WhatsApp from the number you booked with, and someone will sort it out."
+        )}
       </p>
     </Panel>
   );
@@ -311,7 +327,7 @@ export function CashBooked({
           Selectable, and big. Somebody reads this to an operator over the
           noise of an outboard motor.
         */}
-        <p className="mt-5 font-mono text-3xl font-bold tracking-wider select-all">
+        <p className="mt-5 text-3xl font-bold tracking-wider slashed-zero tabular-nums select-all">
           {booking.bookingReference}
         </p>
 

@@ -6,6 +6,7 @@ import { BookingScreen } from "./booking-screen";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 import { registerPaymentAdapter } from "@/lib/booking/payment-handoff";
+import { tripWhen } from "./trip-copy";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -33,6 +34,88 @@ function statusBody(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => setHash("#t=tok_test"));
+
+/**
+ * The trip page's head (the approved redesign, traveller A, 3 Oct 2026): the
+ * listing's picture over the top, and the hour as the headline for a trip
+ * still ahead. `tripWhen`'s own rules are in `trip-copy.test.ts`; these pin
+ * that the screen uses them.
+ */
+describe("the trip page's head", () => {
+  it("says the hour as the headline for a trip still ahead", async () => {
+    const slot = {
+      startsAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
+      timezone: "Asia/Kolkata",
+    };
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ slot, final: false })),
+      ),
+    );
+    renderWithQuery(<BookingScreen />);
+
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent(tripWhen(slot, Date.now())!);
+    // The state's own words lead the line under it.
+    expect(screen.getByText(/^You are going\. /)).toBeInTheDocument();
+  });
+
+  it("keeps its words for a trip that has already left", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "You are going" }),
+    ).toBeInTheDocument();
+  });
+
+  it("draws the listing's picture over the top, and nothing when it has none", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            experience: {
+              slug: "try-dive-nemo-reef",
+              title: "Try-dive at Nemo Reef",
+              operator: "Sample Dive Operator",
+              operatorSlug: "sample-dive-operator",
+              heroImageUrl:
+                "https://videodelivery.net/abc/thumbnails/thumbnail.jpg",
+            },
+          }),
+        ),
+      ),
+    );
+    const { container, unmount } = renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(
+      container.querySelector('img[src*="videodelivery.net"]'),
+    ).not.toBeNull();
+    unmount();
+
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            experience: {
+              slug: "try-dive-nemo-reef",
+              title: "Try-dive at Nemo Reef",
+              operator: "Sample Dive Operator",
+              operatorSlug: "sample-dive-operator",
+              heroImageUrl: null,
+            },
+          }),
+        ),
+      ),
+    );
+    const again = renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(again.container.querySelector("img")).toBeNull();
+  });
+});
 
 describe("BookingScreen", () => {
   it("renders a confirmed booking with everything needed for the day", async () => {
@@ -215,7 +298,6 @@ describe("BookingScreen", () => {
     );
 
     renderWithQuery(<BookingScreen />);
-    (await screen.findByRole("button", { name: /^Pay/ })).click();
 
     await waitFor(() =>
       expect(
@@ -321,7 +403,6 @@ describe("PayButton — both contract answers", () => {
     );
 
     renderWithQuery(<BookingScreen />);
-    (await screen.findByRole("button", { name: /^Pay/ })).click();
 
     expect(
       await screen.findByText("Payment opens shortly. Your seats are held."),
@@ -360,7 +441,6 @@ describe("PayButton — both contract answers", () => {
       );
 
       renderWithQuery(<BookingScreen />);
-      (await screen.findByRole("button", { name: /^Pay/ })).click();
 
       const back = await screen.findByRole("link", { name: "See other dates" });
       // Straight to the listing's own dates, not to a generic browse.
@@ -395,7 +475,6 @@ describe("PayButton — both contract answers", () => {
     );
 
     renderWithQuery(<BookingScreen />);
-    (await screen.findByRole("button", { name: /^Pay/ })).click();
 
     expect(
       await screen.findByText("Payment is not available yet"),
@@ -467,7 +546,6 @@ describe("PayButton — both contract answers", () => {
     );
 
     renderWithQuery(<BookingScreen />);
-    (await screen.findByRole("button", { name: /^Pay/ })).click();
 
     expect(
       await screen.findByText(/Your order is ready: ₹9,000/),
@@ -1101,6 +1179,112 @@ describe("finishing a booking in cash", () => {
     });
   }
 
+  /*
+    CASH LEADS (the approved redesign, 3 Oct 2026). The ways to pay used to be
+    in the answer to a "Pay" button, so cash, the only way that finishes, came
+    second, after a button that could not take the money. The page asks on
+    arrival now and offers what works, in the order it works.
+  */
+  const ready = (over: Record<string, unknown> = {}) => ({
+    state: "ready",
+    orderId: "ord_1",
+    providerOrderId: "p_1",
+    provider: "razorpay",
+    amountPaise: 900000,
+    currency: "INR",
+    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    payAtCounter,
+    ...over,
+  });
+
+  it("leads with cash, and offers no Pay button this build cannot open", async () => {
+    // Production's shape: `ready`, for a provider this build has no adapter for.
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json(ready(), { status: 201 }),
+      ),
+    );
+    renderWithQuery(<BookingScreen />);
+
+    expect(
+      await screen.findByRole("button", { name: /Book now, pay ₹9,000 cash/i }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /^Pay/ })).toBeNull();
+    expect(
+      screen.getByText(/Paying by card or UPI is not open in this version/),
+    ).toBeInTheDocument();
+  });
+
+  it("asks how it can be paid once, on arrival, without a tap", async () => {
+    let asked = 0;
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () => {
+        asked += 1;
+        return HttpResponse.json(ready(), { status: 201 });
+      }),
+    );
+    renderWithQuery(<BookingScreen />);
+    await screen.findByRole("button", { name: /Book now, pay/i });
+    await new Promise((r) => setTimeout(r, 50));
+    // Idempotent per reservation, so asking is safe; once is still enough.
+    expect(asked).toBe(1);
+  });
+
+  it("offers card beside cash where this build can open the provider", async () => {
+    const opened: unknown[] = [];
+    const unregister = registerPaymentAdapter("mockpay", async (order) => {
+      opened.push(order);
+    });
+    try {
+      let asked = 0;
+      server.use(
+        http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+        http.post(`${BASE}/reservations/res_1/payment-order`, () => {
+          asked += 1;
+          return HttpResponse.json(ready({ provider: "mockpay" }), {
+            status: 201,
+          });
+        }),
+      );
+      const user = userEvent.setup();
+      renderWithQuery(<BookingScreen />);
+
+      const cashButton = await screen.findByRole("button", {
+        name: /Book now, pay ₹9,000 cash/i,
+      });
+      const cardButton = screen.getByRole("button", { name: "Pay ₹9,000 now" });
+      // Cash first, in the order that works.
+      expect(
+        cashButton.compareDocumentPosition(cardButton) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      // The tap asks again, so a lapsed order is never the one opened.
+      await user.click(cardButton);
+      await waitFor(() => expect(opened).toHaveLength(1));
+      expect(asked).toBe(2);
+    } finally {
+      unregister();
+    }
+  });
+
+  it("lets the cash label take two lines rather than run off the pill", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
+      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
+        HttpResponse.json(ready(), { status: 201 }),
+      ),
+    );
+    renderWithQuery(<BookingScreen />);
+    const cashButton = await screen.findByRole("button", {
+      name: /Book now, pay/i,
+    });
+    expect(cashButton.className).toMatch(/\bwhitespace-normal\b/);
+    expect(cashButton.className).not.toMatch(/\bwhitespace-nowrap\b/);
+  });
+
   it("offers cash on the `coming_soon` answer, with the amount in the button", async () => {
     server.use(
       http.get(`${BASE}/bookings/status`, () => HttpResponse.json(holding())),
@@ -1114,9 +1298,7 @@ describe("finishing a booking in cash", () => {
       ),
     );
 
-    const user = userEvent.setup();
     renderWithQuery(<BookingScreen />);
-    await user.click(await screen.findByRole("button", { name: /^Pay / }));
 
     /*
       The amount is in the button on purpose: "a traveller deciding whether to
@@ -1153,9 +1335,7 @@ describe("finishing a booking in cash", () => {
       ),
     );
 
-    const user = userEvent.setup();
     renderWithQuery(<BookingScreen />);
-    await user.click(await screen.findByRole("button", { name: /^Pay / }));
 
     expect(
       await screen.findByRole("button", { name: /Book now, pay ₹9,000 cash/i }),
@@ -1174,9 +1354,7 @@ describe("finishing a booking in cash", () => {
       ),
     );
 
-    const user = userEvent.setup();
     renderWithQuery(<BookingScreen />);
-    await user.click(await screen.findByRole("button", { name: /^Pay / }));
 
     await screen.findByText(/Payment opens shortly/);
     expect(
@@ -1216,7 +1394,6 @@ describe("finishing a booking in cash", () => {
 
     const user = userEvent.setup();
     renderWithQuery(<BookingScreen />);
-    await user.click(await screen.findByRole("button", { name: /^Pay / }));
     await user.click(
       await screen.findByRole("button", { name: /Book now, pay/i }),
     );
@@ -1279,7 +1456,6 @@ describe("finishing a booking in cash", () => {
 
     const user = userEvent.setup();
     renderWithQuery(<BookingScreen />);
-    await user.click(await screen.findByRole("button", { name: /^Pay / }));
     await user.click(
       await screen.findByRole("button", { name: /Book now, pay/i }),
     );
@@ -1315,7 +1491,6 @@ describe("finishing a booking in cash", () => {
 
     const user = userEvent.setup();
     renderWithQuery(<BookingScreen />);
-    await user.click(await screen.findByRole("button", { name: /^Pay / }));
     await user.click(
       await screen.findByRole("button", { name: /Book now, pay/i }),
     );
@@ -1424,7 +1599,7 @@ describe("finishing a booking in cash", () => {
       );
       renderWithQuery(<BookingScreen />);
 
-      expect(await screen.findByText("Paid")).toBeInTheDocument();
+      expect(await screen.findByText("Paid in cash")).toBeInTheDocument();
       expect(screen.queryByText(/Bring ₹/)).not.toBeInTheDocument();
       expect(screen.queryByText("To pay on the day")).not.toBeInTheDocument();
     });
@@ -1593,6 +1768,31 @@ describe("add to calendar", () => {
     expect(
       await screen.findByRole("button", { name: /Add to calendar/ }),
     ).toBeInTheDocument();
+  });
+
+  it("is not offered before there is a booking to put in it", async () => {
+    /*
+      A request nobody has answered, and a hold not yet paid for: an entry now
+      claims the trip is on before anybody has said so, and outlives a "no"
+      (cited in the redesign's before page, 3 Oct 2026).
+    */
+    for (const state of ["awaiting_operator", "holding"]) {
+      cleanup();
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(
+            statusBody({ state, final: false, bookingReference: undefined }),
+          ),
+        ),
+      );
+
+      renderWithQuery(<BookingScreen />);
+      await screen.findByText(/Try-dive at Nemo Reef/);
+      expect(
+        screen.queryByRole("button", { name: /Add to calendar/ }),
+        state,
+      ).toBeNull();
+    }
   });
 
   it("is hidden on a trip that is not happening", async () => {

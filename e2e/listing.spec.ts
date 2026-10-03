@@ -14,8 +14,13 @@ const REQUEST = "/e/snorkel-elephant-beach";
 const INSTANT = "/e/try-dive-nemo-reef";
 
 test.describe("the gallery", () => {
+  /*
+    The lightbox tests use the REQUEST listing, whose frame is a poster: the
+    instant listing's is a clip with a stream, which plays where it is rather
+    than opening full screen (below).
+  */
   test("swipes, and opens full screen", async ({ page }) => {
-    await page.goto(INSTANT);
+    await page.goto(REQUEST);
     const gallery = page.getByRole("group", {
       name: /Photographs and clips of/,
     });
@@ -40,7 +45,7 @@ test.describe("the gallery", () => {
   });
 
   test("the full-screen view is accessible", async ({ page }) => {
-    await page.goto(INSTANT);
+    await page.goto(REQUEST);
     await page
       .getByRole("group", { name: /Photographs and clips of/ })
       .getByRole("button", { name: /^Open 1 of/ })
@@ -57,6 +62,94 @@ test.describe("the gallery", () => {
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+});
+
+test.describe("clips in the gallery", () => {
+  /*
+    The approved redesign (traveller A, 3 Oct 2026): a clip with a stream plays
+    where it is, through the feed's player. The fixture's stream does not
+    resolve, so what this can prove is the shape, not playback: the frame is a
+    slide holding the player, and never a button that opens a still of it.
+  */
+  test("a clip with a stream is a slide that plays, not a poster to open", async ({
+    page,
+  }) => {
+    await page.goto(INSTANT);
+    const gallery = page.getByRole("group", {
+      name: /Photographs and clips of/,
+    });
+    await expect(
+      gallery.getByRole("group", { name: "1 of 1, a clip" }),
+    ).toBeVisible();
+    await expect(
+      gallery.getByRole("button", { name: /^Open 1 of/ }),
+    ).toHaveCount(0);
+  });
+
+  test("what a frame draws at its foot is never under the sheet", async ({
+    page,
+  }) => {
+    /*
+      On a phone the sheet rises 32px over the picture, and the dots and the
+      Clip badge used to sit 12px from the picture's foot: under the sheet's
+      rounded top, where nobody could see them. `--hero-overlap` lifts them.
+    */
+    await page.goto(REQUEST);
+    const badge = page
+      .getByRole("group", { name: /Photographs and clips of/ })
+      .getByText("Clip", { exact: true });
+    await expect(badge).toBeVisible();
+    const sheet = (await page.locator(".sheet").first().boundingBox())!;
+    const box = (await badge.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(sheet.y);
+  });
+});
+
+test.describe("the far side", () => {
+  /*
+    The approved redesign (traveller A, 3 Oct 2026): on a phone the picture
+    stays where it is and the sheet scrolls up over it, with Back and Share
+    floating above both. From `lg` up nothing slides and the page scrolls as
+    one, as it always did.
+  */
+  test("the picture stays put on a phone, and Back stays in reach", async ({
+    page,
+  }) => {
+    await page.goto(INSTANT);
+    const gallery = page.getByRole("group", {
+      name: /Photographs and clips of/,
+    });
+    await expect(gallery).toBeVisible();
+    const back = page.getByRole("link", { name: "Back to the feed" });
+    const phone = (page.viewportSize()?.width ?? 0) < 1024;
+
+    await page.evaluate(() => window.scrollTo(0, 400));
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(300);
+
+    const picture = await gallery.boundingBox();
+    if (!phone) {
+      expect(picture!.y).toBeLessThan(-300);
+      await expect(back).not.toBeInViewport();
+      return;
+    }
+
+    expect(Math.round(picture!.y)).toBe(0);
+    // The sheet has risen over it.
+    const heading = page.getByRole("heading", { level: 1 });
+    expect((await heading.boundingBox())!.y).toBeLessThan(picture!.height);
+
+    // Back is on screen AND is what a tap there lands on, not the sheet.
+    await expect(back).toBeInViewport();
+    const box = (await back.boundingBox())!;
+    const hit = await page.evaluate(
+      ([x, y]) =>
+        document.elementFromPoint(x, y)?.closest("a")?.getAttribute("href"),
+      [box.x + box.width / 2, box.y + box.height / 2],
+    );
+    expect(hit).toBe("/");
   });
 });
 
@@ -77,18 +170,26 @@ test.describe("one button, and it opens checkout", () => {
     await expect(page.getByText(/How many of you/i)).toHaveCount(0);
   });
 
-  test("opens checkout with nothing chosen, for both booking modes", async ({
+  test("opens checkout on the day it names, for both booking modes", async ({
     page,
   }) => {
     /*
       The divergence this issue ended. Request mode used to answer in a sheet on
       this page while allotment mode went to checkout, so the two had different
       flows, different validation and different copy for the same act.
+
+      It carries the day the bar names and nothing else (the approved redesign,
+      3 Oct 2026). Checkout then chooses the departure itself when only one is
+      open that day, which is why the URL may grow a `slot` after it lands.
     */
     for (const listing of [REQUEST, INSTANT]) {
       await page.goto(listing);
+      const bar = page.locator("div.sticky", {
+        has: page.getByRole("link", { name: /^Pick a day/ }),
+      });
+      await expect(bar).toContainText("Next open: Thu, 20 Aug");
       await page.getByRole("link", { name: /^Pick a day/ }).click();
-      await page.waitForURL(new RegExp(`${listing}/book$`));
+      await page.waitForURL(new RegExp(`${listing}/book\\?date=2026-08-20`));
     }
   });
 
@@ -114,12 +215,33 @@ test.describe("one button, and it opens checkout", () => {
     await expect(bar).toContainText("Next open: Thu, 20 Aug");
 
     await page.getByRole("link", { name: /^Pick a day/ }).click();
-    await page.waitForURL(/\/book$/);
+    await page.waitForURL(/\/book\?date=2026-08-20/);
     const firstOpen = page
       .getByRole("region", { name: "Pick a day" })
       .locator("button[aria-pressed]:not([disabled])")
       .first();
     await expect(firstOpen).toHaveAttribute("aria-label", /^Thu 20 Aug/);
+    // And it is the day already chosen: the traveller does not find it twice.
+    await expect(firstOpen).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("with nothing open in the window, it offers no calendar to page through", async ({
+    page,
+  }) => {
+    // Production offered "Pick a day" here (Night fishing, 3 Oct 2026), into
+    // a calendar with no day in it.
+    await page.setExtraHTTPHeaders({ "x-yuvoy-scenario": "empty" });
+    await page.goto(INSTANT);
+    const bar = page.locator("div.sticky", {
+      has: page.getByRole("button", { name: "No dates open" }),
+    });
+    await expect(bar).toContainText("No dates in the next 90 days");
+    await expect(
+      page.getByRole("button", { name: "No dates open" }),
+    ).toBeDisabled();
+    await expect(page.getByRole("link", { name: /^Pick a day/ })).toHaveCount(
+      0,
+    );
   });
 
   test("a request listing's bar carries them too", async ({ page }) => {
@@ -149,7 +271,7 @@ test.describe("how it is paid for", () => {
       ).toBeVisible();
 
       await page.getByRole("link", { name: /^Pick a day/ }).click();
-      await page.waitForURL(/\/book$/);
+      await page.waitForURL(/\/book(\?|$)/);
       await expect(
         page.getByText("Pay at the counter on the day"),
       ).toBeVisible();
@@ -182,10 +304,55 @@ test.describe("choosing a departure on checkout", () => {
     ).toBeVisible();
   });
 
+  test("the form fits a 375px phone, and every tick is a real target", async ({
+    page,
+  }) => {
+    /*
+      Two cited production defects (the redesign's before page, 3 Oct 2026).
+      The screener's age select could not shrink, so checkout scrolled
+      sideways on a 375px phone; and every tick and radio was 16px.
+    */
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.goto(INSTANT);
+    await chooseDeparture(page);
+    await expect(page.getByLabel("Your age range")).toBeVisible();
+
+    const sideways = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    );
+    expect(sideways, "checkout scrolls sideways").toBe(false);
+
+    const ticks = page.locator('input[type="checkbox"], input[type="radio"]');
+    expect(await ticks.count()).toBeGreaterThan(2);
+    for (const tick of await ticks.all()) {
+      const box = (await tick.boundingBox())!;
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(24);
+    }
+  });
+
+  test("opens on the next two weeks, with the month one tap away", async ({
+    page,
+  }) => {
+    // The approved redesign (traveller A, 3 Oct 2026).
+    await page.goto(INSTANT);
+    await page.getByRole("link", { name: /^Pick a day/ }).click();
+    await page.waitForURL(/\/book(\?|$)/);
+    const days = page.getByRole("group", { name: "The next two weeks" });
+    await expect(days.getByRole("button")).toHaveCount(14);
+
+    await page.getByRole("button", { name: "More dates" }).click();
+    await expect(page.getByText("August 2026")).toBeVisible();
+    await expect(days).toHaveCount(0);
+    await page.getByRole("button", { name: "Next two weeks" }).click();
+    await expect(days).toBeVisible();
+  });
+
   test("the calendar is accessible", async ({ page }) => {
     await page.goto(INSTANT);
     await page.getByRole("link", { name: /^Pick a day/ }).click();
-    await page.waitForURL(/\/book$/);
+    await page.waitForURL(/\/book(\?|$)/);
     await expect(
       page.getByRole("region", { name: "Pick a day" }),
     ).toBeVisible();

@@ -1,4 +1,5 @@
 import { SheetSkeleton } from "@/components/states/route-skeletons";
+import { PicturePlaceholder } from "@/components/chrome/picture-strip";
 
 /*
   Matched to `BookingScreen`'s own `Shell` — `<Screen back={{href:"/trips"}}
@@ -17,6 +18,8 @@ export default function Loading() {
     <SheetSkeleton
       back={{ href: "/trips", label: "your trips" }}
       stageLabel="Your booking"
+      // The booking opens under the listing's picture (`pictureOf`).
+      hero={<PicturePlaceholder />}
     />
   );
 }

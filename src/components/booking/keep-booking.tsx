@@ -48,9 +48,15 @@ const NOT_HAPPENING = ["cancelled", "declined", "expired"];
 export function KeepBooking({
   status,
   token,
+  offerShare = true,
 }: {
   status: BookingStatus;
   token: string;
+  /**
+   * False where the page already offers "Share with the people coming": both
+   * mint the same read-only link, so one of them is enough.
+   */
+  offerShare?: boolean;
 }) {
   const [skipped, setSkipped] = useState(false);
   const [busy, setBusy] = useState<"photos" | "download" | "share" | null>(
@@ -230,7 +236,11 @@ export function KeepBooking({
   };
 
   const heading =
-    variant === "panel" ? "Keep your booking" : "Save or share this booking";
+    variant === "panel"
+      ? "Keep your booking"
+      : offerShare
+        ? "Save or share this booking"
+        : "Save this booking";
 
   const body = (
     <>
@@ -262,26 +272,28 @@ export function KeepBooking({
           {busy === "download" ? "Making it…" : "Download"}
         </Button>
 
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy !== null}
-          onClick={() => void share()}
-        >
-          {/*
+        {offerShare ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy !== null}
+            onClick={() => void share()}
+          >
+            {/*
             The glyph follows what the button will actually do, and the
             decision is made from `canShareFiles`, which is read after mount.
             Touching `navigator` during render would throw on the server.
           */}
-          {copied ? (
-            <CheckIcon className="size-4" />
-          ) : canShareFiles ? (
-            <ShareIcon className="size-4" />
-          ) : (
-            <CopyIcon className="size-4" />
-          )}
-          {copied ? "Copied" : busy === "share" ? "Making a link…" : "Share"}
-        </Button>
+            {copied ? (
+              <CheckIcon className="size-4" />
+            ) : canShareFiles ? (
+              <ShareIcon className="size-4" />
+            ) : (
+              <CopyIcon className="size-4" />
+            )}
+            {copied ? "Copied" : busy === "share" ? "Making a link…" : "Share"}
+          </Button>
+        ) : null}
       </div>
 
       {failed ? (

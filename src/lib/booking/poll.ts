@@ -51,3 +51,18 @@ export function shouldKeepPolling(
   if (status.final) return false;
   return elapsedMs < POLL_CEILING_MS;
 }
+
+/**
+ * Whether a booking still unsettled at the ceiling is a problem to hand to a
+ * person (`HandOver`).
+ *
+ * Only `verifying`: money may have moved and the outcome has not settled,
+ * which should take seconds. Every other unsettled state is SUPPOSED to last:
+ * a request waits hours for the operator, a hold from an accepted request runs
+ * until tomorrow morning, and a confirmed trip is simply not over yet. Told
+ * "this is taking longer than it should" after five minutes, all three were
+ * told something false (cited in the redesign's before page, 3 Oct 2026).
+ */
+export function overdueAtCeiling(state: string): boolean {
+  return state === "verifying";
+}

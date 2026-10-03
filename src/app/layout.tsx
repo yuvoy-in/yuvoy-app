@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { fraunces, satoshi } from "@/lib/fonts";
+import { anek, anekDisplay } from "@/lib/fonts";
 import { Providers } from "@/components/providers";
 import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { AttributionCapture } from "@/components/booking/attribution-capture";
+import { RouteTrail } from "@/components/chrome/route-trail";
 import { AdoptStoredSession } from "@/components/auth/adopt-stored-session";
 import { InviteGuard } from "@/components/auth/invite-guard";
 import { InstallObservability } from "@/components/observability/install";
@@ -63,7 +64,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${satoshi.variable}`}>
+    <html lang="en" className={`${anekDisplay.variable} ${anek.variable}`}>
       <body className="bg-forest text-paper">
         {/* Emitted once for the whole site. Interior pages add their own
             breadcrumb and article nodes, linked to these by @id. */}
@@ -79,6 +80,8 @@ export default function RootLayout({
         <InstallObservability />
         <RegisterServiceWorker />
         <AttributionCapture />
+        {/* Where the traveller has been, for a Back that returns there. */}
+        <RouteTrail />
         <MswProvider>
           <Providers>
             {/*

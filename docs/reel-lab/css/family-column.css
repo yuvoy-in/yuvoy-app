@@ -92,7 +92,7 @@
 
     The shorthand resets `font-family` along with everything else, and it sits
     after `.col-when` in this file, so it quietly won: the line rendered in the
-    laboratory's own monospace chrome font rather than in Satoshi. A button's UA
+    laboratory's own monospace chrome font rather than in the text face. A button's UA
     font is beaten by `.col-when` on its own, so the reset is not needed at all.
     Only the size and the line box need restating, because `font-size` on a
     button is a UA style this element must not inherit from.

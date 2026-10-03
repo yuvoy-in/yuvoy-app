@@ -37,7 +37,7 @@
   /*
     The phone's own default face.
 
-    In the real app this comes free: the body is Satoshi, so anything that does
+    In the real app this comes free: the body is Anek, so anything that does
     not ask for a face gets the right one. Here the body is the LABORATORY's
     monospace chrome, so every control inside the phone was one missing
     `font-family` away from rendering in the wrong typeface, and at least two
@@ -391,9 +391,9 @@
   padding: 0 1.25rem var(--tabbar-clearance);
 }
 
-/* The title. Fraunces at 400 and only 400: the display system is two voices,
-   upright and the turn, and neither is bold. Operator-written and unbounded, so
-   it clamps rather than truncating to one line. */
+/* The title. The display cut at its one weight, never made bolder.
+   Operator-written and unbounded, so it clamps rather than truncating to one
+   line. */
 .reel-title {
   font-family: var(--font-display);
   font-variation-settings:

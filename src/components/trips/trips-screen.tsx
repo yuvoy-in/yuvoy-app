@@ -28,6 +28,9 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { ChipButton } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
 import { TripCard, InvitedTripCard } from "./trip-card";
+import { NextUpPass } from "./next-up-pass";
+import { IslandDays } from "./island-days";
+import { nextUpTrip } from "@/lib/trips/next-up";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { marketDayOf } from "@/lib/booking/availability-window";
 import {
@@ -156,6 +159,22 @@ export function TripsScreen() {
 
   const empty = bookings.length === 0 && invitedForTab.length === 0;
 
+  /*
+    THE NEXT UP PASS (the approved redesign: traveller A with C's pass,
+    3 Oct 2026). A trip leaving within the day is drawn whole above the list,
+    and left out of the list below so it is not drawn twice. On Upcoming only:
+    that is the tab whose rows are loaded, and the one opened on the morning.
+
+    The server's clock, the way `invitedToday` above reads it: the instant the
+    list resolved plus the measured offset.
+  */
+  const serverNow = server.dataUpdatedAt + clockOffsetMs();
+  const nextUp =
+    tab === "upcoming" && server.dataUpdatedAt > 0
+      ? nextUpTrip(bookings, serverNow)
+      : null;
+  const listed = nextUp ? bookings.filter((trip) => trip !== nextUp) : bookings;
+
   return (
     <Screen>
       <Header />
@@ -190,6 +209,15 @@ export function TripsScreen() {
           onClose={() => setDateSheet(false)}
         />
       ) : null}
+
+      {/*
+        What is next, then the days, then the record. The pass is the trip
+        leaving within the day; the island days are the stay laid out by day
+        (C's day plan, approved 3 Oct 2026), drawn on Upcoming whether or not
+        anything is booked yet, since an empty stay is where planning starts.
+      */}
+      {nextUp ? <NextUpPass trip={nextUp} now={serverNow} /> : null}
+      {tab === "upcoming" ? <IslandDays signedIn={signedIn} /> : null}
 
       {/*
         The server's failure is now the whole screen's failure, where it used to
@@ -240,7 +268,7 @@ export function TripsScreen() {
       ) : (
         <>
           <ul className="mt-6 space-y-3">
-            {bookings.map((trip) => (
+            {listed.map((trip) => (
               <li key={trip.reference || trip.reservationId}>
                 <TripCard trip={trip} />
               </li>

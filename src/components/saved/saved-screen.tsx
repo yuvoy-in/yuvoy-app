@@ -36,7 +36,12 @@ import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
 
-const BACK = { href: "/account", label: "your account" };
+/*
+  Back follows the trail (the approved redesign, 3 Oct 2026): Saved is reached
+  from Account and, signed out, from the sign-in screen, and Back returns to
+  whichever it was. Account is the fallback.
+*/
+const BACK = { href: "/account", label: "your account", followTrail: true };
 
 /** Where signing in returns to: here, with the saves now on the account. */
 const SIGN_IN_HREF = `/account?next=${encodeURIComponent("/saved")}`;
@@ -211,7 +216,12 @@ function AccountSaved() {
   }
 
   return (
-    <Shell count={count} undoBar={undoBar} failure={writeFailure}>
+    <Shell
+      count={count}
+      undoBar={undoBar}
+      failure={writeFailure}
+      playFrom={items.find((item) => item.heroMedia)?.id ?? null}
+    >
       {stale}
       <Grid>
         {items.map((item) => (
@@ -223,6 +233,7 @@ function AccountSaved() {
               posterUrl={item.heroMedia?.posterUrl}
               bookable={item.bookable}
               fromPrice={item.fromPrice}
+              unit={item.pricingUnitLabel}
               onRemove={() => remove(item)}
             />
           </li>
@@ -349,8 +360,12 @@ function DeviceSaved() {
     );
   }
 
+  // The first save whose listing has arrived with a clip to play.
+  const playFrom =
+    results.find((result) => result.data?.heroMedia)?.data?.id ?? null;
+
   return (
-    <Shell count={saved.length} undoBar={undoBar} device>
+    <Shell count={saved.length} undoBar={undoBar} device playFrom={playFrom}>
       <Grid>
         {resolvable.map((entry, i) => (
           <DeviceTile
@@ -428,6 +443,7 @@ function DeviceTile({
         posterUrl={data.heroMedia?.posterUrl}
         bookable={data.bookable}
         fromPrice={data.fromPrice}
+        unit={data.pricingUnitLabel}
         onRemove={() => onRemove(entry)}
       />
     </li>
@@ -443,11 +459,18 @@ function Shell({
   undoBar,
   failure,
   device = false,
+  playFrom,
 }: {
   children: React.ReactNode;
   count?: number;
   undoBar?: React.ReactNode;
   failure?: ReturnType<typeof describeError> | null;
+  /**
+   * The first save with a clip, when there is one: the grid's way into the
+   * same saves as a reel (the approved redesign, 3 Oct 2026). The reel's Back
+   * is the other half of that toggle.
+   */
+  playFrom?: string | null;
   /**
    * Signed out with saves on this device: say they are here only, and how to
    * keep them. Not said over an empty list, where there is nothing to lose.
@@ -477,6 +500,16 @@ function Shell({
           </>
         ) : null}
       </p>
+      {playFrom ? (
+        <ButtonLink
+          href={`/saved/r/${encodeURIComponent(playFrom)}`}
+          variant="outline"
+          size="sm"
+          className="mt-4"
+        >
+          Play them
+        </ButtonLink>
+      ) : null}
       {undoBar}
       {failure ? <FailurePanel failure={failure} className="mt-6" /> : null}
       <div className="mt-8">{children}</div>
@@ -553,6 +586,7 @@ function SavedCard({
   posterUrl,
   bookable,
   fromPrice,
+  unit,
   onRemove,
 }: {
   slug: string;
@@ -561,6 +595,8 @@ function SavedCard({
   posterUrl?: string;
   bookable: boolean;
   fromPrice?: Experience["fromPrice"];
+  /** The server's unit phrase, verbatim: "per person", "for the group". */
+  unit?: string;
   onRemove: () => void;
 }) {
   return (
@@ -594,11 +630,23 @@ function SavedCard({
           <p className="text-forest/70 mt-0.5 text-xs">{location}</p>
         ) : null}
         <p className="mt-1 text-xs font-bold">
-          {!bookable
-            ? "Not taking bookings"
-            : fromPrice
-              ? formatMoney(fromPrice)
-              : ""}
+          {!bookable ? (
+            "Not taking bookings"
+          ) : fromPrice ? (
+            <>
+              {formatMoney(fromPrice)}
+              {/*
+                The unit, as the listing says it. Without it a whole-group
+                charter read "₹18,000" here, as though it were per person
+                (cited in the redesign's before page, 3 Oct 2026).
+              */}
+              {unit ? (
+                <span className="text-forest/70 font-normal"> {unit}</span>
+              ) : null}
+            </>
+          ) : (
+            ""
+          )}
         </p>
       </Link>
 

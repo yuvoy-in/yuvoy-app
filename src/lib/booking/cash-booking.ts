@@ -1,3 +1,4 @@
+import { createApiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema.gen";
 
 export type CashBooking = components["schemas"]["CashBooking"];
@@ -139,4 +140,34 @@ export function cashOwedPaise(status: {
   payment?: { method?: string; collected?: boolean; amountPaise?: number };
 }): number | null {
   return cashOwed(status) ? (status.payment?.amountPaise ?? null) : null;
+}
+
+/**
+ * Finish a live hold in cash, in the same tap that took it (owner ruling,
+ * 3 Oct 2026: checkout books in one tap, as the approved redesign shows).
+ *
+ * Asks for the hold's payment order, which says whether cash at the counter
+ * is open (`payAtCounter`), and if it is, confirms the cash booking. Both
+ * calls are safe to repeat: one reservation has at most one payment order and
+ * at most one booking by construction, so a traveller who taps again on ferry
+ * wifi gets the same answer, never a second booking.
+ *
+ * `true` once booked. `false` when cash is not offered or either call failed,
+ * and that is not an error to show at checkout: the hold is real, and the
+ * booking page it opens next offers every way to finish it, cash first.
+ */
+export async function finishInCash(reservationId: string): Promise<boolean> {
+  try {
+    const client = createApiClient();
+    const order = await client.POST("/reservations/{id}/payment-order", {
+      params: { path: { id: reservationId } },
+    });
+    if (order.error || !readPayAtCounter(order.data)) return false;
+    const booking = await client.POST("/reservations/{id}/cash-booking", {
+      params: { path: { id: reservationId } },
+    });
+    return !booking.error;
+  } catch {
+    return false;
+  }
 }

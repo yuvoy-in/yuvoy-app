@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Wordmark } from "@/components/ui/wordmark";
 import { BackButton } from "./back-button";
+import { TrailBackButton } from "./trail-back-button";
 import { LoginButton } from "@/components/auth/login-button";
 
 /**
@@ -28,6 +29,28 @@ export interface BackTarget {
   href: string;
   /** Where it leads, for the control's name. */
   label: string;
+  /**
+   * Return to the screen the traveller came from when it is one of ours, and
+   * use `href` only when it is not (`TrailBackButton`). For a screen reached
+   * from many places, like a listing; a step inside one place keeps its
+   * fixed parent.
+   */
+  followTrail?: boolean;
+}
+
+function Back({
+  target,
+  over,
+}: {
+  target: BackTarget;
+  over?: "stage" | "media";
+}) {
+  const { followTrail, ...link } = target;
+  return followTrail ? (
+    <TrailBackButton {...link} over={over} />
+  ) : (
+    <BackButton {...link} over={over} />
+  );
 }
 
 export function Screen({
@@ -44,7 +67,10 @@ export function Screen({
   back?: BackTarget;
   /** A small tracked caption centred in the stage header: "Checkout". */
   stageLabel?: string;
-  /** Full-bleed media at the top of the stage; the sheet rises over it. */
+  /**
+   * Full-bleed media at the top of the stage; the sheet rises over it. On a
+   * phone the media stays put and the sheet scrolls up over it.
+   */
   hero?: ReactNode;
   /** Controls that float over the hero's top-right corner. */
   heroActions?: ReactNode;
@@ -63,20 +89,49 @@ export function Screen({
         className={cn(
           "flex flex-1 flex-col lg:mx-auto lg:w-full lg:flex-none",
           width === "lg" ? "lg:max-w-3xl" : "lg:max-w-xl",
+          /*
+            How far the sheet rises over the hero: the depth of its rounded
+            top, and nothing from `lg` up, where the sheet sits below a panel's
+            picture. One number for both sides of the seam, so the hero can
+            keep whatever it draws at its foot (a gallery's dots, a clip's
+            sound) clear of the sheet rather than under it.
+          */
+          hero && "[--hero-overlap:2rem] lg:[--hero-overlap:0px]",
         )}
       >
         {hero ? (
-          <div className="lg:rounded-t-sheet relative lg:overflow-hidden">
-            {hero}
-            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-4">
-              <div className="pointer-events-auto">
-                {back ? <BackButton {...back} over="media" /> : null}
-              </div>
-              <div className="pointer-events-auto flex gap-2">
-                {heroActions}
+          <>
+            {/*
+              The controls float above everything, the picture and the sheet
+              alike. A zero-height sticky row, so it takes no room and pushes
+              nothing down, with the discs hanging from it; on a phone it
+              stays at the top while the sheet slides up over the picture, so
+              Back is never under the page it leads out of. The discs carry
+              their own ground (`over="media"`), so they read on paper too.
+              From `lg` up nothing slides, so the row scrolls away with the
+              picture, as it always did.
+            */}
+            <div className="pointer-events-none sticky top-0 z-20 h-0 lg:relative">
+              <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
+                <div className="pointer-events-auto">
+                  {back ? <Back target={back} over="media" /> : null}
+                </div>
+                <div className="pointer-events-auto flex gap-2">
+                  {heroActions}
+                </div>
               </div>
             </div>
-          </div>
+            {/*
+              THE FAR SIDE (the redesign, traveller A, 3 Oct 2026). On a phone
+              the picture stays where it is and the sheet scrolls up over it,
+              the way the reel's far side was always described: the clip is
+              still there behind the page about it. From `lg` up the sheet is
+              a panel beside nothing, so the picture scrolls with it as before.
+            */}
+            <div className="lg:rounded-t-sheet relative max-lg:sticky max-lg:top-0 max-lg:z-0 lg:overflow-hidden">
+              {hero}
+            </div>
+          </>
         ) : (
           <header
             className={cn(
@@ -87,7 +142,7 @@ export function Screen({
             )}
           >
             {back ? (
-              <BackButton {...back} />
+              <Back target={back} />
             ) : (
               <Wordmark tone="paper" className="h-7" priority />
             )}
@@ -116,7 +171,8 @@ export function Screen({
         <div
           className={cn(
             "sheet rounded-t-sheet lg:rounded-sheet flex flex-1 flex-col",
-            hero && "relative -mt-8 lg:mt-0 lg:rounded-t-none",
+            // Above the sticky picture, so it slides over it.
+            hero && "relative z-10 -mt-(--hero-overlap) lg:rounded-t-none",
           )}
         >
           <div

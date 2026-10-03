@@ -1,11 +1,21 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CACHE, qk } from "@/lib/query/policy";
-import { civilFromDate, weekdayDayMonth } from "@/lib/format/date";
+import {
+  civilFromDate,
+  dayMonth,
+  weekdayDayMonth,
+  weekdayName,
+} from "@/lib/format/date";
 import { clockOffsetMs } from "./clock";
 import { fetchAvailability } from "./availability-query";
-import { CALENDAR_WINDOW_DAYS, marketDateRange } from "./availability-window";
+import {
+  CALENDAR_WINDOW_DAYS,
+  marketDateRange,
+  marketDayOf,
+} from "./availability-window";
 import { daysFromSlots, firstOpenDay } from "./day-availability";
+import { slotIsOpen } from "./slot-open";
 import type { components } from "@/lib/api/schema.gen";
 
 type Slot = components["schemas"]["Slot"];
@@ -61,19 +71,28 @@ export function nextOpenSentence(next: NextOpenDay): string | null {
   return civil ? `Next open: ${weekdayDayMonth(civil)}` : null;
 }
 
-export function useNextOpenDay(slug: string, enabled: boolean): NextOpenDay {
+/**
+ * The listing's availability, live, over checkout's window. One query, read by
+ * the bar (`useNextOpenDay`) and the price panel (`useOpenDays`), so the two
+ * can never disagree and the page asks once.
+ */
+function useListingAvailability(slug: string, enabled: boolean) {
   /*
     Checkout's window, computed the way checkout computes it. The day is the
     MARKET's (`marketDateRange` anchors on Asia/Kolkata), never the device's.
   */
   const range = useMemo(() => marketDateRange(CALENDAR_WINDOW_DAYS), []);
 
-  const availability = useQuery({
+  return useQuery({
     queryKey: qk.availabilityForListing(slug, range.from, range.to),
     queryFn: ({ signal }) => fetchAvailability(slug, range, signal),
     enabled,
     ...CACHE.getAvailability,
   });
+}
+
+export function useNextOpenDay(slug: string, enabled: boolean): NextOpenDay {
+  const availability = useListingAvailability(slug, enabled);
 
   if (availability.isPending) return { state: "pending" };
   if (availability.isError) return { state: "error" };
@@ -85,4 +104,105 @@ export function useNextOpenDay(slug: string, enabled: boolean): NextOpenDay {
   */
   const now = availability.dataUpdatedAt + clockOffsetMs();
   return nextOpenDayOf(availability.data.slots, now);
+}
+
+/**
+ * The next few open days, for the listing's price panel (the approved
+ * redesign, traveller A, 3 Oct 2026): "Next open: Tomorrow, Fri 16 Oct ·
+ * 3 seats left", then "Then Sat 17 Oct, Sun 18 Oct, Mon 19 Oct, and more".
+ *
+ * The bar names one day so a traveller knows the page is worth reading; the
+ * panel names a few, because "is there anything this week" is the question
+ * the price is weighed against. Same read and same rule as the bar, so the
+ * first day here is the bar's day, and checkout's.
+ */
+export interface OpenDay {
+  /** `YYYY-MM-DD`, the market's own calendar. */
+  date: string;
+  /** "Today, Thu 15 Oct", "Tomorrow, Fri 16 Oct", or "Sat, 17 Oct". */
+  label: string;
+  /** "Sat 17 Oct": for a list, where the comma already separates the days. */
+  short: string;
+  /**
+   * The server's seat sentence, verbatim, and only when ONE departure is open
+   * that day. With two, "3 seats left" would not say which boat it is about.
+   */
+  seats: string | null;
+}
+
+export type OpenDays =
+  | { state: "pending" }
+  | { state: "error" }
+  | { state: "none" }
+  | {
+      state: "open";
+      days: OpenDay[];
+      /** True when there are open days beyond the ones listed. */
+      more: boolean;
+    };
+
+/** The first day and three after it: one line each on a small phone. */
+export const LISTING_OPEN_DAYS = 4;
+
+const DAY_MS = 86_400_000;
+
+/** Pure: the first `count` open days in these slots, as of `now`. */
+export function openDaysOf(
+  slots: readonly Slot[] | undefined,
+  now: number,
+  count: number = LISTING_OPEN_DAYS,
+): OpenDays {
+  const today = marketDayOf(now);
+  // IST keeps no daylight saving, so a day is always 24 hours there.
+  const tomorrow = marketDayOf(now + DAY_MS);
+
+  const open = [...daysFromSlots(slots, now).entries()]
+    .filter(([date, day]) => date >= today && day.state === "open")
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  const days: OpenDay[] = [];
+  let listed = 0;
+  for (const [date, day] of open) {
+    if (days.length >= count) break;
+    listed += 1;
+    const civil = civilFromDate(date);
+    // A date in a shape this cannot read is skipped, never printed raw.
+    if (!civil) continue;
+    const bookable = day.slots.filter(
+      (slot) => !slot.soldOut && slotIsOpen(slot, now),
+    );
+    const short = `${weekdayName(civil)} ${dayMonth(civil)}`;
+    days.push({
+      date,
+      label:
+        date === today
+          ? `Today, ${short}`
+          : date === tomorrow
+            ? `Tomorrow, ${short}`
+            : weekdayDayMonth(civil),
+      short,
+      seats:
+        bookable.length === 1 ? (bookable[0].remainingDisplay ?? null) : null,
+    });
+  }
+
+  if (days.length === 0) {
+    /*
+      Open days the formatter could not read are a broken answer, not an
+      empty one, and "no dates" is a claim: say nothing instead.
+    */
+    return open.length === 0 ? { state: "none" } : { state: "error" };
+  }
+  return { state: "open", days, more: open.length > listed };
+}
+
+export function useOpenDays(slug: string, enabled: boolean): OpenDays {
+  const availability = useListingAvailability(slug, enabled);
+
+  if (availability.isPending) return { state: "pending" };
+  if (availability.isError) return { state: "error" };
+
+  // The server's clock, as above.
+  const now = availability.dataUpdatedAt + clockOffsetMs();
+  return openDaysOf(availability.data.slots, now);
 }

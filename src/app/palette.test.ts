@@ -74,6 +74,12 @@ describe("palette", () => {
         feed.
       */
       "src/components/experience/gallery.tsx",
+      /*
+        The listing's picture over the top of checkout and of a booking (the
+        approved redesign, 3 Oct 2026), and the ground it holds while either
+        loads: the same media use as the gallery's, a ground behind a poster.
+      */
+      "src/components/chrome/picture-strip.tsx",
       "src/components/search/search-screen.tsx",
       /*
         The operator page's poster grounds — the profile's logo tile and photo
@@ -98,16 +104,20 @@ describe("palette", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("never uses font-semibold — Satoshi ships no 600", () => {
-    // The browser would synthesise it, which is the exact tell the type
-    // system was rebuilt to remove.
+  it("never uses font-semibold: the type system has three weights", () => {
+    // 400, 500 and 700, and nothing between. The text face is variable, so a
+    // 600 would render rather than be synthesised; it is banned so the three
+    // stay three instead of drifting into a continuum.
     const offenders = FILES.filter((f) => /font-semibold/.test(read(f))).map(
       rel,
     );
     expect(offenders).toEqual([]);
   });
 
-  it("never puts a display face at a weight other than 400 or the turn", () => {
+  it("never puts the display face at a weight other than its own", () => {
+    // The display cut is ONE baked instance (condensed bold), registered at
+    // 400 in src/lib/fonts.ts. Any heavier class would make the browser
+    // synthesise a bolder copy of an already bold face.
     const offenders = FILES.filter((f) => {
       const s = read(f);
       /*
@@ -571,6 +581,22 @@ describe("measured contrast", () => {
       const ramp = stops("feed-scrim");
       expect(paperOverScrim(alphaAt(ramp, 40))).toBeGreaterThanOrEqual(7);
       expect(paperOverScrim(alphaAt(ramp, 58))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("keeps the checkout strip's caption legible over the brightest frame", () => {
+      /*
+        The strip's caption tops out at 81% of its height on the shortest strip
+        (see `strip-scrim`). `paper` must clear 4.5:1 there, as body text, and
+        it is measured, not assumed, so lightening the ramp fails here first.
+      */
+      const ramp = stops("strip-scrim");
+      expect(paperOverScrim(alphaAt(ramp, 81))).toBeGreaterThanOrEqual(5.5);
+      for (let i = 1; i < ramp.length; i++) {
+        expect(
+          ramp[i][1],
+          "strip-scrim lightens then darkens",
+        ).toBeLessThanOrEqual(ramp[i - 1][1]);
+      }
     });
 
     it("only ever gets lighter on the way up", () => {

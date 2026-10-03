@@ -17,6 +17,7 @@ import {
 import { ShareLink } from "@/components/ui/share-link";
 import { BookingLayer } from "./booking-layer";
 import { Gallery } from "./gallery";
+import { NextDays } from "./next-days";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -43,6 +44,24 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
   const cancellation = cancellationLine(experience);
   const instant = experience.bookingMode === "allotment";
   const duration = formatDuration(experience.durationMinutes);
+  /*
+    ABSENT MEANS BOOKABLE, and that is not defensive habit: it is a
+    production regression this line already caused once.
+
+    The contract at the pinned commit marks `bookable` required, so this
+    read `experience.bookable` and treated `undefined` as false. But the
+    contract is what MASTER declares, not what `api.yuvoy.in` is running:
+    migration 0053 was merged and not yet deployed, so the live API sent
+    no such field and every listing on production said "not available to
+    book" the moment this shipped.
+
+    A pinned contract says what the API will send, never what it does
+    send today. So the check is `!== false`: absent falls back to the
+    behaviour that was correct before the field existed, which is the
+    only reading that is safe against a deployment lag in either
+    direction.
+  */
+  const bookable = experience.bookable !== false;
   /*
     Everything there is to look at, in one gallery — yuvoy-app#32.
 
@@ -71,7 +90,9 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
 
   return (
     <Screen
-      back={{ href: "/", label: "the feed" }}
+      // Reached from the feed, search, saves and a business's page: Back
+      // returns to whichever it was, and to the feed from outside.
+      back={{ href: "/", label: "the feed", followTrail: true }}
       stageLabel="Experience"
       width="lg"
       hero={
@@ -89,27 +110,27 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
     >
       <BookingLayer
         experience={experience}
-        /*
-          ABSENT MEANS BOOKABLE, and that is not defensive habit — it is a
-          production regression this line already caused once.
-
-          The contract at the pinned commit marks `bookable` required, so this
-          read `experience.bookable` and treated `undefined` as false. But the
-          contract is what MASTER declares, not what `api.yuvoy.in` is running:
-          migration 0053 was merged and not yet deployed, so the live API sent
-          no such field and every listing on production said "not available to
-          book" the moment this shipped.
-
-          A pinned contract says what the API will send, never what it does
-          send today. So the check is `!== false`: absent falls back to the
-          behaviour that was correct before the field existed, which is the
-          only reading that is safe against a deployment lag in either
-          direction.
-        */
-        bookable={experience.bookable !== false}
+        bookable={bookable}
         before={
           <>
-            <p className="eyebrow text-terra-deep">{location}</p>
+            {/*
+              WHAT the thing is and WHERE, said once. The place used to be
+              this line AND a chip below it, two lines apart, and the noun was
+              a chip of its own.
+
+              The noun is yuvoy-app#21 §4: the card says "Scuba diving" and
+              the page a traveller opens from it did not, so the second screen
+              dropped the word the first one used to earn the tap. The LABEL,
+              never the key, from the same vocabulary table the operator's own
+              picker reads, so the word here cannot disagree with the word
+              they chose. Absent on listings that predate the vocabulary, and
+              then the place stands alone rather than beside a placeholder.
+            */}
+            <p className="eyebrow text-terra-deep">
+              {[experience.activityTypeLabel, location]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
 
             <h1 className="font-display tracking-display mt-4 text-4xl leading-[1.05] sm:text-5xl">
               {experience.title}
@@ -121,32 +142,13 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
               </p>
             ) : null}
 
-            {/* The facts, as chips: where, how long, and how it sells. */}
+            {/* The facts, as chips: how long, and how it sells. */}
             <div className="mt-5 flex flex-wrap gap-2">
-              <Chip>
-                <MapPinIcon className="size-4" />
-                {location}
-              </Chip>
               {duration ? (
                 <Chip>
                   <ClockIcon className="size-4" />
                   {duration}
                 </Chip>
-              ) : null}
-              {/*
-                WHAT the thing is — yuvoy-app#21 §4. The card says "Scuba
-                diving" and the page a traveller opens from it did not, so the
-                second screen dropped the noun the first one used to earn the
-                tap.
-
-                The LABEL, never the key, and from the same vocabulary table
-                the operator's own picker reads — so the word here cannot
-                disagree with the word they chose. Absent on listings that
-                predate the vocabulary, and nothing is rendered rather than a
-                placeholder noun.
-              */}
-              {experience.activityTypeLabel ? (
-                <Chip>{experience.activityTypeLabel}</Chip>
               ) : null}
               <Chip tone={instant ? "accent" : "neutral"}>
                 {instant ? <ZapIcon className="size-4" /> : null}
@@ -196,6 +198,12 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                     commit.
                   </p>
                 )}
+
+                {/*
+                  When it next runs, weighed with the price. Inside the
+                  bookable gate: a listing not on sale has no days to name.
+                */}
+                <NextDays slug={experience.slug} bookable={bookable} />
 
                 {/*
                   How it is paid for, before anybody reaches the pay step

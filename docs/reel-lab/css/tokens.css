@@ -14,32 +14,22 @@
 /* --------------------------------------------------------------- the fonts */
 /*
   The delivered faces, copied into `assets/` rather than linked across the repo
-  so the folder opens from `file://` on its own. Fraunces is the variable Yuvoy
-  cut; its axes are pinned by `.font-display`, exactly as the @theme does it.
+  so the folder opens from `file://` on its own. Since v3.0 (3 Oct 2026) they
+  are Anek Latin's two cuts, registered exactly as src/lib/fonts.ts registers
+  them: the display cut (condensed bold, baked) at 400, the text face 400-700.
 */
 @font-face {
-  font-family: "Fraunces Yuvoy";
-  src: url("../assets/Fraunces-Yuvoy.woff2") format("woff2");
-  font-weight: 100 900;
+  font-family: "Anek Yuvoy Display";
+  src: url("../assets/Anek-Yuvoy-Display.woff2") format("woff2");
+  font-weight: 400;
   font-style: normal;
   font-display: optional;
 }
 @font-face {
-  font-family: "Satoshi";
-  src: url("../assets/Satoshi-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Satoshi";
-  src: url("../assets/Satoshi-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Satoshi";
-  src: url("../assets/Satoshi-Bold.woff2") format("woff2");
-  font-weight: 700;
+  font-family: "Anek Yuvoy";
+  src: url("../assets/Anek-Yuvoy.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
   font-display: swap;
 }
 
@@ -56,10 +46,10 @@
   --abyss: #0a100e;
 
   /* ---------------------------------------------------------------- type */
-  --font-display: "Fraunces Yuvoy", Georgia, "Times New Roman", serif;
+  --font-display: "Anek Yuvoy Display", "Arial Narrow", Arial, sans-serif;
   --font-sans:
-    "Satoshi", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-weight-turn: 480;
+    "Anek Yuvoy", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
 
   /* -------------------------------------------------------------- layout */
   --container-feed: 30rem; /* 480px */
@@ -78,7 +68,7 @@
 
   /* ------------------------------------------------------------ tracking */
   --tracking-label: 0.18em;
-  --tracking-display: -0.01em;
+  --tracking-display: 0em;
 
   /* ------------------------------------------------- the bar's own metrics */
   /*
@@ -96,15 +86,11 @@
 /* ------------------------------------------------------------- utilities */
 
 /*
-  Fraunces, with the Yuvoy cut's axes pinned. Display weight is 400 and only
-  400: `font-semibold` and `font-bold` must never appear with the display face.
+  The display cut, one baked instance at its one registered weight (400):
+  `font-semibold` and `font-bold` must never appear with the display face.
 */
 .font-display {
   font-family: var(--font-display);
-  font-variation-settings:
-    "opsz" 144,
-    "SOFT" 75,
-    "WONK" 0;
   font-weight: 400;
   letter-spacing: var(--tracking-display);
 }

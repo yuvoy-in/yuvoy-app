@@ -207,6 +207,60 @@ export function formatTotal(price: BookingStatus["price"]): string {
 }
 
 /**
+ * What the booking page calls the row that holds the price.
+ *
+ * "Paid" is a claim, and it was made in two states where nothing had been
+ * charged: a request waiting on the operator, and a hold not yet booked (cited
+ * in the redesign's before page, 3 Oct 2026). The first match wins:
+ *
+ *   1. A waiting request: nothing has changed hands and nothing is owed until
+ *      they answer, so the price is what it WILL cost.
+ *   2. A hold: a price, not a payment. Nothing is taken until it is booked.
+ *   3. A booking that never happened charged nothing.
+ *   4. `verifying`: money may have moved and the outcome is not settled, so the
+ *      row names the amount and claims nothing either way (the contract's
+ *      "never render it as failure" cuts both ways).
+ *   5. Cash (`payment` is present only for cash): paid once the operator has
+ *      recorded taking it; owed on the day while the trip is going ahead;
+ *      neutral once the day has been and nobody recorded it; not charged for
+ *      a trip that did not go ahead.
+ *   6. Otherwise a card booking, whose money moved when it was booked.
+ */
+export function moneyRowLabel(
+  status: Pick<BookingStatus, "state" | "payment">,
+): string {
+  switch (status.state) {
+    case "awaiting_operator":
+      return "If they say yes";
+    case "holding":
+      return "To pay";
+    case "expired":
+    case "released":
+      return "Not charged";
+    case "verifying":
+      return "Amount";
+  }
+  const cash = status.payment?.method === "cash" ? status.payment : null;
+  if (cash) {
+    if (cash.collected) return "Paid in cash";
+    if (status.state === "confirmed") return "To pay on the day";
+    if (status.state === "completed") return "Total";
+    return "Not charged";
+  }
+  switch (status.state) {
+    case "confirmed":
+    case "completed":
+    case "cancelled":
+    case "declined":
+    case "no_show":
+      return "Paid";
+    default:
+      // A state this build does not know yet claims nothing.
+      return "Total";
+  }
+}
+
+/**
  * Why a trip was called off, in a sentence a traveller can act on.
  *
  * The codes are a closed set in `cancellation_reason_codes` — twelve today —
@@ -320,6 +374,38 @@ export function declineView(status: BookingStatus): DeclineView | null {
 }
 
 /** Renders the departure in the MARKET's zone, never the device's. */
+/**
+ * When the trip leaves, as the page's headline: "Tomorrow, 07:00", "Today,
+ * 15:30", or "Sat, 17 Oct, 07:00" further out (the approved redesign,
+ * traveller A, 3 Oct 2026). "You are going" told a traveller nothing they did
+ * not know; the hour is the thing they open the page for on the morning.
+ *
+ * In the trip's own zone, on both sides: the departure's day and today are
+ * read in `slot.timezone`, and `now` is the server's clock, so a phone in
+ * another zone or running fast cannot call tomorrow's boat today's. `null`
+ * for a departure or a zone it cannot read, and the page keeps its words.
+ */
+export function tripWhen(
+  slot: BookingStatus["slot"],
+  now: number,
+): string | null {
+  const at = civilInZone(slot.startsAt, slot.timezone);
+  const today = civilInZone(new Date(now).toISOString(), slot.timezone);
+  if (!at || !today) return null;
+  const tomorrow = civilInZone(
+    new Date(now + 86_400_000).toISOString(),
+    slot.timezone,
+  );
+  const same = (a: typeof at, b: typeof at | null) =>
+    b !== null && a.year === b.year && a.month === b.month && a.day === b.day;
+  const day = same(at, today)
+    ? "Today"
+    : same(at, tomorrow)
+      ? "Tomorrow"
+      : weekdayDayMonth(at);
+  return `${day}, ${clockTime(at)}`;
+}
+
 export function formatDeparture(slot: BookingStatus["slot"]): string {
   const when = new Date(slot.startsAt);
   const date = new Intl.DateTimeFormat("en-IN", {

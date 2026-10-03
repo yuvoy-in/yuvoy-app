@@ -3,6 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Reel } from "@/lib/feed/reels";
+import { nextDepartureSentence } from "@/lib/feed/availability";
+import { formatFromPrice } from "@/lib/format/money";
 import { Button } from "@/components/ui/button";
 import { PlayIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
@@ -38,6 +40,7 @@ export function ReelGrid({
   fetchNextPage,
   className,
   label,
+  words = false,
 }: {
   items: Reel[];
   /** Where a tile goes. The two surfaces open different reel sequences. */
@@ -49,13 +52,36 @@ export function ReelGrid({
   className?: string;
   /** Names the list for a screen reader. */
   label: string;
+  /**
+   * Each tile says what it is under the picture: the title, the price with
+   * its unit, and the next open day (the approved redesign, 3 Oct 2026, for
+   * search). Bare posters made a traveller open a reel to learn what it was
+   * and what it cost (cited in the before page). Two across on a phone, so
+   * the words fit.
+   */
+  words?: boolean;
 }) {
   return (
     <div className={className}>
-      <ul className="grid grid-cols-3 gap-2" aria-label={label}>
+      <ul
+        className={cn(
+          "grid",
+          words
+            ? "grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
+            : "grid-cols-3 gap-2",
+        )}
+        aria-label={label}
+      >
         {items.map((reel, i) => {
           const href = hrefFor(reel);
           const title = reel.experience?.title ?? "";
+          if (words) {
+            return (
+              <li key={`${reel.media?.id ?? "clip"}-${i}`}>
+                <WordsTile reel={reel} href={href} title={title} />
+              </li>
+            );
+          }
           return (
             <li key={`${reel.media?.id ?? "clip"}-${i}`}>
               {/*
@@ -128,8 +154,90 @@ function PlayBadge() {
   );
 }
 
+/**
+ * A tile that says what it is. The link holds the picture and the words, so
+ * the whole tile is the target.
+ *
+ * Its name is written out rather than taken from the words, with commas
+ * between the parts. Read from the content, the spans ran together into
+ * "PlayTry-dive at Nemo Reef₹4,500per person": a name is assembled from text
+ * without layout, and the same run-on as "07:003 seats left", in the ear.
+ */
+function WordsTile({
+  reel,
+  href,
+  title,
+}: {
+  reel: Reel;
+  href: string | null;
+  title: string;
+}) {
+  const experience = reel.experience;
+  const price = formatFromPrice(experience?.fromPrice);
+  const next = experience ? nextDepartureSentence(experience) : null;
+  const priceLine = price
+    ? [price, experience?.pricingUnitLabel].filter(Boolean).join(" ")
+    : null;
+  const dateLine = next
+    ? next.bookable
+      ? `Next open: ${next.short}`
+      : next.short
+    : null;
+  const name = [`Play ${title}`, priceLine, dateLine]
+    .filter(Boolean)
+    .join(", ");
+  const body = (
+    <>
+      <span className="rounded-tile bg-abyss relative block aspect-[4/5] overflow-hidden">
+        <Poster
+          url={reel.media?.posterUrl}
+          sizes="(max-width: 640px) 50vw, 240px"
+        />
+        <PlayBadge />
+      </span>
+      <span className="mt-2 line-clamp-2 block text-sm leading-snug font-bold">
+        {title}
+      </span>
+      {price ? (
+        <span className="mt-0.5 block text-xs font-bold">
+          {price}
+          {/* The server's unit phrase, verbatim, as on the listing. */}
+          {experience?.pricingUnitLabel ? (
+            <span className="text-forest/70 font-normal">
+              {" "}
+              {experience.pricingUnitLabel}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+      {dateLine ? (
+        <span className="text-forest/70 mt-0.5 block text-xs">{dateLine}</span>
+      ) : null}
+    </>
+  );
+  return href ? (
+    <Link
+      href={href}
+      aria-label={name}
+      className="ease-interaction group block transition-opacity duration-200 hover:opacity-90"
+    >
+      {body}
+    </Link>
+  ) : (
+    <div>{body}</div>
+  );
+}
+
 /** A poster, or the dark tile that stands in for one. */
-function Poster({ url, className }: { url?: string; className?: string }) {
+function Poster({
+  url,
+  className,
+  sizes = "(max-width: 640px) 33vw, 160px",
+}: {
+  url?: string;
+  className?: string;
+  sizes?: string;
+}) {
   if (!url)
     return <div className={cn("bg-abyss absolute inset-0", className)} />;
   return (
@@ -137,7 +245,7 @@ function Poster({ url, className }: { url?: string; className?: string }) {
       src={url}
       alt=""
       fill
-      sizes="(max-width: 640px) 33vw, 160px"
+      sizes={sizes}
       className={cn("object-cover", className)}
       unoptimized={url.startsWith("data:")}
     />

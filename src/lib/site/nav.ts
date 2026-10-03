@@ -93,17 +93,20 @@ export const FOCUSED_ROUTE_PREFIXES = [
   "/guides/",
   "/offline",
   /*
-    A business's own pages, one level in — yuvoy-app#33. `/o/{slug}` itself is
-    a tab-less destination a traveller can arrive at from a listing or a search
-    result and keeps the bar; what they run and one of their reels are places
-    they go INTO from it, and both carry their own way back.
+    A business's pages: the profile, what they run, and one of their reels.
+
+    The profile itself used to keep the bar, as a destination of its own
+    (yuvoy-app#33), with only the two pages inside it focused. The approved
+    redesign (traveller A, 3 Oct 2026) made it a place a traveller goes INTO
+    from a listing or a search, with a way back to wherever that was, so all
+    three are focused now.
 
     `*` matches one path segment, because the slug sits in the middle. The same
     wildcard `PRIVATE_ROUTES` uses for `/e/*​/book`, and the reason
-    `isFocusedRoute` is not a plain `startsWith` any more.
+    `isFocusedRoute` is not a plain `startsWith` any more. As a prefix it also
+    covers the two pages below the profile.
   */
-  "/o/*/listings",
-  "/o/*/r/",
+  "/o/*",
   // A search result, playing. `/search` itself is a tab root and keeps the bar.
   "/search/r/",
   /*
@@ -123,9 +126,9 @@ export const FOCUSED_ROUTE_PREFIXES = [
 /**
  * Routes whose ground is the MEDIA rather than a paper sheet.
  *
- * The feed, a shared reel, a search result played in place, and a business's
- * own reels: on all four the bar floats over `abyss` and a moving picture.
- * Everywhere else it floats over a paper sheet.
+ * The feed, a shared reel, a search result played in place, a business's own
+ * reels, and a traveller's saves playing: on all five the ground is `abyss`
+ * and a moving picture. Everywhere else it is a paper sheet.
  *
  * ## Why this exists, and why it is not `pathname === "/"`
  *
@@ -137,7 +140,7 @@ export const FOCUSED_ROUTE_PREFIXES = [
  * about 6.6:1, because what shows through is the caption scrim's own dark foot.
  *
  * So the pill is translucent here and solid everywhere else, and the list is
- * the four routes rather than the one, because all four have the same ground
+ * every such route rather than the one, because they all have the same ground
  * and would otherwise disagree with each other.
  *
  * `palette.test.ts` pins the measurement; this pins which routes it applies to.
@@ -147,6 +150,8 @@ export const MEDIA_GROUND_ROUTES = [
   "/r/",
   "/search/r/",
   "/o/*/r/",
+  // A traveller's saves, playing (the approved redesign, 3 Oct 2026).
+  "/saved/r/",
 ] as const;
 
 export function isMediaGroundRoute(

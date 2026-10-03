@@ -128,6 +128,7 @@ const MUST_NOT_STREAM: Record<string, string> = {
   "/": "streaming the feed breaks hydration in WebKit (React #418)",
   "/r/[id]": "same media ground as the feed, and it can answer 404",
   "/search/r/[id]": "same media ground as the feed",
+  "/saved/r/[id]": "same media ground as the feed",
 };
 
 describe("loading boundaries", () => {

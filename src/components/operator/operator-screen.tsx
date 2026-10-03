@@ -12,7 +12,7 @@ import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { ReelGrid } from "@/components/feed/reel-grid";
 import { Panel } from "@/components/ui/panel";
-import { ChevronRightIcon } from "@/components/ui/icons";
+import { CheckIcon, ChevronRightIcon } from "@/components/ui/icons";
 
 /**
  * T-op — a business, and everything it sells (yuvoy-app#30).
@@ -56,6 +56,15 @@ import { ChevronRightIcon } from "@/components/ui/icons";
  * trust surface reads as a business that could not be bothered rather than
  * one that has not got to it yet.
  */
+/**
+ * A business's page is a place a traveller goes INTO, from a listing or a
+ * search, so it is focused and carries a way back (the approved redesign,
+ * traveller A, 3 Oct 2026), to wherever they came from. It used to keep the
+ * tab bar as a destination of its own (yuvoy-app#33), which left a traveller
+ * who came from a listing with no way back to it but the browser's.
+ */
+const BACK = { href: "/", label: "the feed", followTrail: true };
+
 export function OperatorScreen({
   slug,
   initial,
@@ -78,7 +87,7 @@ export function OperatorScreen({
 
   if (operator.isPending) {
     return (
-      <Screen>
+      <Screen back={BACK}>
         <LoadingState label="Loading this business">
           <div className="space-y-4">
             <Skeleton className="h-24 w-full" />
@@ -91,7 +100,7 @@ export function OperatorScreen({
 
   if (operator.isError) {
     return (
-      <Screen>
+      <Screen back={BACK}>
         <ErrorState
           error={operator.error}
           onRetry={() => void operator.refetch()}
@@ -106,7 +115,7 @@ export function OperatorScreen({
   const clips = pages.flatMap((p) => p.items ?? []);
 
   return (
-    <Screen>
+    <Screen back={BACK}>
       {/* ------------------------------------------------------ the header */}
       <header className="flex items-center gap-4">
         {/*
@@ -147,11 +156,12 @@ export function OperatorScreen({
             */}
             {profile.verified ? (
               <span
-                className="bg-forest text-paper inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs"
+                className="bg-forest text-paper inline-flex size-5 shrink-0 items-center justify-center rounded-full"
                 role="img"
                 aria-label="Credentials verified by Yuvoy"
               >
-                ✓
+                {/* The icon, not a ✓ character: the type has no tick glyph. */}
+                <CheckIcon className="size-3.5" strokeWidth={2.5} />
               </span>
             ) : null}
           </h1>

@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
+import { isMediaGroundRoute } from "@/lib/site/nav";
+import { cn } from "@/lib/cn";
 import {
   subscribeConsent,
   consentSnapshot,
@@ -39,6 +42,15 @@ export function ConsentBanner() {
     consentSnapshot,
     consentServerSnapshot,
   );
+  /*
+    Over a reel it goes to the TOP, under the masthead. At the foot it sat over
+    the band where the caption, the date line and Book are, so the first thing
+    a new visitor saw covered the one row they came to act on, every new
+    session (cited in the redesign's before page, 3 Oct 2026). At the top it
+    covers picture, which a reel can spare for a moment. Everywhere else the
+    foot is free and it stays there, above the tab bar.
+  */
+  const overReel = isMediaGroundRoute(usePathname());
 
   // Loading analytics is a side effect of a granted choice, not of rendering.
   useEffect(() => {
@@ -52,7 +64,12 @@ export function ConsentBanner() {
     <div
       role="region"
       aria-label="Analytics choice"
-      className="app-chrome ring-paper/12 rounded-card fixed inset-x-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] z-40 p-5 ring-1 lg:inset-x-auto lg:right-6 lg:bottom-6 lg:max-w-md"
+      className={cn(
+        "app-chrome ring-paper/12 rounded-card fixed inset-x-4 z-40 p-5 ring-1 lg:inset-x-auto lg:right-6 lg:max-w-md",
+        overReel
+          ? "top-[calc(4.5rem+env(safe-area-inset-top,0px))] lg:top-6"
+          : "bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:bottom-6",
+      )}
     >
       <p className="text-paper/80 text-sm">
         May we count how this app gets used? It helps us fix what is broken. We

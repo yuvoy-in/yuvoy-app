@@ -87,18 +87,12 @@
   --color-abyss: #0a100e;
 
   /* ----------------------------------------------------------------- type */
-  /* Fraunces, tuned into the site's own cut — optical size at 144 for
-     display-grade contrast, SOFT 75 for sea-glass terminals, WONK 0. The
-     variation settings ride the `font-display` utility itself, so every
-     headline gets the cut for free. Display weight is 400; the turn is a
-     TRUE italic at `font-turn` (480). Satoshi is the one text voice. */
-  --font-display: var(--font-fraunces);
-  --font-display--font-variation-settings: "opsz" 144, "SOFT" 75, "WONK" 0;
-  --font-sans: var(--font-satoshi); /* body + UI + labels */
-
-  /* The turn's weight: 80 above the display's 400. A token, not a magic
-     number, so the upright/turn relationship is stated once. */
-  --font-weight-turn: 480;
+  /* Anek Latin, one family in two voices (v3.0, src/lib/fonts.ts). Display is
+     the condensed bold cut, baked and registered at 400, so `font-display` at
+     the default weight is the one display voice. Text is the same family at
+     normal width, 400/500/700. Both draw the rupee sign. */
+  --font-display: var(--font-anek-display);
+  --font-sans: var(--font-anek); /* body + UI + labels */
 
   /* --------------------------------------------------------------- layout */
   --container-page: 70rem; /* the page measure — `max-w-page` */
@@ -145,7 +139,7 @@
   /* ------------------------------------------------------------- tracking */
   --tracking-wordmark: 0.34em;
   --tracking-label: 0.18em;
-  --tracking-display: -0.01em; /* Fraunces sets looser than a grotesque */
+  --tracking-display: 0em; /* a condensed bold sets at its own spacing */
 }
 
 @layer base {
@@ -180,6 +174,17 @@
   select,
   textarea {
     font-size: max(1rem, 16px);
+  }
+
+  /*
+    A fieldset shrinks like any other box. Its default is `min-inline-size:
+    min-content`, so a wide control inside one holds the whole form open: the
+    screener's age select, whose longest option reads "Under 10 · too young
+    for this", made checkout wider than a 375px phone and it scrolled sideways
+    (cited in the redesign's before page, 3 Oct 2026).
+  */
+  fieldset {
+    min-inline-size: 0;
   }
 
   body {
@@ -481,6 +486,35 @@
     color-mix(in srgb, var(--color-abyss) 14%, transparent) 74%,
     color-mix(in srgb, var(--color-abyss) 3%, transparent) 86%,
     transparent 100%
+  );
+}
+
+/**
+ * The picture strip at the top of checkout (the approved redesign, 3 Oct
+ * 2026): the listing's poster, with the price and the title written over its
+ * foot. Measured the feed's way, against the palest highlight a poster has
+ * shown (#E8E2D4), because the strip is the listing's own picture and can be
+ * white surf as easily as a dark reef.
+ *
+ * The caption's top edge is highest on the shortest strip (144px, a phone in
+ * landscape): the sheet's 32px rise, 16px of air, then a two-line title and
+ * the price line, which tops out at 81% of the strip's height. The ramp holds
+ * 60% abyss or darker to that mark, which puts `paper` at about 6:1 there and
+ * darker everywhere below it. Above it is only the Back disc, which carries
+ * its own ground, so the ramp eases off to a tint rather than ending.
+ * `palette.test.ts` recomputes this from the stops below.
+ */
+@utility strip-scrim {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--color-abyss) 84%, transparent) 0%,
+    color-mix(in srgb, var(--color-abyss) 80%, transparent) 20%,
+    color-mix(in srgb, var(--color-abyss) 74%, transparent) 40%,
+    color-mix(in srgb, var(--color-abyss) 68%, transparent) 60%,
+    color-mix(in srgb, var(--color-abyss) 64%, transparent) 72%,
+    color-mix(in srgb, var(--color-abyss) 60%, transparent) 82%,
+    color-mix(in srgb, var(--color-abyss) 52%, transparent) 90%,
+    color-mix(in srgb, var(--color-abyss) 36%, transparent) 100%
   );
 }
 
@@ -819,17 +853,59 @@
   @apply text-paper/70 text-base;
 }
 
-@utility reel-sheet-facts {
-  @apply mb-3 grid gap-2;
+/* How long, and how booking works: one line where three facts were. */
+@utility reel-sheet-line {
+  @apply text-paper/70 mb-3 text-sm;
 }
-@utility reel-sheet-fact {
-  @apply flex items-baseline justify-between gap-4;
 
-  & dt {
-    @apply flex-none text-xs;
+/*
+  "Coming up": the next open departures, each a row into checkout on it.
+
+  Rows are 48px, the system's comfortable target over a moving picture, and
+  separated by the panel's own hairline. The time is the heaviest thing in a
+  row because it is what a traveller is choosing; the seat sentence is the
+  server's, printed as it comes.
+*/
+@utility reel-sheet-deps {
+  @apply mb-2;
+}
+@utility reel-sheet-deps-head {
+  @apply mb-1 flex items-baseline justify-between gap-3;
+}
+@utility reel-sheet-dep-list {
+  @apply m-0 list-none p-0;
+}
+@utility reel-sheet-dep {
+  @apply text-paper ease-interaction border-paper/14 grid min-h-12 items-center gap-3 border-b no-underline transition-opacity duration-200;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, auto) auto;
+
+  &:hover {
+    opacity: 0.8;
   }
-  & dd {
-    @apply m-0 text-right text-base text-pretty;
+  &:focus-visible {
+    @apply outline-paper rounded-tile outline-2 outline-offset-2;
+  }
+}
+@utility reel-sheet-dep-day {
+  @apply truncate text-base;
+}
+@utility reel-sheet-dep-time {
+  @apply text-base font-bold tabular-nums;
+}
+@utility reel-sheet-dep-seats {
+  @apply text-paper/70 truncate text-right text-sm;
+}
+@utility reel-sheet-dep-skeleton {
+  @apply skeleton rounded-tile text-paper my-2 block h-8;
+}
+@utility reel-sheet-deps-note {
+  @apply text-paper/70 py-2 text-sm;
+}
+@utility reel-sheet-more {
+  @apply text-paper/75 ease-interaction text-sm font-bold underline underline-offset-4 transition-opacity duration-200;
+
+  &:hover {
+    opacity: 0.8;
   }
 }
 
@@ -1038,7 +1114,6 @@
 
   & h2 {
     font-family: var(--font-display);
-    font-variation-settings: var(--font-display--font-variation-settings);
     letter-spacing: var(--tracking-display);
     font-size: 1.75rem;
     line-height: 1.15;

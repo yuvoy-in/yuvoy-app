@@ -43,6 +43,79 @@ test("Who runs this, on a listing, opens the business's page too", async ({
   ).toBeVisible();
 });
 
+/**
+ * Back returns to where the traveller came from (the approved redesign,
+ * traveller A, 3 Oct 2026), and the business's page is a place they go INTO.
+ */
+test.describe("back to where you came from", () => {
+  test("the business's page is focused, with a way back and no tab bar", async ({
+    page,
+    isMobile,
+  }) => {
+    await page.goto("/o/sample-boat-operator");
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Sample Boat Operator/ }),
+    ).toBeVisible();
+    // Arrived from outside: the stated fallback.
+    await expect(
+      page.getByRole("link", { name: "Back to the feed" }),
+    ).toHaveAttribute("href", "/");
+    const primary = page.getByRole("navigation", { name: /Primary/i });
+    if (isMobile) await expect(primary).toHaveCount(0);
+    else await expect(primary.getByRole("link")).toHaveCount(4);
+  });
+
+  test("listing, business, Back, Back: home, and never a loop", async ({
+    page,
+  }) => {
+    await page.goto("/e/snorkel-elephant-beach");
+    await page.getByRole("link", { name: "Sample Boat Operator" }).click();
+    await page.waitForURL("**/o/sample-boat-operator");
+
+    // The business's page returns to the listing it was opened from...
+    await page.getByRole("link", { name: "Back to the listing" }).click();
+    await page.waitForURL("**/e/snorkel-elephant-beach");
+
+    // ...and the listing does NOT then offer the business's page again, which
+    // is the loop a "previous route" would make. It returns to where IT came
+    // from, which on this hard load is nowhere: the feed.
+    await expect(
+      page.getByRole("link", { name: "Back to the feed" }),
+    ).toHaveAttribute("href", "/");
+  });
+
+  test("the browser's own back is a step back too", async ({ page }) => {
+    await page.goto("/e/snorkel-elephant-beach");
+    await page.getByRole("link", { name: "Sample Boat Operator" }).click();
+    await page.waitForURL("**/o/sample-boat-operator");
+    await expect(
+      page.getByRole("link", { name: "Back to the listing" }),
+    ).toBeVisible();
+
+    await page.goBack();
+    await page.waitForURL("**/e/snorkel-elephant-beach");
+    await expect(
+      page.getByRole("link", { name: "Back to the feed" }),
+    ).toHaveAttribute("href", "/");
+  });
+
+  test("a reload forgets the trail, and Back still has somewhere to go", async ({
+    page,
+  }) => {
+    await page.goto("/e/snorkel-elephant-beach");
+    await page.getByRole("link", { name: "Sample Boat Operator" }).click();
+    await page.waitForURL("**/o/sample-boat-operator");
+    await expect(
+      page.getByRole("link", { name: "Back to the listing" }),
+    ).toBeVisible();
+
+    await page.reload();
+    await expect(
+      page.getByRole("link", { name: "Back to the feed" }),
+    ).toHaveAttribute("href", "/");
+  });
+});
+
 test("the page carries what a business wrote, and nothing for what it did not", async ({
   page,
 }) => {

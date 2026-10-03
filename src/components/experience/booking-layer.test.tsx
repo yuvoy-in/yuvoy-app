@@ -18,8 +18,8 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
  * are gone, and so are their tests: the owner moved every one of those
  * decisions onto checkout on 14 September.
  *
- * What is left to defend is small and worth defending exactly: one button, no
- * query string on it, the price and the next open day beside it
+ * What is left to defend is small and worth defending exactly: one button,
+ * carrying only the day it names, the price and the next open day beside it
  * (yuvoy-app#111), and a truthful label when there is nothing to book.
  */
 
@@ -35,16 +35,30 @@ const experience = (over: Partial<Experience> = {}): Experience =>
 afterEach(cleanup);
 
 describe("the sticky bar", () => {
-  it("is one button, and it opens checkout with nothing chosen yet", async () => {
+  it("is one button, and it opens checkout on the day the bar names", async () => {
     /*
       "Tapping it opens no date pop-up. It goes straight to the checkout page."
-      No query string: the day, the time and the party are all decided there
-      now, so a `?slot=` here would be this page making a choice again.
+      It carries the day the traveller just read beside it (the approved
+      redesign, 3 Oct 2026) and nothing more: the time and the party are
+      decided there, so a `?slot=` or `?guests=` here would be this page
+      making a choice again.
     */
     renderWithQuery(<BookingLayer experience={experience()} bookable />);
 
-    const button = screen.getByRole("link", { name: /Pick a day/ });
-    expect(button).toHaveAttribute("href", "/e/try-dive-nemo-reef/book");
+    await screen.findByText("Next open: Thu, 20 Aug");
+    expect(screen.getByRole("link", { name: /Pick a day/ })).toHaveAttribute(
+      "href",
+      "/e/try-dive-nemo-reef/book?date=2026-08-20",
+    );
+  });
+
+  it("opens checkout bare while it is still asking", () => {
+    // Checkout then opens on the first open day by its own reading.
+    renderWithQuery(<BookingLayer experience={experience()} bookable />);
+    expect(screen.getByRole("link", { name: /Pick a day/ })).toHaveAttribute(
+      "href",
+      "/e/try-dive-nemo-reef/book",
+    );
   });
 
   it("goes to checkout for a request-mode listing too", async () => {
@@ -59,9 +73,10 @@ describe("the sticky bar", () => {
         bookable
       />,
     );
+    await screen.findByText(/^Next open:/);
     expect(screen.getByRole("link", { name: /Pick a day/ })).toHaveAttribute(
       "href",
-      "/e/try-dive-nemo-reef/book",
+      "/e/try-dive-nemo-reef/book?date=2026-08-20",
     );
   });
 
@@ -121,6 +136,15 @@ describe("the sticky bar", () => {
     expect(
       await screen.findByText("No dates in the next 90 days"),
     ).toBeInTheDocument();
+    /*
+      And no way into a calendar with nothing in it: a disabled button that
+      says so, as for a listing that is not on sale. Production offered "Pick
+      a day" here (Night fishing, 3 Oct 2026).
+    */
+    expect(
+      screen.getByRole("button", { name: "No dates open" }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /Pick a day/ })).toBeNull();
   });
 
   it("claims nothing about dates when the read fails", async () => {
@@ -147,8 +171,10 @@ describe("the sticky bar", () => {
     );
     expect(screen.queryByText(/No dates/)).toBeNull();
     expect(screen.queryByText(/Next open/)).toBeNull();
-    // And the way in is still there.
-    expect(screen.getByRole("link", { name: /Pick a day/ })).toBeVisible();
+    // And the way in is still there, bare.
+    const link = screen.getByRole("link", { name: /Pick a day/ });
+    expect(link).toBeVisible();
+    expect(link).toHaveAttribute("href", "/e/try-dive-nemo-reef/book");
   });
 
   it("asks for no date and no party size on this page", () => {

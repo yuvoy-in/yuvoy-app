@@ -279,6 +279,7 @@ export function SearchScreen() {
           <ReelGrid
             label="Search results"
             items={items}
+            words
             /*
               The filters travel with the tap, so the reel that opens can page
               the SAME filtered order and swipe on through it. Without them the

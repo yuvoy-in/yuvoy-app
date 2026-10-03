@@ -17,7 +17,8 @@ import { Skeleton } from "@/components/states";
 import { cn } from "@/lib/cn";
 
 /**
- * The month calendar on checkout (yuvoy-app#62 item 3).
+ * The month calendar on checkout (yuvoy-app#62 item 3), one tap away behind
+ * the fortnight strip since the redesign (`DateChooser`, 3 Oct 2026).
  *
  * Not the search one. `MonthCalendar` under `components/search` answers "which
  * day are you looking for", where every day in the window is equally
@@ -36,7 +37,7 @@ import { cn } from "@/lib/cn";
  * pointed at out of that one map, so stepping a month is instant and the
  * arrows can be drawn correctly before anything is fetched.
  */
-export function DatePicker({
+export function MonthCalendar({
   anchor,
   onAnchor,
   days,
@@ -62,83 +63,101 @@ export function DatePicker({
   const canForward = canStepMonth(anchor, 1, today);
 
   return (
-    <section aria-labelledby="date-heading">
-      <h2 id="date-heading" className="label text-forest/75">
-        Pick a day
-      </h2>
+    <div className="border-paper-line rounded-2xl border p-3">
+      <div className="flex items-center justify-between">
+        <Arrow
+          direction="back"
+          disabled={!canBack}
+          onClick={() => onAnchor(shiftMonth(anchor, -1))}
+        />
+        {/*
+          `aria-live` so stepping a month is announced. Without it the arrows
+          are two buttons that appear to do nothing.
+        */}
+        <p aria-live="polite" className="text-sm font-bold">
+          {monthLabel(anchor)}
+        </p>
+        <Arrow
+          direction="forward"
+          disabled={!canForward}
+          onClick={() => onAnchor(shiftMonth(anchor, 1))}
+        />
+      </div>
 
-      <div className="border-paper-line mt-3 rounded-2xl border p-3">
-        <div className="flex items-center justify-between">
-          <Arrow
-            direction="back"
-            disabled={!canBack}
-            onClick={() => onAnchor(shiftMonth(anchor, -1))}
-          />
-          {/*
-            `aria-live` so stepping a month is announced. Without it the arrows
-            are two buttons that appear to do nothing.
-          */}
-          <p aria-live="polite" className="text-sm font-bold">
-            {monthLabel(anchor)}
-          </p>
-          <Arrow
-            direction="forward"
-            disabled={!canForward}
-            onClick={() => onAnchor(shiftMonth(anchor, 1))}
-          />
-        </div>
+      <div
+        aria-hidden="true"
+        className="text-forest/75 mt-3 grid grid-cols-7 gap-1 text-center text-xs"
+      >
+        {WEEKDAY_INITIALS.map((initial, i) => (
+          // Two Tuesdays and two Saturdays share an initial, so the index is
+          // the key. `aria-hidden` because each cell already names its day.
+          <span key={i}>{initial}</span>
+        ))}
+      </div>
 
-        <div
-          aria-hidden="true"
-          className="text-forest/75 mt-3 grid grid-cols-7 gap-1 text-center text-xs"
-        >
-          {WEEKDAY_INITIALS.map((initial, i) => (
-            // Two Tuesdays and two Saturdays share an initial, so the index is
-            // the key. `aria-hidden` because each cell already names its day.
-            <span key={i}>{initial}</span>
+      {state === "pending" ? (
+        <div className="mt-1 grid grid-cols-7 gap-1">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 rounded-xl" />
           ))}
         </div>
+      ) : state === "error" ? (
+        <DatesFailed onRetry={onRetry} />
+      ) : (
+        <div className="mt-1 grid grid-cols-7 gap-1">
+          {cells.map((cell, i) =>
+            cell.date === null ? (
+              <span key={`blank-${i}`} aria-hidden="true" />
+            ) : (
+              <DayCell
+                key={cell.date}
+                date={cell.date}
+                day={cell.day}
+                outOfWindow={cell.disabled}
+                availability={days.get(cell.date)}
+                selected={value === cell.date}
+                isToday={cell.date === today}
+                onSelect={onSelect}
+              />
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-        {state === "pending" ? (
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {Array.from({ length: 35 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded-xl" />
-            ))}
-          </div>
-        ) : state === "error" ? (
-          <div className="py-8 text-center">
-            <p className="text-sm font-bold">Dates did not load.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRetry}
-              className="mt-3"
-            >
-              Try again
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {cells.map((cell, i) =>
-              cell.date === null ? (
-                <span key={`blank-${i}`} aria-hidden="true" />
-              ) : (
-                <DayCell
-                  key={cell.date}
-                  date={cell.date}
-                  day={cell.day}
-                  outOfWindow={cell.disabled}
-                  availability={days.get(cell.date)}
-                  selected={value === cell.date}
-                  isToday={cell.date === today}
-                  onSelect={onSelect}
-                />
-              ),
-            )}
-          </div>
-        )}
-      </div>
-    </section>
+/** What a square or a chip is called: the date, and what it offers. */
+export function dayName(
+  date: string,
+  state: DayAvailability["state"],
+  availability: DayAvailability | undefined,
+): string {
+  /*
+    The accessible name carries everything the cell says, because the visible
+    text is a bare number and "20" tells a screen reader nothing about which
+    month, what it costs, or whether it can be chosen at all.
+  */
+  return [
+    dateLabel(date),
+    state === "full" ? "full" : null,
+    state === "open" && availability?.from
+      ? `from ${formatMoney(availability.from)}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** The dates did not load: said, with the one thing to do about it. */
+export function DatesFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="py-8 text-center">
+      <p className="text-sm font-bold">Dates did not load.</p>
+      <Button variant="outline" size="sm" onClick={onRetry} className="mt-3">
+        Try again
+      </Button>
+    </div>
   );
 }
 
@@ -161,21 +180,7 @@ function DayCell({
 }) {
   const state = outOfWindow ? "none" : (availability?.state ?? "none");
   const open = state === "open";
-
-  /*
-    The accessible name carries everything the square says, because the visible
-    text is a bare number and "20" tells a screen reader nothing about which
-    month, what it costs, or whether it can be chosen at all.
-  */
-  const name = [
-    dateLabel(date),
-    state === "full" ? "full" : null,
-    open && availability?.from
-      ? `from ${formatMoney(availability.from)}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const name = dayName(date, state, availability);
 
   return (
     <button

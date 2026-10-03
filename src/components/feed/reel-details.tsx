@@ -6,7 +6,20 @@ import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
 import { formatDuration } from "@/lib/format/time";
 import { nextDepartureSentence } from "@/lib/feed/availability";
-import { CheckIcon, ArrowRightIcon } from "@/components/ui/icons";
+import {
+  PANEL_DEPARTURES,
+  departureHref,
+  departurePhrase,
+  useNextDepartures,
+  type Departure,
+  type NextDepartures,
+} from "@/lib/feed/next-departures";
+import {
+  CheckIcon,
+  ArrowRightIcon,
+  ChevronRightIcon,
+} from "@/components/ui/icons";
+import { Button } from "@/components/ui/button";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 
@@ -25,9 +38,18 @@ type ExperienceSummary = components["schemas"]["ExperienceSummary"];
  * a traveller asks, and the answer arrives over the reel they are still
  * watching.
  *
- * Everything here comes from the feed's own `ExperienceSummary`. **No request
- * is made and none is possible**, which is why it opens instantly, works
- * offline, and cannot spin.
+ * The title, the price, the facts and the operator's evidence come from the
+ * feed's own `ExperienceSummary`, so they open instantly, offline included.
+ *
+ * ## And the departures, since the redesign (traveller A, 3 Oct 2026)
+ *
+ * The panel used to make no request at all, and so could not do what a
+ * traveller opening it is closest to wanting: pick a departure. Its action
+ * said "See dates" and cost a page load. It now lists the next three open
+ * departures, each one a way straight into checkout on it, read once, on the
+ * first open (`useNextDepartures`, the listing bar's own read and rule). The
+ * instant half never waits for it, and the action falls back to the listing
+ * while the departures are loading, when they failed and when there are none.
  *
  * ## Non-modal, on purpose
  *
@@ -107,6 +129,19 @@ export function ReelDetails({
   }, [open]);
 
   /*
+    Focus goes into the panel when it opens.
+
+    The line that opens it steps aside with the rest of the caption, so the
+    focus it held was left on a control nobody could see, and the next Tab
+    started from somewhere else entirely. The panel is a named group, so a
+    screen reader announces what opened. Closing hands focus back to that line
+    (the card does it, because it owns the line).
+  */
+  useEffect(() => {
+    if (open) ref.current?.focus({ preventScroll: true });
+  }, [open]);
+
+  /*
     Whether there is more below, so the fade is drawn only when it means
     something.
 
@@ -135,6 +170,18 @@ export function ReelDetails({
   const price = formatFromPrice(experience.fromPrice);
   const duration = formatDuration(experience.durationMinutes);
   const departure = nextDepartureSentence(experience);
+  const instant = experience.bookingMode === "allotment";
+  /*
+    Asked only once the panel has been opened, and only for a listing with
+    something on sale: `nextAvailable` absent is the contract saying nothing
+    is bookable in ninety days, and a read to confirm it is a read for nothing.
+  */
+  const departures = useNextDepartures(
+    experience.slug,
+    everOpened && departure.bookable,
+  );
+  const first =
+    departures.state === "open" ? departures.departures[0] : undefined;
 
   return (
     <div
@@ -144,6 +191,8 @@ export function ReelDetails({
       id={id}
       role="group"
       aria-label={`Details, ${experience.title}`}
+      // Focusable by script only, so focus can land here when it opens.
+      tabIndex={-1}
     >
       {/*
         The handle. The 4px bar is the affordance; the CONTROL is 36px tall and
@@ -195,36 +244,34 @@ export function ReelDetails({
               )}
             </p>
 
-            <dl className="reel-sheet-facts">
-              <Fact
-                term="Next departure"
-                value={departure.full}
-                muted={!departure.bookable}
-              />
-              <Fact term="Takes" value={duration} />
-              <Fact
-                term="Booking"
-                value={
-                  experience.bookingMode === "allotment"
-                    ? "Instant, seats held for you"
-                    : "The operator answers first, then you pay"
-                }
-              />
-              {/*
-                `maxPartySize` is NOT here, and that is the information
-                architecture rather than an omission.
+            {/*
+              One line where three facts were: how long, and how booking
+              works, in the listing's own words. The rows it replaced gave
+              their room to the departures, which is what a traveller opening
+              this is closest to wanting, and the panel has a ceiling.
+            */}
+            <p className="reel-sheet-line">
+              {[duration, instant ? "Instant book" : "Operator confirms first"]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
 
-                The study that produced this screen classified it as detail-page
-                information: it matters when a traveller is choosing a date and
-                a party, not when they are deciding whether to look closer. It
-                was in the first cut of this panel anyway, and the real fixtures
-                showed why that was wrong: the extra row pushed the operator's
-                credential line below the fold, and that line is the whole of
-                this product's answer to having no star ratings. The panel has a
-                ceiling, so a row added here is a row taken from somewhere else,
-                and this is the cheapest one to give up.
-              */}
-            </dl>
+            {departure.bookable ? (
+              <Departures
+                state={departures}
+                slug={experience.slug}
+                instant={instant}
+              />
+            ) : (
+              /* The absence, stated: the contract's own ninety days. */
+              <p className="reel-sheet-absent mb-3">{departure.full}</p>
+            )}
+
+            <p className="mb-3">
+              <Link href={href} className="reel-sheet-more">
+                Everything about it
+              </Link>
+            </p>
 
             {/*
           Who runs it, and the evidence.
@@ -237,8 +284,24 @@ export function ReelDetails({
           is no pending state to draw.
         */}
             <div className="reel-sheet-operator">
+              {/*
+                Their page, one tap away (cited in the redesign's before page,
+                3 Oct 2026): the panel named the business and went nowhere.
+                `slug` is required on the summary and guarded anyway; without
+                it the name stays plain text rather than a link to
+                `/o/undefined`.
+              */}
               <p className="reel-sheet-operator-name">
-                {experience.operator.name}
+                {experience.operator.slug ? (
+                  <Link
+                    href={`/o/${experience.operator.slug}`}
+                    className="tap-target decoration-paper/40 hover:decoration-paper underline underline-offset-4"
+                  >
+                    {experience.operator.name}
+                  </Link>
+                ) : (
+                  experience.operator.name
+                )}
               </p>
               {experience.operator.verified ? (
                 <p className="reel-sheet-evidence">
@@ -260,10 +323,29 @@ export function ReelDetails({
         for, so it is the one thing that never leaves the screen.
       */}
           <div className="reel-sheet-foot">
-            <Link href={href} className="reel-sheet-cta">
-              <span>{departure.bookable ? "See dates" : "Have a look"}</span>
-              <ArrowRightIcon />
-            </Link>
+            {/*
+              The first open departure, booked from here, once the panel knows
+              it. Until then, and whenever it cannot know (a failed read, none
+              open), the action is the listing, as it was: this control never
+              waits on the read and never goes nowhere.
+            */}
+            {first ? (
+              <Link
+                href={departureHref(experience.slug, first)}
+                className="reel-sheet-cta"
+              >
+                <span>
+                  {instant ? "Book " : "Ask for "}
+                  {departurePhrase(first)}
+                </span>
+                <ArrowRightIcon />
+              </Link>
+            ) : (
+              <Link href={href} className="reel-sheet-cta">
+                <span>{departure.bookable ? "See dates" : "Have a look"}</span>
+                <ArrowRightIcon />
+              </Link>
+            )}
           </div>
         </>
       ) : null}
@@ -271,20 +353,97 @@ export function ReelDetails({
   );
 }
 
-function Fact({
-  term,
-  value,
-  muted,
+/**
+ * "Coming up": the next open departures, each one a way into checkout on it.
+ *
+ * Every state says something true and none is a dead end: loading is a
+ * skeleton the size of what it will become, a failure says so and offers the
+ * read again (the action below still opens the listing), and none open says
+ * so in words.
+ */
+function Departures({
+  state,
+  slug,
+  instant,
 }: {
-  term: string;
-  value: string | null;
-  muted?: boolean;
+  state: NextDepartures;
+  slug: string;
+  instant: boolean;
 }) {
-  if (!value) return null;
   return (
-    <div className="reel-sheet-fact">
-      <dt className="label text-paper/60">{term}</dt>
-      <dd className={muted ? "text-paper/70" : "text-paper"}>{value}</dd>
-    </div>
+    <section className="reel-sheet-deps" aria-label="Coming up">
+      <p className="reel-sheet-deps-head">
+        <span className="label text-paper/75">Coming up</span>
+        {state.state === "open" ? (
+          <span className="text-paper/70 text-xs">
+            {instant ? "Tap one to book it" : "Tap one to ask"}
+          </span>
+        ) : null}
+      </p>
+
+      {state.state === "open" ? (
+        <ul className="reel-sheet-dep-list">
+          {state.departures.map((d) => (
+            <li key={d.slotId}>
+              <DepartureRow departure={d} slug={slug} instant={instant} />
+            </li>
+          ))}
+        </ul>
+      ) : state.state === "error" ? (
+        <div className="reel-sheet-deps-note">
+          <p>The departures did not load. The listing has them too.</p>
+          <Button
+            variant="outlineOnDark"
+            size="sm"
+            className="mt-2"
+            onClick={state.retry}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : state.state === "none" ? (
+        <p className="reel-sheet-deps-note">Nothing open to book right now.</p>
+      ) : (
+        <div role="status" aria-label="Loading departures">
+          {Array.from({ length: PANEL_DEPARTURES }, (_, i) => (
+            <span
+              key={i}
+              aria-hidden="true"
+              className="reel-sheet-dep-skeleton"
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DepartureRow({
+  departure,
+  slug,
+  instant,
+}: {
+  departure: Departure;
+  slug: string;
+  instant: boolean;
+}) {
+  return (
+    <Link href={departureHref(slug, departure)} className="reel-sheet-dep">
+      {/* The verb, for a screen reader: sighted travellers have the hint. */}
+      {/*
+        Spaces between the parts are real text, so the link's name reads
+        "Book Tomorrow 07:00 3 seats left" and not "Tomorrow07:00". A grid
+        container drops whitespace-only text, so nothing moves on screen.
+      */}
+      <span className="sr-only">{instant ? "Book" : "Ask for"}</span>{" "}
+      <span className="reel-sheet-dep-day">{departure.day}</span>{" "}
+      <span className="reel-sheet-dep-time">{departure.time}</span>{" "}
+      {departure.seats ? (
+        <span className="reel-sheet-dep-seats">{departure.seats}</span>
+      ) : (
+        <span className="reel-sheet-dep-seats" aria-hidden="true" />
+      )}
+      <ChevronRightIcon className="text-paper/60 size-4 shrink-0" />
+    </Link>
   );
 }

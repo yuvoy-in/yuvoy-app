@@ -1167,6 +1167,42 @@ for (const f of files) {
       }
     }
   }
+
+  /* ------- 16b. a checkbox or a radio is a 24px target, at the least ------ */
+
+  /**
+   * An `<input type="checkbox|radio">` drawn smaller than 24px, or with no
+   * size of its own (the browser's default is about 13px).
+   *
+   * WCAG 2.2 AA (2.5.8) asks for 24 by 24. Every tick and radio in checkout
+   * was `size-4`, 16px: the cancellation consent, the marketing opt-in, the
+   * health screener's answers and the operator's yes/no questions, which is
+   * every control a traveller has to get right before they can book (cited in
+   * the redesign's before page, 3 Oct 2026). The label around each one is
+   * clickable too, but a target that is only findable by its words is not one
+   * a thumb can aim at.
+   */
+  for (const f of files) {
+    const src = code(f);
+    for (const m of src.matchAll(/<input[\s/>]/g)) {
+      const attrs = openTag(src, m.index);
+      const kind = /type=["'](checkbox|radio)["']/.exec(attrs)?.[1];
+      if (!kind) continue;
+      const sizes = classTokens(attrs)
+        .map((c) => /^size-(\d+(?:\.\d+)?)$/.exec(c)?.[1])
+        .filter(Boolean)
+        .map((n) => Number(n) * 4);
+      const smallest = sizes.length ? Math.min(...sizes) : null;
+      if (smallest === null || smallest < 24) {
+        problems.push(
+          `${rel(f)}: a ${kind} is ${smallest === null ? "unsized (about 13px)" : `${smallest}px`} — ` +
+            `a tick or a radio is a 24px target at the least (WCAG 2.5.8). ` +
+            `Give it size-6. Every one in checkout was size-4 until the ` +
+            `redesign (3 Oct 2026).`,
+        );
+      }
+    }
+  }
 }
 
 /* --------- 17. every contract error code is one the client recognises ---- */

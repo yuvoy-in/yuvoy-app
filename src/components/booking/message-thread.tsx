@@ -364,16 +364,19 @@ export function MessageThread({
                   : closedBecause(page!.closedReason)}
               </p>
             ) : (
-              <ol
-                ref={listRef}
-                role="log"
-                aria-live="polite"
-                className="mt-4 space-y-4"
-              >
-                {messages.map((message) => (
-                  <Message key={message.id} message={message} />
-                ))}
-              </ol>
+              /*
+                The log is a wrapper, not the list. `role="log"` on the `ol`
+                replaced its list role, so its items were listitems with no
+                list (cited 3 Oct 2026); here the region announces arrivals
+                and the list stays a list.
+              */
+              <div role="log" aria-live="polite" aria-label="Messages">
+                <ol ref={listRef} className="mt-4 space-y-4">
+                  {messages.map((message) => (
+                    <Message key={message.id} message={message} />
+                  ))}
+                </ol>
+              </div>
             )}
 
             {canWrite ? (
@@ -485,7 +488,14 @@ function Message({ message }: { message: BookingMessage }) {
       <div
         className={cn(
           "rounded-card max-w-[85%] px-4 py-3",
-          mine ? "bg-forest text-paper" : "bg-paper-deep text-forest",
+          /*
+            The operator's side on paper with a hairline: the thread sits in a
+            raised panel whose ground IS paper-deep, so a paper-deep bubble was
+            the same colour as what it sat on (cited 3 Oct 2026).
+          */
+          mine
+            ? "bg-forest text-paper"
+            : "border-paper-line bg-paper text-forest border",
         )}
       >
         <p

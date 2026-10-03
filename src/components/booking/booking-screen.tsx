@@ -5,6 +5,7 @@ import { useHasMounted } from "@/lib/react/use-has-mounted";
 import Link from "next/link";
 import { useDocumentTitle } from "@/lib/site/use-document-title";
 import { useBookingStatus } from "@/lib/booking/use-booking-status";
+import { overdueAtCeiling } from "@/lib/booking/poll";
 import { useFragmentToken } from "@/lib/booking/use-fragment-token";
 import { formatMoney } from "@/lib/format/money";
 import { formatAge } from "@/lib/format/time";
@@ -30,8 +31,14 @@ import {
   declineView,
   formatDeparture,
   formatTotal,
+  moneyRowLabel,
   stateCopy,
+  tripWhen,
 } from "./trip-copy";
+import {
+  PicturePlaceholder,
+  PictureStrip,
+} from "@/components/chrome/picture-strip";
 import {
   AnswerBy,
   HandOver,
@@ -68,7 +75,7 @@ export function BookingScreen() {
   // shape rather than "we need your link" and then flipping to the booking.
   if (!mounted)
     return (
-      <Shell>
+      <Shell hero={<PicturePlaceholder />}>
         <Loading />
       </Shell>
     );
@@ -93,7 +100,7 @@ export function BookingScreen() {
 
   if (isPending)
     return (
-      <Shell>
+      <Shell hero={<PicturePlaceholder />}>
         <Loading />
       </Shell>
     );
@@ -102,7 +109,7 @@ export function BookingScreen() {
   // clearly stamped. Never present a saved booking as a live one.
   if (isError && snapshot) {
     return (
-      <Shell>
+      <Shell hero={pictureOf(snapshot.status)}>
         <div
           role="status"
           className="rounded-card border-paper-line bg-paper-deep mb-6 border px-4 py-3 text-xs"
@@ -127,14 +134,23 @@ export function BookingScreen() {
   }
 
   return (
-    <Shell>
+    <Shell hero={pictureOf(data)}>
       <StatusBody
         status={data}
         live={!gaveUp}
         token={token}
         onChanged={() => void refetch()}
       />
-      {gaveUp && !data.final ? <HandOver status={data} /> : null}
+      {/*
+        Only a payment that has not settled is handed to a person
+        (`overdueAtCeiling`). For every other unsettled state the polling
+        stops quietly at the ceiling, and the page still catches up the moment
+        the traveller comes back to it, because the status refetches on focus
+        and on reconnect.
+      */}
+      {gaveUp && !data.final && overdueAtCeiling(data.state) ? (
+        <HandOver status={data} />
+      ) : null}
     </Shell>
   );
 }
@@ -228,6 +244,13 @@ function StatusBody({
     new Date(status.slot.startsAt).getTime() > now;
 
   /*
+    The hour as the headline for a trip still ahead (the approved redesign,
+    3 Oct 2026): "Tomorrow, 07:00" is what somebody opens this page for on the
+    morning, and "You are going" leads the line under it instead.
+  */
+  const when = upcoming ? tripWhen(status.slot, now) : null;
+
+  /*
     Whether "Manage this trip" has anything to hold.
 
     Every control in that region is gated, and on a trip that is over or never
@@ -268,7 +291,7 @@ function StatusBody({
         {declined ? "Not accepted" : copy.eyebrow}
       </p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight sm:text-4xl">
-        {declined ? "Your request was not accepted" : copy.title}
+        {declined ? "Your request was not accepted" : (when ?? copy.title)}
       </h1>
       {/*
         WHY the trip is off — yuvoy-app#22 §2.
@@ -290,7 +313,10 @@ function StatusBody({
         <p className="mt-3 max-w-prose text-sm font-bold">{reason}</p>
       ) : null}
       {body ? (
-        <p className="text-forest/70 mt-3 max-w-prose text-sm">{body}</p>
+        <p className="text-forest/70 mt-3 max-w-prose text-sm">
+          {/* The state's own words lead the line when the hour is the title. */}
+          {when ? `${copy.title}. ${body}` : body}
+        </p>
       ) : null}
 
       {/*
@@ -385,7 +411,13 @@ function StatusBody({
         that they took the money. "The honest version is a quiet line that
         disappears once it flips."
       */}
-      {cashOwed(status) ? (
+      {/*
+        While the trip is going ahead, and only then: a cash booking that was
+        cancelled still carries `payment`, uncollected, and "Bring ₹9,000 in
+        cash" beside "Cancelled" is an instruction to carry money to a trip
+        that is not happening.
+      */}
+      {cashOwed(status) && status.state === "confirmed" ? (
         <Panel className="mt-6">
           <p className="text-base font-bold">
             Bring{" "}
@@ -432,7 +464,7 @@ function StatusBody({
         <dl className="divide-paper-line divide-y text-sm">
           {status.bookingReference ? (
             <Row label="Reference">
-              <span className="font-mono text-lg font-bold tracking-wider">
+              <span className="text-lg font-bold tracking-wider slashed-zero tabular-nums">
                 {status.bookingReference}
               </span>
               <p className="text-forest/70 mt-1 text-xs">
@@ -455,7 +487,14 @@ function StatusBody({
           */}
           <Row label="Experience">
             {status.experience.slug ? (
-              <Link href={`/e/${status.experience.slug}`} className="underline">
+              /*
+                `tap-target`: a link alone in its row is the whole target, and
+                as bare text it was 18px tall (cited 3 Oct 2026).
+              */
+              <Link
+                href={`/e/${status.experience.slug}`}
+                className="tap-target underline"
+              >
                 {status.experience.title}
               </Link>
             ) : (
@@ -518,11 +557,11 @@ function StatusBody({
 
             It used to key on the state, and D-034 made that always false — so
             this row said "Paid ₹9,000" to somebody who had not handed over a
-            rupee. See `cashOwed`.
+            rupee. And it still said "Paid" on a waiting request and on a hold,
+            where nothing had been charged at all (cited 3 Oct 2026). The whole
+            rule is `moneyRowLabel` now, one place, tested state by state.
           */}
-          <Row label={cashOwed(status) ? "To pay on the day" : "Paid"}>
-            {formatTotal(status.price)}
-          </Row>
+          <Row label={moneyRowLabel(status)}>{formatTotal(status.price)}</Row>
         </dl>
       </Panel>
 
@@ -641,7 +680,18 @@ function StatusBody({
       */}
           <AddToCalendar status={status} />
 
-          {token ? <KeepBooking status={status} token={token} /> : null}
+          {/*
+            Its own Share only where the one above is not drawn: both mint the
+            same read-only `/trip/` link, and two Share buttons on one page
+            read as two different things (cited 3 Oct 2026).
+          */}
+          {token ? (
+            <KeepBooking
+              status={status}
+              token={token}
+              offerShare={!(token && upcoming)}
+            />
+          ) : null}
 
           {token && upcoming && !cancelling ? (
             <Button
@@ -773,12 +823,28 @@ function Loading() {
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({
+  children,
+  hero,
+}: {
+  children: React.ReactNode;
+  /** The listing's picture over the top (the approved redesign, 3 Oct 2026). */
+  hero?: React.ReactNode;
+}) {
   return (
-    <Screen back={BACK} stageLabel="Your booking">
+    <Screen back={BACK} stageLabel="Your booking" hero={hero}>
       {children}
     </Screen>
   );
+}
+
+/**
+ * The booked listing's picture, or nothing. `heroImageUrl` is always sent and
+ * `null` when the listing has none, and then the page keeps its plain header.
+ */
+function pictureOf(status: BookingStatus): React.ReactNode {
+  const src = status.experience?.heroImageUrl;
+  return src ? <PictureStrip src={src} /> : undefined;
 }
 
 /**

@@ -12,7 +12,7 @@ export const contentType = "image/png";
  * further than the page it came from, and this project's rule is that nothing
  * is published which is not backed by a record.
  *
- * Set in a system sans rather than Satoshi, matching what yuvoy-web already
+ * Set in a system sans rather than Anek, matching what yuvoy-web already
  * does. Satori needs TTF or OTF and the brand ships woff2 only — the build
  * fails with "Unsupported OpenType signature wOF2" — so the alternative is
  * committing a second copy of the family in another format purely for share

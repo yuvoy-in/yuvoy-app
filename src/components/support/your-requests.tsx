@@ -173,7 +173,7 @@ function RequestRow({ request }: { request: SupportRequest }) {
       {excerpt ? (
         <p className="text-forest/80 mt-2 text-sm">{excerpt}</p>
       ) : null}
-      <p className="text-forest/70 mt-2 font-mono text-xs tracking-wider">
+      <p className="text-forest/70 mt-2 text-xs tracking-wider slashed-zero tabular-nums">
         {request.reference}
         {request.bookingReference ? ` · about ${request.bookingReference}` : ""}
       </p>
