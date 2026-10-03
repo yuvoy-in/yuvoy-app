@@ -17,6 +17,7 @@ import {
 import { ShareLink } from "@/components/ui/share-link";
 import { BookingLayer } from "./booking-layer";
 import { Gallery } from "./gallery";
+import { NextDays } from "./next-days";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -43,6 +44,24 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
   const cancellation = cancellationLine(experience);
   const instant = experience.bookingMode === "allotment";
   const duration = formatDuration(experience.durationMinutes);
+  /*
+    ABSENT MEANS BOOKABLE, and that is not defensive habit: it is a
+    production regression this line already caused once.
+
+    The contract at the pinned commit marks `bookable` required, so this
+    read `experience.bookable` and treated `undefined` as false. But the
+    contract is what MASTER declares, not what `api.yuvoy.in` is running:
+    migration 0053 was merged and not yet deployed, so the live API sent
+    no such field and every listing on production said "not available to
+    book" the moment this shipped.
+
+    A pinned contract says what the API will send, never what it does
+    send today. So the check is `!== false`: absent falls back to the
+    behaviour that was correct before the field existed, which is the
+    only reading that is safe against a deployment lag in either
+    direction.
+  */
+  const bookable = experience.bookable !== false;
   /*
     Everything there is to look at, in one gallery — yuvoy-app#32.
 
@@ -89,24 +108,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
     >
       <BookingLayer
         experience={experience}
-        /*
-          ABSENT MEANS BOOKABLE, and that is not defensive habit — it is a
-          production regression this line already caused once.
-
-          The contract at the pinned commit marks `bookable` required, so this
-          read `experience.bookable` and treated `undefined` as false. But the
-          contract is what MASTER declares, not what `api.yuvoy.in` is running:
-          migration 0053 was merged and not yet deployed, so the live API sent
-          no such field and every listing on production said "not available to
-          book" the moment this shipped.
-
-          A pinned contract says what the API will send, never what it does
-          send today. So the check is `!== false`: absent falls back to the
-          behaviour that was correct before the field existed, which is the
-          only reading that is safe against a deployment lag in either
-          direction.
-        */
-        bookable={experience.bookable !== false}
+        bookable={bookable}
         before={
           <>
             <p className="eyebrow text-terra-deep">{location}</p>
@@ -196,6 +198,12 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                     commit.
                   </p>
                 )}
+
+                {/*
+                  When it next runs, weighed with the price. Inside the
+                  bookable gate: a listing not on sale has no days to name.
+                */}
+                <NextDays slug={experience.slug} bookable={bookable} />
 
                 {/*
                   How it is paid for, before anybody reaches the pay step
