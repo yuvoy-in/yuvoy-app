@@ -19,7 +19,11 @@ import { InviteGuests } from "./invite-guests";
 import { AddToCalendar } from "./add-to-calendar";
 import { KeepBooking } from "./keep-booking";
 import { HelpSection } from "@/components/support/help-section";
-import { cashOwed, cashOwedPaise } from "@/lib/booking/cash-booking";
+import {
+  cashOwed,
+  cashOwedPaise,
+  cashToGetBack,
+} from "@/lib/booking/cash-booking";
 import { ReviewForm } from "./review-form";
 import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -177,6 +181,7 @@ function StatusBody({
     always said. See `declineView`.
   */
   const declined = declineView(status);
+  const cashBack = cashToGetBack(status);
   /*
     A CANCELLED BOOKING THAT PAID NOTHING ONLINE HAS NO REFUND COMING —
     yuvoy-app#48 §2.
@@ -430,6 +435,29 @@ function StatusBody({
           <p className="text-forest/70 mt-1.5 text-sm">
             Pay the operator at the meeting point. The money goes to them, not
             to us, and there is nothing to pay before you arrive.
+          </p>
+        </Panel>
+      ) : null}
+
+      {/*
+        THE CASH A CALLED-OFF TRIP DOES NOT REFUND. The operator is told
+        "Anyone who paid you in cash gets it back from you", and this is the
+        same fact from the traveller's side, so the two screens cannot
+        disagree about one call-off. See `cashToGetBack`.
+      */}
+      {cashBack !== null ? (
+        <Panel className="mt-6">
+          <p className="text-base font-bold">
+            You get your{" "}
+            {formatMoney({
+              amountMinor: cashBack,
+              currency: status.price?.currency ?? "INR",
+            })}{" "}
+            back from the operator
+          </p>
+          <p className="text-forest/70 mt-1.5 text-sm">
+            You paid them in cash, so it never reached us and nothing is
+            refunded online.
           </p>
         </Panel>
       ) : null}
