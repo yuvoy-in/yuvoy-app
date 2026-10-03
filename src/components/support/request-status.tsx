@@ -66,7 +66,7 @@ export function RequestStatus({
   return (
     <div className={className}>
       {showReference ? (
-        <p className="font-mono text-sm tracking-wider">
+        <p className="text-sm tracking-wider slashed-zero tabular-nums">
           Reference {reference}
         </p>
       ) : null}

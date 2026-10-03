@@ -134,7 +134,7 @@ export function MessageSheet({
             receipt feels swallowed; this is "short enough to quote on a call",
             which is exactly what somebody chasing it will do.
           */}
-          <p className="mt-3 font-mono text-sm tracking-wider">
+          <p className="mt-3 text-sm tracking-wider slashed-zero tabular-nums">
             Reference {send.data.reference}
           </p>
         </div>

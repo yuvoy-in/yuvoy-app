@@ -14,6 +14,70 @@
 > token. Everything describing the app says `paper`. A ratio quoted beside `cream` is the
 > marketing site's and has not moved.
 
+## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
+
+**The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,
+Mumbai; SIL OFL 1.1), set in two cuts. Nothing else moves: not the palette, not
+the radius scale, not the chassis, not the type scale.** Approved by the owner
+on 3 Oct 2026 as option 1 ("Jetty board") of the type study in
+`yuvoy/ux-experiments/type.html`, for the app and the operator portal both.
+`yuvoy-web` keeps Fraunces and Satoshi (owner ruling, same day).
+
+### Why
+
+- **It read as AI.** Fraunces is on the design authority's own list of reflex
+  faces, and a soft serif on a light page with a terracotta accent is the exact
+  look it names as the AI default. The colours are locked, so the type was the
+  lever.
+- **Neither old face had a rupee sign.** `Fraunces-Yuvoy.woff2` carried 169
+  characters and `Satoshi-*.woff2` 431, and U+20B9 was in neither (the build
+  script even asked for it; Fraunces upstream does not draw it). Every
+  "₹4,500" in the product drew its ₹ from the phone's system font.
+- **It is a working face.** Tabular figures for times and money, a slashed zero
+  for references read aloud at the jetty, a condensed width for headlines that
+  reads like the boards at the jetty, and Devanagari, Bangla, Tamil and Telugu
+  siblings when the product is localised.
+
+### The two cuts (`src/lib/fonts.ts`, built by `scripts/build-fonts.py`)
+
+| Cut                        | What                                      | Size    | Loads      | Sets                                       |
+| -------------------------- | ----------------------------------------- | ------- | ---------- | ------------------------------------------ |
+| `Anek-Yuvoy.woff2`         | width 100, **variable weight 400-700**    | 57.7 KB | `swap`     | body, UI, labels: 400, 500, 700            |
+| `Anek-Yuvoy-Display.woff2` | width 75, weight 700, **baked 12% large** | 16.0 KB | `optional` | `font-display`: headlines, titles, figures |
+
+Together 74 KB against the 88 KB of the four files they replace.
+
+- **The display cut is registered at weight 400**, exactly as the Fraunces cut
+  was, so `font-display` at the default weight is still the one display voice and
+  no class changed. `palette.test.ts` still bans `font-display` with any heavier
+  weight: the browser would synthesise a bolder copy of a face already bold.
+- **The 12% is baked into the file** (`unitsPerEm` 2000 to 1786), not declared
+  with `size-adjust`. A condensed face reads small at sizes tuned for a normal
+  width, and next/font builds its metric-matched fallback from the file: a
+  declared adjustment would leave the fallback 12% smaller than the face, and
+  with `optional` a slow first visit keeps the fallback for the whole page.
+- **The text face is one variable file**, not three static cuts: one request
+  and fewer bytes for three weights. `font-semibold` stays banned (three weights,
+  not a continuum).
+- **The display cut keeps the Fraunces cut's character range** (Latin-1) because
+  it is the feed's LCP element; the text face adds Latin Extended-A for names.
+- `--tracking-display` is `0em` (was -0.01em for Fraunces). There is no turn in
+  the app, so `--font-weight-turn` is gone; the italic was never shipped here.
+
+### References
+
+Customer-facing references (bookings, support requests) are set in the text face
+with `tabular-nums slashed-zero`, replacing the system monospace: an even rhythm
+and a zero nobody reads as O. Codes being typed (sign-in, invite) and the small
+technical error ids keep the system monospace.
+
+### What it is enforced by
+
+`src/lib/fonts.test.ts` reads the cmap of both shipped files and fails if
+either cannot draw the rupee sign, the digits or the alphabet (and the text
+face the accented letters names use). It was proved against the old Satoshi
+file: it reports `₹ U+20B9` missing.
+
 ## v2.9 (2026-09-15, product-directed) — the app and the portal are white
 
 **The change: the cream surface trio becomes a white one, and is renamed
@@ -340,6 +404,9 @@ asserts it equals `--color-forest`.
 
 ### The display face is baked, and loads `optional` (v2.6)
 
+> **Superseded by v3.0** (Anek Latin). The reasoning for `optional` still holds and carried over;
+> the file and its numbers below are Fraunces's.
+
 The app ships **`Fraunces-Yuvoy.woff2`, 13 KB** — the upstream variable font
 instanced to the exact axis values §2 already pins (`opsz` 144, `SOFT` 75,
 `WONK` 0) at weight 400, then subset. Letterforms are identical; four axes of
@@ -362,6 +429,8 @@ headline is not in Fraunces.** For somebody standing on a jetty trying to book
 a boat, that is the right way round.
 
 ### The turn is not shipped in the app (v2.6)
+
+> **v3.0:** there is no italic and no turn in the app at all; `--font-weight-turn` was removed.
 
 The italic "turn" — the second thought of a headline, set in `italic font-turn`
 with the terracotta accent — is the marketing site's most recognisable
@@ -538,9 +607,10 @@ Borders and fills are exempt from these floors — `border-forest/20`, `bg-fores
 
 ## 2. Typography
 
-- **Display — Fraunces, the Yuvoy cut** (`font-display`; variable, axes pinned by the utility). Headlines are set large and light (`font-normal tracking-display`, leading ≈1.02–1.05) — character comes from the letterforms, never from shouting. `font-medium`/`font-semibold`/`font-bold` must never appear with `font-display`: the display system is exactly two voices — `font-normal` (400) upright, and the turn at `italic font-turn` (480). `font-semibold` is banned everywhere (Satoshi ships no 600). **The italic terracotta turn** — the second thought of a headline, `italic font-turn` + accent colour — is the brand's most recognisable typographic move, and since v2.5 it is a **true drawn italic** (Fraunces ships the file). Italic remains reserved for turns inside display type; body text never slants — Satoshi has no italic file and emphasis there is `font-bold` upright.
-- **UI / body — Satoshi** (`font-sans`, the default), weights 400 / 500 / 700. There is no 600, so `font-semibold` must never appear on body text (the browser would synthesise it). Emphasis in running text is `font-bold`.
-- **Label — Satoshi** via the `label` utility: uppercase, `text-xs`, `font-medium`, `tracking-label` (0.18em). Eyebrows, nav, stats, metadata, button labels. The mono was retired in v2.3 — it read as terminal, not magazine.
+- **Display: Anek Latin, the Yuvoy display cut** (`font-display`; v3.0). The condensed bold (width 75, weight 700), baked 12% large and registered at 400, so `font-display` at the default weight is the only display voice. Headlines, reel titles and big figures are set large and tight (`tracking-display` 0em, leading ≈1.02-1.05). `font-medium`/`font-semibold`/`font-bold` must never appear with `font-display`: it is already bold, and the browser would synthesise a heavier copy. The app sets no italic and no turn.
+- **UI / body: Anek Latin** (`font-sans`, the default), normal width, weights 400 / 500 / 700 from one variable file. `font-semibold` must never appear: three weights, not a continuum. Emphasis in running text is `font-bold`.
+- **Label: Anek Latin** via the `label` utility: uppercase, `text-xs`, `font-medium`, `tracking-label` (0.18em). Eyebrows, nav, stats, metadata, button labels.
+- **References**: bookings and support references take `tabular-nums slashed-zero` in the text face (v3.0). Codes being typed and technical error ids keep the system monospace.
 - **`eyebrow` utility** — the `label` preceded by a terracotta dot, the same square `size-1` marker the fact rows use (a hairline rule until 2026-08-05, replaced by owner direction). This is the section-opening gesture; **use it once per section**, at the top. Eyebrows are plain phrases: no act numbering (owner direction 2026-08-03). The one exception is the cover: the hero's opening line is a plain `label` with no marker (owner direction 2026-08-05).
 - **Wordmark** — ensō + terra dot and the tracked YUVOY caps, side by side. **No strapline, on any surface** (owner, 14 Sep 2026, yuvoy-app#36): it was on the feed, search, trips, account, every listing header, the desktop rail, the home-screen name and the share card's alt, and it is now on none of them. `<Wordmark />` takes a `tone` and nothing else; the second drawing was deleted rather than left behind a prop, because a default is how a removed thing comes back. Two tone variants because a paper ensō is invisible on paper (the §1 pairings). Generated by `scripts/generate-feed-lockup.mjs` from the delivered lockup **in yuvoy-web**, which this repo no longer keeps a copy of. Never hand-edit the generated SVGs; re-run the script after a redelivery. `src/components/ui/wordmark.guard.test.ts` fails the build if either the strapline or the delivered art comes back under `src` or `public`.
 - **Punctuation** — rendered copy never uses an em dash. Prefer a period, a colon, a comma or a parenthetical; ranges and pairings use a middot (owner direction 2026-08-03). Code comments are exempt. Since 2026-09-12 the ban covers every long dash (em U+2014, en U+2013, horizontal bar U+2015) and a range takes a plain hyphen, enforced by `pnpm check:dashes`, which runs first in `pnpm lint` and blanks comments before it looks; text from the API is stripped at the boundary instead, in `src/lib/format/dedash.ts`.
@@ -552,7 +622,7 @@ Borders and fills are exempt from these floors — `border-forest/20`, `bg-fores
   - **Delivered masters live in `design/brand-source/` and `design/photography-source/`, never under `public/`** (2026-08-07): anything in `public/` is deployed and publicly fetchable, and 4.6MB of print-weight PNGs were shipping on every deploy for no reason. Scripts read them from there.
 - **Vector assets** are derived from the delivered master `public/yuvoy-logo-vector.svg` by `scripts/generate-vector-brand.mjs`: `public/brand/yuvoy-mark-vector-{paper,forest}.svg`, `public/brand/yuvoy-lockup-vector-{paper,forest}.svg`, and the intro's per-letter module `src/components/brand/yuvoy-letter-paths.ts`. The tagline is stripped from all of them, and the delivered colours are re-expressed as tokens (paper or forest strokes, `terra` dot). Never hand-edit the outputs; re-run the script.
 
-Scale: Tailwind's type scale. Headlines `font-display`; everything else inherits Satoshi unless it is a label.
+Scale: Tailwind's type scale. Headlines `font-display`; everything else inherits the text face unless it is a label.
 
 ## 3. Motion
 

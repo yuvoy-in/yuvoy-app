@@ -432,7 +432,7 @@ function StatusBody({
         <dl className="divide-paper-line divide-y text-sm">
           {status.bookingReference ? (
             <Row label="Reference">
-              <span className="font-mono text-lg font-bold tracking-wider">
+              <span className="text-lg font-bold tracking-wider slashed-zero tabular-nums">
                 {status.bookingReference}
               </span>
               <p className="text-forest/70 mt-1 text-xs">

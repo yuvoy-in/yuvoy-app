@@ -12,7 +12,7 @@ import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { ReelGrid } from "@/components/feed/reel-grid";
 import { Panel } from "@/components/ui/panel";
-import { ChevronRightIcon } from "@/components/ui/icons";
+import { CheckIcon, ChevronRightIcon } from "@/components/ui/icons";
 
 /**
  * T-op — a business, and everything it sells (yuvoy-app#30).
@@ -147,11 +147,12 @@ export function OperatorScreen({
             */}
             {profile.verified ? (
               <span
-                className="bg-forest text-paper inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs"
+                className="bg-forest text-paper inline-flex size-5 shrink-0 items-center justify-center rounded-full"
                 role="img"
                 aria-label="Credentials verified by Yuvoy"
               >
-                ✓
+                {/* The icon, not a ✓ character: the type has no tick glyph. */}
+                <CheckIcon className="size-3.5" strokeWidth={2.5} />
               </span>
             ) : null}
           </h1>
