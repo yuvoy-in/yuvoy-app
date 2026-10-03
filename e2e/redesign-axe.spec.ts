@@ -55,10 +55,17 @@ test("search results that say what they are", async ({ page }) => {
 
 test("saves, as a grid and as a reel", async ({ page }) => {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: /^Save / })
-    .first()
-    .click();
+  const save = page.getByRole("button", { name: /^Save / }).first();
+  const title = ((await save.getAttribute("aria-label")) ?? "").replace(
+    /^Save /,
+    "",
+  );
+  await save.click();
+  // The save is written on the device after the tap; wait for it to land
+  // before leaving, as saved-sync does, or /saved can open on nothing.
+  await expect(
+    page.getByRole("button", { name: `Saved. Remove ${title}` }).first(),
+  ).toBeVisible();
   await page.goto("/saved");
   await expect(page.getByRole("link", { name: "Play them" })).toBeVisible();
   await expectAccessible(page);
