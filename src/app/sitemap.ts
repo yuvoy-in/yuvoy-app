@@ -10,6 +10,13 @@ import type { components } from "@/lib/api/schema.gen";
 const MAX_LISTING_PAGES = 20;
 
 /**
+ * Listings per page: the contract's most (`Limit`, 1 to 50). The first
+ * version asked for 100, which the API refuses with a 400, so production
+ * would have listed no business at all; the mock now refuses it too.
+ */
+const LISTINGS_PAGE = 50;
+
+/**
  * The sitemap.
  *
  * Derived from the same sources the pages are — the catalog index and the
@@ -90,7 +97,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     let cursor: string | undefined;
     for (let page = 0; page < MAX_LISTING_PAGES; page += 1) {
       const { data, error } = await api.GET("/experiences", {
-        params: { query: { limit: 100, ...(cursor ? { cursor } : {}) } },
+        params: {
+          query: { limit: LISTINGS_PAGE, ...(cursor ? { cursor } : {}) },
+        },
       });
       if (error || !data) break;
       listings.push(...data.items);
