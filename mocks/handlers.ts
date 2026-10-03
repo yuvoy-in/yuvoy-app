@@ -247,12 +247,32 @@ export const handlers = [
       honoured when asked for, because the contract takes it and the Search
       tab's chip rail depends on one read returning the catalogue rather than
       the first two rows of it.
+
+      And REFUSED outside the contract's 1 to 50, with the API's own 400 and
+      words, never quietly paged at two. Clamping is what let the sitemap ask
+      for 100 here, page happily, and list no business in production, where
+      the same request is a 400 (yuvoy-app#116).
     */
     const cursor = u.searchParams.get("cursor");
     const start = cursor ? Number(atob(cursor)) : 0;
-    const asked = Number(u.searchParams.get("limit") ?? "");
-    const pageSize =
-      Number.isInteger(asked) && asked >= 1 && asked <= 50 ? asked : 2;
+    const rawLimit = u.searchParams.get("limit");
+    const asked = Number(rawLimit);
+    if (
+      rawLimit !== null &&
+      (!/^\d+$/.test(rawLimit) || asked < 1 || asked > 50)
+    ) {
+      return HttpResponse.json(
+        {
+          error: {
+            code: "invalid_input",
+            message: "limit must be a whole number between 1 and 50",
+            details: { limit: rawLimit },
+          },
+        },
+        { status: 400, headers: mockHeaders(requestId()) },
+      );
+    }
+    const pageSize = rawLimit === null ? 2 : asked;
     const page = items.slice(start, start + pageSize);
     const next = start + pageSize;
     const complete = next >= items.length;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { components } from "@/lib/api/schema.gen";
 
 /**
  * The guide record.
@@ -11,6 +12,35 @@ import { z } from "zod";
  */
 
 export const GUIDE_STATUS = ["draft", "review", "published"] as const;
+
+type Category = components["schemas"]["Category"];
+
+/**
+ * The contract's twelve categories, for a guide's `listings` filter. Checked
+ * against the contract both ways, so neither can grow without the other.
+ */
+const CATEGORIES = [
+  "adventure",
+  "nature_wildlife",
+  "food_drink",
+  "arts_creativity",
+  "learning",
+  "culture_heritage",
+  "wellness",
+  "entertainment",
+  "community",
+  "sports",
+  "local_life",
+  "events",
+] as const satisfies readonly Category[];
+// Fails to compile when the contract adds a category this list lacks.
+const everyCategory: Exclude<
+  Category,
+  (typeof CATEGORIES)[number]
+> extends never
+  ? true
+  : false = true;
+void everyCategory;
 
 export const guideFrontmatter = z.object({
   title: z.string().min(8).max(70),
@@ -54,6 +84,29 @@ export const guideFrontmatter = z.object({
 
   /** Slugs of related guides. Prevents orphans — see the index page. */
   related: z.array(z.string()).optional(),
+  /**
+   * The listings a guide leads to, by the filters Search uses (yuvoy-app#116
+   * item 4). A guide used to end with no way to book the thing it explained,
+   * so the funnel only went backwards.
+   *
+   * A filter, never a list of slugs: a named listing goes stale the day it
+   * stops selling, a filter finds whatever runs now. `activityType` is the
+   * precise one ("scuba", not every "adventure"), and it grows by INSERT, so
+   * it is a word here rather than an enum. A guide with no matching live
+   * listing shows nothing.
+   */
+  listings: z
+    .object({
+      category: z.enum(CATEGORIES).optional(),
+      activityType: z
+        .string()
+        .regex(/^[a-z][a-z_]*$/, "activityType is a key, like scuba")
+        .optional(),
+    })
+    .refine((f) => f.category !== undefined || f.activityType !== undefined, {
+      message: "listings needs a category or an activityType",
+    })
+    .optional(),
 
   /**
    * The lead image, and the three things it may not ship without.

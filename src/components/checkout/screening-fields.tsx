@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/cn";
 import { Panel } from "@/components/ui/panel";
+import { buttonVariants } from "@/components/ui/button";
+import { SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/support/phone";
 import type { components } from "@/lib/api/schema.gen";
 
 type Safety = components["schemas"]["SafetyRequirements"];
@@ -154,6 +156,22 @@ export function ScreeningFields({
                 before you book, so nobody is turned away at the jetty. Nothing
                 has been booked and nothing has been charged.
               </p>
+              {/*
+                The way to have that word (yuvoy-app#116 item 2). It told a
+                traveller to talk and offered no way to. The call goes to Yuvoy,
+                who speaks to the operator: an operator's own number is never
+                shown to travellers. A phone call because it needs no WhatsApp
+                and no session, and this traveller may be a guest.
+              */}
+              <a
+                href={SUPPORT_PHONE_HREF}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "md" }),
+                  "mt-3",
+                )}
+              >
+                Call Yuvoy on {SUPPORT_PHONE}
+              </a>
             </Panel>
           ) : null}
         </fieldset>

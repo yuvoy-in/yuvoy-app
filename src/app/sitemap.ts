@@ -3,6 +3,18 @@ import { publishedGuides } from "@/lib/guides/guides";
 import { createApiClient } from "@/lib/api/client";
 import { SITE_URL } from "@/lib/site/metadata";
 import { SITEMAP_FIXED_ROUTES } from "@/lib/site/inventory";
+import { businessEntries } from "@/lib/site/business-sitemap";
+import type { components } from "@/lib/api/schema.gen";
+
+/** Pages of listings read for the businesses: far past any season's count. */
+const MAX_LISTING_PAGES = 20;
+
+/**
+ * Listings per page: the contract's most (`Limit`, 1 to 50). The first
+ * version asked for 100, which the API refuses with a 400, so production
+ * would have listed no business at all; the mock now refuses it too.
+ */
+const LISTINGS_PAGE = 50;
 
 /**
  * The sitemap.
@@ -51,9 +63,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // the build — a sitemap missing the experiences is recoverable, a broken
   // deploy is not.
   let experiences: MetadataRoute.Sitemap = [];
+  const lastModifiedBySlug = new Map<string, Date>();
+  const api = createApiClient();
   try {
-    const api = createApiClient();
     const { data } = await api.GET("/catalog/index", {});
+    for (const e of data?.entries ?? []) {
+      if (e.kind === "experience") {
+        lastModifiedBySlug.set(e.slug, new Date(e.lastModified));
+      }
+    }
     experiences = (data?.entries ?? [])
       .filter((e) => e.kind === "experience" && e.hasBookableDates)
       .map((e) => ({
@@ -66,5 +84,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Left empty on purpose. See above.
   }
 
-  return [...stat, ...guides, ...experiences];
+  /*
+    The businesses, from the listings on sale (yuvoy-app#116 item 5; see
+    `businessEntries`). Paged to the end the API says, never inferred from a
+    short page, and capped so a cursor that never ends cannot hang a build.
+    The same rule as above: a failure leaves them out and never fails the
+    build.
+  */
+  let businesses: MetadataRoute.Sitemap = [];
+  try {
+    const listings: components["schemas"]["ExperienceSummary"][] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < MAX_LISTING_PAGES; page += 1) {
+      const { data, error } = await api.GET("/experiences", {
+        params: {
+          query: { limit: LISTINGS_PAGE, ...(cursor ? { cursor } : {}) },
+        },
+      });
+      if (error || !data) break;
+      listings.push(...data.items);
+      if (data.complete || !data.nextCursor) break;
+      cursor = data.nextCursor;
+    }
+    businesses = businessEntries(listings, lastModifiedBySlug, BASE, now);
+  } catch {
+    // Left empty on purpose. See above.
+  }
+
+  return [...stat, ...guides, ...experiences, ...businesses];
 }

@@ -173,6 +173,14 @@ export const qk = {
    */
   searchReels: (filterKey: string) =>
     ["listReels", "search", filterKey] as const,
+  /**
+   * The listings at the foot of a guide (yuvoy-app#116 item 4): one read of
+   * the feed, narrowed by the guide's own filter. Both axes are in the key,
+   * so two guides that differ in either never share an entry. A plain list,
+   * not pages: a guide shows three.
+   */
+  guideListings: (category?: string, activityType?: string) =>
+    ["listReels", "guide", category ?? "", activityType ?? ""] as const,
   experience: (slug: string) => ["getExperience", slug] as const,
   /** A business and its whole first paint — yuvoy-app#30. */
   operator: (slug: string) => ["getOperator", slug] as const,
