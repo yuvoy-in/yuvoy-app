@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { BookScreen } from "@/components/checkout/book-screen";
-import { PicturePlaceholder } from "@/components/checkout/checkout-picture";
+import { PicturePlaceholder } from "@/components/chrome/picture-strip";
 import { LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { gatedRoute } from "@/components/auth/gated-route";

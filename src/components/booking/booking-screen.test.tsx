@@ -6,6 +6,7 @@ import { BookingScreen } from "./booking-screen";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 import { registerPaymentAdapter } from "@/lib/booking/payment-handoff";
+import { tripWhen } from "./trip-copy";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -33,6 +34,88 @@ function statusBody(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => setHash("#t=tok_test"));
+
+/**
+ * The trip page's head (the approved redesign, traveller A, 3 Oct 2026): the
+ * listing's picture over the top, and the hour as the headline for a trip
+ * still ahead. `tripWhen`'s own rules are in `trip-copy.test.ts`; these pin
+ * that the screen uses them.
+ */
+describe("the trip page's head", () => {
+  it("says the hour as the headline for a trip still ahead", async () => {
+    const slot = {
+      startsAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
+      timezone: "Asia/Kolkata",
+    };
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ slot, final: false })),
+      ),
+    );
+    renderWithQuery(<BookingScreen />);
+
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent(tripWhen(slot, Date.now())!);
+    // The state's own words lead the line under it.
+    expect(screen.getByText(/^You are going\. /)).toBeInTheDocument();
+  });
+
+  it("keeps its words for a trip that has already left", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody()),
+      ),
+    );
+    renderWithQuery(<BookingScreen />);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "You are going" }),
+    ).toBeInTheDocument();
+  });
+
+  it("draws the listing's picture over the top, and nothing when it has none", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            experience: {
+              slug: "try-dive-nemo-reef",
+              title: "Try-dive at Nemo Reef",
+              operator: "Sample Dive Operator",
+              operatorSlug: "sample-dive-operator",
+              heroImageUrl:
+                "https://videodelivery.net/abc/thumbnails/thumbnail.jpg",
+            },
+          }),
+        ),
+      ),
+    );
+    const { container, unmount } = renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(
+      container.querySelector('img[src*="videodelivery.net"]'),
+    ).not.toBeNull();
+    unmount();
+
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({
+            experience: {
+              slug: "try-dive-nemo-reef",
+              title: "Try-dive at Nemo Reef",
+              operator: "Sample Dive Operator",
+              operatorSlug: "sample-dive-operator",
+              heroImageUrl: null,
+            },
+          }),
+        ),
+      ),
+    );
+    const again = renderWithQuery(<BookingScreen />);
+    await screen.findByText(/Try-dive at Nemo Reef/);
+    expect(again.container.querySelector("img")).toBeNull();
+  });
+});
 
 describe("BookingScreen", () => {
   it("renders a confirmed booking with everything needed for the day", async () => {

@@ -33,7 +33,12 @@ import {
   formatTotal,
   moneyRowLabel,
   stateCopy,
+  tripWhen,
 } from "./trip-copy";
+import {
+  PicturePlaceholder,
+  PictureStrip,
+} from "@/components/chrome/picture-strip";
 import {
   AnswerBy,
   HandOver,
@@ -70,7 +75,7 @@ export function BookingScreen() {
   // shape rather than "we need your link" and then flipping to the booking.
   if (!mounted)
     return (
-      <Shell>
+      <Shell hero={<PicturePlaceholder />}>
         <Loading />
       </Shell>
     );
@@ -95,7 +100,7 @@ export function BookingScreen() {
 
   if (isPending)
     return (
-      <Shell>
+      <Shell hero={<PicturePlaceholder />}>
         <Loading />
       </Shell>
     );
@@ -104,7 +109,7 @@ export function BookingScreen() {
   // clearly stamped. Never present a saved booking as a live one.
   if (isError && snapshot) {
     return (
-      <Shell>
+      <Shell hero={pictureOf(snapshot.status)}>
         <div
           role="status"
           className="rounded-card border-paper-line bg-paper-deep mb-6 border px-4 py-3 text-xs"
@@ -129,7 +134,7 @@ export function BookingScreen() {
   }
 
   return (
-    <Shell>
+    <Shell hero={pictureOf(data)}>
       <StatusBody
         status={data}
         live={!gaveUp}
@@ -239,6 +244,13 @@ function StatusBody({
     new Date(status.slot.startsAt).getTime() > now;
 
   /*
+    The hour as the headline for a trip still ahead (the approved redesign,
+    3 Oct 2026): "Tomorrow, 07:00" is what somebody opens this page for on the
+    morning, and "You are going" leads the line under it instead.
+  */
+  const when = upcoming ? tripWhen(status.slot, now) : null;
+
+  /*
     Whether "Manage this trip" has anything to hold.
 
     Every control in that region is gated, and on a trip that is over or never
@@ -279,7 +291,7 @@ function StatusBody({
         {declined ? "Not accepted" : copy.eyebrow}
       </p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight sm:text-4xl">
-        {declined ? "Your request was not accepted" : copy.title}
+        {declined ? "Your request was not accepted" : (when ?? copy.title)}
       </h1>
       {/*
         WHY the trip is off — yuvoy-app#22 §2.
@@ -301,7 +313,10 @@ function StatusBody({
         <p className="mt-3 max-w-prose text-sm font-bold">{reason}</p>
       ) : null}
       {body ? (
-        <p className="text-forest/70 mt-3 max-w-prose text-sm">{body}</p>
+        <p className="text-forest/70 mt-3 max-w-prose text-sm">
+          {/* The state's own words lead the line when the hour is the title. */}
+          {when ? `${copy.title}. ${body}` : body}
+        </p>
       ) : null}
 
       {/*
@@ -808,12 +823,28 @@ function Loading() {
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({
+  children,
+  hero,
+}: {
+  children: React.ReactNode;
+  /** The listing's picture over the top (the approved redesign, 3 Oct 2026). */
+  hero?: React.ReactNode;
+}) {
   return (
-    <Screen back={BACK} stageLabel="Your booking">
+    <Screen back={BACK} stageLabel="Your booking" hero={hero}>
       {children}
     </Screen>
   );
+}
+
+/**
+ * The booked listing's picture, or nothing. `heroImageUrl` is always sent and
+ * `null` when the listing has none, and then the page keeps its plain header.
+ */
+function pictureOf(status: BookingStatus): React.ReactNode {
+  const src = status.experience?.heroImageUrl;
+  return src ? <PictureStrip src={src} /> : undefined;
 }
 
 /**

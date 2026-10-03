@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { declineView, moneyRowLabel } from "./trip-copy";
+import { declineView, moneyRowLabel, tripWhen } from "./trip-copy";
 import type { components } from "@/lib/api/schema.gen";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
@@ -152,5 +152,42 @@ describe("moneyRowLabel", () => {
     expect(moneyRowLabel({ state: "rebooked" as BookingStatus["state"] })).toBe(
       "Total",
     );
+  });
+});
+
+describe("tripWhen", () => {
+  const IST = "Asia/Kolkata";
+  // 10:00 IST on Thursday 15 October 2026.
+  const NOW = Date.parse("2026-10-15T04:30:00Z");
+
+  it("says today and tomorrow in words, with the hour", () => {
+    expect(
+      tripWhen({ startsAt: "2026-10-15T10:00:00Z", timezone: IST }, NOW),
+    ).toBe("Today, 15:30");
+    expect(
+      tripWhen({ startsAt: "2026-10-16T01:30:00Z", timezone: IST }, NOW),
+    ).toBe("Tomorrow, 07:00");
+  });
+
+  it("names the day further out", () => {
+    expect(
+      tripWhen({ startsAt: "2026-10-17T01:30:00Z", timezone: IST }, NOW),
+    ).toBe("Sat, 17 Oct, 07:00");
+  });
+
+  it("reads both days in the trip's zone, not the device's", () => {
+    // 23:30 UTC on the 15th is 05:00 IST on the 16th: tomorrow, in Havelock.
+    expect(
+      tripWhen({ startsAt: "2026-10-15T23:30:00Z", timezone: IST }, NOW),
+    ).toBe("Tomorrow, 05:00");
+  });
+
+  it("is null for a zone it cannot read, so the page keeps its words", () => {
+    expect(
+      tripWhen(
+        { startsAt: "2026-10-16T01:30:00Z", timezone: "Nowhere/Atlantis" },
+        NOW,
+      ),
+    ).toBeNull();
   });
 });
