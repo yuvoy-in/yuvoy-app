@@ -60,6 +60,53 @@ test.describe("the gallery", () => {
   });
 });
 
+test.describe("the far side", () => {
+  /*
+    The approved redesign (traveller A, 3 Oct 2026): on a phone the picture
+    stays where it is and the sheet scrolls up over it, with Back and Share
+    floating above both. From `lg` up nothing slides and the page scrolls as
+    one, as it always did.
+  */
+  test("the picture stays put on a phone, and Back stays in reach", async ({
+    page,
+  }) => {
+    await page.goto(INSTANT);
+    const gallery = page.getByRole("group", {
+      name: /Photographs and clips of/,
+    });
+    await expect(gallery).toBeVisible();
+    const back = page.getByRole("link", { name: "Back to the feed" });
+    const phone = (page.viewportSize()?.width ?? 0) < 1024;
+
+    await page.evaluate(() => window.scrollTo(0, 400));
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(300);
+
+    const picture = await gallery.boundingBox();
+    if (!phone) {
+      expect(picture!.y).toBeLessThan(-300);
+      await expect(back).not.toBeInViewport();
+      return;
+    }
+
+    expect(Math.round(picture!.y)).toBe(0);
+    // The sheet has risen over it.
+    const heading = page.getByRole("heading", { level: 1 });
+    expect((await heading.boundingBox())!.y).toBeLessThan(picture!.height);
+
+    // Back is on screen AND is what a tap there lands on, not the sheet.
+    await expect(back).toBeInViewport();
+    const box = (await back.boundingBox())!;
+    const hit = await page.evaluate(
+      ([x, y]) =>
+        document.elementFromPoint(x, y)?.closest("a")?.getAttribute("href"),
+      [box.x + box.width / 2, box.y + box.height / 2],
+    );
+    expect(hit).toBe("/");
+  });
+});
+
 test.describe("one button, and it opens checkout", () => {
   /*
     yuvoy-app#62 deleted three things from this page: a "Pick a day" pop-up
@@ -77,18 +124,26 @@ test.describe("one button, and it opens checkout", () => {
     await expect(page.getByText(/How many of you/i)).toHaveCount(0);
   });
 
-  test("opens checkout with nothing chosen, for both booking modes", async ({
+  test("opens checkout on the day it names, for both booking modes", async ({
     page,
   }) => {
     /*
       The divergence this issue ended. Request mode used to answer in a sheet on
       this page while allotment mode went to checkout, so the two had different
       flows, different validation and different copy for the same act.
+
+      It carries the day the bar names and nothing else (the approved redesign,
+      3 Oct 2026). Checkout then chooses the departure itself when only one is
+      open that day, which is why the URL may grow a `slot` after it lands.
     */
     for (const listing of [REQUEST, INSTANT]) {
       await page.goto(listing);
+      const bar = page.locator("div.sticky", {
+        has: page.getByRole("link", { name: /^Pick a day/ }),
+      });
+      await expect(bar).toContainText("Next open: Thu, 20 Aug");
       await page.getByRole("link", { name: /^Pick a day/ }).click();
-      await page.waitForURL(new RegExp(`${listing}/book$`));
+      await page.waitForURL(new RegExp(`${listing}/book\\?date=2026-08-20`));
     }
   });
 
@@ -114,12 +169,14 @@ test.describe("one button, and it opens checkout", () => {
     await expect(bar).toContainText("Next open: Thu, 20 Aug");
 
     await page.getByRole("link", { name: /^Pick a day/ }).click();
-    await page.waitForURL(/\/book$/);
+    await page.waitForURL(/\/book\?date=2026-08-20/);
     const firstOpen = page
       .getByRole("region", { name: "Pick a day" })
       .locator("button[aria-pressed]:not([disabled])")
       .first();
     await expect(firstOpen).toHaveAttribute("aria-label", /^Thu 20 Aug/);
+    // And it is the day already chosen: the traveller does not find it twice.
+    await expect(firstOpen).toHaveAttribute("aria-pressed", "true");
   });
 
   test("a request listing's bar carries them too", async ({ page }) => {
@@ -149,7 +206,7 @@ test.describe("how it is paid for", () => {
       ).toBeVisible();
 
       await page.getByRole("link", { name: /^Pick a day/ }).click();
-      await page.waitForURL(/\/book$/);
+      await page.waitForURL(/\/book(\?|$)/);
       await expect(
         page.getByText("Pay at the counter on the day"),
       ).toBeVisible();
@@ -185,7 +242,7 @@ test.describe("choosing a departure on checkout", () => {
   test("the calendar is accessible", async ({ page }) => {
     await page.goto(INSTANT);
     await page.getByRole("link", { name: /^Pick a day/ }).click();
-    await page.waitForURL(/\/book$/);
+    await page.waitForURL(/\/book(\?|$)/);
     await expect(
       page.getByRole("region", { name: "Pick a day" }),
     ).toBeVisible();

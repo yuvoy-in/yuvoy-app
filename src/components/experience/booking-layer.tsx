@@ -5,7 +5,11 @@ import { StickyBar } from "@/components/ui/sticky-bar";
 import { Button, ButtonArrow, ButtonLink } from "@/components/ui/button";
 import { Skeleton } from "@/components/states";
 import { formatFromPrice } from "@/lib/format/money";
-import { nextOpenSentence, useNextOpenDay } from "@/lib/booking/next-open-day";
+import {
+  type NextOpenDay,
+  nextOpenSentence,
+  useNextOpenDay,
+} from "@/lib/booking/next-open-day";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -128,7 +132,7 @@ export function BookingLayer({
               </div>
             </div>
             <ButtonLink
-              href={`/e/${experience.slug}/book`}
+              href={pickADayHref(experience.slug, next)}
               size="lg"
               className="shrink-0"
             >
@@ -149,4 +153,18 @@ export function BookingLayer({
       </StickyBar>
     </>
   );
+}
+
+/**
+ * Checkout, opened on the day the bar names (the approved redesign, traveller
+ * A, 3 Oct 2026). The traveller read "Next open: Fri, 16 Oct" and pressed the
+ * button beside it, so the calendar opens with that day chosen rather than
+ * asking them to find it again; checkout picks the departure itself when only
+ * one is open that day. Bare while the read is in flight or failed: checkout
+ * then opens on the first open day by its own reading, as it always did.
+ */
+export function pickADayHref(slug: string, next: NextOpenDay): string {
+  const base = `/e/${slug}/book`;
+  if (next.state !== "open") return base;
+  return `${base}?${new URLSearchParams({ date: next.date }).toString()}`;
 }

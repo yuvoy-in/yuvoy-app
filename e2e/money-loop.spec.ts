@@ -139,7 +139,7 @@ test("a closed departure is shown disabled, never hidden", async ({ page }) => {
   await page.goto("/e/try-dive-nemo-reef");
   await page.waitForLoadState("networkidle");
   await page.getByRole("link", { name: /^Pick a day/ }).click();
-  await page.waitForURL(/\/book$/);
+  await page.waitForURL(/\/book(\?|$)/);
 
   const calendar = page.getByRole("region", { name: "Pick a day" });
   await expect(

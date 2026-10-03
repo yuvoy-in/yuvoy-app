@@ -44,7 +44,10 @@ export function Screen({
   back?: BackTarget;
   /** A small tracked caption centred in the stage header: "Checkout". */
   stageLabel?: string;
-  /** Full-bleed media at the top of the stage; the sheet rises over it. */
+  /**
+   * Full-bleed media at the top of the stage; the sheet rises over it. On a
+   * phone the media stays put and the sheet scrolls up over it.
+   */
   hero?: ReactNode;
   /** Controls that float over the hero's top-right corner. */
   heroActions?: ReactNode;
@@ -66,17 +69,38 @@ export function Screen({
         )}
       >
         {hero ? (
-          <div className="lg:rounded-t-sheet relative lg:overflow-hidden">
-            {hero}
-            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between p-4">
-              <div className="pointer-events-auto">
-                {back ? <BackButton {...back} over="media" /> : null}
-              </div>
-              <div className="pointer-events-auto flex gap-2">
-                {heroActions}
+          <>
+            {/*
+              The controls float above everything, the picture and the sheet
+              alike. A zero-height sticky row, so it takes no room and pushes
+              nothing down, with the discs hanging from it; on a phone it
+              stays at the top while the sheet slides up over the picture, so
+              Back is never under the page it leads out of. The discs carry
+              their own ground (`over="media"`), so they read on paper too.
+              From `lg` up nothing slides, so the row scrolls away with the
+              picture, as it always did.
+            */}
+            <div className="pointer-events-none sticky top-0 z-20 h-0 lg:relative">
+              <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
+                <div className="pointer-events-auto">
+                  {back ? <BackButton {...back} over="media" /> : null}
+                </div>
+                <div className="pointer-events-auto flex gap-2">
+                  {heroActions}
+                </div>
               </div>
             </div>
-          </div>
+            {/*
+              THE FAR SIDE (the redesign, traveller A, 3 Oct 2026). On a phone
+              the picture stays where it is and the sheet scrolls up over it,
+              the way the reel's far side was always described: the clip is
+              still there behind the page about it. From `lg` up the sheet is
+              a panel beside nothing, so the picture scrolls with it as before.
+            */}
+            <div className="lg:rounded-t-sheet relative max-lg:sticky max-lg:top-0 max-lg:z-0 lg:overflow-hidden">
+              {hero}
+            </div>
+          </>
         ) : (
           <header
             className={cn(
@@ -116,7 +140,8 @@ export function Screen({
         <div
           className={cn(
             "sheet rounded-t-sheet lg:rounded-sheet flex flex-1 flex-col",
-            hero && "relative -mt-8 lg:mt-0 lg:rounded-t-none",
+            // Above the sticky picture, so it slides over it.
+            hero && "relative z-10 -mt-8 lg:mt-0 lg:rounded-t-none",
           )}
         >
           <div
