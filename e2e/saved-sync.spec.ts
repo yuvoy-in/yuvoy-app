@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expectSaveStored } from "./support/saved";
 
 /**
  * Saves move onto the account, and stay there (yuvoy-api#192).
@@ -45,6 +46,7 @@ test("a save made signed out follows the traveller onto the account", async ({
   await expect(
     page.getByRole("button", { name: `Saved. Remove ${title}` }).first(),
   ).toBeVisible();
+  await expectSaveStored(page);
 
   // 2. The list says it is in this browser only, and offers the fix.
   await page.goto("/saved");
@@ -104,6 +106,7 @@ test("saves play as a reel, and Back is the way to the grid", async ({
   await expect(
     page.getByRole("button", { name: `Saved. Remove ${title}` }).first(),
   ).toBeVisible();
+  await expectSaveStored(page);
 
   await page.goto("/saved");
   await page.getByRole("link", { name: "Play them" }).click();

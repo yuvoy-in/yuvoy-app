@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { chooseDeparture } from "./support/checkout";
+import { expectSaveStored } from "./support/saved";
 
 /**
  * Traveller QA for the approved redesign (traveller A, 3 Oct 2026): WCAG 2.2
@@ -61,11 +62,12 @@ test("saves, as a grid and as a reel", async ({ page }) => {
     "",
   );
   await save.click();
-  // The save is written on the device after the tap; wait for it to land
-  // before leaving, as saved-sync does, or /saved can open on nothing.
+  // The heart flips at once and the write lands after: wait on the write
+  // itself, or /saved can open on nothing (see `savesOnDevice`).
   await expect(
     page.getByRole("button", { name: `Saved. Remove ${title}` }).first(),
   ).toBeVisible();
+  await expectSaveStored(page);
   await page.goto("/saved");
   await expect(page.getByRole("link", { name: "Play them" })).toBeVisible();
   await expectAccessible(page);
