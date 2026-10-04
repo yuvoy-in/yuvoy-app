@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   useTravellerSession,
   useMyBookings,
@@ -8,8 +8,6 @@ import {
   isDeadToken,
 } from "@/lib/auth/use-traveller";
 import {
-  TRIP_TABS,
-  TAB_LABEL,
   TAB_EMPTY,
   invitedTripTab,
   sortForTab,
@@ -25,7 +23,6 @@ import {
 } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { ChipButton } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
 import { TripCard, InvitedTripCard } from "./trip-card";
 import { NextUpPass } from "./next-up-pass";
@@ -34,6 +31,9 @@ import { nextUpTrip } from "@/lib/trips/next-up";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { marketDayOf } from "@/lib/booking/availability-window";
 import { SheetPresence } from "@/components/ui/sheet";
+import { Crossfade } from "@/components/ui/crossfade";
+import { useListMotion } from "@/lib/motion/use-list-motion";
+import { TripTabs } from "./trip-tabs";
 import {
   DateFilterSheet,
   DateFilterButton,
@@ -96,6 +96,16 @@ export function TripsScreen() {
   const { signedIn } = useTravellerSession();
   const server = useMyBookings(signedIn, { tab, ...range });
   const invited = useInvitedTrips(signedIn);
+
+  /*
+    A tab's contents fade THROUGH to the next tab's (T07 A, approved 4 Oct
+    2026): the list on screen fades out (100ms), then the new one fades in
+    (150ms), so the swap under the tabs never lands in one frame and two
+    lists are never seen at once. Each tab's contents are their own element
+    (keyed by the tab) for exactly that.
+  */
+  const contents = useRef<HTMLDivElement | null>(null);
+  useListMotion(contents, tab, { arrive: "fade", through: true });
 
   /*
     `signedIn === undefined` is "the session has not been read yet", and it is
@@ -181,19 +191,7 @@ export function TripsScreen() {
       <Header />
 
       <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
-        <div role="tablist" aria-label="Which trips" className="flex gap-2">
-          {TRIP_TABS.map((name) => (
-            <ChipButton
-              key={name}
-              role="tab"
-              aria-selected={tab === name}
-              pressed={tab === name}
-              onClick={() => setTab(name)}
-            >
-              {TAB_LABEL[name]}
-            </ChipButton>
-          ))}
-        </div>
+        <TripTabs tab={tab} onChange={setTab} />
         <span className="ml-auto">
           <DateFilterButton
             range={range}
@@ -217,97 +215,113 @@ export function TripsScreen() {
         (C's day plan, approved 3 Oct 2026), drawn on Upcoming whether or not
         anything is booked yet, since an empty stay is where planning starts.
       */}
-      {nextUp ? <NextUpPass trip={nextUp} now={serverNow} /> : null}
-      {tab === "upcoming" ? <IslandDays signedIn={signedIn} /> : null}
-
-      {/*
-        The server's failure is now the whole screen's failure, where it used to
-        be a line over a list this device could still show. So it no longer
-        promises that anything survived it: there is nothing left to survive.
-        A dead session says so plainly, because `retry: false` means it will not
-        resolve itself.
-      */}
-      {server.isError ? (
-        <Panel role="alert" className="mt-4 px-4 py-3">
-          <p className="text-sm font-bold">
-            {sessionDead
-              ? "Your sign-in has expired"
-              : "We could not load your trips"}
-          </p>
-          <p className="text-forest/70 mt-1 text-sm">
-            {sessionDead
-              ? "Sign in again and every trip on your number comes back."
-              : describeError(server.error).body}
-          </p>
-          {sessionDead ? (
-            <ButtonLink
-              href="/account"
-              variant="outline"
-              size="sm"
-              className="mt-3"
-            >
-              Sign in again
-            </ButtonLink>
-          ) : null}
-        </Panel>
-      ) : null}
-
-      {server.isPending ? (
-        <LoadingState label="Loading your trips">
-          <div className="mt-6 space-y-3">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        </LoadingState>
-      ) : empty ? (
-        <EmptyState
-          title={TAB_EMPTY[tab]}
-          body=""
-          action={<ButtonLink href="/">Find something</ButtonLink>}
-        />
-      ) : (
-        <>
-          <ul className="mt-6 space-y-3">
-            {listed.map((trip) => (
-              <li key={trip.reference || trip.reservationId}>
-                <TripCard trip={trip} />
-              </li>
-            ))}
-            {invitedForTab.map((trip) => (
-              <li key={`inv:${trip.id}`}>
-                <InvitedTripCard trip={trip} />
-              </li>
-            ))}
-          </ul>
+      <div ref={contents}>
+        <div key={tab} data-motion-key={tab}>
+          {nextUp ? <NextUpPass trip={nextUp} now={serverNow} /> : null}
+          {tab === "upcoming" ? <IslandDays signedIn={signedIn} /> : null}
 
           {/*
-            A button, not a sentinel. `GET /me/bookings` mints a fresh status
-            token per row, so an observer that fetched on scroll would mint
-            links nobody asked for.
+            The server's failure is now the whole screen's failure, where it used to
+            be a line over a list this device could still show. So it no longer
+            promises that anything survived it: there is nothing left to survive.
+            A dead session says so plainly, because `retry: false` means it will not
+            resolve itself.
           */}
-          {server.hasNextPage ? (
-            <div className="mt-6 flex justify-center">
-              <Button
-                variant="outline"
-                disabled={server.isFetchingNextPage}
-                onClick={() => void server.fetchNextPage()}
-              >
-                {server.isFetchingNextPage ? "Loading…" : "Show more"}
-              </Button>
-            </div>
+          {server.isError ? (
+            <Panel role="alert" className="mt-4 px-4 py-3">
+              <p className="text-sm font-bold">
+                {sessionDead
+                  ? "Your sign-in has expired"
+                  : "We could not load your trips"}
+              </p>
+              <p className="text-forest/70 mt-1 text-sm">
+                {sessionDead
+                  ? "Sign in again and every trip on your number comes back."
+                  : describeError(server.error).body}
+              </p>
+              {sessionDead ? (
+                <ButtonLink
+                  href="/account"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                >
+                  Sign in again
+                </ButtonLink>
+              ) : null}
+            </Panel>
           ) : null}
 
-          {server.isFetchNextPageError ? (
-            <p
-              role="alert"
-              className="text-terra-deep mt-3 text-center text-sm"
-            >
-              That page did not load. Try again.
-            </p>
-          ) : null}
-        </>
-      )}
+          {/*
+            A tab opened for the first time shows its skeleton, and the list
+            fades in over it when it lands, rather than replacing it in a frame.
+          */}
+          <Crossfade
+            view={server.isPending ? "loading" : empty ? "empty" : "list"}
+          >
+            {server.isPending ? (
+              <div key="loading" data-motion-key="loading">
+                <LoadingState label="Loading your trips">
+                  <div className="mt-6 space-y-3">
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                  </div>
+                </LoadingState>
+              </div>
+            ) : empty ? (
+              <div key="empty" data-motion-key="empty">
+                <EmptyState
+                  title={TAB_EMPTY[tab]}
+                  body=""
+                  action={<ButtonLink href="/">Find something</ButtonLink>}
+                />
+              </div>
+            ) : (
+              <div key="list" data-motion-key="list">
+                <ul className="mt-6 space-y-3">
+                  {listed.map((trip) => (
+                    <li key={trip.reference || trip.reservationId}>
+                      <TripCard trip={trip} />
+                    </li>
+                  ))}
+                  {invitedForTab.map((trip) => (
+                    <li key={`inv:${trip.id}`}>
+                      <InvitedTripCard trip={trip} />
+                    </li>
+                  ))}
+                </ul>
+
+                {/*
+                  A button, not a sentinel. `GET /me/bookings` mints a fresh status
+                  token per row, so an observer that fetched on scroll would mint
+                  links nobody asked for.
+                */}
+                {server.hasNextPage ? (
+                  <div className="mt-6 flex justify-center">
+                    <Button
+                      variant="outline"
+                      disabled={server.isFetchingNextPage}
+                      onClick={() => void server.fetchNextPage()}
+                    >
+                      {server.isFetchingNextPage ? "Loading…" : "Show more"}
+                    </Button>
+                  </div>
+                ) : null}
+
+                {server.isFetchNextPageError ? (
+                  <p
+                    role="alert"
+                    className="text-terra-deep mt-3 text-center text-sm"
+                  >
+                    That page did not load. Try again.
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </Crossfade>
+        </div>
+      </div>
     </Screen>
   );
 }

@@ -2,6 +2,7 @@ import { defineTabBarGlide } from "./support/motion";
 import { defineRouteMotion } from "./support/route-motion";
 import { defineSheetMotion } from "./support/sheet-motion";
 import { defineSearchMotion } from "./support/search-motion";
+import { defineBookingMotion } from "./support/booking-motion";
 
 /*
   The same checks on WebKit (Safari's engine): how a clip, a filter and a
@@ -13,3 +14,4 @@ defineTabBarGlide();
 defineRouteMotion();
 defineSheetMotion();
 defineSearchMotion();
+defineBookingMotion();

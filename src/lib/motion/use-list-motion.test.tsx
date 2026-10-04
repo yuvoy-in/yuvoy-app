@@ -246,7 +246,8 @@ describe("useListMotion", () => {
     rerender(<List items={[row("b", 0), row("c", 100)]} />);
     expect(on("b")).toHaveLength(0);
     const [c] = on("c");
-    expect(c.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+    // One keyframe: it fades up to whatever the item rests at.
+    expect(c.keyframes).toEqual([{ opacity: 0 }]);
     expect(c.options).toMatchObject({
       duration: DURATION.reducedFade,
       easing: "linear",
@@ -272,5 +273,39 @@ describe("useListMotion", () => {
     const { rerender } = render(<Selfish show={false} />);
     rerender(<Selfish show />);
     expect(played).toHaveLength(0);
+  });
+
+  it("still sees changes to a list its screen draws a render late", () => {
+    /*
+      Trips draws its list only once the sign-in has been read: the list's
+      element appears on a later render with the same signature, and the
+      first change after that must still be seen (it used to be missed).
+    */
+    function Late({ ready, items }: { ready: boolean; items: Item[] }) {
+      const ref = useRef<HTMLUListElement | null>(null);
+      useListMotion(ref, items.map((i) => i.key).join("|"), {
+        arrive: "fade",
+      });
+      if (!ready) return <p>Loading</p>;
+      return (
+        <ul ref={ref} data-frame="">
+          {items.map((item) => (
+            <li
+              key={item.key}
+              data-motion-key={item.key}
+              data-box={item.at.join(" ")}
+            >
+              {item.key}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    const first = [row("a", 0), row("b", 100)];
+    const { rerender } = render(<Late ready={false} items={first} />);
+    rerender(<Late ready items={first} />);
+    expect(played).toHaveLength(0);
+    rerender(<Late ready items={[row("b", 0)]} />);
+    expect(on("b")).toHaveLength(1);
   });
 });

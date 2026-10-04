@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
+import { markArrival } from "@/lib/booking/arrival";
 import { finishInCash } from "@/lib/booking/cash-booking";
 import { PAY_AT_COUNTER, paymentLine } from "@/lib/booking/listing-lines";
 import { readAttribution } from "@/lib/booking/attribution";
@@ -41,6 +42,13 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { StickyBar } from "@/components/ui/sticky-bar";
 import type { components } from "@/lib/api/schema.gen";
+import {
+  DURATION,
+  EASE,
+  prefersReducedMotion,
+  scrollPageBy,
+} from "@/lib/motion";
+import { FadeText } from "@/components/ui/fade-text";
 
 type Experience = components["schemas"]["Experience"];
 type Slot = components["schemas"]["Slot"];
@@ -67,9 +75,16 @@ export function CheckoutForm({
   initialGuests,
   onGuestsChange,
   onRefused,
+  arrive = false,
 }: {
   experience: Experience;
   slot: Slot;
+  /**
+   * The form is appearing because a departure was just chosen: it fades in
+   * and its foot rises from the bottom edge (T09 A). Read when it mounts, so
+   * a new departure (a new, keyed form) changes the foot's words in place.
+   */
+  arrive?: boolean;
   /** Restored from the URL, so a refresh keeps the party (yuvoy-app#62). */
   initialGuests?: number;
   /** Lifted so the screen above can keep it in the URL. */
@@ -117,6 +132,7 @@ export function CheckoutForm({
       initialGuests={initialGuests}
       onGuestsChange={onGuestsChange}
       onRefused={onRefused}
+      arrive={arrive}
     />
   );
 }
@@ -127,12 +143,14 @@ function CheckoutFields({
   initialGuests,
   onGuestsChange,
   onRefused,
+  arrive,
 }: {
   experience: Experience;
   slot: Slot;
   initialGuests?: number;
   onGuestsChange?: (guests: number) => void;
   onRefused?: (message: string) => void;
+  arrive: boolean;
 }) {
   const router = useRouter();
   const create = useCreateReservation();
@@ -459,6 +477,8 @@ function CheckoutFields({
 
     // The token goes in the FRAGMENT, immediately, and is never put in a path
     // or a query — this API logs request URIs.
+    // And the page it opens is told it is being arrived at (T10 A), once.
+    markArrival(reservation.statusToken);
     router.replace(bookingUrl(reservation.statusToken));
   }
 
@@ -565,20 +585,85 @@ function CheckoutFields({
     and finished on the booking page, without a promise about cash.
   */
   const cashAtCounter = paymentLine(experience) === PAY_AT_COUNTER;
-  const action =
-    create.isPending || finishing
-      ? isRequest
-        ? "Sending…"
-        : "Booking…"
-      : isRequest
-        ? "Send request"
-        : total && cashAtCounter
-          ? `Book now, pay ${formatMoney(total)} cash on the day`
-          : total
-            ? `Book now · ${formatMoney(total)}`
-            : "Book now";
+  const action = isRequest
+    ? "Send request"
+    : total && cashAtCounter
+      ? `Book now, pay ${formatMoney(total)} cash on the day`
+      : total
+        ? `Book now · ${formatMoney(total)}`
+        : "Book now";
+  /*
+    WORKING, AND SAYING SO (T08 A, approved 4 Oct 2026). The tap that books
+    used to fade the button to 40%, `disabled`, for as long as island signal
+    took, so the moment of commitment looked like a switched-off control. The
+    button now keeps its colour and focus while it works, its label
+    cross-fades to the working verb, and a ring shows only for a wait over
+    300ms (`Button`'s `pending`). The request still starts on the tap, and a
+    second tap does nothing: `canSubmit` is false while it works, and the
+    button swallows the tap besides.
+  */
+  const working =
+    create.isPending ||
+    finishing ||
+    // Booked, and on its way to the booking page: working until it changes,
+    // unless there is no page to go to (the form stays and says so).
+    (create.isSuccess && !tokenMissing);
   /** What the invite gate tells them to tap again: the button, in short. */
   const retryAction = isRequest ? "Send request" : "Book now";
+
+  /*
+    A REFUSAL IS SEEN, NOT ONLY ANNOUNCED (T08 A). Its panel lands at the
+    foot of the form, which is usually under the sticky bar or below the
+    fold: it was announced (`role="alert"`) and seen by nobody. Each refusal
+    is now its own arrival (keyed by the attempt), and as it lands the page
+    makes room for it, so its foot sits 16px above the bar; it rises into
+    view, and focus moves to it.
+  */
+  const refusal = showGate
+    ? `gate-${gateOpen ? "here" : create.submittedAt}`
+    : failure
+      ? `failure-${create.submittedAt}`
+      : null;
+  const refusalRef = useRef<HTMLDivElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const panel = refusalRef.current;
+    if (!refusal || !panel) return;
+    const bar =
+      barRef.current?.getBoundingClientRect().top ?? window.innerHeight;
+    const need = panel.getBoundingClientRect().bottom + 16 - bar;
+    if (need > 0) scrollPageBy(need);
+    panel.focus({ preventScroll: true });
+  }, [refusal]);
+
+  /*
+    THE REST OF CHECKOUT ARRIVES (T09 A): the form fades in under the times
+    and its foot rises from the bottom edge (250ms). Read once, at mount.
+  */
+  const fieldsRef = useRef<HTMLDivElement | null>(null);
+  const arrives = useRef(arrive);
+  useLayoutEffect(() => {
+    const fields = fieldsRef.current;
+    const bar = barRef.current;
+    if (!arrives.current || !fields || !bar) return;
+    if (typeof fields.animate !== "function") return;
+    if (prefersReducedMotion()) {
+      for (const el of [fields, bar])
+        el.animate([{ opacity: 0 }], {
+          duration: DURATION.reducedFade,
+          easing: "linear",
+        });
+      return;
+    }
+    fields.animate([{ opacity: 0 }], {
+      duration: DURATION.quick,
+      easing: EASE.interaction,
+    });
+    bar.animate([{ transform: "translateY(100%)" }], {
+      duration: DURATION.sheet,
+      easing: EASE.interaction,
+    });
+  }, []);
 
   return (
     <form
@@ -599,7 +684,7 @@ function CheckoutFields({
         if (canSubmit) void submit();
       }}
     >
-      <div className="space-y-8">
+      <div ref={fieldsRef} className="space-y-8">
         {/*
           Party size, checked against the WHOLE party rather than one seat.
 
@@ -685,7 +770,9 @@ function CheckoutFields({
           <div className="flex items-baseline justify-between">
             <span className="label text-forest/75">Total</span>
             {total ? (
-              <span className="text-xl font-bold">{formatMoney(total)}</span>
+              <span className="text-xl font-bold">
+                <FadeText>{formatMoney(total)}</FadeText>
+              </span>
             ) : (
               <span className="text-forest/70 text-sm">
                 Confirmed before you pay
@@ -778,37 +865,48 @@ function CheckoutFields({
           `retryLabel` is the submit button's own words, so "tap it again"
           names the control rather than describing it.
         */}
-        {showGate ? (
-          <Panel tone="alert" role="alert">
-            {/*
-              Inside THIS form, so the gate's own forms must not nest in it:
-              a browser stops a nested form's submit at this element, and the
-              gate's sign-in then reloaded checkout onto its first step with
-              everything typed gone. See `OwnForm`.
-            */}
-            <InsideAnotherForm>
-              <InviteGate
-                view={gateView}
-                variant="panel"
-                purpose="book"
-                retryLabel={retryAction}
-              />
-            </InsideAnotherForm>
-          </Panel>
-        ) : failure ? (
-          <FailurePanel failure={failure}>
-            {/* capacity_unavailable carries what is left — offer it. */}
-            {capacityError?.remaining ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setGuests(capacityError.remaining!)}
-                className="mt-3"
-              >
-                Book {capacityError.remaining} instead
-              </Button>
+        {refusal ? (
+          <div
+            key={refusal}
+            ref={refusalRef}
+            // Focusable by script only: it takes focus as it lands.
+            tabIndex={-1}
+            data-motion=""
+            className="motion-rise-in"
+          >
+            {showGate ? (
+              <Panel tone="alert" role="alert">
+                {/*
+                  Inside THIS form, so the gate's own forms must not nest in it:
+                  a browser stops a nested form's submit at this element, and the
+                  gate's sign-in then reloaded checkout onto its first step with
+                  everything typed gone. See `OwnForm`.
+                */}
+                <InsideAnotherForm>
+                  <InviteGate
+                    view={gateView}
+                    variant="panel"
+                    purpose="book"
+                    retryLabel={retryAction}
+                  />
+                </InsideAnotherForm>
+              </Panel>
+            ) : failure ? (
+              <FailurePanel failure={failure}>
+                {/* capacity_unavailable carries what is left — offer it. */}
+                {capacityError?.remaining ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setGuests(capacityError.remaining!)}
+                    className="mt-3"
+                  >
+                    Book {capacityError.remaining} instead
+                  </Button>
+                ) : null}
+              </FailurePanel>
             ) : null}
-          </FailurePanel>
+          </div>
         ) : null}
 
         {tokenMissing ? (
@@ -832,7 +930,7 @@ function CheckoutFields({
         ) : null}
       </div>
 
-      <StickyBar className="mt-auto">
+      <StickyBar ref={barRef} className="mt-auto">
         {/*
           The whole choice in one line (yuvoy-app#62 item 7). It is the last
           thing read before committing, and on a page where the day, the time
@@ -840,18 +938,22 @@ function CheckoutFields({
           place they appear together.
         */}
         <p className="text-forest/75 mb-3 text-center text-xs">
-          {summaryLine.join(" · ")}
+          <FadeText block>{summaryLine.join(" · ")}</FadeText>
         </p>
         <Button
           type="submit"
           size="lg"
           block
-          disabled={!canSubmit}
+          // Not while it works: a working button keeps its colour (T08 A).
+          disabled={!canSubmit && !working}
+          pending={working}
+          pendingLabel={isRequest ? "Sending" : "Booking"}
           // Two lines when the amount makes it long, rather than running to
           // the pill's ends on a phone.
           className="h-auto min-h-13 py-3.5 leading-snug text-balance whitespace-normal"
         >
-          {action}
+          {/* A new party or departure changes its amount: it fades through. */}
+          <FadeText>{action}</FadeText>
         </Button>
         <p className="text-forest/70 mt-3 text-center text-xs">
           {isRequest

@@ -183,6 +183,45 @@ stylesheet does not draw.
 - **Reduced motion:** nothing slides, grows, rises or rolls; arrivals and
   departures are a 120ms fade; the skeleton is still.
 
+### Booking: tabs, the Book button, the day and the time, the moment (T07 A, T08 A, T09 A, T10 A)
+
+- **The Trips tabs are one object** (`TripTabs`): a forest fill clipped to
+  the chosen tab glides to the next on the tap (250ms on `move`), and each
+  label turns paper where it passes. A tab's contents fade THROUGH to the
+  next tab's (out 100ms, then in 150ms), and a tab's list fades in over its
+  skeleton when it lands (`Crossfade`).
+- **A button keeps its colour while it works** (`Button`'s `pending`):
+  `aria-busy` and `aria-disabled`, never `disabled`; the label cross-fades to
+  the working verb ("Booking", no ellipsis); a 16px ring shows only after
+  300ms and turns once a second (a quarter turn a second under reduced
+  motion). A tap while it works does nothing. The Book button keeps it until
+  the booking page opens.
+- **A refusal is seen**: at the foot of checkout it lands as its own arrival
+  (rising 8px), the page scrolls so it sits 16px above the sticky bar, and it
+  takes focus.
+- **The chosen day is one object** (`DayStrip`): a window over the chosen day
+  glides to the next (250ms on `move`) with the strip drawn chosen inside it,
+  moving the other way, so the dates stay put. Transforms only. The day's
+  times rise in order (200ms, 40ms apart); words that read the choice fade
+  through (`FadeText`: out 100ms, in 150ms); the party number rolls; the rest
+  of checkout fades in and its foot rises from the bottom edge (250ms), once,
+  when a departure is first chosen. As before, the strip jumps to a day past
+  its right edge (A keeps that).
+- **The pass settles** (T10 A, the second authored moment): on the page the
+  booking tap lands on, and only there (`lib/booking/arrival`, a one-shot mark
+  checkout sets), the eyebrow's tick draws (250ms from 100ms), the first panel
+  rises 12px and the reference arrives last: 350ms in all. A reload, a poll or
+  a shared link opens the page as it is.
+- **A confirmed booking's eyebrow carries a tick** where the terra square is
+  (the owner's word, 4 Oct 2026). The word carries the state; the tick is
+  `aria-hidden`.
+- **A page that changes while open is seen changing**: on the booking page a
+  section that arrives fades in, one that goes fades where it was, and what
+  was under it slides up (`useListMotion` with `byNode`); its words fade
+  through.
+- **Reduced motion:** nothing travels; the fill and the day land and fade in;
+  the moment's tick is simply drawn and its panel and reference fade (120ms).
+
 ## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
 
 **The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,
