@@ -24,7 +24,8 @@ const END_SLACK_S = 0.35;
  * Three rules hold this together:
  *   - Scroll is never blocked on a network request.
  *   - hls.js (~150 KB) is imported only when the browser cannot play HLS
- *     natively. Safari and iOS can, and that is most of our traffic.
+ *     natively. Safari and iOS can, and that is most of our traffic;
+ *     Chromium now can too.
  *   - A failed clip degrades to its poster silently. A broken-video icon on
  *     the feed reads as a broken app.
  *
@@ -282,19 +283,21 @@ export function FeedPlayer({
         if (nativeHls) {
           /*
             A clip that cannot play on the native path says so here, and
-            nowhere else: Safari reports a dead manifest or segment only as
-            the element's own `error`, and with nothing listening the slow
-            ring spun over the poster for ever (motion audit 3.10). Failed is
-            a card with its poster and no clip, the same as hls.js's fatal
-            error below.
+            nowhere else: a browser playing HLS itself (Safari, iOS, and now
+            Chromium too) reports a dead manifest or segment only as the
+            element's own `error`. With nothing listening, the card kept a
+            play control and a sound toggle for a clip that could never play,
+            or the slow ring spun over the poster for ever (motion audit
+            3.10). Failed is a card with its poster and no clip, the same as
+            hls.js's fatal error below.
           */
           video.addEventListener("error", onNativeError);
           video.src = src;
           setPlayable(true);
           return;
         }
-        // Only reached off Safari/iOS. Dynamic so the bytes never load for
-        // the browsers that do not need them.
+        // Only reached where the browser cannot play HLS itself. Dynamic so
+        // the bytes never load for the browsers that do not need them.
         const { default: Hls } = await import("hls.js");
         if (cancelled) return;
         if (!Hls.isSupported()) {
