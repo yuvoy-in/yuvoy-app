@@ -1,8 +1,13 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
-/** The strip's height: a glance, not a hero. Held while a screen loads too. */
-export const PICTURE_HEIGHT = "h-[24svh] min-h-36 lg:h-48";
+/**
+ * The strip's height: a glance, not a hero. Held while a screen loads too.
+ * Said once, as `--hero-height`, so the far side's recede (T15 A) runs over
+ * exactly the height the strip is drawn at.
+ */
+export const PICTURE_HEIGHT =
+  "[--hero-height:max(24svh,9rem)] h-(--hero-height) lg:h-48";
 
 /**
  * A strip of the listing's picture over the top of a screen, for `Screen`'s
@@ -25,7 +30,11 @@ export function PictureStrip({
   children?: ReactNode;
 }) {
   return (
-    <div className={`bg-abyss relative overflow-hidden ${PICTURE_HEIGHT}`}>
+    <div
+      // It recedes as the sheet covers it (T15 A, `far-side-picture`).
+      data-motion=""
+      className={`bg-abyss far-side-picture relative overflow-hidden ${PICTURE_HEIGHT}`}
+    >
       <Image
         src={src}
         alt=""

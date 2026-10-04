@@ -40,6 +40,11 @@ import { DURATION, EASE, prefersReducedMotion } from ".";
  * (`byNode`) is named by its elements instead: React keeps the node of a
  * section that stays, so every element child of `ref` is an item, and
  * `signature` is then anything that changes when the page does.
+ *
+ * Something that goes from INSIDE an item that stays (a field's reason, T16
+ * A) marks itself `data-motion-leave`: it is not an item and is never moved,
+ * but when it goes it fades where it was, like an item, and what follows
+ * waits the same step for it.
  */
 export function useListMotion(
   ref: RefObject<HTMLElement | null>,
@@ -100,7 +105,7 @@ export function useListMotion(
       watcher.current = root
         ? observeSize(root, () => {
             if (memory.current && ref.current === root)
-              memory.current = measure(itemsOf(root, byNode));
+              memory.current = measure(root, itemsOf(root, byNode));
           })
         : null;
     }
@@ -110,7 +115,7 @@ export function useListMotion(
     }
     containBlock(root);
     const items = itemsOf(root, byNode);
-    const now = measure(items);
+    const now = measure(root, items);
     const before = root === last.root ? memory.current : null;
     memory.current = now;
     const reduced = prefersReducedMotion();
@@ -173,12 +178,16 @@ interface Memory {
   boxes: Map<string, Box>;
   /** Each item's element as last drawn, so a departure can be copied. */
   nodes: Map<string, HTMLElement>;
+  /** What may go from inside an item: where it was, and which item held it. */
+  nested: Map<HTMLElement, { box: Box; item: string }>;
 }
 
 const KEY = "data-motion-key";
 const ARRIVE = "data-motion-arrive";
 /** A departed item's fading copy: never an item itself. */
 const GHOST = "data-motion-ghost";
+/** Inside an item, something that fades where it was when it goes. */
+const LEAVE = "data-motion-leave";
 /** The system's stagger step, and its cap. */
 const STEP = 40;
 const STEPS = 4;
@@ -222,7 +231,7 @@ function containBlock(root: HTMLElement) {
     root.style.position = "relative";
 }
 
-function measure(items: HTMLElement[]): Memory {
+function measure(root: HTMLElement, items: HTMLElement[]): Memory {
   const boxes = new Map<string, Box>();
   const nodes = new Map<string, HTMLElement>();
   for (const el of items) {
@@ -234,7 +243,51 @@ function measure(items: HTMLElement[]): Memory {
     });
     nodes.set(keyOf(el), el);
   }
-  return { boxes, nodes };
+  const nested = new Map<HTMLElement, { box: Box; item: string }>();
+  const listed = new Set(items);
+  for (const el of root.querySelectorAll<HTMLElement>(`[${LEAVE}]`)) {
+    const item = itemOf(root, el);
+    if (!item || item === el || !listed.has(item)) continue;
+    const at = offsetIn(root, el);
+    if (!at) continue;
+    nested.set(el, {
+      box: { ...at, w: el.offsetWidth, h: el.offsetHeight },
+      item: keyOf(item),
+    });
+  }
+  return { boxes, nodes, nested };
+}
+
+/** The item (a child of `root`) that an element is drawn inside. */
+function itemOf(root: HTMLElement, el: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el;
+  while (node && node.parentElement !== root) node = node.parentElement;
+  return node;
+}
+
+/**
+ * Where an element inside `root` is drawn, as an offset from it: offsets
+ * rather than a bounding box, so a transform still playing on it (its own
+ * entrance, a slide) is not read as where it is. `null` when its offset
+ * chain does not lead back to `root` (a fixed layer, or not drawn at all).
+ */
+function offsetIn(
+  root: HTMLElement,
+  el: HTMLElement,
+): { x: number; y: number } | null {
+  let x = 0;
+  let y = 0;
+  let node = el;
+  for (;;) {
+    x += node.offsetLeft;
+    y += node.offsetTop;
+    const parent = node.offsetParent;
+    if (parent === root) return { x, y };
+    if (!(parent instanceof HTMLElement) || !root.contains(parent)) return null;
+    x += parent.clientLeft;
+    y += parent.clientTop;
+    node = parent;
+  }
 }
 
 /** Whether a box inside `root` is anywhere in the viewport. */
@@ -292,6 +345,16 @@ function play(
     left += 1;
     const node = before.nodes.get(key);
     if (leave && node && animates && onScreen(root, box))
+      fadeCopy(root, node, box, reduced);
+  }
+  /*
+    What left from inside an item that stayed, the same way. Inside an item
+    that left as a whole, the item's own copy already carries it.
+  */
+  for (const [node, { box, item }] of before.nested) {
+    if (root.contains(node) || !now.boxes.has(item)) continue;
+    left += 1;
+    if (leave && animates && onScreen(root, box))
       fadeCopy(root, node, box, reduced);
   }
 
@@ -398,6 +461,18 @@ function fadeCopy(
     el.removeAttribute("id");
   // A clip in a copy would start loading again for a tenth of a second.
   for (const video of copy.querySelectorAll("video")) video.remove();
+  /*
+    Its last drawing, held still: an entrance its classes carry (a reason
+    rising in, a section fading up) would otherwise play again in the copy,
+    against the copy's own fade. And it says nothing: a live region put back
+    into the page can be read out again, hidden or not.
+  */
+  for (const el of [copy, ...copy.querySelectorAll<HTMLElement>("*")]) {
+    el.style.animation = "none";
+    if (/^(alert|status|log)$/.test(el.getAttribute("role") ?? ""))
+      el.removeAttribute("role");
+    el.removeAttribute("aria-live");
+  }
   copy.setAttribute("aria-hidden", "true");
   copy.setAttribute("inert", "");
   copy.style.position = "absolute";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { YuvoyError } from "@/lib/api/errors";
 import { dedash } from "@/lib/format/dedash";
 import {
@@ -13,6 +13,7 @@ import { OwnForm } from "@/components/ui/own-form";
 import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import { useListMotion } from "@/lib/motion/use-list-motion";
 
 /**
  * Signing in with a number and a code: the steps, wherever they are asked
@@ -158,9 +159,26 @@ export function SignInSteps({
     if (await flow.submitCode()) await onSignedIn?.();
   }
 
+  /*
+    A REFUSED NUMBER ARRIVES, IT DOES NOT SHOVE (T16 A, approved 4 Oct 2026).
+    The reason fades in rising 4px (the field's own error) and the button
+    under it glides down to make room (200ms on `move`), rather than jumping
+    a line or two under the thumb that just pressed it. When the reason goes
+    (the next send), it fades where it was (100ms) and the button glides back
+    one step later. Each step is its own form, so the swap from the number to
+    the code is what it always was.
+  */
+  const steps = useRef<HTMLElement | null>(null);
+  useListMotion(steps, failure ? `${failure.field}:${failure.body}` : "", {
+    arrive: "fade",
+    byNode: true,
+  });
+
   return (
     <>
       <OwnForm
+        key={sent ? "code" : "phone"}
+        ref={steps}
         className="mt-8 space-y-5"
         onSubmit={(e) => {
           e.preventDefault();

@@ -3,6 +3,7 @@ import { defineRouteMotion } from "./support/route-motion";
 import { defineSheetMotion } from "./support/sheet-motion";
 import { defineSearchMotion } from "./support/search-motion";
 import { defineBookingMotion } from "./support/booking-motion";
+import { defineMediaMotion } from "./support/media-motion";
 
 /*
   The same checks on WebKit (Safari's engine): how a clip, a filter and a
@@ -15,3 +16,4 @@ defineRouteMotion();
 defineSheetMotion();
 defineSearchMotion();
 defineBookingMotion();
+defineMediaMotion();

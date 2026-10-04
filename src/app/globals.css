@@ -689,6 +689,26 @@
   }
 }
 
+/*
+  A reason (a field's error) arriving: it fades in rising 4px (150ms), one
+  40ms step after what makes room for it has started to move (T16 A).
+  Reduced motion: it only fades (120ms). Marked `data-motion` where used.
+*/
+@utility motion-reason-in {
+  animation: motion-reason-in 150ms var(--ease-interaction) 40ms both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: motion-fade-in 120ms linear both;
+  }
+}
+
+@keyframes motion-reason-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 /**
  * The safe-area foot for the floating tab bar.
  *
@@ -1076,6 +1096,111 @@
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 0;
+}
+
+/*
+  A reel that is slow to start, saying so (T12 A, approved 4 Oct 2026;
+  `feed/feed-player.tsx`). Drawn while the clip could be starting, shown only
+  while a start is slow: it fades in (150ms) and out as the clip plays (150ms,
+  accelerating away). It turns only while it shows, and stops where it is as
+  it fades. Reduced motion: it fades in and out (120ms) and holds still.
+*/
+.feed-slow-ring {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms var(--ease-exit);
+}
+
+.feed-slow-ring[data-shown="true"] {
+  opacity: 1;
+  transition-timing-function: var(--ease-interaction);
+}
+
+.feed-slow-ring > span {
+  animation: feed-ring-turn 1s linear infinite paused;
+}
+
+.feed-slow-ring[data-shown="true"] > span {
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-slow-ring,
+  .feed-slow-ring[data-shown="true"] {
+    transition: opacity 120ms linear;
+  }
+
+  .feed-slow-ring > span {
+    animation: none;
+  }
+}
+
+@keyframes feed-ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------ motion: the far side recedes */
+
+/*
+  THE FAR SIDE RECEDES (T15 A, approved 4 Oct 2026 on the condition that it
+  measures cheap; DESIGN_SYSTEM has the measurement). On a phone the sheet
+  scrolls up over a screen's picture, and as it covers it the picture scales
+  from 1 to 0.96 from its top edge while an abyss layer over it rises to 45%.
+  Linked to the scroll position, with no duration and no trigger: linear in
+  scroll, it moves only with the finger and stops when it stops.
+
+  CSS alone, on a scroll timeline the browser runs off the main thread: no
+  script, no listener. The range runs from the top to the sheet covering the
+  picture, which is the picture's own height (`--hero-height`, declared beside
+  its size) less the sheet's rise over it (`--hero-overlap`). A browser with
+  no scroll timelines keeps the still picture, as before. Only the far side's
+  own picture, and only under `lg`, where there is a far side at all.
+
+  Reduced motion: the picture does not scale; the dim stays (it is colour,
+  not movement). `animation-timeline` comes after the shorthand, which resets
+  it.
+*/
+@supports (animation-timeline: scroll()) {
+  @media (width < 64rem) {
+    .far-side > .far-side-picture {
+      transform-origin: 50% 0;
+      animation: far-side-recede auto linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 calc(var(--hero-height) - var(--hero-overlap, 0px));
+    }
+
+    .far-side > .far-side-picture::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-color: var(--color-abyss);
+      opacity: 0;
+      pointer-events: none;
+      animation: far-side-dim auto linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 calc(var(--hero-height) - var(--hero-overlap, 0px));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .far-side > .far-side-picture {
+        animation: none;
+      }
+    }
+  }
+}
+
+@keyframes far-side-recede {
+  to {
+    scale: 0.96;
+  }
+}
+
+@keyframes far-side-dim {
+  to {
+    opacity: 0.45;
+  }
 }
 
 /* --------------------------------------------- motion: screen changes */

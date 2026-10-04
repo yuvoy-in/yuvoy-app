@@ -128,6 +128,16 @@ export function FeedPlayer({
   /** They tapped play on THIS card, whatever the connection thinks. */
   const [asked, setAsked] = useState(false);
   const [playing, setPlaying] = useState(false);
+  /*
+    Which clip has a FIRST FRAME to show (T12 A, approved 4 Oct 2026).
+
+    The clip used to fade in when its source was attached, so on a slow start
+    the fade finished over an empty video and the picture then jumped in. It
+    now stays invisible over its poster until it has decoded a frame
+    (`loadeddata`), then crossfades in 200ms. Named by the clip, as
+    `rejectedFor` is, so a new clip starts hidden without a reset.
+  */
+  const [framedFor, setFramedFor] = useState<string | null>(null);
   /**
    * Which attempt the browser refused, rather than merely that one was.
    *
@@ -173,6 +183,12 @@ export function FeedPlayer({
 
   /** There is a clip here, and it has not failed. Nothing about starting it. */
   const hasClip = Boolean(src) && mounted && !failed;
+  /*
+    A clip drawn again (back inside the preload budget) is a new element with
+    no frame yet, and earns its fade again; the old one's frame said nothing
+    about it. Reset during render, for the reason `rejectedFor` gives.
+  */
+  if (!hasClip && framedFor !== null) setFramedFor(null);
 
   /*
     May playback start by itself?
@@ -214,8 +230,13 @@ export function FeedPlayer({
     The state that used to draw a play button. It draws nothing at all for the
     first moment, because on a decent connection the first frame arrives before
     anybody could read a spinner and chrome that flickers is worse than none.
+
+    Not while the traveller has paused it. A clip they stopped is not slow to
+    start, and the ring used to come up behind the play control 600ms after
+    a pause, named "Loading video".
   */
-  const starting = hasClip && active && mayPlay && !playing && !refused;
+  const starting =
+    hasClip && active && mayPlay && !userPaused && !playing && !refused;
 
   /*
     Unless it is genuinely slow, and then silence is its own defect.
@@ -242,6 +263,7 @@ export function FeedPlayer({
     gained by making the traveller wait another 600ms to be told twice.
   */
   const slowStart = starting && slowFor === src;
+  const framed = framedFor === src;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -249,12 +271,24 @@ export function FeedPlayer({
 
     let hls: { destroy: () => void } | null = null;
     let cancelled = false;
+    const onNativeError = () => {
+      if (!cancelled) setFailed(true);
+    };
 
     const nativeHls = video.canPlayType("application/vnd.apple.mpegurl") !== "";
 
     void (async () => {
       try {
         if (nativeHls) {
+          /*
+            A clip that cannot play on the native path says so here, and
+            nowhere else: Safari reports a dead manifest or segment only as
+            the element's own `error`, and with nothing listening the slow
+            ring spun over the poster for ever (motion audit 3.10). Failed is
+            a card with its poster and no clip, the same as hls.js's fatal
+            error below.
+          */
+          video.addEventListener("error", onNativeError);
           video.src = src;
           setPlayable(true);
           return;
@@ -290,8 +324,19 @@ export function FeedPlayer({
 
     return () => {
       cancelled = true;
+      video.removeEventListener("error", onNativeError);
       hls?.destroy();
     };
+  }, [src, canPlay]);
+
+  // The first decoded frame of this clip: from here it may be seen.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !src) return;
+    // A new element, or a new source on this one, always fires it.
+    const framedNow = () => setFramedFor(src);
+    video.addEventListener("loadeddata", framedNow);
+    return () => video.removeEventListener("loadeddata", framedNow);
   }, [src, canPlay]);
 
   /*
@@ -453,9 +498,12 @@ export function FeedPlayer({
       {hasClip ? (
         <video
           ref={videoRef}
+          // Its own reduced version, a 120ms crossfade (T12 A, S01 A).
+          data-motion=""
           className={cn(
-            "absolute inset-0 h-full w-full object-cover transition-opacity duration-500",
-            playable && active ? "opacity-100" : "opacity-0",
+            "ease-interaction absolute inset-0 h-full w-full object-cover transition-opacity duration-200",
+            "motion-reduce:duration-120 motion-reduce:ease-linear",
+            playable && framed && active ? "opacity-100" : "opacity-0",
           )}
           muted={muted}
           playsInline
@@ -574,13 +622,24 @@ export function FeedPlayer({
         `role="status"` with a label rather than a bare spinner, because on a
         screen reader an unlabelled spinning div is nothing at all.
       */}
-      {slowStart && !hidden ? (
+      {/*
+        Drawn for as long as the clip could be starting, and SHOWN only while
+        a start is slow, so it fades in when it is due and out when the clip
+        plays rather than popping in and vanishing (T12 A). Drawn only while
+        starting, it was gone in the frame `playing` arrived, fade and all.
+        A first frame is not the end of a start: a clip can hold its first
+        picture while it buffers, and a stall shows the ring again at once.
+      */}
+      {hasClip && active && mayPlay && !hidden ? (
         <div
-          role="status"
-          aria-label="Loading video"
-          className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
+          role={slowStart ? "status" : undefined}
+          aria-label={slowStart ? "Loading video" : undefined}
+          aria-hidden={slowStart ? undefined : true}
+          data-shown={slowStart}
+          data-motion=""
+          className="feed-slow-ring absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
         >
-          <span className="border-paper/30 border-t-paper block size-8 rounded-full border-2 motion-safe:animate-spin" />
+          <span className="border-paper/30 border-t-paper block size-8 rounded-full border-2" />
         </div>
       ) : null}
     </div>

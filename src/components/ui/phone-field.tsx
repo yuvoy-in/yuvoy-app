@@ -114,7 +114,9 @@ export function PhoneField({
           aria-label="Country code"
           value={code}
           onChange={(e) => emit(e.target.value, national)}
-          className="rounded-control border-paper-line bg-paper-deep text-forest focus:border-forest/60 ease-interaction h-12 w-24 shrink-0 border px-3 text-base transition-colors duration-200 outline-none"
+          // As the number beside it: colour only, 150ms, reduced or not.
+          data-motion=""
+          className="rounded-control border-paper-line bg-paper-deep text-forest focus:border-forest/60 ease-interaction h-12 w-24 shrink-0 border px-3 text-base transition-colors duration-150 outline-none"
         >
           {DIAL_CODES.map((d) => (
             <option key={d.code} value={d.code} label={d.label}>
@@ -125,6 +127,9 @@ export function PhoneField({
 
         <input
           id={id}
+          // Only colour changes here, and colour keeps its 150ms under
+          // reduced motion (S01 A, T16 A): the global rule would cut it.
+          data-motion=""
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"
@@ -134,7 +139,7 @@ export function PhoneField({
           onChange={(e) => emit(code, digits(e.target.value))}
           className={cn(
             "border-paper-line bg-paper-deep text-forest rounded-control h-12 min-w-0 flex-1 border px-4 text-base outline-none",
-            "ease-interaction transition-[border-color,background-color] duration-200",
+            "ease-interaction transition-[border-color,background-color] duration-150",
             "focus:border-forest/60 focus:bg-paper placeholder:text-forest/70",
             error && "border-terra-deep",
           )}
@@ -152,7 +157,11 @@ export function PhoneField({
         <span
           id={errorId}
           role="alert"
-          className="text-terra-deep mt-1.5 block text-xs"
+          // It arrives where the room was made for it, and fades where it
+          // was when it goes (T16 A).
+          data-motion=""
+          data-motion-leave=""
+          className="motion-reason-in text-terra-deep mt-1.5 block text-xs"
         >
           {error}
         </span>

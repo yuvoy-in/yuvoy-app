@@ -222,6 +222,50 @@ stylesheet does not draw.
 - **Reduced motion:** nothing travels; the fill and the day land and fade in;
   the moment's tick is simply drawn and its panel and reference fade (120ms).
 
+### Pictures and refusals: a reel's start, the far side, a refused number (T12 A, T15 A, T16 A)
+
+- **A clip is seen from its first frame**: it stays invisible over its poster
+  until it has decoded one (`loadeddata`), then crossfades in 200ms. A clip
+  drawn again (back inside the preload budget) earns its fade again. With a
+  poster that is the clip's own first frame the crossfade is invisible;
+  without one it is a 200ms dissolve instead of a jump.
+- **A slow start says so, and stops saying so**: the ring keeps its 600ms
+  wait, fades in (150ms) and out as the clip plays (150ms, accelerating
+  away), and turns only while it shows. A first frame is not the end of a
+  start (a clip can hold it while it buffers), and a stall shows the ring
+  again at once. A clip the traveller paused is not slow to start: the ring
+  used to come up behind the play control 600ms after a pause.
+- **A clip Safari cannot load gives up**, on the element's own `error`, and
+  the card is its poster again. It used to leave the ring turning for ever.
+- **The far side recedes** (T15 A, approved on the condition that it measured
+  cheap). On a phone, as the sheet covers a screen's picture, the picture
+  scales from 1 to 0.96 from its top edge and an abyss layer over it rises to
+  45%: linked to the scroll, no duration, linear, so it moves only with the
+  finger. CSS alone, on `animation-timeline: scroll(root)`, inside
+  `@supports`; a browser without scroll timelines keeps the still picture.
+  The range is the picture's own height (`--hero-height`) less the sheet's
+  rise over it: the gallery declares it beside its frame (125vw at 4:5, 56.25vw
+  at 16:9), and the picture strip draws its height from it. Measured
+  (Pixel 7, Chromium, 4x CPU slowdown, ten scrolls down and back): no dropped
+  frames on or off (none over 20ms, p95 9.3ms both); no layout and no repaint
+  per frame (two paints in a scroll, the overlay first drawn; commits
+  identical); the main thread restyles the two layers once a frame, about
+  0.35ms at 4x. Prove it on a mid-range Android before `main`.
+- **A refused number arrives, it does not shove**: the reason fades in rising
+  4px (150ms, one 40ms step in) and the button under it glides down to make
+  room (200ms on `move`); on the next send the reason fades where it was
+  (100ms) and the button glides back a step later. The field's border
+  answers in 150ms. An empty state does not move: absence is not an event.
+- **`useListMotion` learned `data-motion-leave`**: something inside an item
+  that stays (a field's reason) fades where it was when it goes, and what
+  follows waits for it as for any departure. A departed thing's copy is held
+  still, so an entrance its classes carry never replays in it, and silent,
+  so a live region is never read out twice.
+- **Reduced motion:** the ring holds still and fades in and out (120ms); the
+  clip crossfades in 120ms once asked for; the picture does not scale and only
+  dims; the reason only fades (120ms) and nothing glides. Colour keeps its
+  150ms (S01 A), so the fields are marked `data-motion` for their border.
+
 ## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
 
 **The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,

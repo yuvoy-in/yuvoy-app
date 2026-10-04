@@ -173,7 +173,17 @@ export function Gallery({
 
   return (
     <>
-      <div ref={rootRef} className="bg-abyss relative">
+      {/*
+        The listing's far side (T15 A): it recedes as the sheet covers it,
+        over its own height, which is its frame's shape at full width (4:5 on
+        a phone, 16:9 from `sm`; FRAME below). Kept beside each other so the
+        two cannot drift; `e2e/support/media-motion.ts` measures both.
+      */}
+      <div
+        ref={rootRef}
+        data-motion=""
+        className="bg-abyss far-side-picture relative [--hero-height:125vw] sm:[--hero-height:56.25vw]"
+      >
         <div
           ref={stripRef}
           className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
