@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { Skeleton } from "@/components/states";
 import { CloseIcon } from "@/components/ui/icons";
 import {
@@ -10,6 +11,7 @@ import {
   type VocabularyLike,
 } from "@/lib/search/labels";
 import type { ReelFilters } from "@/lib/search/filters";
+import { useListMotion } from "@/lib/motion/use-list-motion";
 
 /**
  * What is applied, on the screen, removable one at a time (yuvoy-app#37 item 1).
@@ -35,24 +37,69 @@ import type { ReelFilters } from "@/lib/search/filters";
  * With exactly one pill applied, the pill's own × already clears everything,
  * and a second control beside it that does the same thing is a choice a
  * traveller has to read before discovering it was not one.
+ *
+ * ## Seen changing (T14 A, approved 4 Oct 2026)
+ *
+ * A pill that is added grows in where it lands; one taken off fades where it
+ * was while the others close the gap, so the pill under the thumb is never
+ * suddenly another (`lib/motion/use-list-motion`). The first row on the
+ * screen is simply there; a row that appears after a change arrives
+ * (`arrive`).
  */
 export function ActiveFilters({
   filters,
   vocabulary,
   onChange,
+  arrive = false,
 }: {
   filters: ReelFilters;
   /** `undefined` while the read is in flight: pills show skeletons. */
   vocabulary: VocabularyLike | null | undefined;
   onChange: (next: ReelFilters) => void;
+  /** The row is appearing because of a change on the screen: it arrives. */
+  arrive?: boolean;
 }) {
   const pills = filterPills(filters, vocabulary);
   if (pills.length === 0) return null;
+  return (
+    <PillRow
+      filters={filters}
+      pills={pills}
+      onChange={onChange}
+      arrive={arrive}
+    />
+  );
+}
 
+/**
+ * The row itself, mounted each time it appears, so a row that arrives grows
+ * its pills in and the first row on the screen does not.
+ */
+function PillRow({
+  filters,
+  pills,
+  onChange,
+  arrive,
+}: {
+  filters: ReelFilters;
+  pills: ReturnType<typeof filterPills>;
+  onChange: (next: ReelFilters) => void;
+  arrive: boolean;
+}) {
   const count = activeFilterCount(filters);
+  const row = useRef<HTMLDivElement | null>(null);
+  // A label arriving changes a pill's width, and moves the ones after it.
+  const signature =
+    pills.map((p) => `${p.field}:${p.label ?? ""}`).join("|") +
+    (count >= 2 ? "|clear" : "");
+  useListMotion(row, signature, { arrive: "grow", arriveOnMount: arrive });
 
   return (
     <div
+      ref={row}
+      // The screen's own motion moves the row; its pills arrive themselves.
+      data-motion-key="applied"
+      data-motion-arrive="self"
       /*
         Horizontal scroll, never wrap. Four pills plus Clear all would wrap to
         three rows on a small phone and push the grid off the screen, which is
@@ -71,6 +118,7 @@ export function ActiveFilters({
       {pills.map((pill) => (
         <Pill
           key={pill.field}
+          motionKey={pill.field}
           label={pill.label}
           onRemove={() => onChange(withoutFilter(filters, pill.field))}
         />
@@ -79,6 +127,7 @@ export function ActiveFilters({
       {count >= 2 ? (
         <button
           type="button"
+          data-motion-key="clear-all"
           onClick={() => onChange(withoutFilters(filters))}
           className="text-terra-deep tap-target shrink-0 px-1 text-sm underline underline-offset-4"
         >
@@ -90,9 +139,11 @@ export function ActiveFilters({
 }
 
 function Pill({
+  motionKey,
   label,
   onRemove,
 }: {
+  motionKey: string;
   label: string | null;
   onRemove: () => void;
 }) {
@@ -103,7 +154,10 @@ function Pill({
   */
   if (label === null) {
     return (
-      <span className="border-paper-line flex h-11 shrink-0 items-center gap-2 rounded-full border pr-1 pl-4">
+      <span
+        data-motion-key={motionKey}
+        className="border-paper-line flex h-11 shrink-0 items-center gap-2 rounded-full border pr-1 pl-4"
+      >
         <Skeleton className="h-3 w-16" />
         <RemoveButton label="this filter" onRemove={onRemove} />
       </span>
@@ -111,7 +165,10 @@ function Pill({
   }
 
   return (
-    <span className="border-forest/25 flex h-11 shrink-0 items-center gap-1 rounded-full border pr-1 pl-4 text-sm">
+    <span
+      data-motion-key={motionKey}
+      className="border-forest/25 flex h-11 shrink-0 items-center gap-1 rounded-full border pr-1 pl-4 text-sm"
+    >
       {label}
       <RemoveButton label={label} onRemove={onRemove} />
     </span>

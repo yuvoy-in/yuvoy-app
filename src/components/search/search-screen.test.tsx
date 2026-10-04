@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { SearchScreen } from "./search-screen";
 import { server } from "../../../mocks/server";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
+import { REELS } from "../../../mocks/fixtures";
 import { marketToday, marketDaysFrom } from "@/lib/booking/availability-window";
 import { dateLabel } from "@/lib/search/labels";
 
@@ -929,5 +930,86 @@ describe("what is applied, on the screen", () => {
     expect(
       within(row).getByRole("button", { name: "Remove Today" }),
     ).toBeTruthy();
+  });
+});
+
+/*
+  T11 A (approved 4 Oct 2026): a wait is shown only once it has lasted 300ms,
+  the last answer stays on screen until then, and once the skeleton is up it
+  stays 300ms. Real timers: MSW's own delay is the wait.
+*/
+describe("waiting for an answer (T11 A)", () => {
+  /** The full grid first, then every later read answered after `ms`. */
+  function serveThenWait(ms: number) {
+    let calls = 0;
+    server.use(
+      http.get(`${BASE}/reels`, async () => {
+        calls += 1;
+        if (calls > 1) await delay(ms);
+        return HttpResponse.json({
+          items: calls > 1 ? REELS.slice(0, 2) : REELS,
+          complete: true,
+        });
+      }),
+    );
+  }
+
+  const searching = () => screen.queryByRole("status", { name: "Searching" });
+  const tiles = () =>
+    within(screen.getByRole("list", { name: "Search results" })).getAllByRole(
+      "listitem",
+    );
+
+  it("keeps the last answer on screen, marked busy, while the next one loads", async () => {
+    serveThenWait(250);
+    const { rerender } = renderWithQuery(<SearchScreen />);
+    await screen.findByRole("list", { name: "Search results" });
+    const before = tiles().length;
+    expect(before).toBeGreaterThan(2);
+
+    // A filter, not the word: the search box owns the word.
+    nav.url = "/search?kind=adventure";
+    rerender(<SearchScreen />);
+
+    // The old grid, still there, said to be out of date; no skeleton yet.
+    expect(tiles()).toHaveLength(before);
+    expect(
+      screen
+        .getByRole("list", { name: "Search results" })
+        .closest("[aria-busy]"),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(searching()).toBeNull();
+
+    // A quick answer replaces it in place, with no skeleton between.
+    await waitFor(() => expect(tiles()).toHaveLength(2));
+    expect(searching()).toBeNull();
+  });
+
+  it("shows the skeleton only once a wait has lasted 300ms, then keeps it 300ms", async () => {
+    serveThenWait(700);
+    const { rerender } = renderWithQuery(<SearchScreen />);
+    await screen.findByRole("list", { name: "Search results" });
+
+    const changed = performance.now();
+    // A filter, not the word: the search box owns the word.
+    nav.url = "/search?kind=adventure";
+    rerender(<SearchScreen />);
+
+    await new Promise((r) => setTimeout(r, 150));
+    expect(searching(), "a skeleton for a wait of 150ms").toBeNull();
+
+    const status = await screen.findByRole(
+      "status",
+      { name: "Searching" },
+      { timeout: 2000 },
+    );
+    const shown = performance.now();
+    expect(shown - changed).toBeGreaterThanOrEqual(290);
+    // The true shape: two lines of words under every picture.
+    expect(status.querySelectorAll(".rounded-tile")).toHaveLength(6);
+
+    await waitFor(() => expect(searching()).toBeNull(), { timeout: 3000 });
+    expect(performance.now() - shown).toBeGreaterThanOrEqual(290);
+    expect(tiles()).toHaveLength(2);
   });
 });

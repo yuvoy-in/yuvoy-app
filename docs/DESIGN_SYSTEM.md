@@ -155,6 +155,34 @@ stylesheet does not draw.
 - **Reduced motion:** both are a 120ms fade in and out; a pull still follows
   the finger, and a closing pull fades where it was let go.
 
+### Search: waiting, and a list that changes in place (T11 A, T14 A)
+
+- **A wait is shown only once it has lasted 300ms**, and once shown it stays
+  300ms (`useDelayedFlag`). Search keeps the last answer on screen while the
+  next loads (`keepPreviousData`, the results marked `aria-busy`), so a
+  quick answer never swaps the grid for a skeleton and back.
+- **The skeleton is the shape that is coming**: the grid's own tiles, two
+  across at 4:5 with two lines of words. It breathes as one layer.
+- **Skeletons breathe** everywhere now: opacity 1 to 0.55 and back over 1.6s
+  on `ease-in-out`, the system's one loop. The old sweep animated
+  `background-position`, which repaints every tile every frame.
+- **A list that changes in place is seen changing** (`useListMotion`, on the
+  grid, the applied pills and the parts of the screen around them): what
+  stays slides to its new place (FLIP, 200ms on `move`, one 40ms step after
+  what left), what arrives grows (pills, 0.96) or rises (tiles, 8px) into
+  place in 150ms, 40ms apart for a list arriving as a list (at most four
+  steps), and what leaves fades where it was in 100ms as an `inert`,
+  `aria-hidden` copy. Only what is on screen moves.
+- **Tiles are keyed by their clip**, so a tile that stays is the same element
+  and its picture is never fetched or decoded twice.
+- **Counts roll** (`RollingNumber`): the old figure leaves as the new one
+  arrives, upward when the number rises and downward when it falls, 200ms.
+- **Chips colour in 150ms**, the selection speed.
+- **A screen arrives whole**: its first pills, count and grid are simply
+  there; only what changes on it afterwards is seen arriving.
+- **Reduced motion:** nothing slides, grows, rises or rolls; arrivals and
+  departures are a 120ms fade; the skeleton is still.
+
 ## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
 
 **The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,
