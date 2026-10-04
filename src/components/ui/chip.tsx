@@ -16,7 +16,11 @@ import { cn } from "@/lib/cn";
 export const chipVariants = cva(
   [
     "inline-flex shrink-0 items-center gap-1.5 rounded-full border whitespace-nowrap",
-    "transition-[background-color,border-color,color] duration-200 ease-interaction",
+    /*
+      Selection colours in 150ms (the motion system, approved 4 Oct 2026):
+      a chip is tapped many times in one sitting, so it answers quickly.
+    */
+    "transition-[background-color,border-color,color] duration-150 ease-interaction",
   ],
   {
     variants: {
