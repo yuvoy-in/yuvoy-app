@@ -14,6 +14,80 @@
 > token. Everything describing the app says `paper`. A ratio quoted beside `cream` is the
 > marketing site's and has not moved.
 
+## v3.1 (2026-10-04, owner-approved): the motion system
+
+**The change: motion gets a system, and the app's single 250ms budget becomes
+three.** Decided experiment by experiment from the before-and-after study in
+`yuvoy/motion-lab` (25 experiments, the decisions verbatim in its
+`APPROVALS.md`), for the traveller app and the operator portal separately.
+§3 below is superseded where it disagrees with this section.
+
+### The tokens
+
+Two curves join the two production already had (both repos' `@theme`, kept
+identical by the operator's `tokens:check`):
+
+| Token                | Value                             | Job                                                                 |
+| -------------------- | --------------------------------- | ------------------------------------------------------------------- |
+| `--ease-interaction` | `cubic-bezier(0.32, 0.72, 0, 1)`  | Arriving, answering a touch (unchanged)                             |
+| `--ease-cinematic`   | `cubic-bezier(0.22, 1, 0.36, 1)`  | A screen or picture travelling, landing softly (was unused)         |
+| `--ease-move`        | `cubic-bezier(0.2, 0, 0, 1)`      | A to B with both ends on screen: an indicator, a list closing a gap |
+| `--ease-exit`        | `cubic-bezier(0.3, 0, 0.8, 0.15)` | Leaving: accelerates away so a dismissal never lingers              |
+
+Durations are written where they are used, on one scale: press 100, quick 150,
+standard 200, sheet 250 (exit 200), spatial 350 (exit 250), moment 450ms.
+`lib/motion` mirrors the curves for script (`motion.test.ts` fails if they
+drift).
+
+### The budgets (`palette.test.ts` holds every pairing to its own)
+
+- **Interaction**, `--ease-interaction`, `--ease-move`, `--ease-exit`: at most
+  250ms. Everything that answers a touch.
+- **Travel**, `--ease-cinematic`: over 250ms and at most 450ms. Only a screen
+  or a picture going somewhere, and the one authored moment in a flow.
+- **The operator portal** has no travel: 200ms is its ceiling for anything
+  but progress (the five-second undo window, which is the information).
+
+### The rules
+
+- **Answer first.** A touch is acknowledged within 100ms, and the work starts
+  on the same tap. Nothing waits for an animation.
+- **Exits are faster than entrances**, about two thirds.
+- **Transform and opacity**; clip-path only on small elements. Never animate
+  a box's size per frame: measure once and play the difference (FLIP).
+- **Never clip a filtered element.** The tab bar's frosted ground and its
+  paper are separate elements: in Safari a clipped `backdrop-filter` drew a
+  shaded block instead of a pill (found in the study, 4 Oct 2026).
+- **Presses animate `scale`.** Tailwind 4 writes `active:scale-*` to the
+  standalone `scale` property; every transition list used to name only
+  `transform`, so every press in both apps snapped. `motion-control` (a
+  Button) and `motion-disc` (a disc) carry the press: 100ms in, 150ms out.
+  `palette.test.ts` fails a press whose string has no list naming `scale`.
+- **No loops** but honest progress. No scroll reveals (the 3 Aug ruling
+  stands).
+
+### Reduced motion swaps, it does not delete
+
+Approved as S01. The global rule still makes everything instant, now covers
+`::backdrop` (a sheet's tint used to keep fading), and skips any element
+marked `data-motion`: such an element ships its own reduced version, a 120ms
+crossfade in place of travel. Colour and opacity are not motion (WCAG 2.3.3)
+and feedback must stay legible, so a press under reduced motion changes the
+control's ground instead of its size.
+
+### Shipped with this version
+
+- The press fix in every primitive (`Button`, `IconButton`, the play disc,
+  the review stars).
+- The tab bar answers the press and glides as one object (T04 B): the
+  destination lights on the tap while `aria-current` waits for the route; a
+  paper layer clipped to the open destination glides 250ms on `--ease-move`,
+  the glyphs slide (FLIP), the bar's ground follows its width, interruptible,
+  and drawn exactly as before until script has measured it.
+- Save is one 150ms change (outline to filled from 0.9, ring and colour
+  together); the share notice fades 6px out of its disc and leaves with its
+  words (T13 A).
+
 ## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
 
 **The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,
@@ -157,6 +231,8 @@ stopped working the moment the two products' marks stopped being the same
 colour. The two copies differ only in `SRC`.
 
 ## v2.8 (2026-09-09, owner-directed) — the feed's chrome retracts
+
+> **Removed 13 Sep 2026 (yuvoy-app#36):** the owner ruled the tab bar stays visible on every reel. The retract, its flag and its slide are gone; this section is kept for the reasoning about scrims and the swipe, which still hold.
 
 **The change: on the reels feed, the chrome gets out of the way as a traveller
 moves down and comes straight back when they move up. The masthead loses its
@@ -632,6 +708,8 @@ Borders and fills are exempt from these floors — `border-forest/20`, `bg-fores
 Scale: Tailwind's type scale. Headlines `font-display`; everything else inherits the text face unless it is a label.
 
 ## 3. Motion
+
+> **Superseded in part by v3.1 (4 Oct 2026, above)**: three budgets, four curves, and reduced motion that swaps rather than deletes. The marketing-site entries below (the `emerge` entrance, the shutter, the veil, the header) are unchanged and remain the marketing site's.
 
 Two budgets, and they are not the same thing — this is the ruling that resolves "fast, responsive UI" against "slow, considered entrances".
 

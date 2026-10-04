@@ -46,12 +46,24 @@ export function TabBar() {
       aria-label="Primary"
       className="tabbar-foot pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 lg:hidden"
     >
+      {/*
+        The pill, and its ground drawn apart from it. The ground is what the
+        glide stretches when the open destination's width changes (see
+        `tab-glide.ts`); the row inside is never scaled. Same surface, same
+        hairline ring as when the pill painted itself.
+      */}
       <div
-        className={cn(
-          "ring-paper/12 pointer-events-auto rounded-full p-1.5 ring-1",
-          onMedia ? "tabbar-on-media" : "app-chrome",
-        )}
+        data-tabbar-pill=""
+        className="pointer-events-auto relative isolate rounded-full p-1.5"
       >
+        <span
+          aria-hidden="true"
+          data-tabbar-ground=""
+          className={cn(
+            "tabbar-ground ring-paper/12 rounded-full ring-1",
+            onMedia ? "tabbar-on-media" : "app-chrome",
+          )}
+        />
         <NavList orientation="bar" />
       </div>
     </nav>

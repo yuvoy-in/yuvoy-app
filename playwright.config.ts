@@ -17,7 +17,7 @@ import { defineConfig, devices } from "@playwright/test";
  * Named once so the `iphone` project and the two Chromium projects can never
  * disagree about what belongs where.
  */
-const WEBKIT_ONLY = /(ios-input-zoom|hydration)\.spec\.ts/;
+const WEBKIT_ONLY = /(ios-input-zoom|hydration|motion-webkit)\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./e2e",

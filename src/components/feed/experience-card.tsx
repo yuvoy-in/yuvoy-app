@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
 import { ReelDetails } from "./reel-details";
@@ -421,14 +422,24 @@ export function ExperienceCard({
               variant="onDark"
               size="md"
               aria-pressed={saved}
-              className={
-                saved ? "text-terra-soft ring-terra-soft/45" : undefined
-              }
+              className={cn(
+                "save-toggle",
+                saved && "text-terra-soft ring-terra-soft/45",
+              )}
               onClick={() =>
                 askToSave(() => toggle.current(experience.id, experience.slug))
               }
             >
-              {saved ? <BookmarkFilledIcon /> : <BookmarkIcon />}
+              {/*
+                Both glyphs, always drawn, so a save is ONE change (T13 A): the
+                outline gives way to the filled mark as it settles from 0.9,
+                while the ring and the colour arrive, all in 150ms. Quiet on
+                purpose: a pop would read as a like, and saves are private.
+              */}
+              <span className="save-glyphs" aria-hidden="true">
+                <BookmarkIcon data-glyph="off" data-motion="" />
+                <BookmarkFilledIcon data-glyph="on" data-motion="" />
+              </span>
             </IconButton>
 
             {/*

@@ -173,7 +173,7 @@ export function ReviewForm({ token }: { token: string }) {
                 aria-pressed={rating === n}
                 onClick={() => setRating(n)}
                 className={cn(
-                  "ease-interaction inline-flex size-11 items-center justify-center rounded-full border transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.96]",
+                  "motion-disc inline-flex size-11 items-center justify-center rounded-full border active:scale-[0.96]",
                   rating >= n
                     ? "border-forest bg-forest text-paper"
                     : "border-paper-line bg-paper text-forest/70 hover:border-forest/40",

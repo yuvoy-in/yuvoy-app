@@ -46,23 +46,40 @@ export function ShareLink({
   size?: "sm" | "md" | "lg";
 }) {
   const [notice, setNotice] = useState<"copied" | "unavailable" | null>(null);
+  /*
+    Shown, and what it says, are two things (T13 A, approved 4 Oct 2026). The
+    words stay for the 150ms the pill takes to fade out, then clear, so the
+    pill leaves with its sentence rather than shrinking to an empty capsule
+    first. The live region is the same element and is never removed from the
+    accessibility tree: it is only ever made transparent, so a sentence
+    written into it is announced as reliably as before.
+  */
+  const [shown, setShown] = useState(false);
+  const [round, setRound] = useState(0);
 
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(null), 2500);
-    return () => clearTimeout(timer);
-  }, [notice]);
+    const hide = setTimeout(() => setShown(false), 2500);
+    const clear = setTimeout(() => setNotice(null), 2500 + 150);
+    return () => {
+      clearTimeout(hide);
+      clearTimeout(clear);
+    };
+  }, [notice, round]);
 
   async function share() {
     const url = `${window.location.origin}${path}`;
     const outcome = await shareUrl({ title, url });
-    setNotice(
+    const next =
       outcome === "copied"
         ? "copied"
         : outcome === "unavailable"
           ? "unavailable"
-          : null,
-    );
+          : null;
+    setNotice(next);
+    setShown(next !== null);
+    // A second share restarts the 2.5s even when the sentence is the same.
+    setRound((n) => n + 1);
   }
 
   return (
@@ -78,8 +95,10 @@ export function ShareLink({
       <span
         role="status"
         aria-live="polite"
+        data-shown={shown ? "true" : "false"}
+        data-motion=""
         className={cn(
-          "label app-chrome ring-paper/12 absolute top-1/2 right-full mr-3 -translate-y-1/2 rounded-full px-3 py-1.5 text-[11px] whitespace-nowrap ring-1",
+          "share-notice label app-chrome ring-paper/12 absolute top-1/2 right-full mr-3 -translate-y-1/2 rounded-full px-3 py-1.5 text-[11px] whitespace-nowrap ring-1",
           !notice && "sr-only",
         )}
       >
