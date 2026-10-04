@@ -154,10 +154,14 @@ export function Screen({
             the way the reel's far side was always described: the clip is
             still there behind the page about it. From `lg` up the sheet is a
             panel beside nothing, so the picture scrolls with it as before.
+
+            And it recedes as the sheet covers it (T15 A): a picture that
+            declares its height (`far-side-picture`, `--hero-height`) scales
+            back and dims with the scroll, in CSS alone. See `globals.css`.
           */}
           <div
             className={cn(
-              "lg:rounded-t-sheet relative max-lg:sticky max-lg:top-0 max-lg:z-0 lg:overflow-hidden",
+              "far-side lg:rounded-t-sheet relative max-lg:sticky max-lg:top-0 max-lg:z-0 lg:overflow-hidden",
               column,
               overlap,
             )}

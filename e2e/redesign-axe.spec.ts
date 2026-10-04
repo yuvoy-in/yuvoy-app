@@ -17,13 +17,19 @@ async function expectAccessible(page: Page) {
     Let entrances finish: axe measuring a fading element reads a colour nobody
     sees. Settled, not all: an animation cancelled mid-swap rejects its
     `finished` with an AbortError, and that is not a failure of the page. An
-    infinite one (a skeleton's shimmer) never finishes, so it is not waited on.
+    infinite one (a skeleton's shimmer) never finishes, so it is not waited
+    on, and nor is one on a scroll timeline (the far side's recede, T15 A):
+    it rests where the scroll has it, with nothing to finish.
   */
   await page.evaluate(() =>
     Promise.allSettled(
       document
         .getAnimations()
-        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .filter(
+          (a) =>
+            a.timeline === document.timeline &&
+            a.effect?.getTiming().iterations !== Infinity,
+        )
         .map((a) => a.finished),
     ),
   );

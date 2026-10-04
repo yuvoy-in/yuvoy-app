@@ -795,6 +795,95 @@ describe("measured contrast", () => {
       ).toBeGreaterThan(2);
     });
 
+    it("loops only where something is honestly still working", () => {
+      /*
+        "No loops but honest progress" (the motion system, approved 4 Oct
+        2026). Three things in the app turn or breathe until they are done:
+        a skeleton, a working button's ring and a slow reel's ring, each
+        drawn only while its wait lasts. Anything else that loops is
+        decoration that never stops, which is how `animate-spin` and the
+        skeleton's repainting sweep shipped before the study. A new loop is
+        added here, by name and on purpose, or not at all.
+      */
+      const allowed = new Set([
+        "skeleton-breath",
+        "button-ring-turn",
+        "feed-ring-turn",
+      ]);
+      const keywords = new Set([
+        "linear",
+        "ease",
+        "ease-in",
+        "ease-out",
+        "ease-in-out",
+        "step-start",
+        "step-end",
+        "infinite",
+        "none",
+        "both",
+        "forwards",
+        "backwards",
+        "normal",
+        "reverse",
+        "alternate",
+        "alternate-reverse",
+        "running",
+        "paused",
+        "auto",
+      ]);
+      /** A list's members, split at the commas outside any parentheses. */
+      const members = (value: string) => {
+        const out: string[] = [];
+        let depth = 0;
+        let from = 0;
+        for (let i = 0; i < value.length; i++) {
+          if (value[i] === "(") depth += 1;
+          else if (value[i] === ")") depth -= 1;
+          else if (value[i] === "," && depth === 0) {
+            out.push(value.slice(from, i));
+            from = i + 1;
+          }
+        }
+        return [...out, value.slice(from)];
+      };
+      const css = read(join(SRC, "app/globals.css"));
+      const loops = [...css.matchAll(/\banimation:\s*([^;]+);/g)]
+        .flatMap(([, value]) => members(value))
+        .filter((one) => /\binfinite\b/.test(one))
+        .map(
+          (one) =>
+            one
+              .trim()
+              .split(/\s+/)
+              .find((t) => /^[a-z][a-z0-9-]*$/.test(t) && !keywords.has(t)) ??
+            one.trim(),
+        );
+      expect(
+        loops.length,
+        "no loops found: the scan is looking in the wrong place",
+      ).toBeGreaterThan(2);
+      for (const name of loops)
+        expect(allowed.has(name), `globals.css: "${name}" loops`).toBe(true);
+
+      for (const file of FILES.filter(
+        (f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f),
+      )) {
+        const src = read(file);
+        expect(
+          /\banimate-(spin|pulse|ping|bounce)\b/.test(src),
+          `${rel(file)}: a Tailwind loop`,
+        ).toBe(false);
+        expect(
+          /\biterations:\s*Infinity\b/.test(src),
+          `${rel(file)}: a scripted loop`,
+        ).toBe(false);
+        expect(
+          /\banimation[A-Za-z]*\s*:\s*["'`][^"'`]*\binfinite\b/.test(src),
+          `${rel(file)}: an inline loop`,
+        ).toBe(false);
+      }
+    });
+
     it("keeps the wordmark legible over the same frame", () => {
       /*
         The mark occupies 22%-48% of the top scrim: 24px to 52px of the

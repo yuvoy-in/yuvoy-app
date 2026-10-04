@@ -69,6 +69,13 @@ beforeEach(() => {
       },
     });
   }
+  // Every element is laid out against the nearest list frame around it.
+  Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.parentElement?.closest("[data-frame]") ?? null;
+    },
+  });
   Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
     configurable: true,
     value(this: HTMLElement) {
@@ -107,6 +114,7 @@ afterEach(() => {
     "offsetTop",
     "offsetWidth",
     "offsetHeight",
+    "offsetParent",
     "getBoundingClientRect",
   ])
     delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
@@ -273,6 +281,67 @@ describe("useListMotion", () => {
     const { rerender } = render(<Selfish show={false} />);
     rerender(<Selfish show />);
     expect(played).toHaveLength(0);
+  });
+
+  it("fades what left from inside an item that stayed, and the rest waits a step", async () => {
+    /*
+      A field's reason (T16 A): not an item, but inside one. It goes as a
+      copy where it was, still and silent, and the button under the field
+      glides back one step after it.
+    */
+    function Form({ reason }: { reason: string | null }) {
+      const ref = useRef<HTMLFormElement | null>(null);
+      useListMotion(ref, reason ?? "", { arrive: "fade", byNode: true });
+      return (
+        <form ref={ref} data-frame="">
+          <div data-box={`0 0 390 ${reason ? 92 : 72}`}>
+            <input data-box="0 24 390 48" />
+            {reason ? (
+              <span
+                role="alert"
+                data-motion-leave=""
+                className="motion-reason-in"
+                data-box="0 78 390 14"
+              >
+                {reason}
+              </span>
+            ) : null}
+          </div>
+          <button type="submit" data-box={`0 ${reason ? 112 : 92} 390 56`}>
+            Send me a code
+          </button>
+        </form>
+      );
+    }
+    const button = () => played.filter((p) => p.el.tagName === "BUTTON");
+    const { rerender, container } = render(<Form reason={null} />);
+    rerender(<Form reason="That number did not work." />);
+    // Room is made at once, on `move`: nothing had left.
+    expect(button()).toHaveLength(1);
+    expect(button()[0].keyframes[0]).toEqual({
+      transform: "translate(0px, -20px)",
+    });
+    expect(button()[0].options).toMatchObject({ delay: 0, easing: EASE.move });
+
+    played = [];
+    rerender(<Form reason={null} />);
+    const copy = container.querySelector<HTMLElement>("[data-motion-ghost]")!;
+    expect(copy).not.toBeNull();
+    expect(copy.textContent).toBe("That number did not work.");
+    expect(copy).toHaveAttribute("aria-hidden", "true");
+    expect(copy).not.toHaveAttribute("role");
+    // Still: the entrance its class carries does not play again.
+    expect(copy.style.animation).toBe("none");
+    expect(copy.style.top).toBe("78px");
+    const fade = played.find((p) => p.el === copy)!;
+    expect(fade.options.duration).toBe(100);
+    expect(button()).toHaveLength(1);
+    expect(button()[0].keyframes[0]).toEqual({
+      transform: "translate(0px, 20px)",
+    });
+    expect(button()[0].options.delay).toBe(40);
+    await fade.finish();
+    expect(copy.isConnected).toBe(false);
   });
 
   it("still sees changes to a list its screen draws a render late", () => {

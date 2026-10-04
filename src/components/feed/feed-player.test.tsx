@@ -385,3 +385,166 @@ describe("the reel player, tapped (tap is play and pause)", () => {
     expect(pauseControl()).not.toBeInTheDocument();
   });
 });
+
+/*
+  T12 A (approved 4 Oct 2026): the clip is seen only from its first decoded
+  frame, and a clip Safari cannot play gives up instead of spinning for ever.
+  Both on the native HLS path (Safari, iOS), which jsdom stands in for here.
+*/
+describe("the reel player, on its first frame (T12 A)", () => {
+  const native = Object.getOwnPropertyDescriptor(
+    HTMLMediaElement.prototype,
+    "canPlayType",
+  );
+  beforeAll(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, "canPlayType", {
+      configurable: true,
+      writable: true,
+      value: (type: string) =>
+        type === "application/vnd.apple.mpegurl" ? "maybe" : "",
+    });
+  });
+  afterAll(() => {
+    if (native)
+      Object.defineProperty(HTMLMediaElement.prototype, "canPlayType", native);
+  });
+
+  const element = (over: Partial<Parameters<typeof FeedPlayer>[0]> = {}) => (
+    <FeedPlayer media={CLIP} active mounted muted autoplayAllowed {...over} />
+  );
+  const player = () => render(element());
+  const ring = () => screen.queryByRole("status", { name: "Loading video" });
+
+  it("stays invisible over its poster until it has a frame, then fades in", async () => {
+    const { container } = player();
+    const video = container.querySelector("video")!;
+    // Attached and asked to play, but nothing decoded: still the poster.
+    await act(async () => {});
+    expect(video.getAttribute("src")).toBe(CLIP.hlsUrl);
+    expect(video).toHaveClass("opacity-0");
+    act(() => {
+      video.dispatchEvent(new Event("loadeddata"));
+    });
+    expect(video).toHaveClass("opacity-100", "duration-200");
+  });
+
+  it("gives a dead clip up, leaving its poster and no spinner", async () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = player();
+      const video = container.querySelector("video")!;
+      await act(async () => {});
+      act(() => {
+        video.dispatchEvent(new Event("error"));
+      });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(container.querySelector("video")).toBeNull();
+      expect(
+        screen.queryByRole("status", { name: "Loading video" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says a slow start is slow, and stops saying so once the clip plays", async () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = player();
+      const video = container.querySelector("video")!;
+      await act(async () => {});
+      act(() => {
+        vi.advanceTimersByTime(700);
+      });
+      expect(ring()).toBeInTheDocument();
+      // A first frame is not a start: the clip can hold it while it buffers.
+      act(() => {
+        video.dispatchEvent(new Event("loadeddata"));
+      });
+      expect(ring()).toHaveAttribute("data-shown", "true");
+      act(() => {
+        video.dispatchEvent(new Event("playing"));
+      });
+      expect(ring()).not.toBeInTheDocument();
+      // Still drawn, so that it fades out rather than vanishing.
+      expect(container.querySelector(".feed-slow-ring")).toHaveAttribute(
+        "data-shown",
+        "false",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says so again at once when a clip it already knows is slow stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = player();
+      const video = container.querySelector("video")!;
+      await act(async () => {});
+      act(() => {
+        vi.advanceTimersByTime(700);
+      });
+      act(() => {
+        video.dispatchEvent(new Event("loadeddata"));
+        video.dispatchEvent(new Event("playing"));
+      });
+      expect(ring()).not.toBeInTheDocument();
+      act(() => {
+        video.dispatchEvent(new Event("stalled"));
+      });
+      // Named, and seen: over the picture it already has.
+      expect(ring()).toHaveAttribute("data-shown", "true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never calls a clip the traveller paused slow to start", async () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = player();
+      const video = container.querySelector("video")!;
+      await act(async () => {});
+      act(() => {
+        video.dispatchEvent(new Event("loadeddata"));
+        video.dispatchEvent(new Event("playing"));
+      });
+      await act(async () =>
+        screen.getByRole("button", { name: "Pause video" }).click(),
+      );
+      act(() => {
+        video.dispatchEvent(new Event("pause"));
+      });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(ring()).not.toBeInTheDocument();
+      expect(playControl()).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fades a clip in again from its own first frame when it is drawn again", async () => {
+    const { container, rerender } = player();
+    await act(async () => {});
+    act(() => {
+      container.querySelector("video")!.dispatchEvent(new Event("loadeddata"));
+    });
+    expect(container.querySelector("video")).toHaveClass("opacity-100");
+    // Out of the preload budget, and back: a new element, with no frame yet.
+    rerender(element({ mounted: false }));
+    expect(container.querySelector("video")).toBeNull();
+    rerender(element({ mounted: true }));
+    await act(async () => {});
+    const again = container.querySelector("video")!;
+    expect(again).toHaveClass("opacity-0");
+    act(() => {
+      again.dispatchEvent(new Event("loadeddata"));
+    });
+    expect(again).toHaveClass("opacity-100");
+  });
+});

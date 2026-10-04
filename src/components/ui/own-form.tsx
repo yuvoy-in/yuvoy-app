@@ -6,6 +6,7 @@ import {
   useId,
   type FormEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 import { createPortal } from "react-dom";
 import { useHasMounted } from "@/lib/react/use-has-mounted";
@@ -46,8 +47,11 @@ export function OwnForm({
   noValidate,
   onSubmit,
   children,
+  ref,
 }: {
   className?: string;
+  /** The element holding the controls (the form, or its stand-in). */
+  ref?: Ref<HTMLElement>;
   noValidate?: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   /**
@@ -64,7 +68,12 @@ export function OwnForm({
 
   if (!inside) {
     return (
-      <form className={className} noValidate={noValidate} onSubmit={onSubmit}>
+      <form
+        ref={ref as Ref<HTMLFormElement>}
+        className={className}
+        noValidate={noValidate}
+        onSubmit={onSubmit}
+      >
         {children(undefined)}
       </form>
     );
@@ -84,7 +93,9 @@ export function OwnForm({
             document.body,
           )
         : null}
-      <div className={className}>{children(id)}</div>
+      <div ref={ref as Ref<HTMLDivElement>} className={className}>
+        {children(id)}
+      </div>
     </>
   );
 }
