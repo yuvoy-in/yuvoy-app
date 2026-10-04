@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { expectSaveStored } from "./saved";
+import { touchDrag } from "./touch";
 
 /**
  * Screen changes, in a real engine (T01 C and A, T02 C, T03 B; approved
@@ -101,46 +102,6 @@ async function tab(page: Page, name: string) {
     .locator('nav[aria-label="Primary"]:visible')
     .getByRole("link", { name })
     .click();
-}
-
-/**
- * One touch drag as the browser would send it, through React's own pointer
- * handlers. Synthetic, because WebKit has no CDP; the timing is real, so the
- * speed the gesture reads is the speed it was made at.
- */
-async function touchDrag(
-  page: Page,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  { steps = 12, stepMs = 16, release = true } = {},
-) {
-  await page.evaluate(
-    async ({ from, to, steps, stepMs, release }) => {
-      const target = document.elementFromPoint(from.x, from.y)!;
-      const at = (x: number, y: number): PointerEventInit => ({
-        pointerId: 7,
-        pointerType: "touch",
-        isPrimary: true,
-        clientX: x,
-        clientY: y,
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-      });
-      target.dispatchEvent(new PointerEvent("pointerdown", at(from.x, from.y)));
-      let x = from.x;
-      let y = from.y;
-      for (let i = 1; i <= steps; i++) {
-        await new Promise((resolve) => setTimeout(resolve, stepMs));
-        x = from.x + ((to.x - from.x) * i) / steps;
-        y = from.y + ((to.y - from.y) * i) / steps;
-        target.dispatchEvent(new PointerEvent("pointermove", at(x, y)));
-      }
-      if (release)
-        target.dispatchEvent(new PointerEvent("pointerup", at(x, y)));
-    },
-    { from, to, steps, stepMs, release },
-  );
 }
 
 /** The x a fixed layer is drawn at, from its transform. */

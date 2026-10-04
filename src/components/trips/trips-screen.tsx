@@ -33,6 +33,7 @@ import { IslandDays } from "./island-days";
 import { nextUpTrip } from "@/lib/trips/next-up";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { marketDayOf } from "@/lib/booking/availability-window";
+import { SheetPresence } from "@/components/ui/sheet";
 import {
   DateFilterSheet,
   DateFilterButton,
@@ -202,13 +203,13 @@ export function TripsScreen() {
         </span>
       </div>
 
-      {dateSheet ? (
+      <SheetPresence open={dateSheet}>
         <DateFilterSheet
           range={range}
           onApply={setRange}
           onClose={() => setDateSheet(false)}
         />
-      ) : null}
+      </SheetPresence>
 
       {/*
         What is next, then the days, then the record. The pass is the trip

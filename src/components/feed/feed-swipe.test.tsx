@@ -345,3 +345,27 @@ describe("the reel no longer names the operator — yuvoy-app#36", () => {
     expect(fireEvent.click(title)).toBe(false);
   });
 });
+
+describe("a pull on the details panel's handle (T05 A)", () => {
+  // The open panel marks its overflow with one; jsdom has none.
+  const had = globalThis.ResizeObserver;
+  beforeEach(() => {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  });
+  afterEach(() => {
+    globalThis.ResizeObserver = had;
+  });
+
+  it("is the panel's, and never opens the listing, even when it wanders sideways", async () => {
+    renderCard();
+    fireEvent.click(document.querySelector("button[aria-controls]")!);
+    const handle = await screen.findByRole("button", { name: "Close details" });
+    // Mostly leftward: on the card itself this would be a swipe.
+    drag(handle, { x: 300, y: 300 }, { x: 150, y: 340 });
+    expect(push).not.toHaveBeenCalled();
+  });
+});

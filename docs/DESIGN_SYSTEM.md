@@ -127,6 +127,34 @@ stylesheet does not draw.
   exit transitions was fixed in React (#35337, in the canary Next 16.3 ships);
   WebKit is covered by `e2e/motion-webkit.spec.ts`, which is not a phone.
 
+### Sheets and the details panel (T06 A, T05 A)
+
+- **A sheet leaves the way it came.** On a phone it rises from the bottom
+  edge (250ms) and every way out (the X, the backdrop, Escape, Android's
+  back, a caller closing it) sends it back down: 200ms, accelerating away.
+  From `sm` up it is a centred panel, not an edge sheet: it keeps its rise
+  and leaves by reversing it (a fade and 12px, 200ms).
+- **The dialog closes only once the exit has run.** The exit is the Web
+  Animations API, then `close()`: a closed `<dialog>` is not drawn, and
+  Safari 27 dropped the `display` transition that would let CSS hold it.
+  The page stays inert for those 200ms, as it is while the sheet is open,
+  and focus returns to the opener when it closes, as before.
+- **Callers render `<SheetPresence open={…}>` around their sheet** instead
+  of mounting it behind a conditional, so it stays mounted through its exit
+  and is still mounted afresh on each opening (a sheet's draft is seeded on
+  mount). `sheet-presence.test.ts` fails a sheet mounted by a conditional.
+- **The head can be pulled down** on a phone: one to one, the tint thinning
+  with it; let go past a quarter of the height or flicked, it goes from
+  where it is on `--ease-move`, the exit scaled by the distance left (120ms
+  at least); otherwise it settles back in 200ms. The X stays.
+- **The reel's details panel behaves as it looks**: in 250ms, out 200ms, and
+  its handle pulls it down one to one (past 64px or a flick it closes from
+  where it was let go; otherwise it settles back). The handle is
+  `touch-action: none`, or a pull on it would scroll the feed back a reel,
+  and the card's swipe to the listing never sees a pull's moves.
+- **Reduced motion:** both are a 120ms fade in and out; a pull still follows
+  the finger, and a closing pull fades where it was let go.
+
 ## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
 
 **The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,

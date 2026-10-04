@@ -1,5 +1,6 @@
 import { defineTabBarGlide } from "./support/motion";
 import { defineRouteMotion } from "./support/route-motion";
+import { defineSheetMotion } from "./support/sheet-motion";
 
 /*
   The same checks on WebKit (Safari's engine): how a clip, a filter and a
@@ -9,3 +10,4 @@ import { defineRouteMotion } from "./support/route-motion";
 */
 defineTabBarGlide();
 defineRouteMotion();
+defineSheetMotion();
