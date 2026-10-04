@@ -9,6 +9,7 @@ import { Panel } from "@/components/ui/panel";
 import { Field } from "@/components/ui/field";
 import { SearchIcon } from "@/components/ui/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { SheetPresence } from "@/components/ui/sheet";
 import { MessageSheet } from "./message-sheet";
 import { YourRequests } from "./your-requests";
 import { cn } from "@/lib/cn";
@@ -198,7 +199,9 @@ export function HelpCenter() {
         </Panel>
       </section>
 
-      {open ? <MessageSheet onClose={() => setOpen(false)} /> : null}
+      <SheetPresence open={open}>
+        <MessageSheet onClose={() => setOpen(false)} />
+      </SheetPresence>
     </Screen>
   );
 }

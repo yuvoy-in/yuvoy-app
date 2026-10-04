@@ -67,6 +67,52 @@ export function useReducedMotion(): boolean {
 }
 
 /**
+ * The shortest a gesture's finish may take. Under it a release reads as a
+ * jump rather than as the surface carrying on from where the finger left it.
+ */
+export const GESTURE_FLOOR_MS = 120;
+
+/**
+ * How long a release takes to finish a journey the finger already made part
+ * of: the full duration scaled by the share of the distance still to go, and
+ * never under {@link GESTURE_FLOOR_MS}.
+ */
+export function scaledDuration(
+  left: number,
+  whole: number,
+  full: number = DURATION.sheetExit,
+): number {
+  if (!(whole > 0)) return full;
+  const share = Math.min(1, Math.max(0, left / whole));
+  return Math.max(GESTURE_FLOOR_MS, Math.round(full * share));
+}
+
+/**
+ * Where an element is drawn on the vertical axis right now, in px: the
+ * translation in its computed `transform`, which includes whatever is moving
+ * it (a keyframe, a script animation, a finger writing an inline style). 0
+ * where it has none, or where there is no style to read.
+ */
+export function translateYOf(el: Element): number {
+  if (typeof getComputedStyle !== "function") return 0;
+  const t = getComputedStyle(el).transform;
+  const m = t ? /^matrix(3d)?\(([^)]+)\)$/.exec(t) : null;
+  // A browser reports a matrix; with no layout engine (jsdom) the declared
+  // `translateY()` is all there is to read.
+  const y = m
+    ? Number(m[2].split(",")[m[1] ? 13 : 5])
+    : Number(/^translateY\((-?[\d.]+)px\)$/.exec(t ?? "")?.[1] ?? 0);
+  return Number.isFinite(y) ? y : 0;
+}
+
+/** The opacity an element is drawn at right now, keyframes included. */
+export function opacityOf(el: Element): number {
+  if (typeof getComputedStyle !== "function") return 1;
+  const o = Number.parseFloat(getComputedStyle(el).opacity);
+  return Number.isFinite(o) ? o : 1;
+}
+
+/**
  * Cancels the script-started animations an element is running (CSS
  * transitions and keyframes are left to the stylesheet). Read where the
  * element IS before calling this: a motion that starts from that reading

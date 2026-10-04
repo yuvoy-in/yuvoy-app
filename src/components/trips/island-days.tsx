@@ -24,7 +24,7 @@ import { LoadingState, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Panel } from "@/components/ui/panel";
-import { Sheet } from "@/components/ui/sheet";
+import { Sheet, SheetPresence } from "@/components/ui/sheet";
 
 /**
  * Your island days (the approved redesign: traveller A with C's day plan in
@@ -61,13 +61,19 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
     to: value?.to,
   });
 
-  const sheet = editing ? (
-    <StaySheet
-      stay={value}
-      onSave={(next) => save.mutate(next)}
-      onClose={() => setEditing(false)}
-    />
-  ) : null;
+  /*
+    Keyed, so it is the same sheet in whichever panel below draws it: saving
+    can change which one that is while the sheet is still leaving.
+  */
+  const sheet = (
+    <SheetPresence key="stay-sheet" open={editing}>
+      <StaySheet
+        stay={value}
+        onSave={(next) => save.mutate(next)}
+        onClose={() => setEditing(false)}
+      />
+    </SheetPresence>
+  );
 
   // The device store answers in a moment; nothing is drawn until it has.
   if (stay.isPending) return null;

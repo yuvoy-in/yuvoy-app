@@ -1264,29 +1264,53 @@
     a test detail.
 
     So visibility flips too, with a delay exactly the length of the slide: going
-    out it stays visible for the 240ms it takes to leave and hides at the end;
+    out it stays visible for the 200ms it takes to leave and hides at the end;
     coming in it becomes visible on the same frame the transform starts, because
     the open rule carries no delay. A transition on `visibility` steps rather
     than interpolating, which is what makes this work at all.
+
+    T05 A (approved 4 Oct 2026): in 250ms, out faster, in 200ms accelerating
+    away. A pull on the handle writes its own timing inline while it finishes
+    (`reel-details.tsx`), always on the same delayed-visibility shape.
   */
   visibility: hidden;
   transition:
-    transform 240ms var(--ease-interaction),
-    visibility 0s linear 240ms;
+    transform 200ms var(--ease-exit),
+    visibility 0s linear 200ms;
 
   &[data-open="open"] {
     transform: none;
     visibility: visible;
     transition:
-      transform 240ms var(--ease-interaction),
+      transform 250ms var(--ease-interaction),
       visibility 0s linear 0s;
+  }
+
+  /* Reduced motion (S01 A): it crossfades in place; nothing slides. */
+  @media (prefers-reduced-motion: reduce) {
+    transform: none;
+    opacity: 0;
+    transition:
+      opacity 120ms linear,
+      visibility 0s linear 120ms;
+
+    &[data-open="open"] {
+      opacity: 1;
+      transition:
+        opacity 120ms linear,
+        visibility 0s linear 0s;
+    }
   }
 }
 
 /* The 4px bar is the affordance; the CONTROL is 36px and the full width,
-   because a 4px target is not a target. */
+   because a 4px target is not a target. It is also the pull's grip (T05 A):
+   `touch-action: none`, or a pull down on it would scroll the feed back a
+   reel instead, and the bar brightens while it is held. */
 @utility reel-sheet-handle {
   @apply flex h-11 w-full items-center justify-center;
+  touch-action: none;
+  cursor: grab;
 
   &::before {
     content: "";
@@ -1294,10 +1318,17 @@
     height: 0.25rem;
     border-radius: 9999px;
     background-color: color-mix(in srgb, var(--color-paper) 30%, transparent);
-    transition: background-color 200ms var(--ease-interaction);
+    transition: background-color 150ms var(--ease-interaction);
   }
   &:hover::before {
     background-color: color-mix(in srgb, var(--color-paper) 45%, transparent);
+  }
+  [data-held] > &::before {
+    background-color: color-mix(in srgb, var(--color-paper) 60%, transparent);
+    transition-duration: 100ms;
+  }
+  [data-held] > & {
+    cursor: grabbing;
   }
 }
 
@@ -1529,6 +1560,16 @@
  * The entrance is in the INTERACTION budget, not the cinematic one: a sheet
  * answers a tap. §3 of the design system, and the same ruling the feed's
  * chrome sits under.
+ *
+ * T06 A (approved 4 Oct 2026): on a phone it rises from the bottom edge and
+ * leaves the same way, and its head can be pulled down. The exit and the drag
+ * are script (`sheet.tsx`), which says what it is doing in `data-sheet`
+ * (dragging, settling, leaving) and marks a sheet a finger has held with
+ * `data-sheet-held`, after which its entrance keyframes stay off: dropped,
+ * they would start again from the edge. The tint follows the sheet through
+ * `--sheet-tint` and an exit's `--sheet-leave` and `--sheet-leave-ease`,
+ * which `::backdrop` inherits from its dialog (an engine too old to pass
+ * them down keeps a full tint and a 200ms exit).
  */
 @layer components {
   dialog.app-sheet {
@@ -1539,6 +1580,7 @@
 
   dialog.app-sheet::backdrop {
     background: color-mix(in srgb, var(--color-abyss) 55%, transparent);
+    opacity: var(--sheet-tint, 1);
   }
 
   /* The phone: foot-pinned, full width, its own bottom safe area. */
@@ -1566,12 +1608,76 @@
     }
   }
 
+  /* The phone: from the bottom edge. The panel: the rise it always had. */
   dialog.app-sheet[open] {
-    animation: sheet-rise 250ms var(--ease-interaction);
+    animation: sheet-edge-in 250ms var(--ease-interaction);
+  }
+
+  @media (min-width: 40rem) {
+    dialog.app-sheet[open] {
+      animation: sheet-rise 250ms var(--ease-interaction);
+    }
   }
 
   dialog.app-sheet[open]::backdrop {
     animation: sheet-tint 250ms var(--ease-interaction);
+  }
+
+  /* The head is the grip, on the edge sheet only. */
+  @media (width < 40rem) {
+    .app-sheet .sheet-head {
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+    }
+
+    .app-sheet[data-sheet="dragging"] .sheet-head {
+      cursor: grabbing;
+    }
+  }
+
+  dialog.app-sheet[data-sheet-held]::backdrop {
+    animation: none;
+  }
+
+  dialog.app-sheet[data-sheet="settling"]::backdrop {
+    transition: opacity 200ms var(--ease-move);
+  }
+
+  /* Leaving: nothing in it answers a tap, and the tint goes with it. */
+  dialog.app-sheet[data-sheet="leaving"] {
+    pointer-events: none;
+  }
+
+  dialog.app-sheet[data-sheet="leaving"]::backdrop {
+    animation: sheet-untint var(--sheet-leave, 200ms)
+      var(--sheet-leave-ease, var(--ease-exit)) forwards;
+  }
+
+  /* Reduced motion (S01 A): in and out are a 120ms fade; nothing travels. */
+  @media (prefers-reduced-motion: reduce) {
+    dialog.app-sheet[open],
+    dialog.app-sheet[open]::backdrop {
+      animation: sheet-tint 120ms linear;
+    }
+
+    dialog.app-sheet[data-sheet-held]::backdrop {
+      animation: none;
+    }
+
+    dialog.app-sheet[data-sheet="settling"]::backdrop {
+      transition: none;
+    }
+
+    dialog.app-sheet[data-sheet="leaving"]::backdrop {
+      animation: sheet-untint 120ms linear forwards;
+    }
+  }
+
+  @keyframes sheet-edge-in {
+    from {
+      transform: translateY(100%);
+    }
   }
 
   @keyframes sheet-rise {
@@ -1583,6 +1689,12 @@
 
   @keyframes sheet-tint {
     from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes sheet-untint {
+    to {
       opacity: 0;
     }
   }

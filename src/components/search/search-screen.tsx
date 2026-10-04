@@ -14,6 +14,7 @@ import { Screen } from "@/components/chrome/screen";
 import { Button } from "@/components/ui/button";
 import { SearchIcon } from "@/components/ui/icons";
 import { ReelGrid } from "@/components/feed/reel-grid";
+import { SheetPresence } from "@/components/ui/sheet";
 import { FilterSheet, GroupPricedNote } from "./filter-sheet";
 import { ActiveFilters } from "./active-filters";
 import { playableReels } from "@/lib/feed/reels";
@@ -202,18 +203,19 @@ export function SearchScreen() {
       ) : null}
 
       {/*
-        Mounted only while open, which is what seeds the draft afresh each time
-        and is why the sheet needs no effect to mirror the applied filters into
-        it. An always-mounted sheet with an `open` prop looked tidier and was a
+        Mounted only while open (and through its exit, which is what the
+        presence is for), which is what seeds the draft afresh each time and is
+        why the sheet needs no effect to mirror the applied filters into it. An
+        always-mounted sheet with an `open` prop looked tidier and was a
         cascading render React lints against.
       */}
-      {sheetOpen ? (
+      <SheetPresence open={sheetOpen}>
         <FilterSheet
           onClose={() => setSheetOpen(false)}
           filters={filters}
           onApply={apply}
         />
-      ) : null}
+      </SheetPresence>
 
       <div className="mt-8">
         {search.isPending ? (
