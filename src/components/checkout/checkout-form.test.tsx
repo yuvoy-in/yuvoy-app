@@ -205,8 +205,16 @@ describe("CheckoutForm — the money rules", () => {
     await user.click(screen.getByRole("button", { name: /^book now/i }));
 
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    // "Booking…" until the page changes, and dead.
-    expect(screen.getByRole("button", { name: "Booking…" })).toBeDisabled();
+    /*
+      Working until the page changes, and dead: busy, and a tap does nothing.
+      It keeps its colour while it works (T08 A, approved 4 Oct 2026), so it
+      is `aria-disabled` rather than `disabled`, which faded it to 40%.
+    */
+    const button = screen.getByRole("button", { name: "Booking" });
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    await user.click(button);
+    expect(replace).toHaveBeenCalledTimes(1);
   });
 
   it("puts the status token in the FRAGMENT, never a query", async () => {
@@ -769,5 +777,78 @@ describe("the cancellation terms, as production actually sends them", () => {
     expect(box).toHaveAccessibleName(/called off/i);
     expect(box).not.toHaveAccessibleName(/refund/i);
     expect(box).toHaveAccessibleDescription(/full refund/i);
+  });
+});
+
+/*
+  T08 A (approved 4 Oct 2026): the tap that books is answered at once and the
+  button keeps its colour while it works; a refusal is brought into view and
+  takes focus, rather than being announced under the sticky bar.
+*/
+describe("CheckoutForm — working, and a refusal that is seen (T08 A)", () => {
+  const held = {
+    reservationId: "res_work",
+    state: "active",
+    guests: 1,
+    holdExpiresAt: new Date(Date.now() + 600_000).toISOString(),
+    requestExpiresAt: null,
+    statusToken: "tok_work",
+  };
+
+  it("keeps its colour while it works: busy and saying so, never disabled", async () => {
+    server.use(
+      http.post(`${BASE}/reservations`, async () => {
+        await delay(400);
+        return HttpResponse.json(held, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+    await fillContact(user);
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+
+    // One name at a time: the working verb, the old label hidden beside it.
+    const button = await screen.findByRole("button", { name: "Booking" });
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button.querySelector('[data-shown="false"]')?.textContent).toMatch(
+      /^Book now/,
+    );
+    expect(button.querySelector(".button-ring")).not.toBeNull();
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+  });
+
+  it("brings a refusal into view, rising in, and gives it focus", async () => {
+    server.use(
+      http.post(`${BASE}/reservations`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "capacity_unavailable",
+              message: "gone",
+              details: { remaining: 2 },
+              requestId: "01JSEEN",
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={kayak} slot={kayakSlot} />);
+    await fillContact(user);
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+
+    const alert = await screen.findByRole("alert");
+    const landing = alert.closest<HTMLElement>('[tabindex="-1"]');
+    expect(landing).not.toBeNull();
+    expect(landing).toHaveClass("motion-rise-in");
+    expect(landing).toHaveAttribute("data-motion");
+    await waitFor(() => expect(document.activeElement).toBe(landing));
+    // And the button is itself again, ready for another go.
+    expect(
+      screen.getByRole("button", { name: /^book now/i }),
+    ).not.toHaveAttribute("aria-busy");
   });
 });

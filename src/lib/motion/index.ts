@@ -113,6 +113,19 @@ export function opacityOf(el: Element): number {
 }
 
 /**
+ * Scrolls the page by `top` px: smoothly, or at once under reduced motion
+ * (the motion system §11: a smooth scroll is travel, and travel goes).
+ */
+export function scrollPageBy(top: number): void {
+  if (typeof window === "undefined" || typeof window.scrollBy !== "function")
+    return;
+  window.scrollBy({
+    top,
+    behavior: prefersReducedMotion() ? "auto" : "smooth",
+  });
+}
+
+/**
  * Cancels the script-started animations an element is running (CSS
  * transitions and keyframes are left to the stylesheet). Read where the
  * element IS before calling this: a motion that starts from that reading

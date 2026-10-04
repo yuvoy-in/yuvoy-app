@@ -23,6 +23,10 @@ import { DURATION, EASE, prefersReducedMotion } from ".";
  * can see costs a layer and says nothing. Under reduced motion nothing
  * slides, grows or rises; arrivals and departures are a 120ms fade (S01 A).
  *
+ * A list that is one thing replaced by another (a tab's contents) can fade
+ * THROUGH rather than across (`through`): what arrives waits until what left
+ * has gone (100ms out, then 150ms in), so two lists are never seen at once.
+ *
  * `signature` changes whenever the list does (its keys, in order, and any
  * label that changes an item's size); the hook runs on each change only. An
  * item that animates its own arrival marks itself `data-motion-arrive="self"`
@@ -31,36 +35,89 @@ import { DURATION, EASE, prefersReducedMotion } from ".";
  * Positions are read as offsets inside `ref`, which is made the containing
  * block, so a list that scrolls, or a page that scrolled between two
  * changes, reads the same.
+ *
+ * Items are named by `data-motion-key`. A page of sections that come and go
+ * (`byNode`) is named by its elements instead: React keeps the node of a
+ * section that stays, so every element child of `ref` is an item, and
+ * `signature` is then anything that changes when the page does.
  */
 export function useListMotion(
   ref: RefObject<HTMLElement | null>,
-  signature: string,
+  signature: unknown,
   {
     arrive,
     stagger = false,
     arriveOnMount = false,
+    through = false,
+    arriveMs = DURATION.quick,
+    leave = true,
+    byNode = false,
   }: {
     arrive: Arrival;
     stagger?: boolean;
     /** Animate the first items in, rather than drawing them in place. */
     arriveOnMount?: boolean;
+    /** What arrives waits for what left to have gone. */
+    through?: boolean;
+    /** How long an arrival takes; 150ms unless the list's own job says. */
+    arriveMs?: number;
+    /** Whether what leaves fades where it was, or is simply gone. */
+    leave?: boolean;
+    /** Every element child is an item, named by its node, not by a key. */
+    byNode?: boolean;
   },
 ): void {
   const memory = useRef<Memory | null>(null);
-  // Read once: whether the very first drawing arrives or is simply there.
-  const onMount = useRef(arriveOnMount);
+  /** The element and the signature the last reading was taken for. */
+  const seen = useRef<{ root: HTMLElement | null; signature: unknown }>({
+    root: null,
+    signature: undefined,
+  });
+  /** Whether any element has been read yet: only the first may arrive. */
+  const rooted = useRef(false);
+  const watcher = useRef<ResizeObserver | null>(null);
 
+  /*
+    After every render, acting only on a change: the list changed
+    (`signature`), or its element did. The second happens when a screen draws
+    the list a render after it mounts (behind a sign-in still being read, say)
+    or draws a new one; a new element is a first drawing, simply there, and
+    only the very first may arrive (`arriveOnMount`).
+  */
   useLayoutEffect(() => {
     const root = ref.current;
-    if (!root) return;
+    const last = seen.current;
+    if (root === last.root && Object.is(signature, last.signature)) return;
+    seen.current = { root, signature };
+    if (root !== last.root) {
+      /*
+        A list re-laid out without changing (a rotation, a wider window)
+        would leave the remembered places stale, and the next change would
+        slide items from where they used to be; so whichever element is the
+        list is watched, and re-read when it resizes.
+      */
+      watcher.current?.disconnect();
+      watcher.current = root
+        ? observeSize(root, () => {
+            if (memory.current && ref.current === root)
+              memory.current = measure(itemsOf(root, byNode));
+          })
+        : null;
+    }
+    if (!root) {
+      memory.current = null;
+      return;
+    }
     containBlock(root);
-    const items = keyedChildren(root);
+    const items = itemsOf(root, byNode);
     const now = measure(items);
-    const before = memory.current;
+    const before = root === last.root ? memory.current : null;
     memory.current = now;
     const reduced = prefersReducedMotion();
     if (!before) {
-      if (!onMount.current) return;
+      const first = !rooted.current;
+      rooted.current = true;
+      if (!first || !arriveOnMount) return;
       let i = 0;
       for (const el of items) {
         if (
@@ -68,30 +125,40 @@ export function useListMotion(
           !onScreen(root, now.boxes.get(keyOf(el))!)
         )
           continue;
-        enter(el, arrive, stagger ? Math.min(i++, STEPS) * STEP : 0, reduced);
+        enter(el, arrive, stagger ? Math.min(i++, STEPS) * STEP : 0, {
+          reduced,
+          ms: arriveMs,
+        });
       }
       return;
     }
-    play(root, before, now, items, { arrive, stagger, reduced });
-  }, [ref, signature, arrive, stagger]);
-
-  /*
-    A list re-laid out without changing (a rotation, a wider window) would
-    leave the remembered places stale, and the next change would slide items
-    from where they used to be.
-  */
-  useEffect(() => {
-    const root = ref.current;
-    if (!root || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => {
-      if (memory.current) memory.current = measure(keyedChildren(root));
+    play(root, before, now, items, {
+      arrive,
+      stagger,
+      through,
+      reduced,
+      arriveMs,
+      leave,
     });
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, [ref]);
+  });
+
+  useEffect(
+    () => () => {
+      watcher.current?.disconnect();
+      watcher.current = null;
+    },
+    [],
+  );
 }
 
 /* ---------------------------------------------------------------- inside */
+
+function observeSize(el: HTMLElement, onResize: () => void) {
+  if (typeof ResizeObserver === "undefined") return null;
+  const observer = new ResizeObserver(onResize);
+  observer.observe(el);
+  return observer;
+}
 
 type Arrival = "grow" | "rise" | "fade";
 
@@ -110,6 +177,8 @@ interface Memory {
 
 const KEY = "data-motion-key";
 const ARRIVE = "data-motion-arrive";
+/** A departed item's fading copy: never an item itself. */
+const GHOST = "data-motion-ghost";
 /** The system's stagger step, and its cap. */
 const STEP = 40;
 const STEPS = 4;
@@ -119,14 +188,28 @@ const LEAVE_MS = 100;
 /** The slides each element is running, so a new change continues from them. */
 const slides = new WeakMap<HTMLElement, Animation>();
 
+/** The names given to elements that carry no key, held off the DOM. */
+const names = new WeakMap<Element, string>();
+let named = 0;
+
+/** An item's name: its key, or for a page of sections its node's own. */
 function keyOf(el: Element): string {
-  return el.getAttribute(KEY) ?? "";
+  const key = el.getAttribute(KEY);
+  if (key !== null) return key;
+  let name = names.get(el);
+  if (!name) {
+    name = `node-${(named += 1)}`;
+    names.set(el, name);
+  }
+  return name;
 }
 
-function keyedChildren(root: HTMLElement): HTMLElement[] {
+function itemsOf(root: HTMLElement, byNode: boolean): HTMLElement[] {
   return Array.from(root.children).filter(
     (el): el is HTMLElement =>
-      el instanceof HTMLElement && el.hasAttribute(KEY),
+      el instanceof HTMLElement &&
+      !el.hasAttribute(GHOST) &&
+      (byNode || el.hasAttribute(KEY)),
   );
 }
 
@@ -187,8 +270,18 @@ function play(
   {
     arrive,
     stagger,
+    through,
     reduced,
-  }: { arrive: Arrival; stagger: boolean; reduced: boolean },
+    arriveMs,
+    leave,
+  }: {
+    arrive: Arrival;
+    stagger: boolean;
+    through: boolean;
+    reduced: boolean;
+    arriveMs: number;
+    leave: boolean;
+  },
 ) {
   const animates = typeof root.animate === "function";
 
@@ -198,7 +291,7 @@ function play(
     if (now.boxes.has(key)) continue;
     left += 1;
     const node = before.nodes.get(key);
-    if (node && animates && onScreen(root, box))
+    if (leave && node && animates && onScreen(root, box))
       fadeCopy(root, node, box, reduced);
   }
 
@@ -247,21 +340,26 @@ function play(
     const key = keyOf(el);
     if (before.boxes.has(key) || el.getAttribute(ARRIVE) === "self") continue;
     if (!animates || !onScreen(root, now.boxes.get(key)!)) continue;
-    const wait =
-      (moved ? STEP : 0) + (stagger ? Math.min(i++, STEPS) * STEP : 0);
-    enter(el, arrive, wait, reduced);
+    const room = through && left && !reduced ? LEAVE_MS : moved ? STEP : 0;
+    const wait = room + (stagger ? Math.min(i++, STEPS) * STEP : 0);
+    enter(el, arrive, wait, { reduced, ms: arriveMs });
   }
 }
 
+/*
+  From nothing to where the item rests: ONE keyframe, so the end is the
+  item's own values, whatever they are. A departure that is full rests at 40%
+  opacity, and an arrival written to 1 would land bright and then drop.
+*/
 function enter(
   el: HTMLElement,
   arrive: Arrival,
   delay: number,
-  reduced: boolean,
+  { reduced, ms }: { reduced: boolean; ms: number },
 ) {
   if (typeof el.animate !== "function") return;
   if (reduced) {
-    el.animate([{ opacity: 0 }, { opacity: 1 }], {
+    el.animate([{ opacity: 0 }], {
       duration: DURATION.reducedFade,
       easing: "linear",
       fill: "backwards",
@@ -274,8 +372,8 @@ function enter(
       : arrive === "rise"
         ? { opacity: 0, transform: "translateY(8px)" }
         : { opacity: 0 };
-  el.animate([from, { opacity: 1, transform: "none" }], {
-    duration: DURATION.quick,
+  el.animate([from], {
+    duration: ms,
     delay,
     easing: EASE.interaction,
     fill: "backwards",
@@ -295,6 +393,7 @@ function fadeCopy(
 ) {
   const copy = node.cloneNode(true) as HTMLElement;
   copy.removeAttribute(KEY);
+  copy.setAttribute(GHOST, "");
   for (const el of [copy, ...copy.querySelectorAll<HTMLElement>("[id]")])
     el.removeAttribute("id");
   // A clip in a copy would start loading again for a tenth of a second.

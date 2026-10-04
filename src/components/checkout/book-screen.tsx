@@ -30,6 +30,7 @@ import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
+import { FadeText } from "@/components/ui/fade-text";
 
 type Slot = components["schemas"]["Slot"];
 
@@ -204,6 +205,38 @@ export function BookScreen({ slug }: { slug: string }) {
     chosenDay?.slots.find((s) => s.id === effectiveSlotId) ?? null;
 
   /*
+    What appears because of a choice made HERE arrives (T09 A, approved
+    4 Oct 2026): the day's times when a day is tapped, the rest of checkout
+    and its foot when a departure is. A screen opened with them already
+    chosen (a link that names the day and the time) arrives whole. Derived
+    during render from the last values seen, not set in an effect.
+  */
+  const timesFor = chosenDay ? date : null;
+  const formFor = slot?.id ?? null;
+  // Only a change made once the dates were on screen is a choice made here;
+  // what appears as they load (a link naming the day) is simply there.
+  const ready = !availability.isPending;
+  const [seen, setSeen] = useState({ timesFor, formFor, ready });
+  const [arriving, setArriving] = useState({ times: false, form: false });
+  if (
+    seen.timesFor !== timesFor ||
+    seen.formFor !== formFor ||
+    seen.ready !== ready
+  ) {
+    setSeen({ timesFor, formFor, ready });
+    setArriving({
+      times:
+        seen.timesFor !== timesFor
+          ? seen.ready && seen.timesFor === null && timesFor !== null
+          : arriving.times,
+      form:
+        seen.formFor !== formFor
+          ? seen.ready && seen.formFor === null && formFor !== null
+          : arriving.form,
+    });
+  }
+
+  /*
     The URL follows the choices. `replace`, so Back leaves the page rather than
     walking back through a traveller's own deliberation.
 
@@ -271,9 +304,12 @@ export function BookScreen({ slug }: { slug: string }) {
         {pictured ? "Checkout" : experience.data.title}
       </p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight">
-        {chosenCivil && slot
-          ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
-          : "When would you like to go?"}
+        {/* It reads the choice, so it fades through as the choice changes. */}
+        <FadeText block>
+          {chosenCivil && slot
+            ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
+            : "When would you like to go?"}
+        </FadeText>
       </h1>
       {/*
         Said before a day is chosen, not discovered at the pay step
@@ -327,6 +363,7 @@ export function BookScreen({ slug }: { slug: string }) {
           slots={chosenDay.slots}
           value={effectiveSlotId}
           now={now}
+          arrive={arriving.times}
           onSelect={(picked) => {
             setSlotId(picked.id);
             setRefusal(null);
@@ -346,6 +383,7 @@ export function BookScreen({ slug }: { slug: string }) {
             key={slot.id}
             experience={experience.data}
             slot={slot}
+            arrive={arriving.form}
             initialGuests={guests}
             onGuestsChange={setGuests}
             onRefused={(message) => {

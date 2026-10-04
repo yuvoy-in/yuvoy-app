@@ -669,6 +669,26 @@
   }
 }
 
+/*
+  Something that must be SEEN arrives where it lands: it fades in rising 8px
+  (150ms), as a refusal at the foot of a form does (T08 A). Reduced motion:
+  it only fades (120ms). Marked `data-motion` where it is used.
+*/
+@utility motion-rise-in {
+  animation: motion-rise-in 150ms var(--ease-interaction) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: motion-fade-in 120ms linear both;
+  }
+}
+
+@keyframes motion-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
 /**
  * The safe-area foot for the floating tab bar.
  *
@@ -753,6 +773,81 @@
     &:active {
       scale: 1 !important;
       opacity: 0.85;
+    }
+  }
+}
+
+/*
+  A button working on its tap (T08 A, approved 4 Oct 2026; `ui/button.tsx`).
+  Its two labels share one grid cell, so the button keeps its size; the one
+  showing fades in over 150ms as the other fades out over 100ms. The ring is
+  there from the tap but invisible until the wait has lasted 300ms, then
+  fades in and turns once a second: honest progress, the one kind of loop.
+  Reduced motion: the labels cross-fade in 120ms and the ring steps a quarter
+  turn a second, so progress is still shown without anything spinning.
+*/
+@layer components {
+  .button-labels {
+    display: grid;
+  }
+
+  .button-label {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: opacity 150ms var(--ease-interaction);
+  }
+
+  .button-label[data-shown="false"] {
+    opacity: 0;
+    transition-duration: 100ms;
+    transition-timing-function: var(--ease-exit);
+  }
+
+  .button-ring {
+    width: 1rem;
+    height: 1rem;
+    flex: none;
+    border-radius: 9999px;
+    border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+    opacity: 0;
+  }
+
+  [data-pending] {
+    cursor: progress;
+  }
+
+  [data-pending] .button-ring {
+    animation:
+      button-ring-in 150ms var(--ease-interaction) 300ms forwards,
+      button-ring-turn 1s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button-label,
+    .button-label[data-shown="false"] {
+      transition: opacity 120ms linear;
+    }
+
+    [data-pending] .button-ring {
+      animation:
+        button-ring-in 120ms linear 300ms forwards,
+        button-ring-turn 4s steps(4, end) infinite;
+    }
+  }
+
+  @keyframes button-ring-in {
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes button-ring-turn {
+    to {
+      transform: rotate(360deg);
     }
   }
 }
@@ -904,6 +999,83 @@
       }
     }
   }
+}
+
+/*
+  The Trips tabs' fill (T07 A, approved 4 Oct 2026; `trips/trip-tabs.tsx`).
+  Not drawn until script has placed it; then the chips all draw unchosen and
+  the fill, clipped to the chosen one, draws the choice and glides to the next
+  in 250ms. Unlayered, so the chosen chip's own utilities give way to it.
+*/
+.trip-tab-fill {
+  visibility: hidden;
+}
+
+[data-tab-fill="on"] > .trip-tab-fill {
+  visibility: visible;
+  transition: clip-path 250ms var(--ease-move);
+}
+
+[data-tab-fill="on"] > [role="tab"][aria-selected="true"] {
+  border-color: var(--color-paper-line);
+  background-color: var(--color-paper-deep);
+  color: var(--color-forest);
+}
+
+/*
+  The chosen day's window (T09 A, approved 4 Oct 2026;
+  `checkout/day-strip.tsx`). Inside the strip, so it scrolls with the days;
+  one day wide, and clipped there, with the strip drawn chosen inside it.
+  Once it is placed the days under it all draw unchosen.
+*/
+.day-window {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  pointer-events: none;
+}
+
+.day-window-copy {
+  position: absolute;
+}
+
+[data-day-window="on"] > button[aria-pressed="true"] {
+  border-color: var(--color-paper-line);
+  background-color: var(--color-paper-deep);
+  color: var(--color-forest);
+}
+
+[data-day-window="on"] > button[aria-pressed="true"] > span:last-child {
+  color: color-mix(in srgb, var(--color-forest) 70%, transparent);
+}
+
+/*
+  A confirmed booking's eyebrow: a tick where the terra square is (T10 A,
+  approved 4 Oct 2026, with the owner's word on the tick). Drawn with a stroke
+  so the moment the booking lands can draw it (`booking-screen.tsx`); at rest
+  it is simply there. Terra, as the square was, and hidden from assistive
+  technology: the word beside it carries the state.
+*/
+.eyebrow-tick::before {
+  display: none;
+}
+
+.eyebrow-tick-mark {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  overflow: visible;
+}
+
+.eyebrow-tick-mark path {
+  fill: none;
+  stroke: var(--color-terra);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
 }
 
 /* --------------------------------------------- motion: screen changes */

@@ -1,4 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import {
+  forgetAnimations as forget,
+  played,
+  recordAnimations as record,
+  type Played,
+} from "./animations";
 
 /**
  * Search, seen changing (T14 A and T11 A, approved 4 Oct 2026). Defined once,
@@ -15,54 +21,13 @@ import { test, expect, type Page } from "@playwright/test";
  * held for a filtered search.
  */
 
-interface Played {
-  at: number;
-  key: string | null;
-  copy: boolean;
-  text: string;
-  keyframes: { transform?: string; opacity?: number | string }[];
-  delay: number;
-  duration: number;
-  easing?: string;
-}
-
 declare global {
   interface Window {
-    __played?: Played[];
     __skeleton?: { shown?: number; gone?: number; flashed: boolean };
   }
 }
 
 const EASE_MOVE = "cubic-bezier(0.2, 0, 0, 1)";
-
-async function record(page: Page) {
-  await page.addInitScript(() => {
-    window.__played = [];
-    const animate = Element.prototype.animate;
-    Element.prototype.animate = function (
-      this: Element,
-      keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
-      options?: number | KeyframeAnimationOptions,
-    ) {
-      const o = typeof options === "object" ? options : { duration: options };
-      window.__played!.push({
-        at: performance.now(),
-        key: this.getAttribute("data-motion-key"),
-        copy:
-          this.getAttribute("aria-hidden") === "true" &&
-          !this.hasAttribute("data-motion-key"),
-        text: (this.textContent ?? "").trim().slice(0, 40),
-        keyframes: Array.isArray(keyframes)
-          ? JSON.parse(JSON.stringify(keyframes))
-          : [],
-        delay: Number(o.delay ?? 0),
-        duration: Number(o.duration ?? 0),
-        easing: o.easing,
-      });
-      return animate.call(this, keyframes, options);
-    } as typeof Element.prototype.animate;
-  });
-}
 
 /** Holds every filtered search (one with a category) for `ms`. */
 async function slowFilteredSearches(page: Page, ms: number) {
@@ -104,12 +69,6 @@ async function watchSkeleton(page: Page) {
     });
   });
 }
-
-const played = (page: Page) => page.evaluate(() => window.__played ?? []);
-const forget = (page: Page) =>
-  page.evaluate(() => {
-    window.__played!.length = 0;
-  });
 
 export function defineSearchMotion() {
   test.describe("search changes in place (T14 A)", () => {

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -16,12 +16,16 @@ import { cn } from "@/lib/cn";
 export function StickyBar({
   children,
   className,
+  ref,
 }: {
   children: ReactNode;
   className?: string;
+  /** For a screen that has to keep something clear of the bar. */
+  ref?: Ref<HTMLDivElement>;
 }) {
   return (
     <div
+      ref={ref}
       className={cn(
         "border-paper-line bg-paper lg:rounded-b-sheet sticky bottom-0 z-20 -mx-6 mt-8 -mb-8 border-t px-6 py-4 sm:-mx-10 sm:px-10",
         className,

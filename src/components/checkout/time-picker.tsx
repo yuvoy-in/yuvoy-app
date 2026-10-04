@@ -3,6 +3,9 @@
 import { slotIsOpen } from "@/lib/booking/slot-open";
 import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
+import { useRef } from "react";
+import { DURATION } from "@/lib/motion";
+import { useListMotion } from "@/lib/motion/use-list-motion";
 
 type Slot = components["schemas"]["Slot"];
 
@@ -24,20 +27,38 @@ export function TimePicker({
   value,
   onSelect,
   now,
+  arrive = false,
 }: {
   slots: readonly Slot[];
   value: string | null;
   onSelect: (slot: Slot) => void;
   /** The server's clock, so a cutoff is judged the same way the API judges it. */
   now: number;
+  /** The times are appearing because a day was just chosen: they arrive. */
+  arrive?: boolean;
 }) {
+  /*
+    A day's times arrive in the order they are read (T09 A, approved 4 Oct
+    2026): each rises into place, 40ms after the one before (at most four
+    steps), 200ms each. A new day's times replace the last day's outright:
+    they are a different set of departures, not the same ones moving.
+  */
+  const list = useRef<HTMLDivElement | null>(null);
+  useListMotion(list, slots.map((s) => s.id).join("|"), {
+    arrive: "rise",
+    stagger: true,
+    arriveOnMount: arrive,
+    arriveMs: DURATION.standard,
+    leave: false,
+  });
+
   return (
     <section className="mt-8" aria-labelledby="time-heading">
       <h2 id="time-heading" className="label text-forest/75">
         What time?
       </h2>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div ref={list} className="mt-3 flex flex-wrap gap-2">
         {slots.map((slot) => {
           const open = !slot.soldOut && slotIsOpen(slot, now);
           const time = (slot.localStartTime ?? "").slice(0, 5);
@@ -55,6 +76,7 @@ export function TimePicker({
           return (
             <button
               key={slot.id}
+              data-motion-key={slot.id}
               type="button"
               disabled={!open}
               aria-pressed={chosen}
@@ -75,7 +97,7 @@ export function TimePicker({
                 was standing in for.
               */
               className={cn(
-                "ease-interaction inline-flex min-h-11 items-center gap-2 rounded-full border px-4 transition-colors duration-200",
+                "ease-interaction inline-flex min-h-11 items-center gap-2 rounded-full border px-4 transition-colors duration-150",
                 !open && "cursor-not-allowed opacity-40",
                 chosen
                   ? "border-forest bg-forest text-paper"
