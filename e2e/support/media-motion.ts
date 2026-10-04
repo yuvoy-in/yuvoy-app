@@ -10,8 +10,8 @@ import { forgetAnimations, played, recordAnimations } from "./animations";
  *
  * The fixtures' one clip never resolves. A slow start is made by holding it
  * in the page (`holdClips`); a failed one is the clip loading for real on
- * Safari's path (`nativeClips`), which is where T12 found the ring spinning
- * for ever.
+ * the native path (`nativeClips`), which is where T12 found the ring
+ * spinning for ever.
  */
 
 const EASE_INTERACTION = "cubic-bezier(0.32, 0.72, 0, 1)";
@@ -21,9 +21,11 @@ const LISTING = "/e/private-boat-charter";
 const OVERLAP = 32;
 
 /**
- * Clips take the way Safari plays them: the element is handed the HLS source
- * itself (`canPlayType` says so), and really loads it. The fixtures' one clip
- * never resolves, so this is a source failing on that path.
+ * Clips take the native path: the element is handed the HLS source itself
+ * (`canPlayType` says so) and really loads it. Both engines here already say
+ * so (Chromium 151, WebKit 26.5); this keeps the check on that path whatever
+ * a future engine says. The fixtures' one clip never resolves, so this is a
+ * source failing on the native path.
  */
 async function nativeClips(page: Page) {
   await page.addInitScript(() => {
@@ -38,11 +40,11 @@ async function nativeClips(page: Page) {
 }
 
 /**
- * Every start slow, for as long as a check needs: clips take Safari's way
+ * Every start slow, for as long as a check needs: clips take the native path
  * (above), but the source is held back from the element and `play()` never
- * settles. Playwright's Chromium has no H.264, so hls.js would give a clip up
- * before it could be slow. Only the media layer is held; what is drawn is
- * the engine's own CSS over the app's own state.
+ * settles. On that path the element fetches the clip itself, so holding a
+ * request in the page would never delay it. Only the media layer is held;
+ * what is drawn is the engine's own CSS over the app's own state.
  */
 async function holdClips(page: Page) {
   await nativeClips(page);

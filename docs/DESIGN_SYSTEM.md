@@ -235,8 +235,11 @@ stylesheet does not draw.
   start (a clip can hold it while it buffers), and a stall shows the ring
   again at once. A clip the traveller paused is not slow to start: the ring
   used to come up behind the play control 600ms after a pause.
-- **A clip Safari cannot load gives up**, on the element's own `error`, and
-  the card is its poster again. It used to leave the ring turning for ever.
+- **A clip that cannot load on the native path gives up** (Safari, iOS, and
+  now Chromium, which plays HLS itself), on the element's own `error`, and
+  the card is its poster again. It used to keep a play control and a sound
+  toggle for a clip that could never play, or leave the ring turning for
+  ever.
 - **The far side recedes** (T15 A, approved on the condition that it measured
   cheap). On a phone, as the sheet covers a screen's picture, the picture
   scales from 1 to 0.96 from its top edge and an abyss layer over it rises to
