@@ -712,7 +712,9 @@ describe("measured contrast", () => {
         // Each class-ish string literal, so a `duration-` is only ever paired
         // with an ease in the SAME className.
         for (const [literal] of src.matchAll(/"[^"\n]*"|`[^`\n]*`/g)) {
-          const ease = /\bease-(interaction|cinematic)\b/.exec(literal);
+          const ease = /\bease-(interaction|cinematic|move|exit)\b/.exec(
+            literal,
+          );
           const ms = /\bduration-(\d+)\b/.exec(literal);
           if (ease && ms) budget.push([rel(file), Number(ms[1]), ease[1]]);
         }
@@ -730,23 +732,67 @@ describe("measured contrast", () => {
       ).toBeGreaterThan(3);
 
       for (const [where, ms, ease] of budget) {
-        if (ease === "interaction") {
-          expect(
-            ms,
-            `${where}: interaction motion over budget`,
-          ).toBeLessThanOrEqual(250);
-        } else if (ease === "cinematic") {
+        if (ease === "interaction" || ease === "move" || ease === "exit") {
           /*
-            An entrance. Anything this slow answering a gesture is the defect
-            above; anything this fast arriving on first paint is not an
-            entrance and should be on the interaction curve instead.
+            Answering, moving between two places on screen, and leaving
+            (the motion system, approved 4 Oct 2026) all live in the
+            interaction budget.
           */
           expect(
             ms,
-            `${where}: cinematic motion too brief to be an entrance`,
+            `${where}: ${ease} motion over budget`,
+          ).toBeLessThanOrEqual(250);
+        } else if (ease === "cinematic") {
+          /*
+            Travel: a screen or a picture going somewhere (350ms) or the one
+            authored moment in a flow (450ms). Anything this slow answering a
+            gesture is the defect above; anything this fast is not travel and
+            belongs on the interaction curve; anything slower than the moment
+            budget is a drag (the owner's spatial budget, 4 Oct 2026).
+          */
+          expect(
+            ms,
+            `${where}: cinematic motion too brief to be travel`,
           ).toBeGreaterThan(250);
+          expect(
+            ms,
+            `${where}: cinematic motion over the moment budget`,
+          ).toBeLessThanOrEqual(450);
         }
       }
+    });
+
+    it("lets every press animate the property it presses with", () => {
+      /*
+        Tailwind 4 writes `active:scale-*` to the standalone `scale` property.
+        Every press in the app used to sit beside a transition list naming
+        only `transform`, so all of them snapped in and snapped back, and no
+        test noticed because each class string looked right on its own
+        (found by the motion study, 4 Oct 2026). A press must share its
+        string with a list that names `scale`: one of the motion utilities,
+        `transition-transform` (which covers translate, scale and rotate in
+        Tailwind 4), or an explicit list.
+      */
+      let presses = 0;
+      for (const file of FILES.filter((f) => f.endsWith(".tsx"))) {
+        const src = read(file);
+        for (const [literal] of src.matchAll(/"[^"\n]*"|`[^`\n]*`/g)) {
+          if (!/\bactive:scale-/.test(literal)) continue;
+          presses += 1;
+          const animates =
+            /\bmotion-(control|disc)\b/.test(literal) ||
+            /\btransition-transform\b/.test(literal) ||
+            /\btransition-\[[^\]]*\bscale\b/.test(literal);
+          expect(
+            animates,
+            `${rel(file)}: "${literal.slice(1, 80)}" presses with a scale nothing animates`,
+          ).toBe(true);
+        }
+      }
+      expect(
+        presses,
+        "no presses found: the scan is looking in the wrong place",
+      ).toBeGreaterThan(2);
     });
 
     it("keeps the wordmark legible over the same frame", () => {

@@ -18,8 +18,7 @@ import { cn } from "@/lib/cn";
 export const iconButtonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center rounded-full",
-    "transition-[transform,background-color,color,border-color] duration-200 ease-interaction",
-    "active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40",
+    "motion-disc active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40",
   ],
   {
     variants: {

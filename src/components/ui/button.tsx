@@ -20,8 +20,7 @@ export const buttonVariants = cva(
   [
     "group inline-flex shrink-0 items-center justify-center gap-2 rounded-full",
     "label font-bold whitespace-nowrap select-none",
-    "transition-[transform,background-color,border-color,color,opacity] duration-200 ease-interaction",
-    "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
+    "motion-control active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
   ],
   {
     variants: {
