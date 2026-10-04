@@ -163,6 +163,20 @@ export function markStepBack(landedOn?: string) {
 }
 
 /**
+ * Whether the screen being shown is a step BACK: our Back link was pressed or
+ * the browser traversed its history, and the visit has not been recorded yet.
+ *
+ * Read by a screen as it mounts (in a layout effect, which runs before the
+ * recorder's own effect consumes the flag). A traversal React renders inside
+ * the `popstate` event itself is seen through the event, as `RouteTrail`
+ * explains: by then nothing has marked it yet.
+ */
+export function steppingBack(): boolean {
+  if (state.stepBack) return true;
+  return typeof window !== "undefined" && window.event?.type === "popstate";
+}
+
+/**
  * The href of the screen before this one, or null.
  *
  * Null on the server and through hydration (`EMPTY_TRAIL`), so the first paint

@@ -37,6 +37,9 @@ export function BackButton({
       label={`Back to ${label}`}
       variant={over === "media" ? "chrome" : "onDark"}
       onNavigate={onNavigate}
+      // The screen it leaves drops away (T01 C), or slides back off a reel
+      // (T02 C): a step back, not a step forward.
+      back
     >
       <ArrowLeftIcon />
     </IconLink>

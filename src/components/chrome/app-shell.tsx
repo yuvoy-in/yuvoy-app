@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { NavList } from "./nav-items";
 import { TabBar } from "./tab-bar";
+import { ListingPeek } from "@/components/feed/listing-peek";
 import { Wordmark } from "@/components/ui/wordmark";
 import { BookIcon } from "@/components/ui/icons";
 import { SECONDARY_ROUTES } from "@/lib/site/nav";
@@ -90,6 +91,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
         <TabBar />
+        {/*
+          The listing a reel's swipe brings in from the right (T02 C). Here,
+          above every page, because it has to outlive the reel it slid over:
+          it stays on the glass while the route changes under it.
+        */}
+        <ListingPeek />
       </div>
     </div>
   );

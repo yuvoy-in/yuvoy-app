@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
 import { formatDuration } from "@/lib/format/time";

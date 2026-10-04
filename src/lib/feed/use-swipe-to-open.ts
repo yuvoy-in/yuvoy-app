@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useRef, type PointerEvent, type RefObject } from "react";
-import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type PointerEvent,
+  type RefObject,
+} from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { routeMotion } from "@/lib/motion/route-motion";
+import { beginPeek, type PeekSession } from "./listing-peek";
 
 /**
  * Swipe a reel from right to left to open it — the gesture half of the card's
@@ -42,6 +50,16 @@ import { useRouter } from "next/navigation";
  *
  * Reduced motion still wins: the settle's `transition` is inline, and the
  * global `prefers-reduced-motion` rule in `globals.css` is `!important`.
+ *
+ * ## The listing comes in under the thumb (T02 C, approved 4 Oct 2026)
+ *
+ * Given the listing's slug, a swipe on a phone brings the listing itself in
+ * from the right edge, one to one, instead of nudging the card: it is the
+ * page to the right of the reel. Let go past a quarter of the width, or
+ * flick, and it completes; otherwise it springs back. All of that lives in
+ * `listing-peek.ts`. When the preview is not there to bring (reduced motion,
+ * a desktop, a listing not read yet) the card nudges as before, and the
+ * route's own transition draws the change.
  */
 
 /** How far a finger travels before the gesture commits to an axis. */
@@ -136,8 +154,22 @@ export interface SwipeHandlers {
 export function useSwipeToOpen(
   href: string,
   surfaceRef: RefObject<HTMLElement | null>,
+  /** The listing's slug: the swipe may bring the listing in itself (T02 C). */
+  peekSlug?: string,
 ): SwipeHandlers {
   const router = useRouter();
+  const pathname = usePathname();
+  /** The listing coming in under the thumb, for this gesture; else null. */
+  const peek = useRef<PeekSession | null>(null);
+
+  // A card that goes away mid-gesture takes its listing back with it.
+  useEffect(
+    () => () => {
+      peek.current?.cancel();
+      peek.current = null;
+    },
+    [],
+  );
 
   const pointer = useRef<number | null>(null);
   const axis = useRef<Axis>("undecided");
@@ -225,6 +257,9 @@ export function useSwipeToOpen(
         if (dx < 0 && Math.abs(dx) > Math.abs(dy) * AXIS_BIAS) {
           axis.current = "swipe";
           swallowClick.current = true;
+          peek.current = peekSlug
+            ? beginPeek(peekSlug, e.currentTarget as Element)
+            : null;
           try {
             (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
           } catch {
@@ -245,9 +280,10 @@ export function useSwipeToOpen(
       lastX.current = e.clientX;
       lastAt.current = e.timeStamp;
 
-      paint(-swipeTravel(-dx), false);
+      if (peek.current) peek.current.drag(Math.max(0, -dx));
+      else paint(-swipeTravel(-dx), false);
     },
-    [paint],
+    [paint, peekSlug],
   );
 
   const onPointerUp = useCallback(
@@ -261,6 +297,15 @@ export function useSwipeToOpen(
       axis.current = "undecided";
 
       const pulled = Math.max(0, startX.current - e.clientX);
+
+      const session = peek.current;
+      peek.current = null;
+      if (session) {
+        // Completes and then follows with the route, or springs back.
+        session.release(pulled, velocity.current, () => router.push(href));
+        return;
+      }
+
       if (swipeOpens(pulled, velocity.current)) {
         /*
           The card carries on out while the route changes under it. The button
@@ -270,12 +315,18 @@ export function useSwipeToOpen(
           gesture.
         */
         paint(-MAX_TRAVEL, true);
-        router.push(href);
+        /*
+          The same change Book makes, so it moves the same way: the listing
+          slides in over the reel, or crossfades under reduced motion, or
+          rises from `lg` up (`route-motion.ts`).
+        */
+        const motion = routeMotion(pathname, href);
+        router.push(href, motion ? { transitionTypes: [motion] } : undefined);
       } else {
         paint(0, true);
       }
     },
-    [href, paint, router],
+    [href, paint, pathname, router],
   );
 
   const onPointerCancel = useCallback(
@@ -285,6 +336,11 @@ export function useSwipeToOpen(
       // the app went to the background. Put the card back.
       pointer.current = null;
       axis.current = "undecided";
+      if (peek.current) {
+        peek.current.cancel();
+        peek.current = null;
+        return;
+      }
       paint(0, true);
     },
     [paint],

@@ -889,6 +889,306 @@
   }
 }
 
+/* --------------------------------------------- motion: screen changes */
+
+/*
+  How a screen change looks (T01 C and A, T02 C, T03 B; approved 4 Oct 2026).
+
+  Each screen change is a React view transition carrying one type, decided
+  from the two routes in `lib/motion/route-motion.ts`; the parts of a screen
+  answer each type with one of the classes below. A part a type does not name
+  stays out of the transition entirely, and so does the page around it: the
+  root is never animated, so the forest stage is simply there, and a change
+  with no type (the browser's own back, iOS Safari's swipe) does not move at
+  all.
+
+  The live page stays pressable underneath while a change runs.
+
+  Stacking, low to high: what leaves or arrives in place, then the picture
+  that flies (T03), then a sheet that rises or drops over both, then the bar.
+*/
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(root) {
+  display: none;
+}
+
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* Fade through (T01 A): the old leaves quickly, the new arrives gently. */
+::view-transition-old(.vt-fade-out) {
+  animation: vt-fade-out 100ms var(--ease-exit) both;
+}
+
+::view-transition-new(.vt-fade-in) {
+  animation: vt-fade-in 150ms var(--ease-interaction) both;
+}
+
+/* The stage strip: a header, or a picture and its discs (T01 C). */
+::view-transition-new(.vt-stage-in) {
+  animation: vt-fade-in 150ms var(--ease-interaction) both;
+}
+
+::view-transition-old(.vt-stage-out) {
+  animation: vt-fade-out 100ms var(--ease-exit) both;
+}
+
+::view-transition-old(.vt-stage-out-slow) {
+  animation: vt-fade-out 200ms var(--ease-exit) both;
+}
+
+/*
+  Into a focused screen (T01 C): the new sheet rises 32px and fades in over
+  the old one, whose words leave it first. The old sheet's PAPER is held
+  under them (the group's own ground) so the change never dips to the forest
+  stage between two white sheets; on a phone only, where a sheet is the full
+  width, since a desktop panel floats on the stage anyway.
+*/
+::view-transition-new(.vt-sheet-rise) {
+  animation: vt-rise 250ms var(--ease-interaction) both;
+}
+
+::view-transition-old(.vt-sheet-hold) {
+  animation: vt-fade-out 100ms var(--ease-exit) both;
+}
+
+/* Back (T01 C): the sheet drops 24px as it fades; the one behind returns. */
+::view-transition-old(.vt-sheet-drop) {
+  animation: vt-drop 200ms var(--ease-exit) both;
+}
+
+::view-transition-new(.vt-sheet-return) {
+  animation: vt-fade-in 150ms var(--ease-interaction) both;
+}
+
+@media (width < 64rem) {
+  ::view-transition-group(.vt-sheet-hold),
+  ::view-transition-group(.vt-sheet-return) {
+    background-color: var(--color-paper);
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+}
+
+/* The tab bar steps down as it leaves and up as it returns (T01 C). */
+::view-transition-old(.vt-bar-out) {
+  animation: vt-step-down 150ms var(--ease-exit) both;
+}
+
+::view-transition-new(.vt-bar-in) {
+  animation: vt-step-up 150ms var(--ease-interaction) both;
+}
+
+/*
+  A reel and its listing (T02 C). The listing is the page to the right of the
+  reel: it slides in over it while the reel moves a third as far and dims
+  25% toward the forest (its opacity over the stage), and Back reverses it.
+*/
+::view-transition-new(.vt-push-in) {
+  animation: vt-push-in 350ms var(--ease-cinematic) both;
+}
+
+::view-transition-old(.vt-reel-leave) {
+  animation: vt-reel-leave 350ms var(--ease-cinematic) both;
+}
+
+::view-transition-old(.vt-push-out) {
+  animation: vt-push-out 250ms var(--ease-move) both;
+}
+
+::view-transition-new(.vt-reel-return) {
+  animation: vt-reel-return 250ms var(--ease-move) both;
+}
+
+/*
+  The saved picture flies to the listing's hero, its corners squaring as it
+  lands, and home again on Back (T03 B). Neither image fades: the hero may
+  still be loading as the flight starts, and a crossfade to nothing would be
+  the picture vanishing mid-air, so the saved picture is drawn until the
+  hero's own pixels arrive over it.
+*/
+::view-transition-group(.vt-picture) {
+  animation-duration: 350ms;
+  animation-timing-function: var(--ease-cinematic);
+}
+
+::view-transition-group(.vt-picture-home) {
+  animation-duration: 250ms;
+  animation-timing-function: var(--ease-move);
+}
+
+::view-transition-image-pair(.vt-picture) {
+  overflow: clip;
+  animation: vt-corners-square 350ms var(--ease-cinematic) both;
+}
+
+::view-transition-image-pair(.vt-picture-home) {
+  overflow: clip;
+  animation: vt-corners-round 250ms var(--ease-move) both;
+}
+
+::view-transition-old(.vt-picture),
+::view-transition-new(.vt-picture),
+::view-transition-old(.vt-picture-home),
+::view-transition-new(.vt-picture-home) {
+  animation: none;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+::view-transition-group(.vt-picture),
+::view-transition-group(.vt-picture-home) {
+  z-index: 1;
+}
+
+::view-transition-group(.vt-sheet-rise),
+::view-transition-group(.vt-sheet-drop),
+::view-transition-group(.vt-push-in),
+::view-transition-group(.vt-push-out) {
+  z-index: 2;
+}
+
+::view-transition-group(.vt-bar-out),
+::view-transition-group(.vt-bar-in) {
+  z-index: 3;
+}
+
+/*
+  From `lg` up a reel is a column on the stage and its listing a panel beside
+  the rail; a page arriving from the viewport's right edge would cross the
+  rail. The listing rises like any focused screen there.
+*/
+@media (width >= 64rem) {
+  ::view-transition-new(.vt-push-in) {
+    animation: vt-rise 250ms var(--ease-interaction) both;
+  }
+
+  ::view-transition-old(.vt-reel-leave) {
+    animation: vt-fade-out 100ms var(--ease-exit) both;
+  }
+
+  ::view-transition-old(.vt-push-out) {
+    animation: vt-drop 200ms var(--ease-exit) both;
+  }
+
+  ::view-transition-new(.vt-reel-return) {
+    animation: vt-fade-in 150ms var(--ease-interaction) both;
+  }
+}
+
+/*
+  Reduced motion (S01 A): nothing travels. Every part crossfades in 120ms and
+  the picture lands where it is going at once. The root stays as it is.
+*/
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+  }
+
+  ::view-transition-image-pair(*) {
+    animation: none !important;
+  }
+
+  ::view-transition-old(*) {
+    animation: vt-fade-out 120ms linear both !important;
+  }
+
+  ::view-transition-new(*) {
+    animation: vt-fade-in 120ms linear both !important;
+  }
+
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+@keyframes vt-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+
+@keyframes vt-drop {
+  to {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+@keyframes vt-step-down {
+  to {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes vt-step-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes vt-push-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-push-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-reel-leave {
+  to {
+    opacity: 0.75;
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes vt-reel-return {
+  from {
+    opacity: 0.75;
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes vt-corners-square {
+  from {
+    border-radius: var(--radius-tile);
+  }
+  to {
+    border-radius: 0;
+  }
+}
+
+@keyframes vt-corners-round {
+  from {
+    border-radius: 0;
+  }
+  to {
+    border-radius: var(--radius-tile);
+  }
+}
+
 /* --------------------------------------------------- the feed's overlay */
 
 /*

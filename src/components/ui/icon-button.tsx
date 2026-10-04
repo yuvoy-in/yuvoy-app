@@ -1,5 +1,5 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from "react";
-import Link, { type LinkProps } from "next/link";
+import Link, { type LinkProps } from "@/components/ui/link";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
@@ -78,6 +78,8 @@ export function IconLink({
   href: string;
   /** Next's own: runs on a client-side navigation only, never a new tab. */
   onNavigate?: LinkProps["onNavigate"];
+  /** A way back: its screen change moves as a step back (see `Link`). */
+  back?: LinkProps["back"];
 } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "aria-label" | "href">) {
   return (
     <Link
