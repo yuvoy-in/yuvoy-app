@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { MessageSheet } from "./message-sheet";
 import { RequestStatus } from "./request-status";
 import { cn } from "@/lib/cn";

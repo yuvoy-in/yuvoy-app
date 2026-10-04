@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import Image from "next/image";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
@@ -32,6 +32,9 @@ import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { BookmarkFilledIcon } from "@/components/ui/icons";
+import { ViewTransition } from "@/lib/motion/view-transition";
+import { PICTURE_MOTION, pictureName } from "@/lib/motion/route-motion";
+import { handOffPicture } from "@/lib/motion/picture-handoff";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -231,6 +234,7 @@ function AccountSaved() {
               title={item.title}
               location={item.location}
               posterUrl={item.heroMedia?.posterUrl}
+              pictureId={item.heroMedia?.id}
               bookable={item.bookable}
               fromPrice={item.fromPrice}
               unit={item.pricingUnitLabel}
@@ -441,6 +445,7 @@ function DeviceTile({
         title={data.title}
         location={data.location}
         posterUrl={data.heroMedia?.posterUrl}
+        pictureId={data.heroMedia?.id}
         bookable={data.bookable}
         fromPrice={data.fromPrice}
         unit={data.pricingUnitLabel}
@@ -584,6 +589,7 @@ function SavedCard({
   title,
   location,
   posterUrl,
+  pictureId,
   bookable,
   fromPrice,
   unit,
@@ -593,6 +599,8 @@ function SavedCard({
   title: string;
   location?: string;
   posterUrl?: string;
+  /** The picture's media id: the listing's gallery opens on it (T03 B). */
+  pictureId?: string;
   bookable: boolean;
   fromPrice?: Experience["fromPrice"];
   /** The server's unit phrase, verbatim: "per person", "for the group". */
@@ -601,7 +609,16 @@ function SavedCard({
 }) {
   return (
     <>
-      <Link href={`/e/${slug}`} className="group block">
+      <Link
+        href={`/e/${slug}`}
+        className="group block"
+        /*
+          The picture flies from here to the listing's hero (T03 B), and the
+          hero has to be showing it when the listing arrives: hand it over
+          as the link is followed, on a client-side navigation only.
+        */
+        onNavigate={pictureId ? () => handOffPicture(pictureId) : undefined}
+      >
         {/*
           `paper-deep`, NOT `abyss`, and the design law is right to insist.
 
@@ -613,18 +630,18 @@ function SavedCard({
           picture), so the choice is between a near-black rectangle on white
           and a placeholder that matches `Skeleton`.
         */}
-        <div className="rounded-tile bg-paper-deep relative aspect-[4/5] overflow-hidden">
-          {posterUrl ? (
-            <Image
-              src={posterUrl}
-              alt=""
-              fill
-              sizes="(min-width: 640px) 240px, 45vw"
-              className="object-cover transition-opacity duration-200 group-hover:opacity-90"
-              unoptimized={posterUrl.startsWith("data:")}
-            />
-          ) : null}
-        </div>
+        {posterUrl && pictureId ? (
+          /*
+            This picture and the listing's frame showing it are one object
+            across the screen change (T03 B): it flies to the hero, and home
+            again on Back.
+          */
+          <ViewTransition name={pictureName(pictureId)} {...PICTURE_MOTION}>
+            <Poster url={posterUrl} />
+          </ViewTransition>
+        ) : (
+          <Poster url={posterUrl} />
+        )}
         <p className="mt-2 text-sm leading-snug font-bold">{title}</p>
         {location ? (
           <p className="text-forest/70 mt-0.5 text-xs">{location}</p>
@@ -666,6 +683,24 @@ function SavedCard({
         </IconButton>
       </div>
     </>
+  );
+}
+
+/** The card's picture, on the skeleton's ground while it loads. */
+function Poster({ url }: { url?: string }) {
+  return (
+    <div className="rounded-tile bg-paper-deep relative aspect-[4/5] overflow-hidden">
+      {url ? (
+        <Image
+          src={url}
+          alt=""
+          fill
+          sizes="(min-width: 640px) 240px, 45vw"
+          className="object-cover transition-opacity duration-200 group-hover:opacity-90"
+          unoptimized={url.startsWith("data:")}
+        />
+      ) : null}
+    </div>
   );
 }
 

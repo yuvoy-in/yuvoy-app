@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
-import Link from "next/link";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import Link from "@/components/ui/link";
 import { ExperienceCard } from "./experience-card";
 import { Wordmark } from "@/components/ui/wordmark";
 import { LoginButton } from "@/components/auth/login-button";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { useReelViews } from "@/lib/feed/use-reel-views";
+import {
+  recallReel,
+  reelScreenKey,
+  rememberReel,
+} from "@/lib/feed/reel-memory";
+import { steppingBack } from "@/lib/site/route-trail";
 import type { FeedTail, Reel } from "@/lib/feed/reels";
 import { cn } from "@/lib/cn";
+import { ViewTransition } from "@/lib/motion/view-transition";
+import { REEL_MOTION } from "@/lib/motion/route-motion";
 
 /**
  * The vertical reel scroller, with no opinion about where the reels came from.
@@ -63,11 +71,13 @@ export function ReelFrame({
   className?: string;
 }) {
   return (
-    <div className="container-feed relative lg:my-6">
-      <div className={cn(REEL_WELL, "lg:overflow-hidden", className)}>
-        {children}
+    <ViewTransition {...REEL_MOTION}>
+      <div className="container-feed relative lg:my-6">
+        <div className={cn(REEL_WELL, "lg:overflow-hidden", className)}>
+          {children}
+        </div>
       </div>
-    </div>
+    </ViewTransition>
   );
 }
 
@@ -220,11 +230,20 @@ export function ReelStrip({
    * out of range, no card mounted by the preload budget, and a black well
    * until they scroll. Reset on mount because the scroller is a new element at
    * scrollTop 0, and on unmount because whatever comes next is not this strip.
+   *
+   * A layout effect, so it runs before the jump below rather than after it.
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     resetFeed();
     return resetFeed;
   }, [resetFeed]);
+
+  /**
+   * The clip to resume, decided once as the strip arrives: the one that was
+   * last on screen here, when this arrival is a step BACK (T02 C; see
+   * `lib/feed/reel-memory.ts`). `undefined` until decided.
+   */
+  const resume = useRef<string | null | undefined>(undefined);
 
   /**
    * Opening on a reel other than the first, for a grid that plays in place.
@@ -253,17 +272,47 @@ export function ReelStrip({
    * not exist until the page holding it has loaded, and a strip deep-linked
    * into page three mounts empty and fills in. Guarded so it runs once per
    * arrival rather than yanking the scroller back every time a page lands.
+   *
+   * ## Or on the reel a traveller stepped back to
+   *
+   * Back from a listing returns to the clip it was opened from, wherever that
+   * clip now sits, and the remembered clip wins over `initialIndex` (a search
+   * result's address still names the tile first tapped, not the reel the
+   * traveller had swiped on to).
+   *
+   * ## Before paint, in a layout effect
+   *
+   * Back slides the listing away with the reel returning from the left
+   * (T02 C), and a screen change draws the arriving screen live: a jump made
+   * a frame late would show the first reel sliding in and then a cut to the
+   * right one. A layout effect runs inside the commit, before anything is
+   * drawn.
    */
   const jumped = useRef(false);
-  useEffect(() => {
-    if (jumped.current || initialIndex <= 0) return;
+  useLayoutEffect(() => {
+    if (resume.current === undefined) {
+      resume.current = steppingBack() ? recallReel(reelScreenKey()) : null;
+    }
+    if (jumped.current) return;
+
+    const resumed = resume.current
+      ? items.findIndex((reel) => reel.media?.id === resume.current)
+      : -1;
+    const target = resumed >= 0 ? resumed : initialIndex;
+    if (target <= 0) return;
     const scroller = scrollerRef.current;
-    if (!scroller || items.length <= initialIndex) return;
+    if (!scroller || items.length <= target) return;
 
     jumped.current = true;
-    scroller.scrollTop = scroller.clientHeight * initialIndex;
-    setActiveIndex(initialIndex);
-  }, [initialIndex, items.length, setActiveIndex]);
+    scroller.scrollTop = scroller.clientHeight * target;
+    setActiveIndex(target);
+  }, [initialIndex, items, setActiveIndex]);
+
+  /** The clip on screen, for a step back here to resume. */
+  useEffect(() => {
+    const clip = items[activeIndex]?.media?.id;
+    if (clip) rememberReel(reelScreenKey(), clip);
+  }, [activeIndex, items]);
 
   /**
    * How many reels this strip HAS, or `-1` for "nobody knows yet".
@@ -384,90 +433,98 @@ export function ReelStrip({
   }, [hasNextPage, items.length]);
 
   return (
-    <div className="container-feed relative lg:my-6">
-      {chrome}
-      <div
-        ref={scrollerRef}
-        className={cn(
-          REEL_WELL,
-          "snap-y snap-mandatory overflow-y-auto overscroll-y-contain",
-        )}
-        // A list of experiences; announce it as one.
-        role="feed"
-      >
-        {/*
-          Keyed by the CLIP, not the listing. One listing may appear several
-          times with a different reel each — that is the whole point of
-          `/reels` — and keying by `experience.id` would give React duplicate
-          keys, unmount the wrong card on a refetch, and hand one clip's player
-          state to another.
-        */}
-        {items.map((reel, i) => (
-          <ExperienceCard
-            key={reel.media!.id}
-            experience={reel.experience!}
-            media={reel.media}
-            index={i}
-            total={setSize}
-            active={i === activeIndex}
-            mounted={shouldMount(i)}
-            muted={muted}
-            autoplayAllowed={autoplayAllowed}
-            watch={i === activeIndex ? watch : undefined}
-          />
-        ))}
-
-        {/*
-          The bottom, and the sentinel that fetches before a traveller gets
-          here.
-
-          The completeness claim is the server's, not ours. `complete` is told;
-          a short page is never read as an ending, because a page that happens
-          to come back exactly full would stop the scroll early and a silently
-          stopped scroll looks identical to one with nothing more to show — so
-          nobody reports it.
-
-          Four things can be true here and they read differently, which is the
-          point: more is coming, more failed to come, the list ended, or the
-          server stopped without a cursor to follow.
-        */}
+    /*
+      A view transition, so a change of screen can carry the whole reel
+      screen, its masthead with it: aside when its listing slides in over it
+      (T02 C), back from the left when Back returns, through a fade
+      otherwise. See `lib/motion/route-motion.ts`.
+    */
+    <ViewTransition {...REEL_MOTION}>
+      <div className="container-feed relative lg:my-6" data-reel-screen="">
+        {chrome}
         <div
-          ref={sentinelRef}
-          className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center"
+          ref={scrollerRef}
+          className={cn(
+            REEL_WELL,
+            "snap-y snap-mandatory overflow-y-auto overscroll-y-contain",
+          )}
+          // A list of experiences; announce it as one.
+          role="feed"
         >
-          {isFetchNextPageError ? (
-            <p className="text-paper/60 text-xs">
-              More reels did not load: usually the island signal rather than
-              you. Scroll up and back down to try again.
-            </p>
-          ) : hasNextPage || isFetchingNextPage ? (
-            /*
+          {/*
+            Keyed by the CLIP, not the listing. One listing may appear several
+            times with a different reel each — that is the whole point of
+            `/reels` — and keying by `experience.id` would give React duplicate
+            keys, unmount the wrong card on a refetch, and hand one clip's player
+            state to another.
+          */}
+          {items.map((reel, i) => (
+            <ExperienceCard
+              key={reel.media!.id}
+              experience={reel.experience!}
+              media={reel.media}
+              index={i}
+              total={setSize}
+              active={i === activeIndex}
+              mounted={shouldMount(i)}
+              muted={muted}
+              autoplayAllowed={autoplayAllowed}
+              watch={i === activeIndex ? watch : undefined}
+            />
+          ))}
+
+          {/*
+            The bottom, and the sentinel that fetches before a traveller gets
+            here.
+
+            The completeness claim is the server's, not ours. `complete` is told;
+            a short page is never read as an ending, because a page that happens
+            to come back exactly full would stop the scroll early and a silently
+            stopped scroll looks identical to one with nothing more to show — so
+            nobody reports it.
+
+            Four things can be true here and they read differently, which is the
+            point: more is coming, more failed to come, the list ended, or the
+            server stopped without a cursor to follow.
+          */}
+          <div
+            ref={sentinelRef}
+            className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center"
+          >
+            {isFetchNextPageError ? (
+              <p className="text-paper/60 text-xs">
+                More reels did not load: usually the island signal rather than
+                you. Scroll up and back down to try again.
+              </p>
+            ) : hasNextPage || isFetchingNextPage ? (
+              /*
               Deliberately not a spinner and deliberately not "the end". The
               sentinel fires two screens early, so a traveller reaching this is
               already past where more should have arrived — and a spinner that
               is usually gone before anybody sees it is a flicker at the bottom
               of every scroll.
             */
-            <p className="text-paper/60 text-xs">Loading more reels…</p>
-          ) : tail === "complete" ? (
-            <p className="text-paper/60 text-xs">
-              {emptyTailNote ?? "That is everything on sale right now."}
-            </p>
-          ) : (
-            /*
+              <p className="text-paper/60 text-xs">Loading more reels…</p>
+            ) : tail === "complete" ? (
+              <p className="text-paper/60 text-xs">
+                {emptyTailNote ?? "That is everything on sale right now."}
+              </p>
+            ) : (
+              /*
               `complete: false` with no `nextCursor` — the contract's own third
               case, "a different thing from the feed having ended". There is
               nothing to page to, so this cannot be a retry of the next page;
               refetching from the top is the only move that exists, and the
               copy does not claim an ending it was not told about.
             */
-            <p className="text-paper/60 text-xs">
-              That is as far as we can load right now, not the end of what is on
-              sale. Reload to try again.
-            </p>
-          )}
+              <p className="text-paper/60 text-xs">
+                That is as far as we can load right now, not the end of what is
+                on sale. Reload to try again.
+              </p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </ViewTransition>
   );
 }

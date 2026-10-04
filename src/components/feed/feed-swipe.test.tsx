@@ -33,6 +33,12 @@ vi.mock("next/navigation", () => ({
 
 const experience = EXPERIENCES[0];
 const href = `/e/${experience.slug}`;
+/*
+  The swipe's screen change moves as Book's does: the listing slides in over
+  the reel (T02 C). The type is the routes' (`route-motion.ts`), and jsdom has
+  no layout for the finger-tracked preview, so it is always this fallback here.
+*/
+const REEL_OPEN = { transitionTypes: ["reel-open"] };
 
 /*
   Wrapped in a QueryClient because the card reads the saved set through one.
@@ -99,7 +105,7 @@ describe("swiping a reel", () => {
   it("opens the experience on a firm right-to-left drag", () => {
     const article = renderCard();
     drag(article, { x: 300, y: 400 }, { x: 180, y: 402 });
-    expect(push).toHaveBeenCalledWith(href);
+    expect(push).toHaveBeenCalledWith(href, REEL_OPEN);
   });
 
   it("sends the traveller exactly where the arrow would have", () => {
@@ -119,7 +125,7 @@ describe("swiping a reel", () => {
        label would be a second copy of it. */
     const link = screen.getByRole("link", { name: /^(Book|View)$/ });
     drag(article, { x: 300, y: 400 }, { x: 180, y: 400 });
-    expect(push).toHaveBeenCalledWith(link.getAttribute("href"));
+    expect(push).toHaveBeenCalledWith(link.getAttribute("href"), REEL_OPEN);
   });
 
   it("agrees with the title, which is the third way in", () => {
@@ -256,7 +262,7 @@ describe("the strip along the right edge", () => {
   it("still opens for a drag that starts just inside it", () => {
     const article = renderCard();
     drag(article, { x: 370, y: 400 }, { x: 230, y: 400 });
-    expect(push).toHaveBeenCalledWith(href);
+    expect(push).toHaveBeenCalledWith(href, REEL_OPEN);
   });
 });
 
@@ -335,7 +341,7 @@ describe("the reel no longer names the operator — yuvoy-app#36", () => {
       "link",
     );
     drag(title, { x: 300, y: 400 }, { x: 180, y: 400 });
-    expect(push).toHaveBeenCalledWith(href);
+    expect(push).toHaveBeenCalledWith(href, REEL_OPEN);
     expect(fireEvent.click(title)).toBe(false);
   });
 });

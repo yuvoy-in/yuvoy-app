@@ -3,6 +3,7 @@
 import { Skeleton } from "@/components/states";
 import { useOpenDays } from "@/lib/booking/next-open-day";
 import { CALENDAR_WINDOW_DAYS } from "@/lib/booking/availability-window";
+import { useListingLive } from "./preview-context";
 
 /**
  * The next open days, in the price panel (the approved redesign, traveller A,
@@ -25,7 +26,10 @@ export function NextDays({
   slug: string;
   bookable: boolean;
 }) {
-  const open = useOpenDays(slug, bookable);
+  // Not read by a listing preview until it is shown (T02 C); held open by
+  // the skeleton meanwhile, exactly as the page is while its read is in flight.
+  const live = useListingLive();
+  const open = useOpenDays(slug, bookable && live);
 
   if (!bookable || open.state === "error") return null;
 

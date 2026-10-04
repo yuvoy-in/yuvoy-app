@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useRouter } from "next/navigation";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { Button, ButtonLink } from "@/components/ui/button";

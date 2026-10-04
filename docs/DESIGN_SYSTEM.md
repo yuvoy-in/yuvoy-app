@@ -88,6 +88,45 @@ control's ground instead of its size.
   together); the share notice fades 6px out of its disc and leaves with its
   words (T13 A).
 
+### Screen changes (T01 C and A, T02 C, T03 B)
+
+A screen change is a React view transition carrying exactly one type, chosen
+from the two routes by `lib/motion/route-motion.ts` and attached by the app's
+`Link` (`components/ui/link`; ESLint refuses `next/link` anywhere else). The
+screen's parts each answer each type (`Screen`'s stage strip and sheet, the
+reel strip, the tab bar); the stylesheet draws the answers ("motion: screen
+changes" in `globals.css`); `route-motion.test.ts` fails a class the
+stylesheet does not draw.
+
+| Type                       | When                              | What moves                                                                                                                                          |
+| -------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deeper`                   | Into a focused screen             | The stage stays. The old sheet's words leave (100ms) over its held paper; the new sheet rises 32px and fades in (250ms); the bar steps down (150ms) |
+| `back`                     | A Back control                    | The sheet drops 24px as it fades (200ms); the one behind returns (150ms); the bar steps up                                                          |
+| `sideways`                 | Between tab roots, and out to one | The old fades out (100ms), the new in (150ms); nothing travels; the bar glides instead (T04 B)                                                      |
+| `reel-open` / `reel-back`  | A reel and its listing            | The listing is the page to the reel's right: in over 350ms (cinematic) while the reel moves a third as far under a 25% dim; Back 250ms (move)       |
+| `picture` / `picture-back` | A saved picture and its listing   | The picture flies to the hero (350ms, corners 12px to square), the sheet rises over it; home again in 250ms                                         |
+
+- **No type, no motion.** The browser's own back and forward (iOS Safari
+  draws its own swipe; a second animation is the double slide), a query on
+  the same screen, and the app's own redirects after an action. The root is
+  never animated, so the forest stage simply stays.
+- **The listing comes in under the thumb.** On a phone a reel's right-to-left
+  swipe brings the listing itself in, one to one, built ahead of time once
+  the reel has been watched 700ms (`lib/feed/listing-peek.ts`); past a
+  quarter of the width or a flick it completes, else it springs back (200ms).
+  The route is pushed only once it has fully arrived, and the real page
+  renders under it. Reduced motion and desktops keep the card's nudge.
+- **Back returns to the reel you left**, on a step back only (our Back, the
+  browser's), by clip rather than index (`lib/feed/reel-memory.ts`).
+- **A saved card hands its picture to the listing**, whose gallery opens on
+  it (`lib/motion/picture-handoff.ts`), so the picture that lands is the one
+  tapped.
+- **Reduced motion:** every screen change is a 120ms crossfade; the picture
+  lands at once.
+- Prove on a physical iPhone before `main`: an iOS 26.1 crash with enter and
+  exit transitions was fixed in React (#35337, in the canary Next 16.3 ships);
+  WebKit is covered by `e2e/motion-webkit.spec.ts`, which is not a phone.
+
 ## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
 
 **The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,

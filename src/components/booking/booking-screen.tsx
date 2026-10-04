@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useHasMounted } from "@/lib/react/use-has-mounted";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useDocumentTitle } from "@/lib/site/use-document-title";
 import { useBookingStatus } from "@/lib/booking/use-booking-status";
 import { overdueAtCeiling } from "@/lib/booking/poll";
