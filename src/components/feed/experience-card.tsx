@@ -347,11 +347,16 @@ export function ExperienceCard({
               `line-clamp-3` because a title is operator-written and unbounded,
               and a five-line headline over a reel is the complaint this screen
               started from. Operator-written, so it is in the host's voice.
+
+              The clamp clips at the box, and at the headline leading Gotu's
+              tallest accents (Å, Ś, Ǻ) rise up to 0.26em above the first line,
+              so `pt-[0.26em]` gives them room inside the clip and the negative
+              margin puts the words back where they were (fonts.test.ts).
             */}
             <h2 className="mb-2 min-w-0">
               <Link
                 href={href}
-                className="voice-host text-paper ease-interaction leading-display line-clamp-3 text-3xl text-balance transition-opacity duration-200 hover:opacity-80"
+                className="voice-host text-paper ease-interaction leading-display -mt-[0.26em] line-clamp-3 pt-[0.26em] text-3xl text-balance transition-opacity duration-200 hover:opacity-80"
               >
                 {experience.title}
               </Link>

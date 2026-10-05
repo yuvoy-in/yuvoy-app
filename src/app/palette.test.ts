@@ -500,6 +500,26 @@ const TYPE_RULES: { rule: string; broken: (t: string[]) => boolean }[] = [
       t.some((c) => WEIGHT.test(c)),
   },
   {
+    // `line-clamp` and `truncate` clip at the box, and at a headline's
+    // leading the ink overhangs the line. Gotu's tallest accents (Å, Ś, Ǻ)
+    // rise up to 0.26em above a 1.08 line and 0.17em above a 1.25 one
+    // (fonts.test.ts), its descenders fall below a 1.0 line, and the display
+    // cut's below a 1.08 one. So a clamped headline in the host's voice takes
+    // `pt-[0.26em]`, with a margin that puts the words back, and never
+    // `leading-none`; a clamped Yuvoy headline never takes either.
+    rule: "a clamped headline that cuts its own ink",
+    broken: (t) => {
+      if (!t.some((c) => /^(line-clamp-\d+|truncate)$/.test(c))) return false;
+      const none = t.includes("leading-none");
+      const tight = t.some((c) => /^leading-(display|tight)$/.test(c));
+      if (t.includes("font-display"))
+        return none || t.includes("leading-display");
+      if (t.includes("voice-host"))
+        return none || (tight && !t.includes("pt-[0.26em]"));
+      return false;
+    },
+  },
+  {
     // `uppercase` on machine text in `font-mono` (a code, typed in either
     // case) is the data's own case rather than a voice, and it is never
     // tracked.
@@ -586,6 +606,22 @@ describe("type", () => {
     ["label tracking-wider", "tracked capitals"],
     ["font-mono text-sm tracking-wider", "tracked capitals"],
     ["font-mono uppercase tracking-widest", "tracked capitals"],
+    [
+      "voice-host text-paper leading-display line-clamp-3 text-3xl text-balance",
+      "a clamped headline that cuts its own ink",
+    ],
+    [
+      "voice-host leading-tight truncate text-lg",
+      "a clamped headline that cuts its own ink",
+    ],
+    [
+      "voice-host leading-none line-clamp-2 pt-[0.26em] text-xl",
+      "a clamped headline that cuts its own ink",
+    ],
+    [
+      "font-display tracking-display leading-display line-clamp-2 text-2xl text-balance",
+      "a clamped headline that cuts its own ink",
+    ],
   ])("fires on %j: %s", (planted, rule) => {
     const fired = classStrings(`"${planted}"`).flatMap((tokens) =>
       TYPE_RULES.filter(({ broken }) => broken(tokens)).map((r) => r.rule),
@@ -597,7 +633,9 @@ describe("type", () => {
     "font-display tracking-display leading-display text-3xl text-balance sm:text-4xl",
     "font-board mt-2 text-3xl leading-tight tabular-nums",
     "font-board tracking-normal tabular-nums",
-    "voice-host text-paper leading-display line-clamp-3 text-3xl text-balance",
+    "voice-host text-paper leading-display -mt-[0.26em] line-clamp-3 pt-[0.26em] text-3xl text-balance",
+    "voice-host mt-2 line-clamp-2 block text-sm leading-snug text-balance",
+    "voice-host truncate",
     "voice-host text-forest/70 leading-body mt-3 max-w-prose text-sm text-pretty",
     "text-forest/70 text-body mt-3 max-w-prose text-pretty",
     "label text-forest/75",

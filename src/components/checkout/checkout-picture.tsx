@@ -28,7 +28,12 @@ export function CheckoutPicture({ experience }: { experience: Experience }) {
             : `${price} · all-in`}
         </p>
       ) : null}
-      <p className="voice-host text-paper leading-display mt-1 line-clamp-2 text-[22px] text-balance">
+      {/*
+        Room inside the clamp for Gotu's tallest accents, which rise up to
+        0.26em above the first line at the headline leading (fonts.test.ts);
+        the margin keeps the words 0.25rem under the price, where they were.
+      */}
+      <p className="voice-host text-paper leading-display mt-[calc(0.25rem_-_0.26em)] line-clamp-2 pt-[0.26em] text-[22px] text-balance">
         {experience.title}
       </p>
     </PictureStrip>

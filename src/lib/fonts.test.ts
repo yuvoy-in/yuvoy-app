@@ -204,6 +204,22 @@ function unitsPerEm(file: string): number {
   return tablesOf(file).get("head")!.readUInt16BE(18);
 }
 
+/**
+ * How far, in em, the tallest glyph in a file rises above the top of a line
+ * box at `lineHeight`. The baseline sits where the line's half-leading puts
+ * it, from `hhea`'s ascender and descender; `head.yMax` is the top of the
+ * tallest glyph the file draws.
+ */
+function overhangAbove(file: string, lineHeight: number): number {
+  const tables = tablesOf(file);
+  const upm = unitsPerEm(file);
+  const hhea = tables.get("hhea")!;
+  const ascender = hhea.readInt16BE(4);
+  const descender = hhea.readInt16BE(6); // negative, below the baseline
+  const room = (ascender + descender + lineHeight * upm) / 2;
+  return (tables.get("head")!.readInt16BE(42) - room) / upm;
+}
+
 describe("the delivered fonts", () => {
   it.each([TEXT, DISPLAY, BOARD, HOST])(
     "%s draws the rupee sign, the digits and the alphabet",
@@ -233,6 +249,17 @@ describe("the delivered fonts", () => {
     expect(tablesOf(DISPLAY).has("fvar")).toBe(false);
     expect(tablesOf(BOARD).has("fvar")).toBe(false);
     expect(tablesOf(HOST).has("fvar")).toBe(false);
+  });
+
+  it("leave a clamped host headline room for the tallest accent Gotu draws", () => {
+    // `line-clamp` clips at the box, and at the headline leading (1.08) a
+    // capital's accent rises above the first line. The two clamped host
+    // headlines (the reel's title, checkout's picture) carry `pt-[0.26em]`
+    // for it, and palette.test.ts holds every clamped host headline to that.
+    // A rebuild that adds a taller glyph fails here before it is cut off.
+    expect(overhangAbove(HOST, 1.08)).toBeGreaterThan(0);
+    expect(overhangAbove(HOST, 1.08)).toBeLessThanOrEqual(0.26);
+    expect(overhangAbove(HOST, 1.25)).toBeLessThanOrEqual(0.26);
   });
 
   it("bake each cut to its approved size, not declare it", () => {
