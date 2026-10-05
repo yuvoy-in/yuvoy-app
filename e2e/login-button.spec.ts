@@ -24,7 +24,7 @@ const login = (page: Page) => page.getByRole("link", { name: "Login" });
 async function signIn(page: Page) {
   await page.getByLabel("Your WhatsApp number").fill("9111111111");
   await page.getByRole("button", { name: "Send me a code" }).click();
-  await page.getByLabel("The code we sent").fill("123456");
+  await page.getByLabel("Sign-in code").fill("123456");
   await page.getByRole("button", { name: "Show me my trips" }).click();
 }
 

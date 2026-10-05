@@ -18,7 +18,7 @@ test("a number that has never booked can sign in", async ({ page }) => {
   await page.getByLabel("Your WhatsApp number").fill("9111111111");
   await page.getByRole("button", { name: "Send me a code" }).click();
 
-  await page.getByLabel("The code we sent").fill("123456");
+  await page.getByLabel("Sign-in code").fill("123456");
   await page.getByRole("button", { name: "Show me my trips" }).click();
 
   await expect(
@@ -37,7 +37,7 @@ test("the two ways out of the code step are buttons, and Change number works", a
   await page.goto("/account");
   await page.getByLabel("Your WhatsApp number").fill("9111111111");
   await page.getByRole("button", { name: "Send me a code" }).click();
-  await expect(page.getByLabel("The code we sent")).toBeVisible();
+  await expect(page.getByLabel("Sign-in code")).toBeVisible();
 
   await expect(
     page.getByRole("button", { name: "Send another code" }),
@@ -55,13 +55,13 @@ test("a wrong code says so on the code field, not in a stub", async ({
   await page.goto("/account");
   await page.getByLabel("Your WhatsApp number").fill("9111111111");
   await page.getByRole("button", { name: "Send me a code" }).click();
-  await page.getByLabel("The code we sent").fill("000000");
+  await page.getByLabel("Sign-in code").fill("000000");
   await page.getByRole("button", { name: "Show me my trips" }).click();
 
   await expect(
     page.getByText(/It may be wrong, it may have expired/),
   ).toBeVisible();
-  await expect(page.getByLabel("The code we sent")).toHaveAttribute(
+  await expect(page.getByLabel("Sign-in code")).toHaveAttribute(
     "aria-invalid",
     "true",
   );
@@ -78,7 +78,7 @@ test("signing in brings the other phone's trips into Trips, in one list", async 
   await page.goto("/account");
   await page.getByLabel("Your WhatsApp number").fill("9111111111");
   await page.getByRole("button", { name: "Send me a code" }).click();
-  await page.getByLabel("The code we sent").fill("123456");
+  await page.getByLabel("Sign-in code").fill("123456");
   await page.getByRole("button", { name: "Show me my trips" }).click();
   await page.getByRole("link", { name: "Go to my trips" }).click();
   await page.waitForURL("**/trips");
@@ -133,7 +133,7 @@ test("signing out clears this phone, and Trips says so", async ({ page }) => {
   await page.goto("/account");
   await page.getByLabel("Your WhatsApp number").fill("9111111111");
   await page.getByRole("button", { name: "Send me a code" }).click();
-  await page.getByLabel("The code we sent").fill("123456");
+  await page.getByLabel("Sign-in code").fill("123456");
   await page.getByRole("button", { name: "Show me my trips" }).click();
   /*
     Wait for the signed-in screen before navigating. Submitting the code

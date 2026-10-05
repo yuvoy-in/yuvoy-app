@@ -32,8 +32,11 @@ test("signed out, Trips leads with finding a booking", async ({ page }) => {
     page.getByRole("heading", { level: 1, name: "Find your booking" }),
   ).toBeVisible();
   // Where the code goes, said plainly: with no WhatsApp sender, it is the
-  // email given at checkout.
+  // email on the number's latest booking (yuvoy-app#125).
   await expect(
-    page.getByText(/by WhatsApp, or to the email you gave when you booked/),
+    page.getByText("A code goes to the email on your latest booking."),
   ).toBeVisible();
+  // The number field keeps its "WhatsApp number" label, the number booked
+  // with; what goes is any code promised by WhatsApp.
+  await expect(page.getByText(/by whatsapp/i)).toHaveCount(0);
 });

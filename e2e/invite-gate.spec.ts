@@ -116,7 +116,7 @@ test("the gate's own steps do not submit the booking form under them", async ({
   await page.getByRole("button", { name: "Send me a code" }).click();
 
   // The next step of signing in, and NOT a second reservation.
-  await expect(page.getByLabel("The code we sent")).toBeVisible();
+  await expect(page.getByLabel("Sign-in code")).toBeVisible();
   await expect(page).toHaveURL(/\/book\?/);
   expect(seen.posts).toBe(1);
 });

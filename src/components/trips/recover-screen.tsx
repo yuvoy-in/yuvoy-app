@@ -86,15 +86,16 @@ export function RecoverScreen() {
       </h1>
       {/*
         Where the code goes, said plainly (yuvoy-app#113). It said "to the
-        number you booked with", and with no WhatsApp sender in production the
-        code goes to the email given at checkout instead (the API picks
-        WhatsApp when it can send, then that email). A guest watching their
-        messages for a code sitting in their inbox gives up.
+        number you booked with", and a guest watching their messages for a
+        code sitting in their inbox gives up. Then it said "by WhatsApp, or to
+        the email", and there is no WhatsApp sender: the code goes to the email
+        on the number's LATEST booking, the rule sign-in shares
+        (yuvoy-app#125, yuvoy-api#254).
       */}
       <p className="text-forest/70 mt-3 text-sm">
-        Enter the number you booked with. We will send a code by WhatsApp, or to
-        the email you gave when you booked. Your booking link cannot be looked
-        up any other way. It is not stored anywhere we can read it.
+        Enter the number you booked with. A code goes to the email on your
+        latest booking. Your booking link cannot be looked up any other way. It
+        is not stored anywhere we can read it.
       </p>
 
       <form
@@ -126,7 +127,7 @@ export function RecoverScreen() {
 
         {sent ? (
           <Field
-            label="The code we sent"
+            label="Your code"
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -156,9 +157,9 @@ export function RecoverScreen() {
 
       {sent && !failure ? (
         <p className="text-forest/70 mt-4 text-xs" role="status">
-          If that number has a booking with us, a code is on its way by WhatsApp
-          or email. We answer the same way for every number, so this is not a
-          way to check whether somebody has booked.
+          If the latest booking on that number has an email, a code is on its
+          way to that email. We answer the same way for every number, so this is
+          not a way to check whether somebody has booked.
         </p>
       ) : null}
 

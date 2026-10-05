@@ -127,7 +127,7 @@ describe("the sign-in", () => {
       "9000000000",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await user.type(await screen.findByLabelText("The code we sent"), "123456");
+    await user.type(await screen.findByLabelText("Sign-in code"), "123456");
     await user.click(screen.getByRole("button", { name: "Show me my trips" }));
 
     expect(
@@ -147,7 +147,7 @@ describe("the two ways out of the code step", () => {
       "9000000000",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await screen.findByLabelText("The code we sent");
+    await screen.findByLabelText("Sign-in code");
   }
 
   it("offers both as buttons, not as underlined words in small print", async () => {
@@ -196,7 +196,7 @@ describe("what it says when something goes wrong", () => {
       "9000000000",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await user.type(await screen.findByLabelText("The code we sent"), "000000");
+    await user.type(await screen.findByLabelText("Sign-in code"), "000000");
     await user.click(screen.getByRole("button", { name: "Show me my trips" }));
 
     const message = await screen.findByText(
@@ -204,7 +204,7 @@ describe("what it says when something goes wrong", () => {
     );
     expect(message).toBeInTheDocument();
     // On the FIELD, not in a panel below the button.
-    expect(screen.getByLabelText("The code we sent")).toHaveAttribute(
+    expect(screen.getByLabelText("Sign-in code")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
@@ -288,7 +288,7 @@ describe("where signing in lands", () => {
       "9111111111",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await user.type(await screen.findByLabelText("The code we sent"), "123456");
+    await user.type(await screen.findByLabelText("Sign-in code"), "123456");
     await user.click(screen.getByRole("button", { name: "Show me my trips" }));
   };
 
@@ -686,21 +686,37 @@ describe("what the code step says (yuvoy-api#254)", () => {
       "9000000000",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await screen.findByLabelText("The code we sent");
+    await screen.findByLabelText("Sign-in code");
   }
 
   it("says what the API says, and promises no WhatsApp message", async () => {
     await askForCode();
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Enter your code",
+      "Check your email",
     );
     expect(
       screen.getByText(
-        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes.",
+        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes and works once.",
       ),
     ).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/whatsapp/i);
+    // Nothing on the screen claims a code went (yuvoy-app#125).
+    expect(document.body).not.toHaveTextContent(/we sent/i);
+  });
+
+  it("tells whoever gets nothing what still works, under the code box", async () => {
+    await askForCode();
+
+    const box = screen.getByLabelText("Sign-in code");
+    // Read with the field, so a screen reader hears it on focus. The mock
+    // also sends a development code, which the hint names first.
+    expect(box).toHaveAccessibleDescription(
+      /No email\? Use the number you booked with, or call us on \+91 81216 57657\.$/,
+    );
+    expect(
+      screen.getByRole("link", { name: "+91 81216 57657" }),
+    ).toHaveAttribute("href", "tel:+918121657657");
   });
 
   it("takes the long dashes out of the API's sentence", async () => {

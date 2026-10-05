@@ -351,7 +351,7 @@ function Header() {
  * their booking as a small link underneath, so a guest had to work out that
  * signing in was not what they needed. Now the guest's route leads: the link
  * in their booking message, or `/trips/recover`, which sends a code to the
- * number they booked with and needs no account at all.
+ * email on the number's latest booking and needs no account at all.
  *
  * Signing in stays, second and in the owner's words, verbatim. The two are
  * genuinely different: signing in works for a number that has never booked
@@ -366,7 +366,8 @@ function SignedOut() {
         <h2 className="text-base font-bold">Find my booking</h2>
         <p className="text-forest/70 mt-1.5 text-sm">
           Open the link in your booking message. No message to hand? Use the
-          number you booked with and we will send you a code. No account needed.
+          number you booked with, and a code goes to the email on your latest
+          booking. No account needed.
         </p>
         <ButtonLink href="/trips/recover" className="mt-4">
           Find my booking
