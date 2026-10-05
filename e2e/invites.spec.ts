@@ -109,7 +109,7 @@ test.describe("the guest's own trip", () => {
     await page.goto("/account");
     await page.getByLabel("Your WhatsApp number").fill("9111111111");
     await page.getByRole("button", { name: "Send me a code" }).click();
-    await page.getByLabel("The code we sent").fill("123456");
+    await page.getByLabel("Sign-in code").fill("123456");
     await page.getByRole("button", { name: "Show me my trips" }).click();
     await expect(
       page.getByRole("button", { name: "Sign out on this device" }),

@@ -169,7 +169,7 @@ describe("the landing, for somebody signed out", () => {
     expect(number).toHaveFocus();
     await user.type(number, "9000003210");
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await user.type(await screen.findByLabelText("The code we sent"), "123456");
+    await user.type(await screen.findByLabelText("Sign-in code"), "123456");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
@@ -197,14 +197,18 @@ describe("the landing, for somebody signed out", () => {
       "9000003210",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await screen.findByLabelText("The code we sent");
+    await screen.findByLabelText("Sign-in code");
 
     expect(
       screen.getByText(
-        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes.",
+        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes and works once.",
       ),
     ).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/on whatsapp/i);
+    // The same way out as Account, because it is the same steps.
+    expect(screen.getByLabelText("Sign-in code")).toHaveAccessibleDescription(
+      /No email\? Use the number you booked with, or call us on \+91 81216 57657\.$/,
+    );
   });
 
   it("opens the steps at once in a sheet, where somebody has just tried to act", () => {

@@ -27,7 +27,7 @@ async function signIn(page: Page, number = "9111111111") {
   await page.goto("/account");
   await page.getByLabel("Your WhatsApp number").fill(number);
   await page.getByRole("button", { name: "Send me a code" }).click();
-  await page.getByLabel("The code we sent").fill(SIGN_IN_CODE);
+  await page.getByLabel("Sign-in code").fill(SIGN_IN_CODE);
   await page.getByRole("button", { name: "Show me my trips" }).click();
   await expect(
     page.getByRole("button", { name: "Sign out on this device" }),

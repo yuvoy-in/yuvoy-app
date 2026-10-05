@@ -14,6 +14,7 @@ import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { useListMotion } from "@/lib/motion/use-list-motion";
+import { SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/support/phone";
 
 /**
  * Signing in with a number and a code: the steps, wherever they are asked
@@ -114,10 +115,14 @@ export type SignInFlow = ReturnType<typeof useSignInFlow>;
  *
  * The fallback only covers an answer with no `message`, which the contract
  * does not allow, and it promises nothing either.
+ *
+ * What follows it is true of every code (yuvoy-app#125): it lasts a few
+ * minutes and works once. Not the exact window, which the server decides and
+ * the email states.
  */
 export function codeSentSentence(flow: Pick<SignInFlow, "sentMessage">) {
   const said = flow.sentMessage?.trim() || CODE_MAY_COME;
-  return `${/[.!?]$/.test(said) ? said : `${said}.`} It is good for a few minutes.`;
+  return `${/[.!?]$/.test(said) ? said : `${said}.`} It is good for a few minutes and works once.`;
 }
 
 const CODE_MAY_COME = "If this number can get a code, it is on its way.";
@@ -197,9 +202,21 @@ export function SignInSteps({
         {(form) => (
           <>
             {sent ? (
+              /*
+                NOT "The code we sent" (yuvoy-app#125). A number with no
+                booking is sent nothing, and the API words its answer so it
+                never says otherwise; a label claiming a send would tell
+                anybody that this number has booked. "Sign-in" also keeps it
+                apart from the gate's "Invite code", asked for on the next
+                step.
+
+                The hint is for whoever gets nothing, under the box where they
+                are waiting: the two things that still work, a number that has
+                booked and a person on the phone.
+              */
               <Field
                 form={form}
-                label="The code we sent"
+                label="Sign-in code"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -208,9 +225,19 @@ export function SignInSteps({
                 className="font-mono"
                 error={failure?.field === "code" ? failure.body : undefined}
                 hint={
-                  devCode
-                    ? `Development build: the code is ${devCode}.`
-                    : undefined
+                  <>
+                    {devCode
+                      ? `Development build: the code is ${devCode}. `
+                      : null}
+                    No email? Use the number you booked with, or call us on{" "}
+                    <a
+                      href={SUPPORT_PHONE_HREF}
+                      className="text-terra-deep tap-target whitespace-nowrap underline"
+                    >
+                      {SUPPORT_PHONE}
+                    </a>
+                    .
+                  </>
                 }
                 autoFocus
                 required
@@ -351,7 +378,7 @@ export function signInFailure(
     return sent
       ? {
           title: "That does not look like the code",
-          body: "It is six digits, from the message we sent.",
+          body: "It is six digits, numbers only.",
           field: "code",
         }
       : {

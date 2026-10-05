@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FAQ, allFaqItems, searchFaq } from "./faq";
+import { SUPPORT_PHONE } from "./phone";
 
 /**
  * The Help Center's answers, and the one rule they all have to keep.
@@ -30,8 +31,8 @@ describe("the answers", () => {
     /*
       yuvoy-app#113. Two answers said a booking could be reached with no code
       at all, and that the lost LINK would arrive again. Recovery sends a code
-      (by WhatsApp, or to the email given at checkout) and the code opens the
-      booking on a fresh link, retiring the old one.
+      (to the email on the number's latest booking, yuvoy-app#125) and the
+      code opens the booking on a fresh link, retiring the old one.
     */
     const text = (id: string) =>
       allFaqItems()
@@ -39,10 +40,31 @@ describe("the answers", () => {
         .answer.join(" ");
 
     expect(text("lost-link")).toMatch(/Find my booking/);
-    expect(text("lost-link")).toMatch(/send you a code/);
+    expect(text("lost-link")).toMatch(
+      /a code goes to the email on your latest booking/,
+    );
     expect(text("lost-link")).toMatch(/old link stops working/);
     expect(text("sign-in-code")).not.toMatch(/do not need a code/);
     expect(text("sign-in-code")).toMatch(/Find my booking/);
+  });
+
+  it("says codes go by email and gives a person to call, never WhatsApp", () => {
+    /*
+      yuvoy-app#125. No WhatsApp sender exists, so a code goes to the email on
+      the latest booking or nowhere. The answer for a code that did not work
+      is also the one for a code that never came.
+    */
+    const text = (id: string) =>
+      allFaqItems()
+        .find((item) => item.id === id)!
+        .answer.join(" ");
+
+    for (const id of ["lost-link", "sign-in-code"]) {
+      expect(text(id)).not.toMatch(/whatsapp/i);
+    }
+    expect(text("sign-in-code")).toMatch(/work once/);
+    expect(text("sign-in-code")).toMatch(/email on the latest booking/);
+    expect(text("sign-in-code")).toContain(SUPPORT_PHONE);
   });
 
   it("promises no ticket tracking, because there is no endpoint behind one", () => {
