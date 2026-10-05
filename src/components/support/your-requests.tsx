@@ -89,7 +89,7 @@ export function YourRequests() {
           onSignedOut={() => void refresh()}
         />
       ) : items.length === 0 ? (
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 text-body mt-3 text-pretty">
           Nothing sent yet. When you message us, it shows here with where it is.
         </p>
       ) : (
@@ -168,12 +168,14 @@ function RequestRow({ request }: { request: SupportRequest }) {
         ) : (
           <span />
         )}
-        {when ? <span className="text-forest/70 text-xs">{when}</span> : null}
+        {when ? (
+          <span className="text-forest/70 text-xs tabular-nums">{when}</span>
+        ) : null}
       </div>
       {excerpt ? (
         <p className="text-forest/80 mt-2 text-sm">{excerpt}</p>
       ) : null}
-      <p className="text-forest/70 mt-2 text-xs tracking-wider slashed-zero tabular-nums">
+      <p className="tracking-ref text-forest/70 mt-2 text-xs slashed-zero tabular-nums">
         {request.reference}
         {request.bookingReference ? ` · about ${request.bookingReference}` : ""}
       </p>

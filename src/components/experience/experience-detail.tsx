@@ -136,12 +136,12 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                 .join(" · ")}
             </p>
 
-            <h1 className="font-display tracking-display mt-4 text-4xl leading-[1.05] sm:text-5xl">
+            <h1 className="voice-host leading-display mt-4 text-4xl text-balance sm:text-5xl">
               {experience.title}
             </h1>
 
             {experience.summary ? (
-              <p className="text-forest/70 mt-4 max-w-prose text-base">
+              <p className="voice-host text-forest/70 leading-body mt-4 max-w-prose text-base text-pretty">
                 {experience.summary}
               </p>
             ) : null}
@@ -383,14 +383,16 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                 <h2 className="label text-forest/75">Where you meet</h2>
                 <Panel tone="outline" className="mt-3">
                   {meetingText ? (
-                    <p className="text-sm font-bold">{meetingText}</p>
+                    <p className="voice-host text-body text-pretty">
+                      {meetingText}
+                    </p>
                   ) : null}
                   {meetingLandmark ? (
                     <p
                       className={
                         meetingText
-                          ? "text-forest/70 mt-1 text-sm"
-                          : "text-sm font-bold"
+                          ? "voice-host text-forest/70 mt-1 text-sm"
+                          : "voice-host text-body text-pretty"
                       }
                     >
                       {meetingLandmark}
@@ -419,7 +421,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
             {experience.cancellationPolicy ? (
               <section id="cancellation" className="mt-8 scroll-mt-6">
                 <h2 className="label text-forest/75">If it is called off</h2>
-                <p className="text-forest/70 mt-2 max-w-prose text-sm">
+                <p className="voice-host text-forest/70 text-body mt-2 max-w-prose text-pretty">
                   {experience.cancellationPolicy}
                 </p>
               </section>
@@ -468,7 +470,7 @@ function OperatorName({ operator }: { operator: Experience["operator"] }) {
           decoding="async"
         />
       ) : null}
-      <span className="truncate font-bold">{operator.name}</span>
+      <span className="voice-host truncate">{operator.name}</span>
     </>
   );
 
@@ -528,7 +530,7 @@ function Paragraphs({
   if (paragraphs.length === 0) return null;
 
   const body = (
-    <div className="max-w-prose space-y-3 text-sm">
+    <div className="voice-host leading-body max-w-prose space-y-3 text-sm text-pretty">
       {paragraphs.map((paragraph, i) => (
         <p key={`${i}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
       ))}
@@ -553,7 +555,7 @@ function Detail({ title, items }: { title: string; items: string[] }) {
   return (
     <section>
       <h2 className="label text-forest/75">{title}</h2>
-      <ul className="text-forest/70 mt-3 space-y-1.5 text-sm">
+      <ul className="voice-host text-forest/70 leading-body mt-3 space-y-1.5 text-sm text-pretty">
         {items.map((i) => (
           <li key={i} className="flex gap-2.5">
             <span

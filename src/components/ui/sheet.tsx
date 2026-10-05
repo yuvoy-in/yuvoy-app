@@ -339,7 +339,7 @@ export function Sheet({
           onPointerUp={(e) => onLetGo(e, false)}
           onPointerCancel={(e) => onLetGo(e, true)}
         >
-          <h2 className="pt-1.5 font-bold">{title}</h2>
+          <h2 className="pt-1.5 font-bold text-balance">{title}</h2>
           <IconButton
             label="Close"
             variant="onPaper"

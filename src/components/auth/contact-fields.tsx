@@ -103,7 +103,7 @@ export function ContactFields({
     <div className="space-y-4">
       {known ? (
         <div>
-          <p className="text-forest/80 text-sm">
+          <p className="text-forest/80 text-body text-pretty">
             Booking as <span className="font-bold">{known.name}</span> (
             {maskPhone(known.phone)})
           </p>

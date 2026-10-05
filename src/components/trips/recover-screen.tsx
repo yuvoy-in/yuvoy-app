@@ -81,7 +81,7 @@ export function RecoverScreen() {
       back={{ href: "/trips", label: "your trips" }}
       stageLabel="Your booking link"
     >
-      <h1 className="font-display tracking-display text-3xl leading-tight">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
         Find your booking
       </h1>
       {/*
@@ -92,7 +92,7 @@ export function RecoverScreen() {
         on the number's LATEST booking, the rule sign-in shares
         (yuvoy-app#125, yuvoy-api#254).
       */}
-      <p className="text-forest/70 mt-3 text-sm">
+      <p className="text-forest/70 text-body mt-3 text-pretty">
         Enter the number you booked with. A code goes to the email on your
         latest booking. Your booking link cannot be looked up any other way. It
         is not stored anywhere we can read it.

@@ -358,7 +358,7 @@ export function MessageThread({
             ) : null}
 
             {messages.length === 0 ? (
-              <p className="text-forest/70 mt-4 text-sm">
+              <p className="text-forest/70 text-body mt-4 text-pretty">
                 {canWrite
                   ? "Nothing here yet. Anything you write reaches the people running this trip."
                   : closedBecause(page!.closedReason)}
@@ -498,10 +498,14 @@ function Message({ message }: { message: BookingMessage }) {
             : "border-paper-line bg-paper text-forest border",
         )}
       >
+        {/*
+          The operator's side is the host speaking, so its name and words are
+          in the host's voice. The traveller's own side stays in ours.
+        */}
         <p
           className={cn(
-            "text-xs font-bold",
-            mine ? "text-paper/70" : "text-forest/70",
+            "text-xs",
+            mine ? "text-paper/70 font-bold" : "voice-host text-forest/70",
           )}
         >
           {message.senderName}
@@ -518,7 +522,14 @@ function Message({ message }: { message: BookingMessage }) {
           typed, and a message that arrives as three lines should read as three.
         */}
         {message.text !== undefined ? (
-          <p className="mt-1 text-sm whitespace-pre-line">{message.text}</p>
+          <p
+            className={cn(
+              "text-body mt-1 text-pretty whitespace-pre-line",
+              !mine && "voice-host",
+            )}
+          >
+            {message.text}
+          </p>
         ) : (
           <p
             className={cn(
@@ -532,7 +543,7 @@ function Message({ message }: { message: BookingMessage }) {
       </div>
       <time
         dateTime={message.sentAt}
-        className="text-forest/70 mt-1 text-[10px]"
+        className="text-forest/70 mt-1 text-[10px] tabular-nums"
       >
         {formatSent(message.sentAt)}
       </time>

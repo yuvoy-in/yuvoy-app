@@ -74,10 +74,10 @@ export function FirstSignIn({ onDone }: { onDone?: () => void }) {
 
   return (
     <Screen>
-      <h1 className="font-display tracking-display text-3xl leading-tight">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
         Welcome to Yuvoy
       </h1>
-      <p className="text-forest/70 mt-3 text-sm">
+      <p className="text-forest/70 text-body mt-3 text-pretty">
         Two questions, once. You can skip them and nothing stops working.
       </p>
 

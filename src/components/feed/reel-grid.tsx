@@ -221,7 +221,7 @@ function WordsTile({
         />
         <PlayBadge />
       </span>
-      <span className="mt-2 line-clamp-2 block text-sm leading-snug font-bold">
+      <span className="voice-host mt-2 line-clamp-2 block text-sm leading-snug text-balance">
         {title}
       </span>
       {price ? (

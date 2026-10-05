@@ -20,26 +20,34 @@ const OUT_MS = 100;
  * still announces the new words once.
  *
  * `block` for a heading or a line of its own; inline otherwise.
+ *
+ * `wordsClassName` is for a line whose voice changes with its words: a
+ * heading that is a question in the display cut until a day is chosen, then
+ * the day and hour on the board. Set on the words rather than their parent,
+ * so the leaving copy keeps the face it was drawn in while it fades instead
+ * of being redrawn in the new one for 100ms.
  */
 export function FadeText({
   children,
   block = false,
   className,
+  wordsClassName,
 }: {
   children: string;
   block?: boolean;
   className?: string;
+  wordsClassName?: string;
 }) {
   const box = useRef<HTMLSpanElement | null>(null);
   const words = useRef<HTMLSpanElement | null>(null);
-  const last = useRef(children);
+  const last = useRef({ children, wordsClassName });
 
   useLayoutEffect(() => {
     const frame = box.current;
     const now = words.current;
     const was = last.current;
-    last.current = children;
-    if (!frame || !now || was === children) return;
+    last.current = { children, wordsClassName };
+    if (!frame || !now || was.children === children) return;
     if (typeof now.animate !== "function") return;
     if (prefersReducedMotion()) {
       now.animate([{ opacity: 0 }], {
@@ -49,7 +57,8 @@ export function FadeText({
       return;
     }
     const copy = document.createElement("span");
-    copy.textContent = was;
+    copy.textContent = was.children;
+    if (was.wordsClassName) copy.className = was.wordsClassName;
     copy.setAttribute("aria-hidden", "true");
     copy.style.position = "absolute";
     copy.style.inset = "0";
@@ -71,14 +80,19 @@ export function FadeText({
       easing: EASE.interaction,
       fill: "backwards",
     });
-  }, [children]);
+  }, [children, wordsClassName]);
 
   return (
     <span
       ref={box}
       className={cn("relative", block ? "block" : "inline-block", className)}
     >
-      <span ref={words}>{children}</span>
+      <span
+        ref={words}
+        className={cn(block && "block", wordsClassName) || undefined}
+      >
+        {children}
+      </span>
     </span>
   );
 }

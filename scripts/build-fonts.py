@@ -1,46 +1,65 @@
-#!/usr/bin/env -S uv run --with "fonttools[woff]" --with brotli python
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["fonttools[woff]==4.66.1", "brotli==1.2.0"]
+# ///
 """
-Builds the app's two faces from one upstream file, Anek Latin (Ek Type, Mumbai;
-SIL Open Font License 1.1, no Reserved Font Name):
+Builds the app's four faces from two upstream files, Anek Latin and Gotu (both
+Ek Type, Mumbai; SIL Open Font License 1.1, no Reserved Font Name):
 
-    uv run scripts/build-fonts.py path/to/AnekLatin[wdth,wght].ttf
+    uv run scripts/build-fonts.py path/to/AnekLatin[wdth,wght].ttf path/to/Gotu-Regular.ttf
 
-    src/fonts/Anek-Yuvoy.woff2          the text voice: width 100, weight 400 to 700
-    src/fonts/Anek-Yuvoy-Display.woff2  the display voice: width 75, weight 700, 12% large
+    src/fonts/Anek-Yuvoy.woff2          text: width 100, weight 400 to 700
+    src/fonts/Anek-Yuvoy-Display.woff2  Yuvoy's headlines: width 87.5, weight 700, 4% large
+    src/fonts/Anek-Yuvoy-Board.woff2    the board, figures: width 75, weight 700, 12% large
+    src/fonts/Gotu-Yuvoy.woff2          the host's own words: Gotu, 5% small
 
-The source is google/fonts at 9710da1eacb3be272583c3224dcb70f9da6eadbb,
-`ofl/aneklatin/AnekLatin[wdth,wght].ttf`. Its SHA-256 is checked below, so a
-rebuild from any other file fails instead of quietly shipping a different face.
-Like the Fraunces cut before it, the variable source is not committed: it would
-be a second copy of the face that nothing builds from.
+Brand Kit v3.2, "Signature: three voices" (owner-approved 5 Oct 2026, the
+typography study's Direction 09): the host speaks in Gotu, Yuvoy guides in
+Anek, and the board keeps time in Anek's condensed cut.
 
-Why two files, and why these:
+The sources are google/fonts at 9710da1eacb3be272583c3224dcb70f9da6eadbb,
+`ofl/aneklatin/AnekLatin[wdth,wght].ttf` and `ofl/gotu/Gotu-Regular.ttf`.
+Their SHA-256 are checked below, so a rebuild from any other file fails
+instead of quietly shipping a different face. The sources are not committed:
+they would be second copies of faces that nothing builds from.
+
+The build is reproducible: the tools are pinned above, and each file keeps
+its source's own timestamp rather than the time of the build, so the same
+sources give the same bytes on any machine.
+
+Why four files, and why these:
 
   TEXT keeps the weight axis (400 to 700) and drops width, pinned at 100. The
   app sets three weights (400, 500, 700); one variable file serving all three
   is one request and fewer bytes than three static cuts. `font-semibold` stays
   banned: the system has three weights, not a continuum.
 
-  DISPLAY is a single static instance, width 75 and weight 700: the condensed
-  bold that headlines, reel titles and big figures are set in. It is
-  REGISTERED at weight 400 in src/lib/fonts.ts, so `font-display font-normal`
-  stays the one display weight in the code (palette.test.ts bans any other), and
-  no class anywhere had to change.
+  DISPLAY is a single static instance, width 87.5 and weight 700: the
+  semi-condensed bold Yuvoy's own headlines (screen titles) are set in. A
+  signboard, not a sports page. BOARD is the width 75 cut that was the display
+  face until v3.2, kept for the one job it does brilliantly: figures and times
+  that read like the boards at the jetty. Both are REGISTERED at weight 400 in
+  src/lib/fonts.ts, so `font-display` and `font-board` at the default weight
+  each mean exactly one cut (palette.test.ts bans any other weight, which
+  would make the browser synthesise a heavier one).
 
-  The display cut is also BAKED 12% LARGER than its nominal size, by lowering
-  unitsPerEm (2000 -> 1786). A condensed face reads small at the sizes a normal
-  width one was tuned for; this restores its presence without touching the type
-  scale. It is baked rather than declared (`size-adjust`) because next/font
-  computes its fallback metrics from the file: a declared adjustment would
-  leave the Arial fallback 12% smaller than the face it stands in for, and with
-  `display: optional` a slow first visit keeps the fallback for the whole page.
+  GOTU has one weight, which is the point: the host's words never go bold, so
+  `voice-host` sets weight 400 and turns synthesis off.
 
-Both are subset to what the app sets (the text face: Latin, Latin-1 and Latin
-Extended-A for names; the display face: Latin-1, as the Fraunces cut was), the
-punctuation the copy uses, the rupee sign (which the previous faces
-did not have: every price borrowed its ₹ from a system font), and the OpenType
-features the app relies on, including tabular figures and the slashed zero that
-booking references use.
+  Each cut is BAKED to its size by changing unitsPerEm, not declared with
+  `size-adjust`: a condensed face reads small at the sizes a normal width one
+  was tuned for (board 12% large, display 4%), and Gotu's tall lowercase reads
+  large next to Anek (5% small). next/font computes its fallback metrics from
+  the file, so a declared adjustment would leave the fallback a different size
+  from the face it stands in for, and with `display: optional` a slow first
+  visit keeps the fallback for the whole page.
+
+The text face and Gotu are subset to Latin, Latin-1 and Latin Extended-A, for
+names and places; the display and board cuts to Latin-1, as the display cut
+always was. All four keep the punctuation the copy uses, the rupee sign, and
+the OpenType features the app relies on, including tabular figures and the
+slashed zero that booking references use.
 """
 
 import hashlib
@@ -51,16 +70,8 @@ from fontTools import subset
 from fontTools.ttLib import TTFont
 from fontTools.varLib import instancer
 
-SOURCE_SHA256 = "ef7077abf2166add6ab6a64b4a4a4407859bf4f9e5b9058b51ac01ada136b295"
-
-TEXT_OUT = "src/fonts/Anek-Yuvoy.woff2"
-DISPLAY_OUT = "src/fonts/Anek-Yuvoy-Display.woff2"
-
-TEXT_AXES = {"wdth": 100, "wght": (400, 700)}
-DISPLAY_AXES = {"wdth": 75, "wght": 700}
-
-# 12% larger, baked: unitsPerEm divided by this. See the module docstring.
-DISPLAY_SCALE = 1.12
+ANEK_SHA256 = "ef7077abf2166add6ab6a64b4a4a4407859bf4f9e5b9058b51ac01ada136b295"
+GOTU_SHA256 = "766fbfb19d8a0c38814b23c42515ed9dea538fce18d741221eca321d0604a3f5"
 
 # What Satoshi covered, which Anek also draws, plus the rupee sign. Accented
 # Latin is for traveller, operator and place names; the dashes stay drawable
@@ -83,11 +94,11 @@ CHARS = (
     | {0x2202, 0x2205, 0x2206, 0x220F, 0x2211, 0x2212, 0x221A, 0x221E, 0x222B, 0x2248, 0x2260, 0x2264, 0x2265}
 )
 
-# The display cut sets headlines, reel titles and big figures, and it is the
-# feed's LCP element, loaded `optional`: every kilobyte decides whether it wins
-# its block window on a 0.5-3 Mbps island connection. So it keeps the range the
-# Fraunces cut kept (Latin-1, the punctuation, the currency signs). A rarer
-# accented letter in a listing title is drawn by the fallback for that letter.
+# The display and board cuts set Yuvoy's headlines and figures, and both are
+# loaded `optional`: every kilobyte decides whether a cut wins its block window
+# on a 0.5-3 Mbps island connection. So they keep the range the Fraunces cut
+# kept (Latin-1, the punctuation, the currency signs). A rarer accented letter
+# in a headline is drawn by the fallback for that letter.
 DISPLAY_CHARS = (
     set(range(0x0020, 0x007F))
     | set(range(0x00A0, 0x0100))
@@ -96,7 +107,17 @@ DISPLAY_CHARS = (
     | {0x2030, 0x2039, 0x203A, 0x20AC, 0x20B9, 0x2122, 0x2212}
 )
 
-# Must be drawn by both files, or the build fails.
+# Each cut: the file it writes, its source, the axes it pins (None for a static
+# source), the size it is baked to (unitsPerEm is divided by this), and the
+# characters it keeps.
+CUTS = [
+    ("src/fonts/Anek-Yuvoy.woff2", "anek", {"wdth": 100, "wght": (400, 700)}, 1, CHARS),
+    ("src/fonts/Anek-Yuvoy-Display.woff2", "anek", {"wdth": 87.5, "wght": 700}, 1.04, DISPLAY_CHARS),
+    ("src/fonts/Anek-Yuvoy-Board.woff2", "anek", {"wdth": 75, "wght": 700}, 1.12, DISPLAY_CHARS),
+    ("src/fonts/Gotu-Yuvoy.woff2", "gotu", None, 0.95, CHARS),
+]
+
+# Must be drawn by every file, or the build fails.
 REQUIRED = [ord(c) for c in "0123456789₹ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"]
 
 FEATURES = ["kern", "liga", "calt", "ccmp", "locl", "mark", "mkmk", "tnum", "case", "zero"]
@@ -138,31 +159,31 @@ def subset_and_save(font: TTFont, out: str, chars: set) -> None:
         raise SystemExit(f"{out}: the subset lost {', '.join(missing)}")
 
     font.flavor = "woff2"
+    font.recalcTimestamp = False
     font.save(out)
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print(__doc__)
         return 2
 
-    src = sys.argv[1]
-    digest = sha256(src)
-    if digest != SOURCE_SHA256:
-        print(f"{src} is not the pinned source.\n  expected {SOURCE_SHA256}\n  got      {digest}")
-        return 1
+    sources = {"anek": (sys.argv[1], ANEK_SHA256), "gotu": (sys.argv[2], GOTU_SHA256)}
+    for path, expected in sources.values():
+        digest = sha256(path)
+        if digest != expected:
+            print(f"{path} is not the pinned source.\n  expected {expected}\n  got      {digest}")
+            return 1
 
-    text = TTFont(src, lazy=False)
-    text = instancer.instantiateVariableFont(text, TEXT_AXES, updateFontNames=False)
-    subset_and_save(text, TEXT_OUT, CHARS)
+    for out, source, axes, scale, chars in CUTS:
+        font = TTFont(sources[source][0], lazy=False)
+        if axes is not None:
+            font = instancer.instantiateVariableFont(font, axes, updateFontNames=False)
+        if scale != 1:
+            font["head"].unitsPerEm = round(font["head"].unitsPerEm / scale)
+        subset_and_save(font, out, chars)
 
-    display = TTFont(src, lazy=False)
-    display = instancer.instantiateVariableFont(display, DISPLAY_AXES, updateFontNames=False)
-    upm = display["head"].unitsPerEm
-    display["head"].unitsPerEm = round(upm / DISPLAY_SCALE)
-    subset_and_save(display, DISPLAY_OUT, DISPLAY_CHARS)
-
-    for out in (TEXT_OUT, DISPLAY_OUT):
+    for out, *_ in CUTS:
         print(f"{out}  {os.path.getsize(out) / 1024:.1f} KB")
     return 0
 

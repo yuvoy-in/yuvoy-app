@@ -82,6 +82,28 @@ describe("FadeText", () => {
     });
   });
 
+  it("keeps the leaving words in the face they were drawn in", () => {
+    // A heading that is a question in the display cut until a day is chosen,
+    // then the day on the board: the question must not flash in the board.
+    const { container, rerender } = render(
+      <FadeText block wordsClassName="font-display">
+        When would you like to go?
+      </FadeText>,
+    );
+    rerender(
+      <FadeText block wordsClassName="font-board tabular-nums">
+        Thu 15 Oct · 07:00
+      </FadeText>,
+    );
+    const copy = container.querySelector<HTMLElement>('[aria-hidden="true"]')!;
+    expect(copy.textContent).toBe("When would you like to go?");
+    expect(copy.className).toBe("font-display");
+    const now = Array.from(container.querySelectorAll("span")).find(
+      (s) => s.textContent === "Thu 15 Oct · 07:00" && s !== copy,
+    )!;
+    expect(now.className).toBe("block font-board tabular-nums");
+  });
+
   it("leaves a screen reader only the current words", () => {
     const { container, rerender } = render(<FadeText>₹4,500</FadeText>);
     rerender(<FadeText>₹9,000</FadeText>);

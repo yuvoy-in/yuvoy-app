@@ -142,12 +142,12 @@ export function InviteGate({
     variant === "sheet" ? null : variant === "page" ? (
       <h1
         id={headingId}
-        className="font-display tracking-display mt-4 text-3xl leading-tight sm:text-4xl"
+        className="font-display tracking-display leading-display mt-4 text-3xl text-balance sm:text-4xl"
       >
         {gateTitle(view, variant)}
       </h1>
     ) : (
-      <p id={headingId} className="text-sm font-bold">
+      <p id={headingId} className="text-sm font-bold text-balance">
         {gateTitle(view, variant)}
       </p>
     );
@@ -249,8 +249,8 @@ function SignedOut({
   const why = WHY[purpose];
   const body =
     variant === "page"
-      ? "text-forest/70 mt-3 text-sm"
-      : "text-forest/70 mt-1.5 text-sm";
+      ? "text-forest/70 text-body mt-3 text-pretty"
+      : "text-forest/70 text-body mt-1.5 text-pretty";
 
   return (
     <>
@@ -347,8 +347,8 @@ function CodeScreen({
   const why = WHY[purpose];
   const body =
     variant === "page"
-      ? "text-forest/70 mt-3 text-sm"
-      : "text-forest/70 mt-1.5 text-sm";
+      ? "text-forest/70 text-body mt-3 text-pretty"
+      : "text-forest/70 text-body mt-1.5 text-pretty";
 
   return (
     <>
@@ -366,7 +366,7 @@ function CodeScreen({
       )}
 
       {number ? (
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 text-body mt-3 text-pretty">
           Signed in as{" "}
           <span className="text-forest font-bold">{maskPhone(number)}</span>.{" "}
           <button
@@ -627,7 +627,10 @@ function In({
 
   if (variant === "panel") {
     return (
-      <div role="status" className="text-forest/70 mt-1.5 text-sm">
+      <div
+        role="status"
+        className="text-forest/70 text-body mt-1.5 text-pretty"
+      >
         {note ? <p>{note}</p> : null}
         <p className={note ? "mt-1.5" : undefined}>
           {retryLabel
@@ -641,7 +644,7 @@ function In({
   return (
     <div className="mt-3">
       {note ? (
-        <p role="status" className="text-forest/70 text-sm">
+        <p role="status" className="text-forest/70 text-body text-pretty">
           {note}
         </p>
       ) : null}

@@ -98,7 +98,7 @@ export function ShareLink({
         data-shown={shown ? "true" : "false"}
         data-motion=""
         className={cn(
-          "share-notice label app-chrome ring-paper/12 absolute top-1/2 right-full mr-3 -translate-y-1/2 rounded-full px-3 py-1.5 text-[11px] whitespace-nowrap ring-1",
+          "share-notice app-chrome ring-paper/12 absolute top-1/2 right-full mr-3 -translate-y-1/2 rounded-full px-3 py-1.5 text-[11px]/4 font-medium whitespace-nowrap ring-1",
           !notice && "sr-only",
         )}
       >

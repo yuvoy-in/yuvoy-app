@@ -128,13 +128,13 @@ export function MessageSheet({
     return (
       <Sheet open onClose={onClose} title="Send us a message">
         <div role="status">
-          <p className="text-sm">{send.data.message}</p>
+          <p className="text-body text-pretty">{send.data.message}</p>
           {/*
             The reference, and it is the point. A support request with no
             receipt feels swallowed; this is "short enough to quote on a call",
             which is exactly what somebody chasing it will do.
           */}
-          <p className="mt-3 text-sm tracking-wider slashed-zero tabular-nums">
+          <p className="tracking-ref mt-3 text-sm slashed-zero tabular-nums">
             Reference {send.data.reference}
           </p>
         </div>
@@ -156,7 +156,7 @@ export function MessageSheet({
           on WhatsApp and is never shown in the app, so nothing here may read
           as though it will be.
         */}
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 text-body mt-3 text-pretty">
           A person replies on WhatsApp, to the number you used.
         </p>
       </Sheet>

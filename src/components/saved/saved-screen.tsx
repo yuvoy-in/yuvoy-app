@@ -484,10 +484,10 @@ function Shell({
 }) {
   return (
     <Screen back={BACK} stageLabel="Saved" width="lg">
-      <h1 className="font-display tracking-display text-3xl leading-tight sm:text-4xl">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance sm:text-4xl">
         Saved
       </h1>
-      <p className="text-forest/70 mt-3 max-w-prose text-sm">
+      <p className="text-forest/70 text-body mt-3 max-w-prose text-pretty">
         {count
           ? `${count} ${count === 1 ? "experience" : "experiences"} you are holding on to.`
           : "Experiences you are holding on to."}
@@ -642,7 +642,9 @@ function SavedCard({
         ) : (
           <Poster url={posterUrl} />
         )}
-        <p className="mt-2 text-sm leading-snug font-bold">{title}</p>
+        <p className="voice-host mt-2 text-sm leading-snug text-balance">
+          {title}
+        </p>
         {location ? (
           <p className="text-forest/70 mt-0.5 text-xs">{location}</p>
         ) : null}
@@ -756,7 +758,7 @@ function LegacyNote({ count }: { count: number }) {
 
   return (
     <div className="border-paper-line mt-10 border-t pt-6">
-      <p className="text-forest/70 text-sm">
+      <p className="text-forest/70 text-body text-pretty">
         {count} {count === 1 ? "save" : "saves"} from an older version of the
         app cannot be shown here. Saving {count === 1 ? "it" : "them"} again
         from the feed will fix {count === 1 ? "it" : "them"}.

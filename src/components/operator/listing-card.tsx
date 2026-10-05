@@ -41,7 +41,7 @@ export function ListingCard({
         <Poster url={experience.heroMedia?.posterUrl} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-bold">{experience.title}</p>
+        <p className="voice-host text-balance">{experience.title}</p>
         <p className="text-forest/70 mt-1 text-xs">
           {experience.location ?? "Andaman"}
         </p>

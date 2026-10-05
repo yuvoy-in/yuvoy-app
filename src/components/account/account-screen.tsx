@@ -124,7 +124,7 @@ export function AccountScreen() {
 
   return (
     <Screen>
-      <h1 className="font-display tracking-display text-3xl leading-tight">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
         {/*
           Where to look, not a claim that anything went (yuvoy-app#125): codes
           go by email until there is a WhatsApp sender, and the sentence under
@@ -132,7 +132,7 @@ export function AccountScreen() {
         */}
         {flow.sent ? "Check your email" : "Sign in"}
       </h1>
-      <p className="text-forest/70 mt-3 text-sm">
+      <p className="text-forest/70 text-body mt-3 text-pretty">
         {flow.sent
           ? codeSentSentence(flow)
           : INVITE_ONLY
@@ -247,7 +247,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
 
   return (
     <Screen>
-      <h1 className="font-display tracking-display text-3xl leading-tight">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
         {me?.name ?? "You are signed in"}
       </h1>
 
@@ -410,8 +410,8 @@ function InviteEntry({
 }) {
   return (
     <Panel className="mt-6">
-      <p className="text-sm font-bold">Enter your invite code</p>
-      <p className="text-forest/70 mt-1.5 text-sm">
+      <p className="text-sm font-bold text-balance">Enter your invite code</p>
+      <p className="text-forest/70 text-body mt-1.5 text-pretty">
         Yuvoy is by invitation for now. Enter the code you were given, once, and
         this number is in on any phone you sign in on.
       </p>

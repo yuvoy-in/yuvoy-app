@@ -33,17 +33,19 @@ export default function GuidesIndexPage() {
         ])}
       />
       <p className="eyebrow text-terra-deep">Guides</p>
-      <h1 className="font-display tracking-display mt-4 text-4xl leading-[1.05]">
+      <h1 className="font-display tracking-display leading-display mt-4 text-4xl text-balance">
         What to know before you go
       </h1>
-      <p className="text-forest/70 mt-4 max-w-prose text-base">
+      <p className="text-forest/70 leading-body mt-4 max-w-prose text-base text-pretty">
         Written by people who live here, checked against something we can point
         at. No prices, no availability. Those live on the experience pages,
         where they are real.
       </p>
 
       {guides.length === 0 ? (
-        <p className="text-forest/70 mt-10 text-sm">Nothing published yet.</p>
+        <p className="text-forest/70 text-body mt-10 text-pretty">
+          Nothing published yet.
+        </p>
       ) : (
         <ul className="mt-10 space-y-3">
           {guides.map((g) => (
@@ -53,7 +55,7 @@ export default function GuidesIndexPage() {
                 className="rounded-card border-paper-line bg-paper-deep hover:border-forest/40 ease-interaction flex items-center gap-4 border p-5 transition-colors duration-200"
               >
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-display text-2xl leading-tight">
+                  <h2 className="font-display leading-display text-2xl text-balance">
                     {g.title}
                   </h2>
                   <p className="text-forest/70 mt-2 text-sm">{g.description}</p>

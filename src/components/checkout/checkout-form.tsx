@@ -818,7 +818,7 @@ function CheckoutFields({
           */}
           <div id="policy-text" className="mt-4">
             <p className="label text-forest/75">If plans change</p>
-            <ul className="text-forest/80 mt-2 space-y-1 text-sm">
+            <ul className="voice-host text-forest/80 leading-body mt-2 space-y-1 text-sm text-pretty">
               {policyLines(experience.cancellationPolicy).map((line, i) => (
                 <li key={i}>{line}</li>
               ))}
@@ -937,7 +937,7 @@ function CheckoutFields({
           and the party were each chosen several scrolls apart, it is the only
           place they appear together.
         */}
-        <p className="text-forest/75 mb-3 text-center text-xs">
+        <p className="text-forest/75 mb-3 text-center text-xs tabular-nums">
           <FadeText block>{summaryLine.join(" · ")}</FadeText>
         </p>
         <Button
@@ -950,7 +950,7 @@ function CheckoutFields({
           pendingLabel={isRequest ? "Sending" : "Booking"}
           // Two lines when the amount makes it long, rather than running to
           // the pill's ends on a phone.
-          className="h-auto min-h-13 py-3.5 leading-snug text-balance whitespace-normal"
+          className="h-auto min-h-13 py-3.5 text-balance whitespace-normal"
         >
           {/* A new party or departure changes its amount: it fades through. */}
           <FadeText>{action}</FadeText>

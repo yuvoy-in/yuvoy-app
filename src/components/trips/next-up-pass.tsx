@@ -95,21 +95,24 @@ export function NextUpPass({ trip, now }: { trip: ServerTrip; now: number }) {
       <div className="px-5 pt-5 pb-4">
         <p className="label text-terra-soft flex items-center justify-between gap-3">
           <span>Next up</span>
-          {until ? <span className="text-paper/80">{until}</span> : null}
+          {until ? (
+            <span className="text-paper/80 tabular-nums">{until}</span>
+          ) : null}
         </p>
         <h2
           id="next-up-when"
-          className="font-display tracking-display mt-2 text-3xl leading-tight"
+          className="font-board mt-2 text-3xl leading-tight tabular-nums"
         >
           {when ?? trip.localTime}
         </h2>
         <p className="text-paper/80 mt-1 text-sm">
-          {trip.experience} · {partyLine(trip.guests)}
+          <span className="voice-host">{trip.experience}</span> ·{" "}
+          {partyLine(trip.guests)}
         </p>
         {trip.reference ? (
           <div className="border-paper/15 mt-4 border-t pt-3">
             <p className="label text-paper/70">Read this out at the jetty</p>
-            <p className="mt-1 text-xl font-bold tracking-wider slashed-zero tabular-nums">
+            <p className="tracking-ref mt-1 text-xl font-bold slashed-zero tabular-nums">
               {trip.reference}
             </p>
           </div>
@@ -120,7 +123,7 @@ export function NextUpPass({ trip, now }: { trip: ServerTrip; now: number }) {
         {meeting || landmark ? (
           <div>
             <dt className="label text-paper/70">Where you meet</dt>
-            <dd className="mt-1">
+            <dd className="voice-host leading-body mt-1 text-pretty">
               {meeting}
               {landmark ? (
                 <span className="text-paper/80 block text-xs">{landmark}</span>
@@ -145,7 +148,9 @@ export function NextUpPass({ trip, now }: { trip: ServerTrip; now: number }) {
                 {update.detail ? `: ${update.detail}` : ""}
               </span>
               {update.note ? (
-                <span className="text-paper/80 block">{update.note}</span>
+                <span className="voice-host text-paper/80 leading-body block text-pretty">
+                  {update.note}
+                </span>
               ) : null}
             </dd>
           </div>
@@ -165,7 +170,7 @@ export function NextUpPass({ trip, now }: { trip: ServerTrip; now: number }) {
       <div className="border-paper/15 border-t px-5 py-4">
         <Link
           href={bookingUrl(trip.statusToken)}
-          className="label text-paper hover:text-paper/80 inline-flex min-h-11 items-center gap-2 font-bold"
+          className="text-button text-paper hover:text-paper/80 inline-flex min-h-11 items-center gap-2 font-bold"
         >
           Everything for the morning
           <ArrowRightIcon className="size-4" />

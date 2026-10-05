@@ -202,7 +202,7 @@ function DayCell({
         isToday && !selected && "ring-forest/40 ring-1 ring-inset",
       )}
     >
-      <span>{day}</span>
+      <span className="tabular-nums">{day}</span>
       {open && availability?.from ? (
         <span
           aria-hidden="true"

@@ -66,7 +66,7 @@ export function RequestStatus({
   return (
     <div className={className}>
       {showReference ? (
-        <p className="text-sm tracking-wider slashed-zero tabular-nums">
+        <p className="tracking-ref text-sm slashed-zero tabular-nums">
           Reference {reference}
         </p>
       ) : null}
@@ -89,7 +89,9 @@ export function RequestStatus({
               </Chip>
             ) : null}
             {changed ? (
-              <span className="text-forest/70">Last change {changed}</span>
+              <span className="text-forest/70 tabular-nums">
+                Last change {changed}
+              </span>
             ) : null}
           </p>
         ) : null}

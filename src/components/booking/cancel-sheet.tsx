@@ -136,7 +136,9 @@ export function CancelSheet({
   return (
     <Panel className="mt-8">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="pt-2 text-sm font-bold">Cancel this booking</h2>
+        <h2 className="pt-2 text-sm font-bold text-balance">
+          Cancel this booking
+        </h2>
         <IconButton label="Close" variant="onPaper" size="sm" onClick={onClose}>
           <CloseIcon className="size-4" />
         </IconButton>
@@ -157,7 +159,7 @@ export function CancelSheet({
           </p>
         )
       ) : !quote.data.cancellable ? (
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 text-body mt-3 text-pretty">
           {quote.data.reason ??
             "This booking cannot be cancelled from here any more."}
         </p>
@@ -165,17 +167,19 @@ export function CancelSheet({
         /* Partial refunds route to a human. Showing a button that will be
            refused is worse than not showing one. */
         <div className="mt-3">
-          <p className="text-forest/70 text-sm">
+          <p className="text-forest/70 text-body text-pretty">
             {quote.data.note ??
               "This one needs a person to look at it. The refund is partial, and we would rather a human got that right."}
           </p>
-          <p className="text-forest/70 mt-3 text-sm">
+          <p className="text-forest/70 text-body mt-3 text-pretty">
             Message us on WhatsApp and we will sort it today.
           </p>
         </div>
       ) : (
         <div className="mt-3">
-          <p className="text-forest/70 text-sm">{describeRefund(quote.data)}</p>
+          <p className="text-forest/70 text-body text-pretty">
+            {describeRefund(quote.data)}
+          </p>
 
           {/*
             NO FIGURE WHEN NOTHING WAS PAID ONLINE — yuvoy-app#48 §2.
@@ -220,7 +224,9 @@ export function CancelSheet({
             "You get everything back." with no idea what happened to their trip.
           */}
           {quote.data.note ? (
-            <p className="text-forest/70 mt-3 text-sm">{quote.data.note}</p>
+            <p className="text-forest/70 text-body mt-3 text-pretty">
+              {quote.data.note}
+            </p>
           ) : null}
 
           {confirming ? (
