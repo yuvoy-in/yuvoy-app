@@ -55,7 +55,9 @@ v3.0 until v3.2, and keeps the one job it does best.
 **System monospace** (`font-mono`): machine text, never a voice. Codes being typed (sign-in,
 invite, join), technical error ids, and data shown as data: phone numbers on the portal's team
 rows, links, the IFSC field and bank details. `uppercase` is allowed on `font-mono` alone, because
-there it is the data's own case (an IFSC typed in either case), not a voice.
+there it is the data's own case (an IFSC typed in either case), not a voice. It is never tracked:
+its even spacing is what makes a code legible. The one exception is the portal's code inputs,
+whose `tracking-[0.4em]` spaces the digits of a code as it is typed.
 
 ## Font weights
 
@@ -313,8 +315,8 @@ new display cut (17 KB); the board cut is the old display file under its new nam
   cut at a weight class; a board figure without tabular figures, or tracked; a headline without its
   leading and its balance; running text without its pretty last line; the host's words in our
   weight, face, spacing, case or figures; Gotu without `voice-host`; a label resized or at another
-  weight; tracked capitals; a clamped headline that cuts its own ink. Each rule is shown firing on
-  a planted defect and quiet on the shape it allows.
+  weight; tracked capitals; machine text tracked; a clamped headline that cuts its own ink. Each
+  rule is shown firing on a planted defect and quiet on the shape it allows.
 - `src/lib/fonts.test.ts`: every shipped file draws ₹, the digits and the alphabet (the text face
   and Gotu the accented letters names use too), the text face is variable on weight and every
   other face one cut, each cut is baked to its approved size, and Gotu's tallest glyph fits the

@@ -528,6 +528,21 @@ const TYPE_RULES: { rule: string; broken: (t: string[]) => boolean }[] = [
       t.some((c) => /^tracking-(wide|wider|widest|label)$/.test(c)) ||
       (t.includes("uppercase") && !t.includes("font-mono")),
   },
+  {
+    // Machine text keeps the monospace's own even spacing, which is what
+    // makes a code legible. The one tracking it takes is a code input's
+    // `tracking-[0.4em]` (the portal's), spacing the digits as they are
+    // typed. `tracking-ref` is for references set in Anek, not for this.
+    rule: "machine text, tracked",
+    broken: (t) =>
+      t.includes("font-mono") &&
+      t.some(
+        (c) =>
+          /^tracking-/.test(c) &&
+          c !== "tracking-[0.4em]" &&
+          c !== "tracking-normal",
+      ),
+  },
 ];
 
 describe("type", () => {
@@ -606,6 +621,11 @@ describe("type", () => {
     ["label tracking-wider", "tracked capitals"],
     ["font-mono text-sm tracking-wider", "tracked capitals"],
     ["font-mono uppercase tracking-widest", "tracked capitals"],
+    ["tracking-ref mt-8 font-mono text-[10px]", "machine text, tracked"],
+    [
+      "text-forest/80 tracking-ref mt-2 font-mono text-sm",
+      "machine text, tracked",
+    ],
     [
       "voice-host text-paper leading-display line-clamp-3 text-3xl text-balance",
       "a clamped headline that cuts its own ink",
@@ -643,6 +663,7 @@ describe("type", () => {
     "text-button font-bold",
     "tracking-ref text-lg font-bold slashed-zero tabular-nums",
     "mt-2 font-mono uppercase",
+    "mt-2 font-mono text-2xl tracking-[0.4em]",
   ])("allows %j", (allowed) => {
     const fired = classStrings(`"${allowed}"`).flatMap((tokens) =>
       TYPE_RULES.filter(({ broken }) => broken(tokens)).map((r) => r.rule),
