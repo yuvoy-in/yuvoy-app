@@ -1417,8 +1417,68 @@
 }
 
 ::view-transition-group(.vt-bar-out),
-::view-transition-group(.vt-bar-in) {
+::view-transition-group(.vt-bar-in),
+::view-transition-group(tab-bar) {
   z-index: 3;
+}
+
+/*
+  The tab bar holds its place through a screen change it stays for.
+
+  The screens are drawn by the transition, in a layer above the whole page,
+  and the bar is not a screen: left alone it is part of the page under that
+  layer, so the sheet leaving and the sheet arriving both paint straight over
+  it, and it blinked out for the length of every tab change. So while a typed
+  change runs (an untyped one moves nothing that could cover it) the bar is
+  captured too and drawn where it stands, above the screens, with nothing
+  animating it. Its live image is the one shown, so the glide (T04 B) plays
+  on it. When the bar itself leaves or returns, React names it for the step
+  (BAR_MOTION) and that inline name wins over this one.
+
+  Two things follow from capturing it, and both are answered here:
+
+  - Hit-testing skips a captured element until the change ends, so a tab
+    tapped mid-change would land on the page behind the bar. The well under
+    the bar (`TabBar`) takes pointer events for exactly those frames and
+    hands the tap to the destination over it.
+  - A captured element is a backdrop root, so the frosted pill over a reel
+    cannot see the picture while the change runs. It is drawn solid for those
+    frames, the bar every paper screen has: a tint over a crossfade between
+    paper and picture would put the inactive glyphs under 3:1 (see
+    `tabbar-on-media`), and would flash pale as the paper left.
+*/
+:root:active-view-transition-type(
+  deeper,
+  back,
+  sideways,
+  reel-open,
+  reel-back,
+  picture,
+  picture-back
+) {
+  & [data-tabbar] {
+    view-transition-name: tab-bar;
+  }
+
+  & [data-tabbar] .tabbar-on-media {
+    background-color: var(--color-forest);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  & [data-tabbar-well] {
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+::view-transition-group(tab-bar),
+::view-transition-new(tab-bar) {
+  animation: none;
+}
+
+::view-transition-old(tab-bar) {
+  display: none;
 }
 
 /*
@@ -1446,7 +1506,9 @@
 
 /*
   Reduced motion (S01 A): nothing travels. Every part crossfades in 120ms and
-  the picture lands where it is going at once. The root stays as it is.
+  the picture lands where it is going at once. The root stays as it is, and so
+  does a bar holding its place: its old image is not drawn, so a fade in
+  would be the bar blinking out and back.
 */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*) {
@@ -1465,7 +1527,9 @@
     animation: vt-fade-in 120ms linear both !important;
   }
 
-  ::view-transition-new(root) {
+  ::view-transition-new(root),
+  ::view-transition-old(tab-bar),
+  ::view-transition-new(tab-bar) {
     animation: none !important;
   }
 }
