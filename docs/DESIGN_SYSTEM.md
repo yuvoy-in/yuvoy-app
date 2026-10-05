@@ -14,6 +14,54 @@
 > token. Everything describing the app says `paper`. A ratio quoted beside `cream` is the
 > marketing site's and has not moved.
 
+## v3.2 (2026-10-05, owner-approved): three voices
+
+**The change: the type says who is speaking.** The host's own words move to Gotu (Ek Type,
+Mumbai; SIL OFL 1.1), Yuvoy's interface stays in Anek Latin with sentence-case labels, times and
+money stay on Anek's condensed cut, and Yuvoy's headlines move to a new semi-condensed cut.
+Approved by the owner on 5 Oct 2026 as Direction 09, "Signature: three voices", of the typography
+study in `yuvoy/typography-lab` (the decision verbatim in its `APPROVALS.md`), for the app and the
+operator portal both. Nothing else moves: not the palette, not the radius scale, not the chassis,
+not the spacing. **The whole system is `docs/typography-system.md`**; this section records what
+changed and why, and §2 below is updated to match.
+
+### Why
+
+- **One voice for everybody hid the host.** A host's listing, story and messages were set exactly
+  like Yuvoy's buttons, so a traveller could not tell the person from the product. Yuvoy's promise
+  is a real local host, and the type now shows one.
+- **Tracked capitals were the grammar the design authority reads as AI**, on four jobs at once
+  (eyebrows, labels, navigation, buttons), and at 390px they wrapped the feed's eyebrow and the pay
+  button.
+- **The condensed cut shouted.** Width 75 is right for a figure on a board and too loud for a
+  screen title; the semi-condensed 87.5 reads as a signboard.
+
+### What changed
+
+|                  | v3.0                                        | v3.2                                                           |
+| ---------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| The host's words | Anek, like Yuvoy's                          | Gotu, `voice-host`                                             |
+| Labels, eyebrows | uppercase, 12px, weight 500, tracked 0.18em | sentence case, 13/18, weight 500, untracked                    |
+| Buttons          | the label                                   | `text-button font-bold`, 15/20                                 |
+| Navigation       | the label                                   | `text-xs font-bold`                                            |
+| Headlines        | `font-display`, width 75                    | `font-display`, width 87.5, `leading-display` 1.08, balanced   |
+| Figures          | `font-display`, width 75                    | `font-board`, width 75 (the same cut, its own file and token)  |
+| Running text     | Tailwind's leading for the size             | `text-body` 15/23 (portal: `leading-body` 1.55), `text-pretty` |
+| References       | `tabular-nums slashed-zero`                 | `tracking-ref slashed-zero tabular-nums`                       |
+| Font files       | 2, 75,456 bytes                             | 4, 126,516 bytes                                               |
+
+- New tokens: `--font-board`, `--font-host`, `--text-label`, `--text-button`, `--text-body`,
+  `--leading-display`, `--leading-body` and `--tracking-ref`. `--tracking-display` is -0.005em,
+  and `--tracking-label` is gone.
+- `cn()` learns the new steps and keeps a leading written before a size, as the browser does.
+- All four files are preloaded on every route; the three voices load `optional`, the text face
+  `swap` (`docs/typography-system.md`, "Font loading strategy").
+
+### What it is enforced by
+
+`palette.test.ts` checks every class string against the three voices and proves each rule fires
+(`docs/typography-system.md`, "How it is enforced"); `fonts.test.ts` checks the four files.
+
 ## v3.1 (2026-10-04, owner-approved): the motion system
 
 **The change: motion gets a system, and the app's single 250ms budget becomes
@@ -301,6 +349,10 @@ on 3 Oct 2026 as option 1 ("Jetty board") of the type study in
 | `Anek-Yuvoy-Display.woff2` | width 75, weight 700, **baked 12% large** | 16.0 KB | `optional` | `font-display`: headlines, titles, figures |
 
 Together 74 KB against the 88 KB of the four files they replace.
+
+> **Since v3.2** the width 75 cut is `Anek-Yuvoy-Board.woff2`, set by `font-board`, and
+> `Anek-Yuvoy-Display.woff2` is the new semi-condensed display cut (width 87.5). The table above
+> records v3.0.
 
 - **The display cut is registered at weight 400**, exactly as the Fraunces cut
   was, so `font-display` at the default weight is still the one display voice and
@@ -871,10 +923,14 @@ Borders and fills are exempt from these floors — `border-forest/20`, `bg-fores
 
 ## 2. Typography
 
-- **Display: Anek Latin, the Yuvoy display cut** (`font-display`; v3.0). The condensed bold (width 75, weight 700), baked 12% large and registered at 400, so `font-display` at the default weight is the only display voice. Headlines, reel titles and big figures are set large and tight (`tracking-display` 0em, leading ≈1.02-1.05). `font-medium`/`font-semibold`/`font-bold` must never appear with `font-display`: it is already bold, and the browser would synthesise a heavier copy. The app sets no italic and no turn.
-- **UI / body: Anek Latin** (`font-sans`, the default), normal width, weights 400 / 500 / 700 from one variable file. `font-semibold` must never appear: three weights, not a continuum. Emphasis in running text is `font-bold`.
-- **Label: Anek Latin** via the `label` utility: uppercase, `text-xs`, `font-medium`, `tracking-label` (0.18em). Eyebrows, nav, stats, metadata, button labels.
-- **References**: bookings and support references take `tabular-nums slashed-zero` in the text face (v3.0). Codes being typed and technical error ids keep the system monospace.
+**Three voices (v3.2).** The full system, with the scale, the rules and the loading strategy, is `docs/typography-system.md`. In brief:
+
+- **The host: Gotu** via `voice-host`. Every word a host wrote and Yuvoy only carries: listing titles, descriptions, what is included, the meeting point, the policy, their story, their business name, their questions and messages, and the portal's fields that write them. One weight, synthesis off, untracked, proportional figures; it never sits beside a weight, face, tracking, case or figure class.
+- **Display: Anek Latin, the display cut** (`font-display`). The semi-condensed bold (width 87.5, weight 700), baked 4% large and registered at 400. Yuvoy's headlines only, always `tracking-display leading-display text-balance` with a size. `font-medium`/`font-semibold`/`font-bold` must never appear with it: it is already bold, and the browser would synthesise a heavier copy. A host's headline is `voice-host leading-display text-balance` instead. The app sets no italic and no turn.
+- **The board: Anek Latin, the board cut** (`font-board`). The condensed bold (width 75, weight 700), baked 12% large and registered at 400: the figure that leads a block, always `tabular-nums`, never tracked (`tracking-normal` inside a tracked headline), never at a weight class.
+- **UI / body: Anek Latin** (`font-sans`, the default), normal width, weights 400 / 500 / 700 from one variable file. `font-semibold` must never appear: three weights, not a continuum. Running text is `text-body text-pretty` (15/23; the portal keeps its size with `leading-body`). Emphasis in running text is `font-bold`.
+- **Label: Anek Latin** via the `label` utility: sentence case, 13/18, `font-medium`, untracked, never beside a size or a weight class. A button is `text-button font-bold` (15/20), navigation `text-xs font-bold`, a chip its own size at `font-medium`: none of them is a label. Tracked capitals are banned.
+- **References**: booking, statement and support references take `tracking-ref slashed-zero tabular-nums` in the text face. Codes being typed and technical error ids keep the system monospace, the one place `uppercase` is allowed.
 - **`eyebrow` utility** — the `label` preceded by a terracotta dot, the same square `size-1` marker the fact rows use (a hairline rule until 2026-08-05, replaced by owner direction). This is the section-opening gesture; **use it once per section**, at the top. Eyebrows are plain phrases: no act numbering (owner direction 2026-08-03). The one exception is the cover: the hero's opening line is a plain `label` with no marker (owner direction 2026-08-05).
 - **Wordmark** — ensō + terra dot and the tracked YUVOY caps, side by side. **No strapline, on any surface** (owner, 14 Sep 2026, yuvoy-app#36): it was on the feed, search, trips, account, every listing header, the desktop rail, the home-screen name and the share card's alt, and it is now on none of them. `<Wordmark />` takes a `tone` and nothing else; the second drawing was deleted rather than left behind a prop, because a default is how a removed thing comes back. Two tone variants because a paper ensō is invisible on paper (the §1 pairings). Generated by `scripts/generate-feed-lockup.mjs` from the delivered lockup **in yuvoy-web**, which this repo no longer keeps a copy of. Never hand-edit the generated SVGs; re-run the script after a redelivery. `src/components/ui/wordmark.guard.test.ts` fails the build if either the strapline or the delivered art comes back under `src` or `public`.
 - **Punctuation** — rendered copy never uses an em dash. Prefer a period, a colon, a comma or a parenthetical; ranges and pairings use a middot (owner direction 2026-08-03). Code comments are exempt. Since 2026-09-12 the ban covers every long dash (em U+2014, en U+2013, horizontal bar U+2015) and a range takes a plain hyphen, enforced by `pnpm check:dashes`, which runs first in `pnpm lint` and blanks comments before it looks; text from the API is stripped at the boundary instead, in `src/lib/format/dedash.ts`.
@@ -886,7 +942,7 @@ Borders and fills are exempt from these floors — `border-forest/20`, `bg-fores
   - **Delivered masters live in `design/brand-source/` and `design/photography-source/`, never under `public/`** (2026-08-07): anything in `public/` is deployed and publicly fetchable, and 4.6MB of print-weight PNGs were shipping on every deploy for no reason. Scripts read them from there.
 - **Vector assets** are derived from the delivered master `public/yuvoy-logo-vector.svg` by `scripts/generate-vector-brand.mjs`: `public/brand/yuvoy-mark-vector-{paper,forest}.svg`, `public/brand/yuvoy-lockup-vector-{paper,forest}.svg`, and the intro's per-letter module `src/components/brand/yuvoy-letter-paths.ts`. The tagline is stripped from all of them, and the delivered colours are re-expressed as tokens (paper or forest strokes, `terra` dot). Never hand-edit the outputs; re-run the script.
 
-Scale: Tailwind's type scale. Headlines `font-display`; everything else inherits the text face unless it is a label.
+Scale: Tailwind's type scale with three steps of our own (`text-label`, `text-button`, `text-body`); the table is in `docs/typography-system.md`.
 
 ## 3. Motion
 
