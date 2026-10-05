@@ -108,10 +108,10 @@ export function BookingScreen() {
   if (token === null) {
     return (
       <Shell>
-        <h1 className="font-display tracking-display text-3xl leading-tight">
+        <h1 className="font-display tracking-display leading-display text-3xl text-balance">
           We need your booking link
         </h1>
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 text-body mt-3 text-pretty">
           Your booking opens from the private link we gave you when you booked,
           and from the message we sent. It is the only way in. We cannot look it
           up from a name.
@@ -352,8 +352,19 @@ function StatusBody({
         {ticked ? <TickMark /> : null}
         <FadeText>{declined ? "Not accepted" : copy.eyebrow}</FadeText>
       </p>
-      <h1 className="font-display tracking-display mt-3 text-3xl leading-tight sm:text-4xl">
-        <FadeText block>
+      {/*
+        The hour is a figure on the board; every other title is Yuvoy's
+        headline. On the words, so the leaving copy keeps its face.
+      */}
+      <h1 className="mt-3 text-3xl sm:text-4xl">
+        <FadeText
+          block
+          wordsClassName={
+            !declined && when
+              ? "font-board leading-tight tabular-nums"
+              : "font-display tracking-display leading-display text-balance"
+          }
+        >
           {declined ? "Your request was not accepted" : (when ?? copy.title)}
         </FadeText>
       </h1>
@@ -374,10 +385,12 @@ function StatusBody({
         server without a deploy here.
       */}
       {reason ? (
-        <p className="mt-3 max-w-prose text-sm font-bold">{reason}</p>
+        <p className="text-body mt-3 max-w-prose font-bold text-pretty">
+          {reason}
+        </p>
       ) : null}
       {body ? (
-        <p className="text-forest/70 mt-3 max-w-prose text-sm">
+        <p className="text-forest/70 text-body mt-3 max-w-prose text-pretty">
           {/* The state's own words lead the line when the hour is the title. */}
           <FadeText block>{when ? `${copy.title}. ${body}` : body}</FadeText>
         </p>
@@ -483,7 +496,7 @@ function StatusBody({
       */}
       {cashOwed(status) && status.state === "confirmed" ? (
         <Panel data-arrival-panel="" className="mt-6">
-          <p className="text-base font-bold">
+          <p className="text-base font-bold text-balance">
             Bring{" "}
             {formatMoney({
               amountMinor: cashOwedPaise(status) ?? 0,
@@ -491,7 +504,7 @@ function StatusBody({
             })}{" "}
             in cash
           </p>
-          <p className="text-forest/70 mt-1.5 text-sm">
+          <p className="text-forest/70 text-body mt-1.5 text-pretty">
             Pay the operator at the meeting point. The money goes to them, not
             to us, and there is nothing to pay before you arrive.
           </p>
@@ -506,7 +519,7 @@ function StatusBody({
       */}
       {cashBack !== null ? (
         <Panel data-arrival-panel="" className="mt-6">
-          <p className="text-base font-bold">
+          <p className="text-base font-bold text-balance">
             You get your{" "}
             {formatMoney({
               amountMinor: cashBack,
@@ -514,7 +527,7 @@ function StatusBody({
             })}{" "}
             back from the operator
           </p>
-          <p className="text-forest/70 mt-1.5 text-sm">
+          <p className="text-forest/70 text-body mt-1.5 text-pretty">
             You paid them in cash, so it never reached us and nothing is
             refunded online.
           </p>
@@ -552,7 +565,7 @@ function StatusBody({
           {status.bookingReference ? (
             <Row label="Reference">
               <div data-arrival-reference="">
-                <span className="text-lg font-bold tracking-wider slashed-zero tabular-nums">
+                <span className="tracking-ref text-lg font-bold slashed-zero tabular-nums">
                   {status.bookingReference}
                 </span>
                 <p className="text-forest/70 mt-1 text-xs">
@@ -574,7 +587,7 @@ function StatusBody({
             WILL send. A missing slug renders the title as plain text rather
             than a link to `/e/undefined`.
           */}
-          <Row label="Experience">
+          <Row label="Experience" className="voice-host text-balance">
             {status.experience.slug ? (
               /*
                 `tap-target`: a link alone in its row is the whole target, and
@@ -596,7 +609,9 @@ function StatusBody({
             `status.slot.timezone` rather than the device's is the whole point:
             a 7am dive shown as 1:30am is a missed boat.
           */}
-          <Row label="When">{formatDeparture(status.slot)}</Row>
+          <Row label="When" className="tabular-nums">
+            {formatDeparture(status.slot)}
+          </Row>
           {/*
             WHERE THE DAY STARTS — yuvoy-app#22 §1.
 
@@ -614,7 +629,10 @@ function StatusBody({
             still answers "where".
           */}
           {meetingText || meetingLandmark ? (
-            <Row label="Where you meet">
+            <Row
+              label="Where you meet"
+              className="voice-host leading-body text-pretty"
+            >
               {meetingText}
               {meetingLandmark ? (
                 <span
@@ -629,7 +647,9 @@ function StatusBody({
               ) : null}
             </Row>
           ) : null}
-          <Row label="Guests">{status.guests}</Row>
+          <Row label="Guests" className="leading-body text-pretty">
+            {status.guests}
+          </Row>
           {/*
             "PAID" IS A CLAIM, AND IT IS FALSE ON A CASH BOOKING —
             yuvoy-app#29.
@@ -855,8 +875,8 @@ function StatusBody({
       */}
       {status.review?.reviewed ? (
         <Panel className="mt-8">
-          <p className="text-sm font-bold">How was it?</p>
-          <p className="text-forest/70 mt-1.5 text-sm">
+          <p className="text-sm font-bold text-balance">How was it?</p>
+          <p className="text-forest/70 text-body mt-1.5 text-pretty">
             {status.review.rating
               ? `Thanks, you rated this ${status.review.rating} ${status.review.rating === 1 ? "star" : "stars"}.`
               : "Thanks, your rating is recorded."}{" "}
@@ -888,15 +908,18 @@ function StatusBody({
 
 function Row({
   label,
+  className,
   children,
 }: {
   label: string;
+  /** The value's voice: the host's words, a time, running text. */
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 px-5 py-4">
       <dt className="label text-forest/75">{label}</dt>
-      <dd className="text-right">{children}</dd>
+      <dd className={cn("text-right", className)}>{children}</dd>
     </div>
   );
 }
@@ -954,9 +977,9 @@ function DeclineOffer({
   if (view.next) {
     return (
       <div className="mt-4">
-        <p className="max-w-prose text-sm">
+        <p className="text-body max-w-prose text-pretty">
           The next date on this trip is{" "}
-          <span className="font-bold">{view.next.when}</span>.
+          <span className="font-bold tabular-nums">{view.next.when}</span>.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <ButtonLink href={view.next.href} size="sm">
@@ -979,7 +1002,7 @@ function DeclineOffer({
   if (!view.otherDates) return null;
   return (
     <div className="mt-4">
-      <p className="text-forest/70 max-w-prose text-sm">
+      <p className="text-forest/70 text-body max-w-prose text-pretty">
         Nothing else is on sale for this trip in the next 90 days.
       </p>
       <ButtonLink href="/" variant="outline" size="sm" className="mt-3">

@@ -107,7 +107,7 @@ export function MonthCalendar({
               aria-label={dateLabel(cell.date)}
               onClick={() => onSelect(cell.date!)}
               className={cn(
-                "ease-interaction flex h-10 items-center justify-center rounded-full text-sm transition-[background-color,color] duration-200",
+                "ease-interaction flex h-10 items-center justify-center rounded-full text-sm tabular-nums transition-[background-color,color] duration-200",
                 /*
                   The repo's own disabled treatment, from `buttonVariants`,
                   rather than a low text opacity. §1's opacity ladder reserves

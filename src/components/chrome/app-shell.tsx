@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   className="text-paper/70 hover:bg-paper/8 hover:text-paper ease-interaction flex h-11 items-center gap-3 rounded-full px-4 transition-[background-color,color] duration-200"
                 >
                   <BookIcon className="size-5" />
-                  <span className="label font-bold">{route.label}</span>
+                  <span className="text-xs font-bold">{route.label}</span>
                 </Link>
               </li>
             ))}

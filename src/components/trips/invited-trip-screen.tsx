@@ -77,10 +77,10 @@ export function InvitedTripScreen({ id }: { id: string }) {
     */
     return (
       <Screen back={BACK}>
-        <h1 className="font-display tracking-display text-3xl leading-tight">
+        <h1 className="font-display tracking-display leading-display text-3xl text-balance">
           Sign in to see this trip
         </h1>
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 text-body mt-3 text-pretty">
           It is on the number that was invited. Sign in with that number and it
           is here.
         </p>
@@ -129,7 +129,7 @@ export function InvitedTripScreen({ id }: { id: string }) {
   return (
     <Screen back={BACK} stageLabel="A trip you were invited to">
       <div className="flex items-start justify-between gap-3">
-        <h1 className="font-display tracking-display text-3xl leading-tight">
+        <h1 className="voice-host leading-display text-3xl text-balance">
           <Link href={`/e/${data.experienceSlug}`} className="underline">
             {data.experience}
           </Link>
@@ -142,11 +142,11 @@ export function InvitedTripScreen({ id }: { id: string }) {
         </Chip>
       </div>
 
-      <p className="text-forest/80 mt-2 text-sm">{data.operator}</p>
+      <p className="voice-host text-forest/80 mt-2 text-sm">{data.operator}</p>
 
       <Panel className="mt-6">
         {when ? (
-          <p className="flex items-center gap-2 text-sm">
+          <p className="flex items-center gap-2 text-sm tabular-nums">
             <CalendarIcon className="text-forest/70 size-4 shrink-0" />
             {when}
           </p>
@@ -155,7 +155,7 @@ export function InvitedTripScreen({ id }: { id: string }) {
         {data.meetingPoint ? (
           <p className="mt-3 flex items-start gap-2 text-sm">
             <MapPinIcon className="text-forest/70 mt-0.5 size-4 shrink-0" />
-            <span>
+            <span className="voice-host leading-body text-pretty">
               {data.meetingPoint}
               {data.landmark ? (
                 <span className="text-forest/70 block">{data.landmark}</span>
@@ -179,7 +179,7 @@ export function InvitedTripScreen({ id }: { id: string }) {
         {data.bring && data.bring.length > 0 ? (
           <div className="mt-4">
             <p className="label text-forest/75">What to bring</p>
-            <ul className="mt-2 list-inside list-disc text-sm">
+            <ul className="voice-host leading-body mt-2 list-inside list-disc text-sm text-pretty">
               {data.bring.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -273,7 +273,7 @@ export function InvitedTripScreen({ id }: { id: string }) {
             Confirmed because it is not undoable from here: the contract has no
             way back, and the place returns to the booker to offer again.
           */}
-          <p className="text-sm">
+          <p className="text-body text-pretty">
             Your place goes back to whoever booked the trip. If you change your
             mind, ask them to invite you again.
           </p>

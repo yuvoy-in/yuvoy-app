@@ -101,7 +101,7 @@ export function HelpSection({
         WhatsApp hit "Message us". Found in the accessibility pass, not by a
         report, and pinned by a test.
       */}
-      <p className="text-forest/70 text-sm">
+      <p className="text-forest/70 text-body text-pretty">
         Need a hand?{" "}
         <Link
           href="/help"
@@ -152,7 +152,7 @@ export function HelpSection({
 
       {sent && !open ? (
         <div className="border-paper-line mt-4 border-t pt-4">
-          <p className="text-forest/70 text-sm">
+          <p className="text-forest/70 text-body text-pretty">
             Your message is with us. A person replies on WhatsApp.
           </p>
           <RequestStatus reference={sent} token={token} className="mt-2" />

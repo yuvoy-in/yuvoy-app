@@ -202,9 +202,8 @@ function Pass({ status }: { status: BookingStatus }) {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ fontSize: 28, letterSpacing: "0.2em", opacity: 0.7 }}>
-          REFERENCE
-        </div>
+        {/* Sentence case, as every label in the app is since v3.2. */}
+        <div style={{ fontSize: 28, opacity: 0.7 }}>Reference</div>
         {/*
           The thing read out at a jetty, so it is the largest text on the pass.
           "Request" where there is none: a booking the operator has not
@@ -248,9 +247,7 @@ function Pass({ status }: { status: BookingStatus }) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", marginBottom: 40 }}>
-      <div style={{ fontSize: 26, letterSpacing: "0.2em", opacity: 0.6 }}>
-        {label.toUpperCase()}
-      </div>
+      <div style={{ fontSize: 26, opacity: 0.6 }}>{label}</div>
       <div style={{ fontSize: 42, marginTop: 10 }}>{value}</div>
     </div>
   );

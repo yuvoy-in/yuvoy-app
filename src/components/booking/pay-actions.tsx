@@ -206,11 +206,11 @@ export function PayButton({
             disabled={cash.isPending || busy}
             onClick={() => cash.mutate()}
             /*
-              Two lines when it needs them. On one line, in the button's
-              tracked caps, "Book now, pay ₹12,000 cash on the day" ran to the
-              pill's ends on a phone (cited in the before page).
+              Two lines when it needs them: on one line "Book now, pay ₹12,000
+              cash on the day" ran to the pill's ends on a phone (cited in the
+              before page). The button voice keeps its own 20px line.
             */
-            className="h-auto min-h-13 py-3.5 leading-snug text-balance whitespace-normal"
+            className="h-auto min-h-13 py-3.5 text-balance whitespace-normal"
           >
             {cash.isPending
               ? "Booking…"
@@ -250,8 +250,12 @@ export function PayButton({
           </p>
         ) : answer.state === "coming_soon" ? (
           <Panel role="status">
-            <p className="text-sm font-bold">Payment is not open yet</p>
-            <p className="text-forest/70 mt-1.5 text-sm">{answer.message}</p>
+            <p className="text-sm font-bold text-balance">
+              Payment is not open yet
+            </p>
+            <p className="text-forest/70 text-body mt-1.5 text-pretty">
+              {answer.message}
+            </p>
             <p className="text-forest/70 mt-2 text-xs">
               Nothing has been charged.
               {answer.holdStillActive === false
@@ -261,14 +265,14 @@ export function PayButton({
           </Panel>
         ) : (
           <Panel role="status">
-            <p className="text-sm font-bold">
+            <p className="text-sm font-bold text-balance">
               Your order is ready:{" "}
               {formatMoney({
                 amountMinor: answer.amountPaise,
                 currency: answer.currency,
               })}
             </p>
-            <p className="text-forest/70 mt-1.5 text-sm">
+            <p className="text-forest/70 text-body mt-1.5 text-pretty">
               This version of the app cannot open the {answer.provider} payment
               page yet. Nothing has been charged, and your seats stay held while
               the clock above runs. Update the app, or send us your reference on
@@ -348,10 +352,10 @@ export function ReleaseButton({
     <div className="mt-4">
       {confirming ? (
         <Panel>
-          <p className="text-sm font-bold">
+          <p className="text-sm font-bold text-balance">
             {isRequest ? "Withdraw this request?" : "Give these seats back?"}
           </p>
-          <p className="text-forest/70 mt-1.5 text-sm">
+          <p className="text-forest/70 text-body mt-1.5 text-pretty">
             {isRequest
               ? "The operator will not answer it. Nothing has been charged, and you can ask again any time."
               : "They go back on sale for whoever is next. Nothing has been charged."}

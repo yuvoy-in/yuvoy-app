@@ -518,7 +518,7 @@ function ClipBadge() {
   return (
     <span
       className={cn(
-        "label bg-abyss/70 text-paper absolute left-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px]",
+        "bg-abyss/70 text-paper absolute left-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px]/4 font-medium",
         FOOT,
       )}
     >

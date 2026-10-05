@@ -16,9 +16,10 @@ import { ArrowRightIcon } from "./icons";
  * (solid paper) + `outlineOnDark`. Both fills measure 13.11:1. Terracotta is
  * never a button fill — it is the accent for type, dots and marks.
  *
- * Every button is a pill (v2.7). The label is the system's tracked caps, so
- * a button reads as an instruction rather than a sentence; the press
- * compresses (`active:scale`) on the interaction budget, never slower.
+ * Every button is a pill (v2.7). The label is the button voice (v3.2):
+ * sentence case at `text-button`, 15/20 bold, the same at every size, so the
+ * size changes the pill and never the words. The press compresses
+ * (`active:scale`) on the interaction budget, never slower.
  *
  * ## Working on it (T08 A, approved 4 Oct 2026)
  *
@@ -34,7 +35,7 @@ import { ArrowRightIcon } from "./icons";
 export const buttonVariants = cva(
   [
     "group inline-flex shrink-0 items-center justify-center gap-2 rounded-full",
-    "label font-bold whitespace-nowrap select-none",
+    "text-button font-bold whitespace-nowrap select-none",
     "motion-control active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
   ],
   {
@@ -50,7 +51,7 @@ export const buttonVariants = cva(
         ghostOnDark: "text-paper/70 hover:bg-paper/8 hover:text-paper",
       },
       size: {
-        sm: "h-9 px-4 text-[11px]",
+        sm: "h-9 px-4",
         md: "h-11 px-5",
         lg: "h-13 px-6",
       },

@@ -179,9 +179,15 @@ function codePoints(cmap: Buffer): Set<number> {
   return found;
 }
 
-/** What the product prints, in both faces: digits, the alphabet, the rupee. */
+/** What the product prints, in every face: digits, the alphabet, the rupee. */
 const EVERY_FACE =
   "0123456789₹ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz·,.:'’";
+
+/** The four files src/lib/fonts.ts loads (v3.2, three voices). */
+const TEXT = "Anek-Yuvoy.woff2";
+const DISPLAY = "Anek-Yuvoy-Display.woff2";
+const BOARD = "Anek-Yuvoy-Board.woff2";
+const HOST = "Gotu-Yuvoy.woff2";
 
 function missing(file: string, chars: string): string[] {
   const points = codePoints(tablesOf(file).get("cmap")!);
@@ -193,27 +199,50 @@ function missing(file: string, chars: string): string[] {
     );
 }
 
+/** `head.unitsPerEm`: where scripts/build-fonts.py bakes each cut's size. */
+function unitsPerEm(file: string): number {
+  return tablesOf(file).get("head")!.readUInt16BE(18);
+}
+
 describe("the delivered fonts", () => {
-  it("draw the rupee sign, the digits and the alphabet in the text face", () => {
-    expect(missing("Anek-Yuvoy.woff2", EVERY_FACE)).toEqual([]);
+  it.each([TEXT, DISPLAY, BOARD, HOST])(
+    "%s draws the rupee sign, the digits and the alphabet",
+    (file) => {
+      // Every face sets prices somewhere: the board its figures, the display
+      // cut a headline that names one, the host's voice a description that
+      // quotes one.
+      expect(missing(file, EVERY_FACE)).toEqual([]);
+    },
+  );
+
+  it.each([TEXT, HOST])(
+    "%s draws the accented letters names and places use",
+    (file) => {
+      // Names arrive from the API: a traveller called Zoë or Łukasz, a place
+      // called São Tomé, a host's business named for either. Latin-1 and
+      // Latin Extended-A, by the build's own range.
+      expect(missing(file, "ÀÉÍÓÚàéíóúçñüöäßøåæœŁłŚśŠšŽžĆćČčĐđ")).toEqual([]);
+    },
+  );
+
+  it("ship the text face variable on weight and every other face as one cut", () => {
+    // The text face serves 400, 500 and 700 from one file; the display and
+    // board cuts are single instances registered at 400, and Gotu has one
+    // weight (src/lib/fonts.ts).
+    expect(tablesOf(TEXT).has("fvar")).toBe(true);
+    expect(tablesOf(DISPLAY).has("fvar")).toBe(false);
+    expect(tablesOf(BOARD).has("fvar")).toBe(false);
+    expect(tablesOf(HOST).has("fvar")).toBe(false);
   });
 
-  it("draw them in the display face, which sets prices and figures too", () => {
-    expect(missing("Anek-Yuvoy-Display.woff2", EVERY_FACE)).toEqual([]);
-  });
-
-  it("draw the accented letters names and places use, in the text face", () => {
-    // Names arrive from the API: a traveller called Zoë or Łukasz, a place
-    // called São Tomé. Latin-1 and Latin Extended-A, by the build's own range.
-    expect(
-      missing("Anek-Yuvoy.woff2", "ÀÉÍÓÚàéíóúçñüöäßøåæœŁłŚśŠšŽžĆćČčĐđ"),
-    ).toEqual([]);
-  });
-
-  it("ship the text face variable on weight and the display face as one baked cut", () => {
-    // The text face serves 400, 500 and 700 from one file; the display face is
-    // a single instance, registered at 400 (src/lib/fonts.ts).
-    expect(tablesOf("Anek-Yuvoy.woff2").has("fvar")).toBe(true);
-    expect(tablesOf("Anek-Yuvoy-Display.woff2").has("fvar")).toBe(false);
+  it("bake each cut to its approved size, not declare it", () => {
+    // The study's sizes, baked by lowering or raising unitsPerEm so next/font
+    // builds each fallback from the file as shipped: the display cut 4% large,
+    // the board 12% large, Gotu 5% small. A rebuild that forgot the bake
+    // would ship every headline, figure and host title at the wrong size.
+    expect(unitsPerEm(TEXT)).toBe(2000);
+    expect(unitsPerEm(DISPLAY)).toBe(Math.round(2000 / 1.04));
+    expect(unitsPerEm(BOARD)).toBe(Math.round(2000 / 1.12));
+    expect(unitsPerEm(HOST)).toBe(Math.round(1000 / 0.95));
   });
 });

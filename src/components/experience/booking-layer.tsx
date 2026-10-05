@@ -102,7 +102,7 @@ export function BookingLayer({
         */
         <p
           id="dates"
-          className="text-forest/80 mt-10 max-w-prose scroll-mt-6 text-base"
+          className="text-forest/80 leading-body mt-10 max-w-prose scroll-mt-6 text-base text-pretty"
         >
           This experience is not available to book right now. Everything else on
           Yuvoy is still bookable.

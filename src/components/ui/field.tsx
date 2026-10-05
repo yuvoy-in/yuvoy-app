@@ -29,7 +29,7 @@ export function Field({
   shape = "control",
   ...input
 }: {
-  label: string;
+  label: ReactNode;
   hint?: ReactNode;
   error?: string;
   /** Visually hidden label, for a search box whose purpose is obvious. */

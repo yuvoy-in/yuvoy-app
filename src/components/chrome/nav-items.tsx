@@ -153,8 +153,8 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
               <span
                 data-motion={bar && shown ? "" : undefined}
                 className={cn(
-                  "label font-bold",
-                  bar && "tab-label text-[11px]",
+                  "text-xs font-bold",
+                  bar && "tab-label",
                   bar && !shown && "sr-only",
                 )}
               >
@@ -207,7 +207,7 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
                 data-motion={shown ? "" : undefined}
                 data-pressed={down === item.href ? "" : undefined}
                 className={cn(
-                  "tab-lit-item label flex h-11 items-center rounded-full text-[11px] font-bold",
+                  "tab-lit-item flex h-11 items-center rounded-full text-xs font-bold",
                   shown ? "gap-2 pr-4 pl-3.5" : "w-11 justify-center",
                 )}
               >

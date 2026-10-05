@@ -211,7 +211,8 @@ function AnswerList({
     <dl className={className ?? "mt-4"}>
       {questions.map((q) => (
         <div key={q.questionId} className="mt-3 first:mt-0">
-          <dt className="text-forest/70 text-sm">{q.text}</dt>
+          {/* The operator's question, in their voice; the answer is ours. */}
+          <dt className="voice-host text-forest/70 text-sm">{q.text}</dt>
           <dd className="mt-0.5 text-sm font-bold">
             {q.answered && q.answer
               ? q.answer

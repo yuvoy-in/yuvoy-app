@@ -275,7 +275,7 @@ export function ExperienceCard({
                 decoding="async"
               />
             ) : null}
-            <p className="font-display text-paper/60 text-center text-3xl leading-tight">
+            <p className="voice-host text-paper/60 leading-display text-center text-3xl text-balance">
               {experience.title}
             </p>
           </div>
@@ -346,12 +346,12 @@ export function ExperienceCard({
 
               `line-clamp-3` because a title is operator-written and unbounded,
               and a five-line headline over a reel is the complaint this screen
-              started from.
+              started from. Operator-written, so it is in the host's voice.
             */}
             <h2 className="mb-2 min-w-0">
               <Link
                 href={href}
-                className="font-display text-paper tracking-display ease-interaction line-clamp-3 text-3xl leading-[1.05] transition-opacity duration-200 hover:opacity-80"
+                className="voice-host text-paper ease-interaction leading-display line-clamp-3 text-3xl text-balance transition-opacity duration-200 hover:opacity-80"
               >
                 {experience.title}
               </Link>
@@ -375,7 +375,10 @@ export function ExperienceCard({
               className="ease-interaction flex min-h-11 items-center text-left text-sm transition-opacity duration-200 hover:opacity-80"
             >
               <span
-                className={departure.bookable ? "text-paper" : "text-paper/90"}
+                className={cn(
+                  "tabular-nums",
+                  departure.bookable ? "text-paper" : "text-paper/90",
+                )}
               >
                 {departure.short}
               </span>

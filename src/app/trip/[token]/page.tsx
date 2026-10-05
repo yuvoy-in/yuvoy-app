@@ -6,6 +6,7 @@ import { privateRobotsMeta } from "@/lib/site/indexing";
 import { pageMetadata } from "@/lib/site/metadata";
 import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
+import { cn } from "@/lib/cn";
 
 /**
  * The trip's own name in the tab, not the word "trip" — yuvoy-app#16.
@@ -106,7 +107,7 @@ export default async function SharedTripPage({
       stageLabel="Shared with you"
     >
       <p className="eyebrow text-terra-deep">You are invited</p>
-      <h1 className="font-display tracking-display mt-3 text-3xl leading-tight">
+      <h1 className="voice-host leading-display mt-3 text-3xl text-balance">
         {trip.experience}
       </h1>
 
@@ -121,7 +122,7 @@ export default async function SharedTripPage({
 
       <Panel className="mt-8 p-0">
         <dl className="divide-paper-line divide-y text-sm">
-          <Row label="When">
+          <Row label="When" className="tabular-nums">
             {trip.localTime} on{" "}
             {new Intl.DateTimeFormat("en-IN", {
               weekday: "long",
@@ -142,7 +143,7 @@ export default async function SharedTripPage({
             answer, so it carries the row when the text does not.
           */}
           {tripMeeting || tripLandmark ? (
-            <Row label="Where">
+            <Row label="Where" className="voice-host leading-body text-pretty">
               {tripMeeting}
               {tripLandmark ? (
                 <span
@@ -157,8 +158,14 @@ export default async function SharedTripPage({
               ) : null}
             </Row>
           ) : null}
-          <Row label="Who is coming">{trip.partySize}</Row>
-          {trip.operator ? <Row label="Run by">{trip.operator}</Row> : null}
+          <Row label="Who is coming" className="leading-body text-pretty">
+            {trip.partySize}
+          </Row>
+          {trip.operator ? (
+            <Row label="Run by" className="voice-host">
+              {trip.operator}
+            </Row>
+          ) : null}
         </dl>
       </Panel>
 
@@ -167,7 +174,10 @@ export default async function SharedTripPage({
           <h2 className="label text-forest/75">Bring</h2>
           <ul className="text-forest/70 mt-3 space-y-1.5 text-sm">
             {trip.bring.map((b) => (
-              <li key={b} className="flex gap-2.5">
+              <li
+                key={b}
+                className="voice-host leading-body flex gap-2.5 text-pretty"
+              >
                 <span
                   aria-hidden="true"
                   className="bg-terra mt-2 size-1 shrink-0"
@@ -187,17 +197,23 @@ export default async function SharedTripPage({
   );
 }
 
+/**
+ * One fact. `className` sets the value's voice: the host's words in
+ * `voice-host`, a time in tabular figures.
+ */
 function Row({
   label,
+  className,
   children,
 }: {
   label: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 px-5 py-4">
       <dt className="label text-forest/75">{label}</dt>
-      <dd className="text-right">{children}</dd>
+      <dd className={cn("text-right", className)}>{children}</dd>
     </div>
   );
 }

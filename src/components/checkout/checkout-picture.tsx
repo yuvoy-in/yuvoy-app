@@ -28,7 +28,7 @@ export function CheckoutPicture({ experience }: { experience: Experience }) {
             : `${price} · all-in`}
         </p>
       ) : null}
-      <p className="font-display tracking-display text-paper mt-1 line-clamp-2 text-[22px] leading-[1.1]">
+      <p className="voice-host text-paper leading-display mt-1 line-clamp-2 text-[22px] text-balance">
         {experience.title}
       </p>
     </PictureStrip>

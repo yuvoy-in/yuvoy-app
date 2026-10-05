@@ -116,11 +116,15 @@ function QuestionControl({
     "(optional)" on the optional ones rather than a marker on the required
     ones. Most questions an operator asks are required, so marking the
     exception is quieter, and it never leaves a traveller wondering whether a
-    star means "needed" or "special".
+    star means "needed" or "special". The question is the operator's own
+    words, so it is in the host's voice; "(optional)" is ours.
   */
-  const labelText = question.required
-    ? question.text
-    : `${question.text} (optional)`;
+  const labelText = (
+    <>
+      <span className="voice-host">{question.text}</span>
+      {question.required ? null : " (optional)"}
+    </>
+  );
 
   if (question.answerType === "short_text") {
     return (

@@ -73,12 +73,12 @@ export function EmptyState({
         tone === "dark" ? "text-paper" : "text-forest",
       )}
     >
-      <p className="font-display tracking-display text-2xl leading-tight">
+      <p className="font-display tracking-display leading-display text-2xl text-balance">
         {title}
       </p>
       <p
         className={cn(
-          "mt-3 max-w-sm text-sm",
+          "text-body mt-3 max-w-sm text-pretty",
           tone === "dark" ? "text-paper/70" : "text-forest/70",
         )}
       >
@@ -489,7 +489,7 @@ export function ErrorState({
         dark ? "text-paper" : "text-forest",
       )}
     >
-      <p className="font-display tracking-display text-2xl leading-tight">
+      <p className="font-display tracking-display leading-display text-2xl text-balance">
         {d.title}
       </p>
       <p
@@ -523,7 +523,7 @@ export function ErrorState({
       {d.requestId ? (
         <p
           className={cn(
-            "mt-8 font-mono text-[10px] tracking-wider",
+            "tracking-ref mt-8 font-mono text-[10px]",
             dark ? "text-paper/60" : "text-forest/70",
           )}
         >

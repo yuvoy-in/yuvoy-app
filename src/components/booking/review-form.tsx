@@ -134,10 +134,10 @@ export function ReviewForm({ token }: { token: string }) {
   if (submit.isSuccess || alreadyRecorded) {
     return (
       <Panel className="mt-8">
-        <p className="text-sm font-bold">
+        <p className="text-sm font-bold text-balance">
           {alreadyRecorded ? "Already recorded" : "Thank you"}
         </p>
-        <p className="text-forest/70 mt-1.5 text-sm">
+        <p className="text-forest/70 text-body mt-1.5 text-pretty">
           {alreadyRecorded
             ? "A review for this trip is already on record. Reviews cannot be changed once left, so it stands as written."
             : "That is recorded. Reviews cannot be changed once left, so this one stands as written."}
@@ -160,7 +160,7 @@ export function ReviewForm({ token }: { token: string }) {
           submit.mutate();
         }}
       >
-        <h2 className="text-sm font-bold">How was it?</h2>
+        <h2 className="text-sm font-bold text-balance">How was it?</h2>
 
         <fieldset className="mt-4">
           <legend className="sr-only">Rating out of five</legend>

@@ -69,12 +69,12 @@ export function InviteLanding({ token }: { token: string }) {
     */
     return (
       <Screen>
-        <h1 className="font-display tracking-display text-3xl leading-tight">
+        <h1 className="font-display tracking-display leading-display text-3xl text-balance">
           {gone
             ? "This invitation does not work"
             : "We could not load this invitation"}
         </h1>
-        <p className="text-forest/70 mt-3 text-sm">
+        <p className="text-forest/70 text-body mt-3 text-pretty">
           {gone
             ? "Ask the person who invited you to send it again."
             : "That is our side, not yours. Try again in a moment."}
@@ -114,17 +114,17 @@ export function InviteLanding({ token }: { token: string }) {
     <Screen stageLabel="You are invited">
       <p className="eyebrow text-terra-deep">You are invited</p>
 
-      <h1 className="font-display tracking-display mt-2 text-3xl leading-tight">
+      <h1 className="voice-host leading-display mt-2 text-3xl text-balance">
         <Link href={`/e/${trip.experienceSlug}`} className="underline">
           {trip.experience}
         </Link>
       </h1>
 
-      <p className="text-forest/80 mt-2 text-sm">{trip.operator}</p>
+      <p className="voice-host text-forest/80 mt-2 text-sm">{trip.operator}</p>
 
       <Panel className="mt-6">
         {when ? (
-          <p className="flex items-center gap-2 text-sm">
+          <p className="flex items-center gap-2 text-sm tabular-nums">
             <CalendarIcon className="text-forest/70 size-4 shrink-0" />
             {when}
           </p>
@@ -140,7 +140,9 @@ export function InviteLanding({ token }: { token: string }) {
       </Panel>
 
       {!open ? (
-        <p className="text-forest/70 mt-6 text-sm">This trip was cancelled.</p>
+        <p className="text-forest/70 text-body mt-6 text-pretty">
+          This trip was cancelled.
+        </p>
       ) : signedIn && !needsSignIn ? (
         <>
           <Button

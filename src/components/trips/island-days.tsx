@@ -82,10 +82,10 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
     return (
       <Panel className="mt-6">
         <section aria-labelledby="island-days">
-          <h2 id="island-days" className="text-base font-bold">
+          <h2 id="island-days" className="text-base font-bold text-balance">
             Your island days
           </h2>
-          <p className="text-forest/70 mt-1.5 text-sm">
+          <p className="text-forest/70 text-body mt-1.5 text-pretty">
             Tell us the days you are here, and Trips lays them out with what you
             have booked on each, and what runs on the free ones.
           </p>
@@ -104,10 +104,10 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
   const header = (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 id="island-days" className="text-base font-bold">
+        <h2 id="island-days" className="text-base font-bold text-balance">
           Your island days
         </h2>
-        <p className="text-forest/70 mt-0.5 text-sm">
+        <p className="text-forest/70 mt-0.5 text-sm tabular-nums">
           {dateLabel(value.from)} to {dateLabel(value.to)}
         </p>
       </div>
@@ -171,10 +171,10 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
     return (
       <Panel className="mt-6">
         <section aria-labelledby="island-days">
-          <h2 id="island-days" className="text-base font-bold">
+          <h2 id="island-days" className="text-base font-bold text-balance">
             Your island days
           </h2>
-          <p className="text-forest/70 mt-1.5 text-sm">
+          <p className="text-forest/70 text-body mt-1.5 text-pretty">
             They ended on {dateLabel(value.to)}. Coming back? Set your new days.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
@@ -196,7 +196,7 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
         <ol className="divide-paper-line mt-3 divide-y">
           {plan.days.map((day) => (
             <li key={day.date} className="py-3">
-              <p className="text-sm font-bold">{day.label}</p>
+              <p className="text-sm font-bold tabular-nums">{day.label}</p>
               {day.trips.length > 0 ? (
                 <ul className="mt-1.5 space-y-1.5">
                   {day.trips.map((trip) => (
@@ -214,7 +214,8 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
                           screen reader.
                         */}
                         <span className="tabular-nums">{trip.localTime}</span>{" "}
-                        <span aria-hidden="true">·</span> {trip.experience}
+                        <span aria-hidden="true">·</span>{" "}
+                        <span className="voice-host">{trip.experience}</span>
                       </Link>
                       {trip.state === "pending_request" ? (
                         <StateChip state={trip.state} />

@@ -80,7 +80,7 @@ export function DateChooser({
           <button
             type="button"
             onClick={() => setChosenView(view === "strip" ? "month" : "strip")}
-            className="text-terra-deep tap-target text-sm font-bold underline-offset-4 hover:underline"
+            className="text-terra-deep tap-target text-button font-bold underline-offset-4 hover:underline"
           >
             {view === "strip" ? "More dates" : "Next two weeks"}
           </button>
@@ -329,7 +329,7 @@ function DayFace({
   const open = dayState === "open";
   return (
     <>
-      <span aria-hidden="true" className="label text-[11px]">
+      <span aria-hidden="true" className="label">
         {date === today ? "Today" : civil ? weekdayName(civil) : ""}
       </span>
       <span

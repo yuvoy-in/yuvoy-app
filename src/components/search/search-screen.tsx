@@ -190,7 +190,7 @@ export function SearchScreen() {
 
   return (
     <Screen>
-      <h1 className="font-display tracking-display text-3xl leading-tight">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
         What is on
       </h1>
 
@@ -261,7 +261,10 @@ export function SearchScreen() {
           searching it would be a line in the way.
         */}
         {showGuide ? (
-          <p data-motion-key="guide" className="text-forest/70 mt-4 text-sm">
+          <p
+            data-motion-key="guide"
+            className="text-forest/70 text-body mt-4 text-pretty"
+          >
             Not sure where to start?{" "}
             <Link
               href="/guides"

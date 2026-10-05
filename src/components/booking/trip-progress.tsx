@@ -65,7 +65,7 @@ export function HoldCountdown({
           In the trip's own zone, like every other time on this page: the
           departure above is written the same way.
         */}
-        <p className="text-forest/70 mt-2 text-sm">
+        <p className="text-forest/70 text-body mt-2 text-pretty">
           Your seats are held until then.
         </p>
       </Panel>
@@ -89,7 +89,7 @@ export function HoldCountdown({
         {formatCountdown(left)}
       </p>
       {left === 0 ? (
-        <p className="text-forest/70 mt-2 text-sm">
+        <p className="text-forest/70 text-body mt-2 text-pretty">
           The hold has run out. If you pay now it may still work, but the seat
           is no longer reserved, and if it has gone we refund you in full,
           automatically.
@@ -117,15 +117,19 @@ export function OperatorUpdates({
             const sentAt = u.sentAt ? formatSentAt(u.sentAt, timezone) : null;
             return (
               <li key={`${u.sentAt ?? i}-${updateKind(u)}`} className="text-sm">
-                <p className="font-bold">
+                <p className="font-bold text-balance">
                   {UPDATE_LABEL[updateKind(u)] ?? "From the operator"}
                   {u.detail ? `: ${u.detail}` : ""}
                 </p>
                 {u.note ? (
-                  <p className="text-forest/80 mt-1">{u.note}</p>
+                  <p className="voice-host text-forest/80 leading-body mt-1 text-pretty">
+                    {u.note}
+                  </p>
                 ) : null}
                 {sentAt ? (
-                  <p className="text-forest/70 mt-1 text-xs">{sentAt}</p>
+                  <p className="text-forest/70 mt-1 text-xs tabular-nums">
+                    {sentAt}
+                  </p>
                 ) : null}
               </li>
             );
@@ -187,7 +191,9 @@ export function RefundProgress({
       {/* The server ships ready-to-render copy for the current state; prefer
           it over ours, so a change in refund handling does not need a deploy. */}
       {refund.message ? (
-        <p className="text-forest/70 mt-3 text-sm">{refund.message}</p>
+        <p className="text-forest/70 text-body mt-3 text-pretty">
+          {refund.message}
+        </p>
       ) : null}
 
       {refund.amountPaise != null ? (
@@ -220,7 +226,7 @@ export function HandOver({ status }: { status: BookingStatus }) {
         {status.bookingReference ? (
           <>
             Your booking reference is{" "}
-            <span className="font-bold slashed-zero tabular-nums">
+            <span className="tracking-ref font-bold slashed-zero tabular-nums">
               {status.bookingReference}
             </span>
             . Send us that on WhatsApp and someone will sort it out.
@@ -275,8 +281,8 @@ export function AnswerBy({
   return (
     <Panel className="mt-6" role="timer" aria-live="off">
       <p className="label text-forest/75">The operator has until</p>
-      <p className="mt-1 text-lg font-bold">{deadline}</p>
-      <p className="text-forest/70 mt-2 text-sm">
+      <p className="mt-1 text-lg font-bold tabular-nums">{deadline}</p>
+      <p className="text-forest/70 text-body mt-2 text-pretty">
         Nothing has been charged, and you can withdraw the ask at any time. If
         they do not answer by then, the request lapses on its own.
       </p>
@@ -319,7 +325,7 @@ export function CashBooked({
     <div className="mt-6">
       <Panel tone="raised" role="status">
         <p className="eyebrow text-terra-deep">Booked</p>
-        <p className="font-display tracking-display mt-2 text-3xl leading-tight">
+        <p className="font-display tracking-display leading-display mt-2 text-3xl text-balance">
           You&rsquo;re booked
         </p>
 
@@ -327,11 +333,11 @@ export function CashBooked({
           Selectable, and big. Somebody reads this to an operator over the
           noise of an outboard motor.
         */}
-        <p className="mt-5 text-3xl font-bold tracking-wider slashed-zero tabular-nums select-all">
+        <p className="tracking-ref mt-5 text-3xl font-bold slashed-zero tabular-nums select-all">
           {booking.bookingReference}
         </p>
 
-        <p className="mt-6 text-lg font-bold">
+        <p className="mt-6 text-lg font-bold text-balance">
           Bring{" "}
           {formatMoney({
             amountMinor: bring,
@@ -339,14 +345,19 @@ export function CashBooked({
           })}{" "}
           in cash
         </p>
-        <p className="text-forest/80 mt-1 text-sm">
+        <p className="text-forest/80 text-body mt-1 text-pretty">
           Pay the operator at the meeting point. The money goes to them, not to
           us.
         </p>
 
-        <p className="border-paper-line text-forest/80 mt-5 border-t pt-4 text-sm">
+        <p className="border-paper-line text-forest/80 mt-5 border-t pt-4 text-sm tabular-nums">
           {formatDeparture(status.slot)}
-          {meeting ? ` · ${meeting}` : null}
+          {meeting ? (
+            <>
+              {" · "}
+              <span className="voice-host">{meeting}</span>
+            </>
+          ) : null}
         </p>
       </Panel>
     </div>

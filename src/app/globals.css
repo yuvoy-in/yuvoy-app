@@ -87,12 +87,32 @@
   --color-abyss: #0a100e;
 
   /* ----------------------------------------------------------------- type */
-  /* Anek Latin, one family in two voices (v3.0, src/lib/fonts.ts). Display is
-     the condensed bold cut, baked and registered at 400, so `font-display` at
-     the default weight is the one display voice. Text is the same family at
-     normal width, 400/500/700. Both draw the rupee sign. */
-  --font-display: var(--font-anek-display);
+  /*
+    v3.2, three voices (5 Oct 2026; src/lib/fonts.ts, docs/typography-system.md).
+    The host speaks in Gotu, Yuvoy guides in Anek, the board keeps time in
+    Anek's condensed cut. The two Anek cuts are baked and registered at 400,
+    so `font-display` and `font-board` at the default weight are each one cut.
+    Gotu is reached only through `voice-host`, never a bare `font-host`: the
+    utility also holds its weight, synthesis, tracking, case and figures. All
+    four faces draw the rupee sign.
+  */
+  --font-display: var(--font-anek-display); /* Yuvoy's headlines: width 87.5 */
+  --font-board: var(--font-anek-board); /* figures, times, money: width 75 */
+  --font-host: var(--font-gotu); /* the host's own words, via voice-host */
   --font-sans: var(--font-anek); /* body + UI + labels */
+
+  /* Three named steps on Tailwind's scale. Every label, legend and eyebrow is
+     `text-label` (through the label utility), every button and action
+     `text-button`, and the traveller's running text `text-body`. */
+  --text-label: 0.8125rem; /* 13px */
+  --text-label--line-height: 1.125rem; /* 18px */
+  --text-button: 0.9375rem; /* 15px */
+  --text-button--line-height: 1.25rem; /* 20px */
+  --text-body: 0.9375rem; /* 15px */
+  --text-body--line-height: 1.4375rem; /* 23px */
+
+  --leading-display: 1.08; /* headlines, always with text-balance */
+  --leading-body: 1.55; /* running text, always with text-pretty */
 
   /* --------------------------------------------------------------- layout */
   --container-page: 70rem; /* the page measure — `max-w-page` */
@@ -148,9 +168,12 @@
   --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
 
   /* ------------------------------------------------------------- tracking */
+  /* No tracked uppercase anywhere since v3.2: labels, buttons and the nav are
+     sentence case at 0. Headlines close up a hair; a reference opens up so it
+     can be read out at the jetty. */
   --tracking-wordmark: 0.34em;
-  --tracking-label: 0.18em;
-  --tracking-display: 0em; /* a condensed bold sets at its own spacing */
+  --tracking-display: -0.005em;
+  --tracking-ref: 0.04em;
 }
 
 @layer base {
@@ -262,24 +285,31 @@
 /* ------------------------------------------------------------- typography */
 
 /**
- * Wide-tracked uppercase label — the brand's editorial voice, in the text
- * face. On paper use `text-terra-deep` or `text-forest/75`; on forest use
+ * A label: a field's name, a section's heading, a fact's term. Sentence case
+ * in the text face at 13/18, weight 500, untracked (v3.2: tracked uppercase on
+ * four jobs was the grammar the design authority reads as AI, and it wrapped
+ * the feed's eyebrow and the pay button at 390px). The words are written in
+ * the case they are shown in; nothing transforms them.
+ *
+ * It carries its own size, so it never sits beside a `text-*` size class
+ * (palette.test.ts): a button, a nav item or a chip is not a label, and takes
+ * `text-button`, `text-xs font-bold` or its own size instead.
+ *
+ * On paper use `text-terra-deep` or `text-forest/75`; on forest use
  * `text-terra-soft` or `text-paper/70`. Never `text-terra` on paper at this
- * size (3.72:1, fails AA) — though on `abyss` it measures 5.17:1 and passes.
+ * size (3.72:1, fails AA), though on `abyss` it measures 5.17:1 and passes.
  */
 @utility label {
-  @apply font-sans text-xs font-medium uppercase;
-  letter-spacing: var(--tracking-label);
+  @apply text-label font-sans font-medium;
 }
 
 /**
- * A section eyebrow — the label preceded by a terracotta square, the same
+ * A section eyebrow: the label preceded by a terracotta square, the same
  * `size-1` marker the fact rows use. Square, not round: `rounded-full` is
  * reserved for hardware. Use once per section, at the top.
  */
 @utility eyebrow {
-  @apply inline-flex items-center gap-2.5 font-sans text-xs font-medium uppercase;
-  letter-spacing: var(--tracking-label);
+  @apply text-label inline-flex items-center gap-2.5 font-sans font-medium;
 
   &::before {
     content: "";
@@ -288,6 +318,27 @@
     height: 0.25rem;
     background-color: var(--color-terra);
   }
+}
+
+/**
+ * The host's own words: every string a host wrote and Yuvoy only carries.
+ * Listing titles, descriptions, what is included, the policy, the meeting
+ * point, their business name, their messages, and the fields where they write
+ * them. Set in Gotu (v3.2), so a traveller can see whose voice is speaking.
+ *
+ * The utility, not a bare `font-host`, because the voice is more than a face:
+ * Gotu has one weight, so the weight is pinned and synthesis is off (a host's
+ * title never goes faux bold, even inside a `strong`); tracking, case and
+ * tabular figures are reset in case a parent set them. It never sits beside
+ * a weight, tracking, case or face class (palette.test.ts).
+ */
+@utility voice-host {
+  font-family: var(--font-host);
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: proportional-nums;
 }
 
 /**
@@ -1532,13 +1583,13 @@
 /*
   The way out of the feed, as a word.
 
-  The system's `paper` control at `sm`: solid paper, forest ink, 36px, uppercase
-  at `tracking-label`. 13.11:1 either way round, so it needs nothing from the
-  scrim and nothing from the frame behind it. CTAs are monochrome here;
-  terracotta is never a fill.
+  The system's `paper` control: solid paper, forest ink, 44px, the button
+  voice (`text-button`, sentence case). 13.11:1 either way round, so it needs
+  nothing from the scrim and nothing from the frame behind it. CTAs are
+  monochrome here; terracotta is never a fill.
 */
 @utility feed-book {
-  @apply ease-interaction tracking-label inline-flex h-11 items-center justify-center rounded-full px-4 text-xs font-bold uppercase transition-[background-color,transform] duration-200;
+  @apply ease-interaction text-button inline-flex h-11 items-center justify-center rounded-full px-4 font-bold transition-[background-color,transform] duration-200;
   background-color: var(--color-paper);
   color: var(--color-forest);
   text-decoration: none;
@@ -1706,8 +1757,9 @@
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* The host's title, in the host's voice. */
 @utility reel-sheet-title {
-  @apply text-paper ease-interaction mb-2 line-clamp-2 block text-base font-bold no-underline transition-opacity duration-200;
+  @apply text-paper ease-interaction voice-host mb-2 line-clamp-2 block text-base text-balance no-underline transition-opacity duration-200;
 
   &:hover {
     opacity: 0.8;
@@ -1719,7 +1771,7 @@
   @apply mb-2 flex flex-wrap items-baseline gap-2;
 }
 @utility reel-sheet-amount {
-  @apply font-display text-paper tracking-display text-3xl leading-none;
+  @apply font-board text-paper text-3xl leading-none tabular-nums;
 }
 @utility reel-sheet-unit {
   @apply text-paper/60 text-sm;
@@ -1762,7 +1814,7 @@
   }
 }
 @utility reel-sheet-dep-day {
-  @apply truncate text-base;
+  @apply truncate text-base tabular-nums;
 }
 @utility reel-sheet-dep-time {
   @apply text-base font-bold tabular-nums;
@@ -1788,7 +1840,7 @@
   @apply border-paper/14 border-t pt-3;
 }
 @utility reel-sheet-operator-name {
-  @apply text-paper text-base font-bold;
+  @apply text-paper voice-host text-base;
 }
 @utility reel-sheet-evidence {
   @apply text-terra-soft mt-1 flex items-center gap-1.5 text-sm;
@@ -1799,7 +1851,7 @@
    heaviest control on the screen. Both moved up together on 15 September when
    the owner reversed the "looks large" call. */
 @utility reel-sheet-cta {
-  @apply ease-interaction tracking-label flex h-13 w-full items-center justify-center gap-2 rounded-full text-xs font-bold uppercase no-underline transition-[background-color,transform] duration-200;
+  @apply ease-interaction text-button flex h-13 w-full items-center justify-center gap-2 rounded-full font-bold no-underline transition-[background-color,transform] duration-200;
   background-color: var(--color-paper);
   color: var(--color-forest);
 
@@ -2072,20 +2124,23 @@
     font-family: var(--font-display);
     letter-spacing: var(--tracking-display);
     font-size: 1.75rem;
-    line-height: 1.15;
+    line-height: var(--leading-display);
+    text-wrap: balance;
     margin-top: 3rem;
   }
 
   & h3 {
     font-weight: 700;
     font-size: 1.0625rem;
+    text-wrap: balance;
     margin-top: 2rem;
   }
 
   & p,
   & li {
     color: color-mix(in srgb, var(--color-forest) 78%, transparent);
-    line-height: 1.7;
+    line-height: var(--leading-body);
+    text-wrap: pretty;
   }
 
   & ul,
