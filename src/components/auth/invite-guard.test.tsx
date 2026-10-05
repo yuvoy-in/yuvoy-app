@@ -197,7 +197,7 @@ describe("with the switch on", () => {
       "9000003210",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await user.type(await screen.findByLabelText("The code we sent"), "123456");
+    await user.type(await screen.findByLabelText("Sign-in code"), "123456");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     // Signed in, and this number is not admitted: the code screen, in place.

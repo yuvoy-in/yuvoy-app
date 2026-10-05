@@ -1611,7 +1611,7 @@ for (const f of files) {
   }
 }
 
-/* ------- 19. a sign-in code is never promised by WhatsApp --------------- */
+/* ------- 19. a code is never promised by WhatsApp, or said to be sent ---- */
 
 /**
  * A traveller's sign-in code goes by email to the address on their latest
@@ -1619,20 +1619,40 @@ for (const f of files) {
  * sent nothing (yuvoy-api#254). "Check your WhatsApp" and "a code on
  * WhatsApp" said otherwise, on the screens every visitor meets once the
  * invite gate is on. Those screens print the API's own sentence now
- * (`codeSentSentence`), which changes when delivery does.
+ * (`codeSentSentence`), which changes when delivery does. Recovery follows
+ * the same rule, and it said "a code by WhatsApp, or email" (yuvoy-app#125).
  *
- * Lift this when the API sends codes by WhatsApp and its sentence says so.
+ * "The code we sent" and "we sent a code" go too: the API answers every
+ * number the same way so it never confirms a send, and a screen that does
+ * tells anybody that the number has booked.
+ *
+ * Lift the WhatsApp half when the API sends codes by WhatsApp and its
+ * sentence says so. The "we sent" half stays.
  */
 for (const f of files) {
   if (/\.test\.tsx?$/.test(f)) continue;
   const s = code(f);
   // Quotes and line breaks end the search, not full stops: the gate's old
   // sentence had `${flow.phone}` between "code" and "on WhatsApp".
-  if (/check your whatsapp|\bcode\b[^"'`\n]{0,60}\bon whatsapp\b/i.test(s)) {
+  if (
+    /check your whatsapp|\bcode\b[^"'`\n]{0,60}\b(on|by) whatsapp\b/i.test(s)
+  ) {
     problems.push(
       `${rel(f)}: promises a sign-in code by WhatsApp. Codes go by email ` +
         `to the latest booking, or nowhere (yuvoy-api#254). Print the API's ` +
         `sentence with \`codeSentSentence\` instead.`,
+    );
+  }
+  if (
+    /\bcode we sent\b|\bwe sent (you )?(a|the|your)\b[^"'`\n]{0,30}\bcode\b/i.test(
+      s,
+    )
+  ) {
+    problems.push(
+      `${rel(f)}: says a code was sent. The API answers every number the ` +
+        `same way so it never confirms one, and a screen that does tells ` +
+        `anybody the number has booked (yuvoy-app#125). Say where to look ` +
+        `("Check your email") or what it is ("Sign-in code") instead.`,
     );
   }
 }

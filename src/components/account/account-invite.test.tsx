@@ -196,7 +196,7 @@ describe("coming back to a gated page after signing in", () => {
       "9000003210",
     );
     await user.click(screen.getByRole("button", { name: "Send me a code" }));
-    await user.type(await screen.findByLabelText("The code we sent"), "123456");
+    await user.type(await screen.findByLabelText("Sign-in code"), "123456");
     await user.click(screen.getByRole("button", { name: "Show me my trips" }));
   }
 

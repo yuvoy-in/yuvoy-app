@@ -125,7 +125,12 @@ export function AccountScreen() {
   return (
     <Screen>
       <h1 className="font-display tracking-display text-3xl leading-tight">
-        {flow.sent ? "Enter your code" : "Sign in"}
+        {/*
+          Where to look, not a claim that anything went (yuvoy-app#125): codes
+          go by email until there is a WhatsApp sender, and the sentence under
+          this is the API's, true for every number.
+        */}
+        {flow.sent ? "Check your email" : "Sign in"}
       </h1>
       <p className="text-forest/70 mt-3 text-sm">
         {flow.sent
