@@ -102,6 +102,11 @@ The app's headlines are mostly `text-3xl`, the portal's mostly `text-4xl`.
 - Figures sit at `leading-none` or `leading-tight`; labels and buttons carry their own (18 and 20);
   meta keeps Tailwind's.
 - `--tw-leading` does not inherit, so a sized span inside a headline repeats `leading-display`.
+- A clamped headline (`line-clamp`, `truncate`) clips at its box, and at 1.08 the ink overhangs
+  the line: Gotu's tallest accents (Å, Ś, Ǻ) rise up to 0.26em above the first line. So a clamped
+  host headline takes `pt-[0.26em]` with a margin that puts the words back (the reel's title,
+  checkout's picture), Gotu is never clamped at `leading-none`, and a Yuvoy headline is never
+  clamped at a tight leading. `fonts.test.ts` measures the room from the file.
 - `cn()` keeps a leading written before a size. Stock tailwind-merge drops it, on the assumption
   that a size resets the leading, which in Tailwind 4 it does not. `palette.test.ts` checks that no
   type class is lost through `cn`.
@@ -272,6 +277,19 @@ new display cut (17 KB); the board cut is the old display file under its new nam
   OFL 1.1, licences in `src/fonts/`), and `fonts.test.ts` fails if a file cannot draw ₹, the digits
   or the alphabet.
 
+**Measured** on the production build in WebKit at 390px (5 Oct 2026):
+
+- Every route makes four font requests, 126,516 bytes, each once: the preloads carry
+  `crossorigin`, so the fetch the face makes is the preload's. Each is served
+  `public, max-age=31536000, immutable` as `font/woff2`. A not-found page is sent without the
+  preload hints, as it was before v3.2, and makes the same four requests.
+- With every font refused, each headline, figure and page is exactly as tall as with the fonts
+  loaded, because each fallback is metric-matched from its file. The `swap` face moves nothing
+  when it arrives.
+- With every font held back 1.5s, no headline or figure moves. The three `optional` faces miss
+  their window and the page keeps their fallbacks (WebKit reports the faces `error`); the next
+  full load draws them from the cache.
+
 ## Accessibility considerations
 
 - **Contrast is unchanged.** The palette is locked and `palette.test.ts` measures every pairing.
@@ -295,11 +313,12 @@ new display cut (17 KB); the board cut is the old display file under its new nam
   cut at a weight class; a board figure without tabular figures, or tracked; a headline without its
   leading and its balance; running text without its pretty last line; the host's words in our
   weight, face, spacing, case or figures; Gotu without `voice-host`; a label resized or at another
-  weight; tracked capitals. Each rule is shown firing on a planted defect and quiet on the shape it
-  allows.
+  weight; tracked capitals; a clamped headline that cuts its own ink. Each rule is shown firing on
+  a planted defect and quiet on the shape it allows.
 - `src/lib/fonts.test.ts`: every shipped file draws ₹, the digits and the alphabet (the text face
   and Gotu the accented letters names use too), the text face is variable on weight and every
-  other face one cut, and each cut is baked to its approved size.
+  other face one cut, each cut is baked to its approved size, and Gotu's tallest glyph fits the
+  room a clamped host headline leaves it.
 - `src/lib/cn.test.ts`: the merge keeps the type steps and a leading written before a size.
 - In the portal, `pnpm tokens:check` diffs the theme tokens against this repo's.
 
@@ -308,3 +327,8 @@ new display cut (17 KB); the board cut is the old display file under its new nam
 - The booking pass image is set in the system sans (Satori reads TTF or OTF; the brand ships woff2).
 - The trip countdown keeps the system monospace.
 - `docs/reel-lab` is a dated design study and still shows the old tracked labels.
+- In WebKit, an accented capital (À, É, Å) on the first line past a clamped host headline's clamp
+  shows the tip of its accent under the last line shown. `-webkit-line-clamp` clips the lines it
+  hides rather than dropping them, and at 1.08 Gotu's capital accents rise above their line.
+  Lowercase accents and every ASCII character stay inside it (measured from the file). The fix is
+  `continue: discard`, which WebKit does not support yet.
