@@ -9,10 +9,15 @@
  * was written down for five weeks and broken in 241 places anyway.
  *
  * Scope is RENDERED COPY: files under `src/` that can put text on a screen,
- * with comments blanked out first. Comments, `docs/`, the pinned contracts
- * and the generated schema are out of scope, which is what the design system
- * says. Widening this to comments is a separate decision and a much larger
- * sweep; do not widen it without also cleaning them, or every build fails.
+ * and the guides' MDX under `content/`, with comments blanked out first.
+ * Comments, `docs/`, the pinned contracts and the generated schema are out of
+ * scope, which is what the design system says. Widening this to comments is
+ * a separate decision and a much larger sweep; do not widen it without also
+ * cleaning them, or every build fails.
+ *
+ * `content/` joined on 2026-10-05. The guides sat outside the scan, so
+ * app.yuvoy.in/guides served 50 long dashes while this check passed: the rule
+ * held exactly where it looked and nowhere else.
  *
  * Text arriving from the API is not covered here, because we do not write it.
  * That is stripped at the boundary instead, in `src/lib/format/dedash.ts`.
@@ -39,10 +44,13 @@ const NAMES = {
 };
 const PATTERN = new RegExp(`[${EM_DASH}${EN_DASH}${HORIZONTAL_BAR}]`, "g");
 
-/** A file that can render text. */
-const RENDERS = /\.tsx?$/;
+/** A file that can render text: a component, or a guide written in MDX. */
+const RENDERS = /\.(tsx?|mdx)$/;
+const MDX = /\.mdx$/;
 /** Generated, or a test rather than a screen. */
 const SKIP = /\.gen\.ts$|[/\\]schema\.ts$|\.(test|spec)\.tsx?$/;
+/** Where rendered copy lives: components in `src/`, the guides in `content/`. */
+const ROOTS = ["src", "content"];
 
 function walk(dir, acc = []) {
   let entries;
@@ -71,12 +79,21 @@ const stripComments = (src) =>
       (m, p) => p + " ".repeat(m.length - p.length),
     );
 
+// MDX is prose, where "//" is ordinary text ("and // or", a protocol-relative
+// link), so only MDX's own comments are blanked: a JS comment inside braces,
+// the {/* ... */} form, and an HTML comment. Lines stay where they were.
+const stripMdxComments = (src) =>
+  src.replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}|<!--[\s\S]*?-->/g, (m) =>
+    m.replace(/[^\n]/g, " "),
+  );
+
 function targets() {
   const given = process.argv.slice(2);
   if (given.length)
     return given.filter((f) => RENDERS.test(f) && !SKIP.test(f));
-  const src = join(ROOT, "src");
-  return existsSync(src) ? walk(src) : [];
+  return ROOTS.map((dir) => join(ROOT, dir))
+    .filter((dir) => existsSync(dir))
+    .flatMap((dir) => walk(dir));
 }
 
 const findings = [];
@@ -91,7 +108,7 @@ for (const file of targets()) {
   if (!PATTERN.test(text)) continue;
   PATTERN.lastIndex = 0;
 
-  stripComments(text)
+  (MDX.test(file) ? stripMdxComments : stripComments)(text)
     .split("\n")
     .forEach((line, index) => {
       for (const match of line.matchAll(PATTERN)) {
