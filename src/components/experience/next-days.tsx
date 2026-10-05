@@ -54,7 +54,8 @@ export function NextDays({
   return (
     <div className="mt-3 text-sm">
       <p className="text-forest/80">
-        Next open: <strong className="font-bold">{first.label}</strong>
+        Next open:{" "}
+        <strong className="font-bold tabular-nums">{first.label}</strong>
         {first.seats ? ` · ${first.seats}` : null}
       </p>
       {rest.length > 0 ? (

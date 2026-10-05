@@ -103,10 +103,12 @@ export default async function GuidePage({
         ) : null}
 
         <p className="eyebrow text-terra-deep">Guide</p>
-        <h1 className="font-display tracking-display mt-4 text-4xl leading-[1.05]">
+        <h1 className="font-display tracking-display leading-display mt-4 text-4xl text-balance">
           {guide.title}
         </h1>
-        <p className="text-forest/70 mt-4 text-base">{guide.description}</p>
+        <p className="text-forest/70 leading-body mt-4 text-base text-pretty">
+          {guide.description}
+        </p>
 
         {guide.hero ? (
           <figure className="mt-8">
@@ -195,7 +197,6 @@ export default async function GuidePage({
                     href={`/guides/${g.slug}`}
                     variant="outline"
                     size="sm"
-                    className="tracking-normal normal-case"
                   >
                     {g.title}
                   </ButtonLink>

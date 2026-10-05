@@ -93,7 +93,7 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
-          <p className="font-bold">{trip.experience}</p>
+          <p className="voice-host text-balance">{trip.experience}</p>
           {/*
             A REFUSED REQUEST WAS NEVER PAID FOR, so it is not "Refunded".
 
@@ -137,7 +137,7 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
           </p>
         ) : null}
 
-        <p className="text-forest/80 mt-2 flex items-center gap-2 text-sm">
+        <p className="text-forest/80 mt-2 flex items-center gap-2 text-sm tabular-nums">
           <CalendarIcon className="text-forest/70 size-4" />
           {whenLine(trip.localDate, trip.localTime)}
         </p>
@@ -171,7 +171,7 @@ export function TripCard({ trip }: { trip: ServerTrip }) {
           somebody will read out to no effect.
         */}
         {trip.reference ? (
-          <p className="text-forest/70 mt-2 text-xs tracking-wider slashed-zero tabular-nums">
+          <p className="tracking-ref text-forest/70 mt-2 text-xs slashed-zero tabular-nums">
             {trip.reference}
           </p>
         ) : null}
@@ -197,11 +197,11 @@ export function InvitedTripCard({ trip }: { trip: InvitedTrip }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
-          <p className="font-bold">{trip.experience}</p>
+          <p className="voice-host text-balance">{trip.experience}</p>
           <Chip size="sm">{GUEST_STATUS_LABEL[trip.status]}</Chip>
         </div>
 
-        <p className="text-forest/80 mt-2 flex items-center gap-2 text-sm">
+        <p className="text-forest/80 mt-2 flex items-center gap-2 text-sm tabular-nums">
           <CalendarIcon className="text-forest/70 size-4" />
           {whenLine(trip.localDate, trip.localTime)}
         </p>

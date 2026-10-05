@@ -244,9 +244,9 @@ export function KeepBooking({
 
   const body = (
     <>
-      <p className="text-sm font-bold">{heading}</p>
+      <p className="text-sm font-bold text-balance">{heading}</p>
       {variant === "panel" ? (
-        <p className="text-forest/70 mt-1.5 text-sm">
+        <p className="text-forest/70 text-body mt-1.5 text-pretty">
           The app needs a connection, so keep a copy for the jetty.
         </p>
       ) : null}

@@ -492,7 +492,7 @@ export function ReelStrip({
             className="tabbar-clearance flex snap-start items-center justify-center px-8 pt-12 text-center"
           >
             {isFetchNextPageError ? (
-              <p className="text-paper/60 text-xs">
+              <p className="text-paper/60 leading-body text-xs text-pretty">
                 More reels did not load: usually the island signal rather than
                 you. Scroll up and back down to try again.
               </p>
@@ -504,9 +504,11 @@ export function ReelStrip({
               is usually gone before anybody sees it is a flicker at the bottom
               of every scroll.
             */
-              <p className="text-paper/60 text-xs">Loading more reels…</p>
+              <p className="text-paper/60 leading-body text-xs text-pretty">
+                Loading more reels…
+              </p>
             ) : tail === "complete" ? (
-              <p className="text-paper/60 text-xs">
+              <p className="text-paper/60 leading-body text-xs text-pretty">
                 {emptyTailNote ?? "That is everything on sale right now."}
               </p>
             ) : (
@@ -517,7 +519,7 @@ export function ReelStrip({
               refetching from the top is the only move that exists, and the
               copy does not claim an ending it was not told about.
             */
-              <p className="text-paper/60 text-xs">
+              <p className="text-paper/60 leading-body text-xs text-pretty">
                 That is as far as we can load right now, not the end of what is
                 on sale. Reload to try again.
               </p>

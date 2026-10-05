@@ -139,7 +139,7 @@ export function OperatorScreen({
                "large". */
             <span
               aria-hidden="true"
-              className="font-display text-forest/70 flex h-full items-center justify-center text-2xl"
+              className="voice-host text-forest/70 flex h-full items-center justify-center text-2xl"
             >
               {profile.name.slice(0, 1)}
             </span>
@@ -147,7 +147,8 @@ export function OperatorScreen({
         </div>
 
         <div className="min-w-0 flex-1">
-          <h1 className="font-display tracking-display flex items-center gap-2 text-3xl leading-tight">
+          {/* Their name, in their voice; the tick beside it is ours. */}
+          <h1 className="voice-host leading-display flex items-center gap-2 text-3xl text-balance">
             <span className="min-w-0 break-words">{profile.name}</span>
             {/*
               A tick, never stars. It says every mandatory credential is on
@@ -201,10 +202,10 @@ export function OperatorScreen({
       */}
       {!profile.bookable ? (
         <Panel className="mt-6" role="status">
-          <p className="text-sm font-bold">
+          <p className="text-sm font-bold text-balance">
             {profile.name} is not taking bookings right now
           </p>
-          <p className="text-forest/70 mt-1.5 text-sm">
+          <p className="text-forest/70 text-body mt-1.5 text-pretty">
             Everything they run is below. It is worth checking back. This is
             usually a season or a boat out of the water rather than the end.
           </p>
@@ -218,7 +219,7 @@ export function OperatorScreen({
             About
           </h2>
           {/* Paragraphs, because they typed newlines — see `paragraphsOf`. */}
-          <div className="text-forest/70 mt-3 max-w-prose space-y-3 text-sm">
+          <div className="voice-host text-forest/70 leading-body mt-3 max-w-prose space-y-3 text-sm text-pretty">
             {story.about.map((paragraph, i) => (
               <p key={`${i}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
             ))}
@@ -237,7 +238,9 @@ export function OperatorScreen({
                 which can differ per experience.
               */}
               <dt className="label text-forest/75">Find them at</dt>
-              <dd className="mt-1 text-sm">{story.findThemAt}</dd>
+              <dd className="voice-host text-body mt-1 text-pretty">
+                {story.findThemAt}
+              </dd>
             </div>
           ) : null}
           {story.languages.length > 0 ? (
@@ -245,7 +248,9 @@ export function OperatorScreen({
               {/* "Often the deciding fact for a traveller who is nervous in
                   the water." */}
               <dt className="label text-forest/75">Languages</dt>
-              <dd className="mt-1 text-sm">{story.languages.join(" · ")}</dd>
+              <dd className="text-body mt-1 text-pretty">
+                {story.languages.join(" · ")}
+              </dd>
             </div>
           ) : null}
         </dl>
@@ -268,7 +273,7 @@ export function OperatorScreen({
           className="rounded-card border-paper-line bg-paper-deep hover:border-forest/40 ease-interaction mt-8 flex items-center gap-4 border p-4 transition-colors duration-200"
         >
           <div className="min-w-0 flex-1">
-            <p className="font-bold">What they run</p>
+            <p className="font-bold text-balance">What they run</p>
             {/*
               A sentence, not a `<Count>`. `Count` is a `<dt>`/`<dd>` pair and
               only means anything inside the header's `<dl>`; used here it was
@@ -404,7 +409,7 @@ function Count({ n, one, many }: { n: number; one: string; many: string }) {
   return (
     <div className="flex flex-row-reverse items-baseline justify-end gap-1.5">
       <dt className="text-forest/70 text-sm">{n === 1 ? one : many}</dt>
-      <dd className="text-xl font-bold tabular-nums">{n}</dd>
+      <dd className="font-board text-xl tabular-nums">{n}</dd>
     </div>
   );
 }

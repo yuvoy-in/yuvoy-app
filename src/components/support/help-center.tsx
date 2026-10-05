@@ -83,10 +83,10 @@ export function HelpCenter() {
 
   return (
     <Screen back={BACK} stageLabel="Help" width="lg">
-      <h1 className="font-display tracking-display text-3xl leading-tight sm:text-4xl">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance sm:text-4xl">
         Help
       </h1>
-      <p className="text-forest/70 mt-3 max-w-prose text-sm">
+      <p className="text-forest/70 text-body mt-3 max-w-prose text-pretty">
         How booking, paying and cancelling work on Yuvoy. If the answer is not
         here, a person will help.
       </p>
@@ -217,8 +217,10 @@ function SearchResults({
   if (results.length === 0) {
     return (
       <div className="mt-8">
-        <p className="text-sm font-bold">Nothing matches “{query}”</p>
-        <p className="text-forest/70 mt-2 max-w-prose text-sm">
+        <p className="text-sm font-bold text-balance">
+          Nothing matches “{query}”
+        </p>
+        <p className="text-forest/70 text-body mt-2 max-w-prose text-pretty">
           Try a different word, or send us a message below and somebody will
           answer.
         </p>
@@ -270,7 +272,7 @@ function Answer({
     <details id={id} className="border-paper-line group border-b">
       <summary
         className={cn(
-          "tap-target flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-bold",
+          "tap-target flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-bold text-balance",
           "[&::-webkit-details-marker]:hidden",
         )}
       >
@@ -295,7 +297,10 @@ function Answer({
       </summary>
       <div className="pb-4">
         {answer.map((paragraph, i) => (
-          <p key={i} className="text-forest/80 mt-2 max-w-prose text-sm">
+          <p
+            key={i}
+            className="text-forest/80 text-body mt-2 max-w-prose text-pretty"
+          >
             {paragraph}
           </p>
         ))}

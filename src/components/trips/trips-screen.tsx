@@ -329,7 +329,7 @@ export function TripsScreen() {
 function Header() {
   return (
     <>
-      <h1 className="font-display tracking-display text-3xl leading-tight">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
         Your trips
       </h1>
       <p className="text-forest/70 mt-2 text-xs">Every trip on your number.</p>
@@ -363,8 +363,8 @@ function SignedOut() {
     <Screen>
       <Header />
       <Panel className="mt-6">
-        <h2 className="text-base font-bold">Find my booking</h2>
-        <p className="text-forest/70 mt-1.5 text-sm">
+        <h2 className="text-base font-bold text-balance">Find my booking</h2>
+        <p className="text-forest/70 text-body mt-1.5 text-pretty">
           Open the link in your booking message. No message to hand? Use the
           number you booked with, and a code goes to the email on your latest
           booking. No account needed.

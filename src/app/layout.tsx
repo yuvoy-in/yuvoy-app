@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { anek, anekDisplay } from "@/lib/fonts";
+import { anek, anekBoard, anekDisplay, gotu } from "@/lib/fonts";
 import { Providers } from "@/components/providers";
 import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
@@ -64,7 +64,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${anekDisplay.variable} ${anek.variable}`}>
+    <html
+      lang="en"
+      className={`${anekDisplay.variable} ${anekBoard.variable} ${gotu.variable} ${anek.variable}`}
+    >
       <body className="bg-forest text-paper">
         {/* Emitted once for the whole site. Interior pages add their own
             breadcrumb and article nodes, linked to these by @id. */}
@@ -73,7 +76,7 @@ export default function RootLayout({
         {/* First focusable element on every page. */}
         <a
           href="#main"
-          className="label bg-paper text-forest sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-3"
+          className="bg-paper text-forest sr-only text-xs font-bold focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-3"
         >
           Skip to content
         </a>

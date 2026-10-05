@@ -115,7 +115,7 @@ export function ScreeningFields({
             they cannot do.
           </p>
 
-          <ul className="text-forest/70 mt-4 space-y-2 text-sm">
+          <ul className="text-forest/70 leading-body mt-4 space-y-2 text-sm text-pretty">
             {safety.screener.questions.map((q) => (
               <li key={q} className="flex gap-2.5">
                 <span
@@ -153,8 +153,10 @@ export function ScreeningFields({
               already paid is somebody who will argue to be let in the water.
             */
             <Panel tone="alert" role="status" className="mt-4">
-              <p className="text-sm font-bold">Let us talk first</p>
-              <p className="text-forest/70 mt-1.5 text-sm">
+              <p className="text-sm font-bold text-balance">
+                Let us talk first
+              </p>
+              <p className="text-forest/70 text-body mt-1.5 text-pretty">
                 That does not mean no. It means a quick word with the dive team
                 before you book, so nobody is turned away at the jetty. Nothing
                 has been booked and nothing has been charged.

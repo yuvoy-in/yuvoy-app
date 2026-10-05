@@ -301,11 +301,25 @@ export function BookScreen({ slug }: { slug: string }) {
       }
     >
       <p className="eyebrow text-terra-deep">
-        {pictured ? "Checkout" : experience.data.title}
+        {pictured ? (
+          "Checkout"
+        ) : (
+          <span className="voice-host">{experience.data.title}</span>
+        )}
       </p>
-      <h1 className="font-display tracking-display mt-3 text-3xl leading-tight">
-        {/* It reads the choice, so it fades through as the choice changes. */}
-        <FadeText block>
+      <h1 className="mt-3 text-3xl">
+        {/*
+          It reads the choice, so it fades through as the choice changes: the
+          question in the display cut, the chosen day and hour on the board.
+        */}
+        <FadeText
+          block
+          wordsClassName={
+            chosenCivil && slot
+              ? "font-board leading-tight tabular-nums"
+              : "font-display tracking-display leading-display text-balance"
+          }
+        >
           {chosenCivil && slot
             ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
             : "When would you like to go?"}

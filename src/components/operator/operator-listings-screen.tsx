@@ -64,10 +64,10 @@ export function OperatorListingsScreen({
 
   return (
     <Screen back={{ href: `/o/${slug}`, label: profile.name }}>
-      <h1 className="font-display tracking-display text-3xl leading-tight">
+      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
         What they run
       </h1>
-      <p className="text-forest/70 mt-2 text-sm">{profile.name}</p>
+      <p className="voice-host text-forest/70 mt-2 text-sm">{profile.name}</p>
 
       {profile.listings.length === 0 ? (
         /*

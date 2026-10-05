@@ -68,7 +68,7 @@
 
   /* ------------------------------------------------------------ tracking */
   --tracking-label: 0.18em;
-  --tracking-display: 0em;
+  --tracking-display: -0.005em;
 
   /* ------------------------------------------------- the bar's own metrics */
   /*
