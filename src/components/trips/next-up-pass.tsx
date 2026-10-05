@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";

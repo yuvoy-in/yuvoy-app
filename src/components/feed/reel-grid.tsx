@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { useRef } from "react";
+import Link from "@/components/ui/link";
 import Image from "next/image";
 import type { Reel } from "@/lib/feed/reels";
 import { nextDepartureSentence } from "@/lib/feed/availability";
@@ -8,6 +9,7 @@ import { formatFromPrice } from "@/lib/format/money";
 import { Button } from "@/components/ui/button";
 import { PlayIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
+import { useListMotion } from "@/lib/motion/use-list-motion";
 
 /**
  * Reels as a three-column grid of posters — yuvoy-app#33 and #37.
@@ -30,6 +32,15 @@ import { cn } from "@/lib/cn";
  * consuming, and an infinite grid on an island connection spends data on rows
  * nobody reached. "Show more" is also the only retry this needs, which is why
  * a failed page keeps the tiles it has and says so beside the button.
+ *
+ * ## A grid that changes in place is seen changing (T11 A, T14 A)
+ *
+ * Approved 4 Oct 2026. When the answer changes under the same grid (a filter
+ * taken off, a word typed), the tiles that stay slide to their new cells, new
+ * ones rise in 40ms apart and the rest fade where they were
+ * (`lib/motion/use-list-motion`). A grid that arrives after a wait (`arrive`)
+ * rises in tile by tile. Each tile is keyed by its clip, so a tile that stays
+ * IS the same tile: its picture is never fetched or decoded twice.
  */
 export function ReelGrid({
   items,
@@ -41,6 +52,7 @@ export function ReelGrid({
   className,
   label,
   words = false,
+  arrive = false,
 }: {
   items: Reel[];
   /** Where a tile goes. The two surfaces open different reel sequences. */
@@ -60,12 +72,26 @@ export function ReelGrid({
    * the words fit.
    */
   words?: boolean;
+  /**
+   * The grid is arriving after a wait (the skeleton, or nothing): its tiles
+   * rise in, 40ms apart. Read when the grid mounts.
+   */
+  arrive?: boolean;
 }) {
+  const keys = tileKeys(items);
+  const list = useRef<HTMLUListElement | null>(null);
+  useListMotion(list, keys.join("|"), {
+    arrive: "rise",
+    stagger: true,
+    arriveOnMount: arrive,
+  });
+
   return (
     <div className={className}>
       <ul
+        ref={list}
         className={cn(
-          "grid",
+          "relative grid",
           words
             ? "grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
             : "grid-cols-3 gap-2",
@@ -77,13 +103,13 @@ export function ReelGrid({
           const title = reel.experience?.title ?? "";
           if (words) {
             return (
-              <li key={`${reel.media?.id ?? "clip"}-${i}`}>
+              <li key={keys[i]} data-motion-key={keys[i]}>
                 <WordsTile reel={reel} href={href} title={title} />
               </li>
             );
           }
           return (
-            <li key={`${reel.media?.id ?? "clip"}-${i}`}>
+            <li key={keys[i]} data-motion-key={keys[i]}>
               {/*
                 A clip we cannot open is still shown — it is the business's
                 work — but it is not a link to nowhere.
@@ -250,4 +276,23 @@ function Poster({
       unoptimized={url.startsWith("data:")}
     />
   );
+}
+
+/**
+ * One key per tile, the same for a clip wherever it lands in the grid.
+ *
+ * A key by position (it used to be the clip and its index) told React that a
+ * clip moved two cells was a different tile, so its element, and its
+ * picture, were thrown away and made again. Keyed by the clip, a tile that
+ * stays is kept. A clip that appears twice in one answer keeps its first
+ * place's key and numbers the others, so no two tiles ever share one.
+ */
+export function tileKeys(items: Reel[]): string[] {
+  const seen = new Map<string, number>();
+  return items.map((reel, i) => {
+    const id = reel.media?.id ?? reel.experience?.slug ?? `clip-${i}`;
+    const n = (seen.get(id) ?? 0) + 1;
+    seen.set(id, n);
+    return n === 1 ? id : `${id}#${n}`;
+  });
 }

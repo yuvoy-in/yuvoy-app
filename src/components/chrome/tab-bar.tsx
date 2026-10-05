@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { isFocusedRoute, isMediaGroundRoute } from "@/lib/site/nav";
 import { NavList } from "./nav-items";
+import { ViewTransition } from "@/lib/motion/view-transition";
+import { BAR_MOTION } from "@/lib/motion/route-motion";
 
 /**
  * The floating tab bar — a forest pill detached from the foot of the phone.
@@ -42,18 +44,38 @@ export function TabBar() {
   const onMedia = isMediaGroundRoute(pathname);
 
   return (
-    <nav
-      aria-label="Primary"
-      className="tabbar-foot pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 lg:hidden"
-    >
-      <div
-        className={cn(
-          "ring-paper/12 pointer-events-auto rounded-full p-1.5 ring-1",
-          onMedia ? "tabbar-on-media" : "app-chrome",
-        )}
+    /*
+      The bar leaves when a traveller goes into a focused screen and comes
+      back with them (T01 C: it steps down 16px and fades, and up again).
+      Between two tab roots it never leaves, so it glides instead (T04 B).
+    */
+    <ViewTransition {...BAR_MOTION}>
+      <nav
+        aria-label="Primary"
+        data-tabbar=""
+        className="tabbar-foot pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 lg:hidden"
       >
-        <NavList orientation="bar" />
-      </div>
-    </nav>
+        {/*
+          The pill, and its ground drawn apart from it. The ground is what
+          the glide stretches when the open destination's width changes (see
+          `tab-glide.ts`); the row inside is never scaled. Same surface, same
+          hairline ring as when the pill painted itself.
+        */}
+        <div
+          data-tabbar-pill=""
+          className="pointer-events-auto relative isolate rounded-full p-1.5"
+        >
+          <span
+            aria-hidden="true"
+            data-tabbar-ground=""
+            className={cn(
+              "tabbar-ground ring-paper/12 rounded-full ring-1",
+              onMedia ? "tabbar-on-media" : "app-chrome",
+            )}
+          />
+          <NavList orientation="bar" />
+        </div>
+      </nav>
+    </ViewTransition>
   );
 }

@@ -1,5 +1,5 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from "react";
-import Link, { type LinkProps } from "next/link";
+import Link, { type LinkProps } from "@/components/ui/link";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
@@ -18,8 +18,7 @@ import { cn } from "@/lib/cn";
 export const iconButtonVariants = cva(
   [
     "inline-flex shrink-0 items-center justify-center rounded-full",
-    "transition-[transform,background-color,color,border-color] duration-200 ease-interaction",
-    "active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40",
+    "motion-disc active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40",
   ],
   {
     variants: {
@@ -79,6 +78,8 @@ export function IconLink({
   href: string;
   /** Next's own: runs on a client-side navigation only, never a new tab. */
   onNavigate?: LinkProps["onNavigate"];
+  /** A way back: its screen change moves as a step back (see `Link`). */
+  back?: LinkProps["back"];
 } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "aria-label" | "href">) {
   return (
     <Link

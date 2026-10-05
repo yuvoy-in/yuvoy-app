@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { screen, cleanup, within, waitFor } from "@testing-library/react";
+import { act, screen, cleanup, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
@@ -9,6 +9,7 @@ import { server } from "../../../mocks/server";
 import { __resetClockOffset } from "@/lib/booking/clock";
 import { marketDayOf } from "@/lib/booking/availability-window";
 import type { components } from "@/lib/api/schema.gen";
+import { DURATION, EASE } from "@/lib/motion";
 
 type Slot = components["schemas"]["Slot"];
 
@@ -228,5 +229,153 @@ describe("the panel's focus", () => {
         screen.getByRole("group", { name: `Details, ${DIVE.title}` }),
       ),
     );
+  });
+});
+
+describe("the pull on the handle (T05 A)", () => {
+  let clock = 1000;
+
+  /** One pointer event as a browser would send it, at a stated time. */
+  function pointer(el: Element, type: string, clientY: number, at: number) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      clientY,
+      button: 0,
+    });
+    Object.defineProperties(event, {
+      pointerId: { value: 1 },
+      isPrimary: { value: true },
+      pointerType: { value: "touch" },
+      timeStamp: { value: at },
+    });
+    act(() => {
+      el.dispatchEvent(event);
+    });
+  }
+
+  /** A pull down the handle by `dy`, in `steps` moves `ms` apart. */
+  function pull(dy: number, { steps = 10, ms = 40 } = {}) {
+    const handle = screen.getByRole("button", { name: "Close details" });
+    let at = (clock += 1000);
+    pointer(handle, "pointerdown", 100, at);
+    for (let i = 1; i <= steps; i++) {
+      pointer(handle, "pointermove", 100 + (dy * i) / steps, (at += ms));
+    }
+    pointer(handle, "pointerup", 100 + dy, (at += ms));
+    return handle;
+  }
+
+  const shown = () =>
+    screen.getByRole("group", { name: `Details, ${DIVE.title}` });
+
+  function openPanel(onClose = vi.fn()) {
+    serve([slot({})]);
+    renderWithQuery(
+      <ReelDetails
+        experience={DIVE}
+        href={`/e/${DIVE.slug}`}
+        open
+        onClose={onClose}
+        id="details"
+      />,
+    );
+    return onClose;
+  }
+
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get: () => 400,
+    });
+  });
+  afterEach(() => {
+    delete (HTMLElement.prototype as { offsetHeight?: unknown }).offsetHeight;
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+  });
+
+  it("follows the finger one to one while it is held", () => {
+    openPanel();
+    const handle = screen.getByRole("button", { name: "Close details" });
+    let at = (clock += 1000);
+    pointer(handle, "pointerdown", 100, at);
+    pointer(handle, "pointermove", 110, (at += 40));
+    pointer(handle, "pointermove", 150, (at += 40));
+    // Taken where the press became a pull, so the slop is not a jump.
+    expect(shown().style.transform).toBe("translateY(40px)");
+    expect(shown().style.transition).toBe("none");
+    expect(shown()).toHaveAttribute("data-held");
+  });
+
+  it("closes from where it was let go past 64px, on the finger's curve", () => {
+    const onClose = openPanel();
+    pull(100);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // Pulled 90px (100 less the slop): 310 of 400px left, that share of 200ms.
+    expect(shown().style.transition).toBe(
+      `transform 155ms ${EASE.move}, visibility 0s linear 155ms`,
+    );
+    expect(shown().style.transform).toBe("");
+    expect(shown()).not.toHaveAttribute("data-held");
+  });
+
+  it("settles back from a short, slow pull, and stays open", () => {
+    const onClose = openPanel();
+    pull(40, { steps: 4, ms: 200 });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(shown().style.transition).toBe(
+      `transform ${DURATION.standard}ms ${EASE.move}`,
+    );
+    expect(shown().style.transform).toBe("");
+  });
+
+  it("closes on a flick, however short", () => {
+    const onClose = openPanel();
+    pull(36, { steps: 3, ms: 8 });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not take the tap a pull ends in for a close", () => {
+    const onClose = openPanel();
+    const handle = pull(30, { steps: 3, ms: 200 });
+    act(() => handle.click());
+    expect(onClose).not.toHaveBeenCalled();
+    // The next tap is a tap.
+    pointer(handle, "pointerdown", 100, (clock += 1000));
+    pointer(handle, "pointerup", 100, (clock += 50));
+    act(() => handle.click());
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("fades out where it was let go under reduced motion (S01 A)", () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
+    const onClose = openPanel();
+    pull(100);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(shown().style.transition).toBe(
+      `opacity ${DURATION.reducedFade}ms linear, visibility 0s linear ${DURATION.reducedFade}ms`,
+    );
+    // Nothing travels: it fades at the place it was let go.
+    expect(shown().style.transform).toBe("translateY(90px)");
   });
 });

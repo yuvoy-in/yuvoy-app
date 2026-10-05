@@ -1,6 +1,10 @@
 "use client";
 
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
 import { REELS_PAGE_SIZE } from "@/lib/feed/reels";
@@ -81,9 +85,23 @@ export function useVocabulary() {
  * anybody's second. There is no relevance ordering here and none is added: a
  * client that re-sorted would hand the results to whoever uploaded last.
  */
-export function useSearchReels(filters: ReelFilters) {
+export function useSearchReels(
+  filters: ReelFilters,
+  {
+    keepPrevious = false,
+  }: {
+    /**
+     * Keep the last answer on screen while the next filter set loads (T11 A,
+     * approved 4 Oct 2026), so a search answered in a quarter of a second
+     * never swaps its grid for a skeleton and back. The Search screen asks
+     * for it; the reel strip, which never changes its filters, does not.
+     */
+    keepPrevious?: boolean;
+  } = {},
+) {
   return useInfiniteQuery({
     queryKey: qk.searchReels(reelFilterKey(filters)),
+    placeholderData: keepPrevious ? keepPreviousData : undefined,
     initialPageParam: undefined as VisitCursor | undefined,
     /*
       NO `enabled` gate, since 14 September.

@@ -2,6 +2,20 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const MOTION_IMPORTS = [
+  {
+    name: "next/link",
+    message:
+      "Import Link from @/components/ui/link: it gives the screen change its motion (lib/motion/route-motion.ts).",
+  },
+  {
+    name: "react",
+    importNames: ["ViewTransition", "addTransitionType"],
+    message:
+      "Import ViewTransition from @/lib/motion/view-transition: the project's react 19.2 has none, so the unit tests would crash.",
+  },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -60,6 +74,33 @@ const eslintConfig = defineConfig([
           message:
             "Do not use localStorage. Booking tokens live in IndexedDB via @/lib/booking/token-store; see plan §4.4.",
         },
+      ],
+      /*
+        The motion system's two front doors (approved 4 Oct 2026). Every
+        in-app link carries the type of its screen change, so a link straight
+        from Next is a screen change that silently stops moving. And the
+        project's own react (19.2, what the unit tests run) has no
+        ViewTransition, so one imported from "react" is undefined there.
+      */
+      "no-restricted-imports": ["error", { paths: MOTION_IMPORTS }],
+    },
+  },
+  {
+    // The two modules those imports exist to go through.
+    files: ["src/components/ui/link.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: MOTION_IMPORTS.filter((p) => p.name !== "next/link") },
+      ],
+    },
+  },
+  {
+    files: ["src/lib/motion/view-transition.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: MOTION_IMPORTS.filter((p) => p.name !== "react") },
       ],
     },
   },

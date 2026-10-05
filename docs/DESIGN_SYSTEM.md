@@ -14,6 +14,261 @@
 > token. Everything describing the app says `paper`. A ratio quoted beside `cream` is the
 > marketing site's and has not moved.
 
+## v3.1 (2026-10-04, owner-approved): the motion system
+
+**The change: motion gets a system, and the app's single 250ms budget becomes
+three.** Decided experiment by experiment from the before-and-after study in
+`yuvoy/motion-lab` (25 experiments, the decisions verbatim in its
+`APPROVALS.md`), for the traveller app and the operator portal separately.
+§3 below is superseded where it disagrees with this section.
+
+### The tokens
+
+Two curves join the two production already had (both repos' `@theme`, kept
+identical by the operator's `tokens:check`):
+
+| Token                | Value                             | Job                                                                 |
+| -------------------- | --------------------------------- | ------------------------------------------------------------------- |
+| `--ease-interaction` | `cubic-bezier(0.32, 0.72, 0, 1)`  | Arriving, answering a touch (unchanged)                             |
+| `--ease-cinematic`   | `cubic-bezier(0.22, 1, 0.36, 1)`  | A screen or picture travelling, landing softly (was unused)         |
+| `--ease-move`        | `cubic-bezier(0.2, 0, 0, 1)`      | A to B with both ends on screen: an indicator, a list closing a gap |
+| `--ease-exit`        | `cubic-bezier(0.3, 0, 0.8, 0.15)` | Leaving: accelerates away so a dismissal never lingers              |
+
+Durations are written where they are used, on one scale: press 100, quick 150,
+standard 200, sheet 250 (exit 200), spatial 350 (exit 250), moment 450ms.
+`lib/motion` mirrors the curves for script (`motion.test.ts` fails if they
+drift).
+
+### The budgets (`palette.test.ts` holds every pairing to its own)
+
+- **Interaction**, `--ease-interaction`, `--ease-move`, `--ease-exit`: at most
+  250ms. Everything that answers a touch.
+- **Travel**, `--ease-cinematic`: over 250ms and at most 450ms. Only a screen
+  or a picture going somewhere, and the one authored moment in a flow.
+- **The operator portal** has no travel: 200ms is its ceiling for anything
+  but progress (the five-second undo window, which is the information).
+
+### The rules
+
+- **Answer first.** A touch is acknowledged within 100ms, and the work starts
+  on the same tap. Nothing waits for an animation.
+- **Exits are faster than entrances**, about two thirds.
+- **Transform and opacity**; clip-path only on small elements. Never animate
+  a box's size per frame: measure once and play the difference (FLIP).
+- **Never clip a filtered element.** The tab bar's frosted ground and its
+  paper are separate elements: in Safari a clipped `backdrop-filter` drew a
+  shaded block instead of a pill (found in the study, 4 Oct 2026).
+- **Presses animate `scale`.** Tailwind 4 writes `active:scale-*` to the
+  standalone `scale` property; every transition list used to name only
+  `transform`, so every press in both apps snapped. `motion-control` (a
+  Button) and `motion-disc` (a disc) carry the press: 100ms in, 150ms out.
+  `palette.test.ts` fails a press whose string has no list naming `scale`.
+- **No loops** but honest progress. No scroll reveals (the 3 Aug ruling
+  stands).
+
+### Reduced motion swaps, it does not delete
+
+Approved as S01. The global rule still makes everything instant, now covers
+`::backdrop` (a sheet's tint used to keep fading), and skips any element
+marked `data-motion`: such an element ships its own reduced version, a 120ms
+crossfade in place of travel. Colour and opacity are not motion (WCAG 2.3.3)
+and feedback must stay legible, so a press under reduced motion changes the
+control's ground instead of its size.
+
+### Shipped with this version
+
+- The press fix in every primitive (`Button`, `IconButton`, the play disc,
+  the review stars).
+- The tab bar answers the press and glides as one object (T04 B): the
+  destination lights on the tap while `aria-current` waits for the route; a
+  paper layer clipped to the open destination glides 250ms on `--ease-move`,
+  the glyphs slide (FLIP), the bar's ground follows its width, interruptible,
+  and drawn exactly as before until script has measured it.
+- Save is one 150ms change (outline to filled from 0.9, ring and colour
+  together); the share notice fades 6px out of its disc and leaves with its
+  words (T13 A).
+
+### Screen changes (T01 C and A, T02 C, T03 B)
+
+A screen change is a React view transition carrying exactly one type, chosen
+from the two routes by `lib/motion/route-motion.ts` and attached by the app's
+`Link` (`components/ui/link`; ESLint refuses `next/link` anywhere else). The
+screen's parts each answer each type (`Screen`'s stage strip and sheet, the
+reel strip, the tab bar); the stylesheet draws the answers ("motion: screen
+changes" in `globals.css`); `route-motion.test.ts` fails a class the
+stylesheet does not draw.
+
+| Type                       | When                              | What moves                                                                                                                                          |
+| -------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deeper`                   | Into a focused screen             | The stage stays. The old sheet's words leave (100ms) over its held paper; the new sheet rises 32px and fades in (250ms); the bar steps down (150ms) |
+| `back`                     | A Back control                    | The sheet drops 24px as it fades (200ms); the one behind returns (150ms); the bar steps up                                                          |
+| `sideways`                 | Between tab roots, and out to one | The old fades out (100ms), the new in (150ms); nothing travels; the bar glides instead (T04 B)                                                      |
+| `reel-open` / `reel-back`  | A reel and its listing            | The listing is the page to the reel's right: in over 350ms (cinematic) while the reel moves a third as far under a 25% dim; Back 250ms (move)       |
+| `picture` / `picture-back` | A saved picture and its listing   | The picture flies to the hero (350ms, corners 12px to square), the sheet rises over it; home again in 250ms                                         |
+
+- **No type, no motion.** The browser's own back and forward (iOS Safari
+  draws its own swipe; a second animation is the double slide), a query on
+  the same screen, and the app's own redirects after an action. The root is
+  never animated, so the forest stage simply stays.
+- **The listing comes in under the thumb.** On a phone a reel's right-to-left
+  swipe brings the listing itself in, one to one, built ahead of time once
+  the reel has been watched 700ms (`lib/feed/listing-peek.ts`); past a
+  quarter of the width or a flick it completes, else it springs back (200ms).
+  The route is pushed only once it has fully arrived, and the real page
+  renders under it. Reduced motion and desktops keep the card's nudge.
+- **Back returns to the reel you left**, on a step back only (our Back, the
+  browser's), by clip rather than index (`lib/feed/reel-memory.ts`).
+- **A saved card hands its picture to the listing**, whose gallery opens on
+  it (`lib/motion/picture-handoff.ts`), so the picture that lands is the one
+  tapped.
+- **Reduced motion:** every screen change is a 120ms crossfade; the picture
+  lands at once.
+- Prove on a physical iPhone before `main`: an iOS 26.1 crash with enter and
+  exit transitions was fixed in React (#35337, in the canary Next 16.3 ships);
+  WebKit is covered by `e2e/motion-webkit.spec.ts`, which is not a phone.
+
+### Sheets and the details panel (T06 A, T05 A)
+
+- **A sheet leaves the way it came.** On a phone it rises from the bottom
+  edge (250ms) and every way out (the X, the backdrop, Escape, Android's
+  back, a caller closing it) sends it back down: 200ms, accelerating away.
+  From `sm` up it is a centred panel, not an edge sheet: it keeps its rise
+  and leaves by reversing it (a fade and 12px, 200ms).
+- **The dialog closes only once the exit has run.** The exit is the Web
+  Animations API, then `close()`: a closed `<dialog>` is not drawn, and
+  Safari 27 dropped the `display` transition that would let CSS hold it.
+  The page stays inert for those 200ms, as it is while the sheet is open,
+  and focus returns to the opener when it closes, as before.
+- **Callers render `<SheetPresence open={…}>` around their sheet** instead
+  of mounting it behind a conditional, so it stays mounted through its exit
+  and is still mounted afresh on each opening (a sheet's draft is seeded on
+  mount). `sheet-presence.test.ts` fails a sheet mounted by a conditional.
+- **The head can be pulled down** on a phone: one to one, the tint thinning
+  with it; let go past a quarter of the height or flicked, it goes from
+  where it is on `--ease-move`, the exit scaled by the distance left (120ms
+  at least); otherwise it settles back in 200ms. The X stays.
+- **The reel's details panel behaves as it looks**: in 250ms, out 200ms, and
+  its handle pulls it down one to one (past 64px or a flick it closes from
+  where it was let go; otherwise it settles back). The handle is
+  `touch-action: none`, or a pull on it would scroll the feed back a reel,
+  and the card's swipe to the listing never sees a pull's moves.
+- **Reduced motion:** both are a 120ms fade in and out; a pull still follows
+  the finger, and a closing pull fades where it was let go.
+
+### Search: waiting, and a list that changes in place (T11 A, T14 A)
+
+- **A wait is shown only once it has lasted 300ms**, and once shown it stays
+  300ms (`useDelayedFlag`). Search keeps the last answer on screen while the
+  next loads (`keepPreviousData`, the results marked `aria-busy`), so a
+  quick answer never swaps the grid for a skeleton and back.
+- **The skeleton is the shape that is coming**: the grid's own tiles, two
+  across at 4:5 with two lines of words. It breathes as one layer.
+- **Skeletons breathe** everywhere now: opacity 1 to 0.55 and back over 1.6s
+  on `ease-in-out`, the system's one loop. The old sweep animated
+  `background-position`, which repaints every tile every frame.
+- **A list that changes in place is seen changing** (`useListMotion`, on the
+  grid, the applied pills and the parts of the screen around them): what
+  stays slides to its new place (FLIP, 200ms on `move`, one 40ms step after
+  what left), what arrives grows (pills, 0.96) or rises (tiles, 8px) into
+  place in 150ms, 40ms apart for a list arriving as a list (at most four
+  steps), and what leaves fades where it was in 100ms as an `inert`,
+  `aria-hidden` copy. Only what is on screen moves.
+- **Tiles are keyed by their clip**, so a tile that stays is the same element
+  and its picture is never fetched or decoded twice.
+- **Counts roll** (`RollingNumber`): the old figure leaves as the new one
+  arrives, upward when the number rises and downward when it falls, 200ms.
+- **Chips colour in 150ms**, the selection speed.
+- **A screen arrives whole**: its first pills, count and grid are simply
+  there; only what changes on it afterwards is seen arriving.
+- **Reduced motion:** nothing slides, grows, rises or rolls; arrivals and
+  departures are a 120ms fade; the skeleton is still.
+
+### Booking: tabs, the Book button, the day and the time, the moment (T07 A, T08 A, T09 A, T10 A)
+
+- **The Trips tabs are one object** (`TripTabs`): a forest fill clipped to
+  the chosen tab glides to the next on the tap (250ms on `move`), and each
+  label turns paper where it passes. A tab's contents fade THROUGH to the
+  next tab's (out 100ms, then in 150ms), and a tab's list fades in over its
+  skeleton when it lands (`Crossfade`).
+- **A button keeps its colour while it works** (`Button`'s `pending`):
+  `aria-busy` and `aria-disabled`, never `disabled`; the label cross-fades to
+  the working verb ("Booking", no ellipsis); a 16px ring shows only after
+  300ms and turns once a second (a quarter turn a second under reduced
+  motion). A tap while it works does nothing. The Book button keeps it until
+  the booking page opens.
+- **A refusal is seen**: at the foot of checkout it lands as its own arrival
+  (rising 8px), the page scrolls so it sits 16px above the sticky bar, and it
+  takes focus.
+- **The chosen day is one object** (`DayStrip`): a window over the chosen day
+  glides to the next (250ms on `move`) with the strip drawn chosen inside it,
+  moving the other way, so the dates stay put. Transforms only. The day's
+  times rise in order (200ms, 40ms apart); words that read the choice fade
+  through (`FadeText`: out 100ms, in 150ms); the party number rolls; the rest
+  of checkout fades in and its foot rises from the bottom edge (250ms), once,
+  when a departure is first chosen. As before, the strip jumps to a day past
+  its right edge (A keeps that).
+- **The pass settles** (T10 A, the second authored moment): on the page the
+  booking tap lands on, and only there (`lib/booking/arrival`, a one-shot mark
+  checkout sets), the eyebrow's tick draws (250ms from 100ms), the first panel
+  rises 12px and the reference arrives last: 350ms in all. A reload, a poll or
+  a shared link opens the page as it is.
+- **A confirmed booking's eyebrow carries a tick** where the terra square is
+  (the owner's word, 4 Oct 2026). The word carries the state; the tick is
+  `aria-hidden`.
+- **A page that changes while open is seen changing**: on the booking page a
+  section that arrives fades in, one that goes fades where it was, and what
+  was under it slides up (`useListMotion` with `byNode`); its words fade
+  through.
+- **Reduced motion:** nothing travels; the fill and the day land and fade in;
+  the moment's tick is simply drawn and its panel and reference fade (120ms).
+
+### Pictures and refusals: a reel's start, the far side, a refused number (T12 A, T15 A, T16 A)
+
+- **A clip is seen from its first frame**: it stays invisible over its poster
+  until it has decoded one (`loadeddata`), then crossfades in 200ms. A clip
+  drawn again (back inside the preload budget) earns its fade again. With a
+  poster that is the clip's own first frame the crossfade is invisible;
+  without one it is a 200ms dissolve instead of a jump.
+- **A slow start says so, and stops saying so**: the ring keeps its 600ms
+  wait, fades in (150ms) and out as the clip plays (150ms, accelerating
+  away), and turns only while it shows. A first frame is not the end of a
+  start (a clip can hold it while it buffers), and a stall shows the ring
+  again at once. A clip the traveller paused is not slow to start: the ring
+  used to come up behind the play control 600ms after a pause.
+- **A clip that cannot load on the native path gives up** (Safari, iOS, and
+  now Chromium, which plays HLS itself), on the element's own `error`, and
+  the card is its poster again. It used to keep a play control and a sound
+  toggle for a clip that could never play, or leave the ring turning for
+  ever.
+- **The far side recedes** (T15 A, approved on the condition that it measured
+  cheap). On a phone, as the sheet covers a screen's picture, the picture
+  scales from 1 to 0.96 from its top edge and an abyss layer over it rises to
+  45%: linked to the scroll, no duration, linear, so it moves only with the
+  finger. CSS alone, on `animation-timeline: scroll(root)`, inside
+  `@supports`; a browser without scroll timelines keeps the still picture.
+  The range is the picture's own height (`--hero-height`) less the sheet's
+  rise over it: the gallery declares it beside its frame (125vw at 4:5, 56.25vw
+  at 16:9), and the picture strip draws its height from it. Measured
+  (Pixel 7, Chromium, 4x CPU slowdown, ten scrolls down and back): no dropped
+  frames on or off (none over 20ms, p95 9.3ms both); no layout and no repaint
+  per frame (two paints in a scroll, the overlay first drawn; commits
+  identical); the main thread restyles the two layers once a frame, about
+  0.35ms at 4x. Prove it on a mid-range Android before `main`.
+- **A refused number arrives, it does not shove**: the reason fades in rising
+  4px (150ms, one 40ms step in) and the button under it glides down to make
+  room (200ms on `move`); on the next send the reason fades where it was
+  (100ms) and the button glides back a step later. The field's border
+  answers in 150ms. An empty state does not move: absence is not an event.
+- **`useListMotion` learned `data-motion-leave`**: something inside an item
+  that stays (a field's reason) fades where it was when it goes, and what
+  follows waits for it as for any departure. A departed thing's copy is held
+  still, so an entrance its classes carry never replays in it, and silent,
+  so a live region is never read out twice.
+- **Reduced motion:** the ring holds still and fades in and out (120ms); the
+  clip crossfades in 120ms once asked for; the picture does not scale and only
+  dims; the reason only fades (120ms) and nothing glides. Colour keeps its
+  150ms (S01 A), so the fields are marked `data-motion` for their border.
+
 ## v3.0 (2026-10-03, owner-approved): Anek Latin, one family in two voices
 
 **The change: Fraunces + Satoshi are replaced by one family, Anek Latin (Ek Type,
@@ -157,6 +412,8 @@ stopped working the moment the two products' marks stopped being the same
 colour. The two copies differ only in `SRC`.
 
 ## v2.8 (2026-09-09, owner-directed) — the feed's chrome retracts
+
+> **Removed 13 Sep 2026 (yuvoy-app#36):** the owner ruled the tab bar stays visible on every reel. The retract, its flag and its slide are gone; this section is kept for the reasoning about scrims and the swipe, which still hold.
 
 **The change: on the reels feed, the chrome gets out of the way as a traveller
 moves down and comes straight back when they move up. The masthead loses its
@@ -632,6 +889,8 @@ Borders and fills are exempt from these floors — `border-forest/20`, `bg-fores
 Scale: Tailwind's type scale. Headlines `font-display`; everything else inherits the text face unless it is a label.
 
 ## 3. Motion
+
+> **Superseded in part by v3.1 (4 Oct 2026, above)**: three budgets, four curves, and reduced motion that swaps rather than deletes. The marketing-site entries below (the `emerge` entrance, the shutter, the veil, the header) are unchanged and remain the marketing site's.
 
 Two budgets, and they are not the same thing — this is the ruling that resolves "fast, responsive UI" against "slow, considered entrances".
 

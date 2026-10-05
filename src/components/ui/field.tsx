@@ -62,11 +62,14 @@ export function Field({
         ) : null}
         <input
           id={id}
+          // Only colour changes here, and colour keeps its 150ms under
+          // reduced motion (S01 A, T16 A): the global rule would cut it.
+          data-motion=""
           aria-describedby={cn(hintId, errorId) || undefined}
           aria-invalid={error ? true : undefined}
           className={cn(
             "border-paper-line bg-paper-deep text-forest w-full border text-base outline-none",
-            "ease-interaction transition-[border-color,background-color] duration-200",
+            "ease-interaction transition-[border-color,background-color] duration-150",
             "focus:border-forest/60 focus:bg-paper",
             "placeholder:text-forest/70",
             // 48px — the system's input height.
@@ -89,7 +92,11 @@ export function Field({
         <span
           id={errorId}
           role="alert"
-          className="text-terra-deep mt-1.5 block text-xs"
+          // It arrives where the room was made for it, and fades where it
+          // was when it goes (T16 A).
+          data-motion=""
+          data-motion-leave=""
+          className="motion-reason-in text-terra-deep mt-1.5 block text-xs"
         >
           {error}
         </span>

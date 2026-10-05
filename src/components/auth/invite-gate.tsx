@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { YuvoyError, NetworkError } from "@/lib/api/errors";
 import {
   describeError,

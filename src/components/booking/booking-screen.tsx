@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useHasMounted } from "@/lib/react/use-has-mounted";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useDocumentTitle } from "@/lib/site/use-document-title";
 import { useBookingStatus } from "@/lib/booking/use-booking-status";
 import { overdueAtCeiling } from "@/lib/booking/poll";
@@ -28,6 +28,11 @@ import { ReviewForm } from "./review-form";
 import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import { cn } from "@/lib/cn";
+import { FadeText } from "@/components/ui/fade-text";
+import { arrivalPending, forgetArrival } from "@/lib/booking/arrival";
+import { DURATION, EASE, prefersReducedMotion } from "@/lib/motion";
+import { useListMotion } from "@/lib/motion/use-list-motion";
 import type { components } from "@/lib/api/schema.gen";
 import { PayButton, ReleaseButton } from "./pay-actions";
 import {
@@ -74,6 +79,22 @@ export function BookingScreen() {
 
   const { data, error, isPending, isError, gaveUp, snapshot, refetch } =
     useBookingStatus(token);
+
+  /*
+    Arrived at from the checkout that made this booking, this moment (T10 A):
+    read for the token as soon as there is one, then forgotten, so a reload,
+    a poll or a shared link opens the page as it is. Derived during render
+    (the token can appear a render after the page does), never replayed.
+  */
+  const [arrival, setArrival] = useState(() => ({
+    token,
+    fresh: arrivalPending(token),
+  }));
+  if (arrival.token !== token)
+    setArrival({ token, fresh: arrivalPending(token) });
+  useEffect(() => {
+    if (arrival.fresh) forgetArrival(arrival.token);
+  }, [arrival]);
 
   // Before hydration the fragment is genuinely unknown, so render the loading
   // shape rather than "we need your link" and then flipping to the booking.
@@ -144,6 +165,7 @@ export function BookingScreen() {
         live={!gaveUp}
         token={token}
         onChanged={() => void refetch()}
+        arrived={arrival.fresh}
       />
       {/*
         Only a payment that has not settled is handed to a person
@@ -166,12 +188,15 @@ function StatusBody({
   live,
   token,
   onChanged,
+  arrived = false,
 }: {
   status: BookingStatus;
   live: boolean;
   /** Absent when rendering an offline snapshot — every action needs network. */
   token?: string | null;
   onChanged?: () => void;
+  /** Opened by the tap that booked it: the pass settles, once (T10 A). */
+  arrived?: boolean;
 }) {
   const copy = stateCopy(status.state);
   /*
@@ -285,18 +310,52 @@ function StatusBody({
   const reason =
     declined?.message ?? cancellationReason(status.cancellation?.reasonCode);
 
+  /*
+    THE PASS SETTLES (T10 A, approved 4 Oct 2026), the second of the app's two
+    authored moments. On the page the booking tap lands on, and only there:
+    the eyebrow's tick draws (250ms, from 100ms), the first panel rises 12px
+    into place (250ms), and the reference arrives last (150ms, from 200ms),
+    350ms in all. Under reduced motion the tick is simply drawn and the panel
+    and the reference fade in (120ms). Read once, at mount.
+  */
+  const page = useRef<HTMLDivElement | null>(null);
+  const settles = useRef(arrived);
+  useLayoutEffect(() => {
+    const root = page.current;
+    if (settles.current && root) settle(root);
+  }, []);
+
+  /*
+    And a page that changes while it is open (a poll, a cancel opened) is
+    seen changing (T10 A): a section that arrives fades in, one that goes
+    fades where it was, and what was under it slides up into the gap. Every
+    section is an item, named by its element, so none of them needs a key.
+  */
+  // Checked after every render of the page; only what moved, moves.
+  useListMotion(page, [status, cancelling], { arrive: "fade", byNode: true });
+
+  /*
+    A confirmed booking's eyebrow carries a tick where the terra square is
+    (the owner's word, 4 Oct 2026). The word Confirmed carries the state; the
+    tick is drawn for the eye and hidden from assistive technology.
+  */
+  const ticked = status.state === "confirmed" && !declined;
+
   return (
-    <div>
+    <div ref={page}>
       {/*
         "Not accepted", the word Trips already uses for a declined request
         (yuvoy-app#100), rather than "Released", which reads as though the
         traveller let it go.
       */}
-      <p className="eyebrow text-terra-deep">
-        {declined ? "Not accepted" : copy.eyebrow}
+      <p className={cn("eyebrow text-terra-deep", ticked && "eyebrow-tick")}>
+        {ticked ? <TickMark /> : null}
+        <FadeText>{declined ? "Not accepted" : copy.eyebrow}</FadeText>
       </p>
       <h1 className="font-display tracking-display mt-3 text-3xl leading-tight sm:text-4xl">
-        {declined ? "Your request was not accepted" : (when ?? copy.title)}
+        <FadeText block>
+          {declined ? "Your request was not accepted" : (when ?? copy.title)}
+        </FadeText>
       </h1>
       {/*
         WHY the trip is off — yuvoy-app#22 §2.
@@ -320,7 +379,7 @@ function StatusBody({
       {body ? (
         <p className="text-forest/70 mt-3 max-w-prose text-sm">
           {/* The state's own words lead the line when the hour is the title. */}
-          {when ? `${copy.title}. ${body}` : body}
+          <FadeText block>{when ? `${copy.title}. ${body}` : body}</FadeText>
         </p>
       ) : null}
 
@@ -423,7 +482,7 @@ function StatusBody({
         that is not happening.
       */}
       {cashOwed(status) && status.state === "confirmed" ? (
-        <Panel className="mt-6">
+        <Panel data-arrival-panel="" className="mt-6">
           <p className="text-base font-bold">
             Bring{" "}
             {formatMoney({
@@ -446,7 +505,7 @@ function StatusBody({
         disagree about one call-off. See `cashToGetBack`.
       */}
       {cashBack !== null ? (
-        <Panel className="mt-6">
+        <Panel data-arrival-panel="" className="mt-6">
           <p className="text-base font-bold">
             You get your{" "}
             {formatMoney({
@@ -488,16 +547,18 @@ function StatusBody({
 
       {/* Everything needed for the day, on the page. Not in a message that
           may never arrive. */}
-      <Panel className="mt-8 p-0">
+      <Panel data-arrival-panel="" className="mt-8 p-0">
         <dl className="divide-paper-line divide-y text-sm">
           {status.bookingReference ? (
             <Row label="Reference">
-              <span className="text-lg font-bold tracking-wider slashed-zero tabular-nums">
-                {status.bookingReference}
-              </span>
-              <p className="text-forest/70 mt-1 text-xs">
-                Read this out at the jetty. It is how the operator finds you.
-              </p>
+              <div data-arrival-reference="">
+                <span className="text-lg font-bold tracking-wider slashed-zero tabular-nums">
+                  {status.bookingReference}
+                </span>
+                <p className="text-forest/70 mt-1 text-xs">
+                  Read this out at the jetty. It is how the operator finds you.
+                </p>
+              </div>
             </Row>
           ) : null}
           {/*
@@ -926,4 +987,46 @@ function DeclineOffer({
       </ButtonLink>
     </div>
   );
+}
+
+/** The tick a confirmed booking's eyebrow carries in place of its square. */
+function TickMark() {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden="true" className="eyebrow-tick-mark">
+      <path data-arrival-tick="" d="M2.25 6.5 5 9.25 9.75 3" pathLength={1} />
+    </svg>
+  );
+}
+
+/** The moment, played once on the page the booking tap lands on (T10 A). */
+function settle(root: HTMLElement) {
+  if (typeof root.animate !== "function") return;
+  // The first panel in reading order: what to bring, else the booking itself.
+  const panel = root.querySelector<HTMLElement>("[data-arrival-panel]");
+  const reference = root.querySelector<HTMLElement>("[data-arrival-reference]");
+  const tick = root.querySelector<SVGPathElement>("[data-arrival-tick]");
+  if (prefersReducedMotion()) {
+    for (const el of [panel, reference])
+      el?.animate([{ opacity: 0 }], {
+        duration: DURATION.reducedFade,
+        easing: "linear",
+      });
+    return;
+  }
+  panel?.animate([{ opacity: 0, transform: "translateY(12px)" }], {
+    duration: DURATION.sheet,
+    easing: EASE.interaction,
+  });
+  tick?.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], {
+    duration: DURATION.sheet,
+    delay: 100,
+    easing: EASE.interaction,
+    fill: "backwards",
+  });
+  reference?.animate([{ opacity: 0 }], {
+    duration: DURATION.quick,
+    delay: 200,
+    easing: EASE.interaction,
+    fill: "backwards",
+  });
 }

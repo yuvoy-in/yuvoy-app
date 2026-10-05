@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useRouter } from "next/navigation";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { Skeleton, LoadingState } from "@/components/states";
 import { useMyAccount, type TravellerAccount } from "@/lib/auth/use-my-account";
 import { civilInZone, monthName } from "@/lib/format/date";
 import { HelpSection } from "@/components/support/help-section";
+import { SheetPresence } from "@/components/ui/sheet";
 import { EditProfileSheet } from "./edit-profile-sheet";
 import { FirstSignIn } from "./first-sign-in";
 import { InviteCodeForm } from "@/components/auth/invite-gate";
@@ -370,8 +371,10 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
       */}
       <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
 
-      {editing && me ? (
-        <EditProfileSheet account={me} onClose={() => setEditing(false)} />
+      {me ? (
+        <SheetPresence open={editing}>
+          <EditProfileSheet account={me} onClose={() => setEditing(false)} />
+        </SheetPresence>
       ) : null}
     </Screen>
   );

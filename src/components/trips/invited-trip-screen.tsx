@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useRouter } from "next/navigation";
 import { YuvoyError } from "@/lib/api/errors";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
@@ -16,7 +16,7 @@ import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
-import { Sheet } from "@/components/ui/sheet";
+import { Sheet, SheetPresence } from "@/components/ui/sheet";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { CalendarIcon, MapPinIcon, ClockIcon } from "@/components/ui/icons";
 
@@ -241,7 +241,7 @@ export function InvitedTripScreen({ id }: { id: string }) {
         </div>
       ) : null}
 
-      {confirming ? (
+      <SheetPresence open={confirming}>
         <Sheet
           open
           onClose={() => setConfirming(false)}
@@ -283,7 +283,7 @@ export function InvitedTripScreen({ id }: { id: string }) {
             </p>
           ) : null}
         </Sheet>
-      ) : null}
+      </SheetPresence>
     </Screen>
   );
 }

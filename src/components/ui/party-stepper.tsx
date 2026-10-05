@@ -2,6 +2,7 @@
 
 import { IconButton } from "./icon-button";
 import { MinusIcon, PlusIcon } from "./icons";
+import { RollingNumber } from "./rolling-number";
 
 /**
  * How many of you — a plus, a minus, and the cap the API enforces.
@@ -57,10 +58,11 @@ export function PartyStepper({
           count rather than only the button that changed it.
         */}
         <span
-          className="w-8 text-center text-xl font-bold tabular-nums"
+          className="relative w-8 overflow-hidden text-center text-xl font-bold tabular-nums"
           aria-live="polite"
         >
-          {value}
+          {/* It rolls to its new figure (T09 A), inside this box. */}
+          <RollingNumber value={value} />
         </span>
         <IconButton
           label="One more guest"

@@ -1,5 +1,9 @@
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from "react";
-import Link from "next/link";
+import type {
+  AnchorHTMLAttributes,
+  ButtonHTMLAttributes,
+  ReactNode,
+} from "react";
+import Link from "@/components/ui/link";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 import { ArrowRightIcon } from "./icons";
@@ -15,13 +19,23 @@ import { ArrowRightIcon } from "./icons";
  * Every button is a pill (v2.7). The label is the system's tracked caps, so
  * a button reads as an instruction rather than a sentence; the press
  * compresses (`active:scale`) on the interaction budget, never slower.
+ *
+ * ## Working on it (T08 A, approved 4 Oct 2026)
+ *
+ * A button whose tap has started something long (booking, on island signal)
+ * says so without looking switched off: `pending` keeps its full colour and
+ * its focus (`aria-busy`, `aria-disabled`, never `disabled`, which faded it
+ * to 40% for as long as the answer took), cross-fades its label to
+ * `pendingLabel` (the working verb), and shows a 16px ring beside it only if
+ * the wait lasts 300ms, so a quick answer never flashes one. A tap while it
+ * works does nothing. The two labels share one cell, so the button never
+ * changes size, and the one not showing is hidden from assistive technology.
  */
 export const buttonVariants = cva(
   [
     "group inline-flex shrink-0 items-center justify-center gap-2 rounded-full",
     "label font-bold whitespace-nowrap select-none",
-    "transition-[transform,background-color,border-color,color,opacity] duration-200 ease-interaction",
-    "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
+    "motion-control active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
   ],
   {
     variants: {
@@ -59,14 +73,58 @@ export function Button({
   block,
   className,
   type = "button",
+  pending,
+  pendingLabel,
+  children,
+  onClick,
   ...props
-}: Variants & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: Variants &
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    /** Working on what the tap asked for. Needs `pendingLabel`. */
+    pending?: boolean;
+    /** The working verb shown while pending: "Booking", never "Booking…". */
+    pendingLabel?: ReactNode;
+  }) {
+  const working = pendingLabel !== undefined && pending === true;
   return (
     <button
       type={type}
       className={cn(buttonVariants({ variant, size, block }), className)}
       {...props}
-    />
+      aria-busy={working || undefined}
+      aria-disabled={working || props["aria-disabled"]}
+      data-pending={working ? "" : undefined}
+      onClick={
+        working
+          ? // A second tap while it works: neither a click nor a submit.
+            (e) => e.preventDefault()
+          : onClick
+      }
+    >
+      {pendingLabel === undefined ? (
+        children
+      ) : (
+        <span className="button-labels">
+          <span
+            className="button-label"
+            data-motion=""
+            data-shown={!working}
+            aria-hidden={working || undefined}
+          >
+            {children}
+          </span>
+          <span
+            className="button-label"
+            data-motion=""
+            data-shown={working}
+            aria-hidden={!working || undefined}
+          >
+            {pendingLabel}
+            <span className="button-ring" data-motion="" aria-hidden="true" />
+          </span>
+        </span>
+      )}
+    </button>
   );
 }
 

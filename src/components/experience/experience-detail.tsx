@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
 import { cancellationLine, paymentLine } from "@/lib/booking/listing-lines";
@@ -97,7 +97,11 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       width="lg"
       hero={
         frames.length > 0 ? (
-          <Gallery items={frames} title={experience.title} />
+          <Gallery
+            items={frames}
+            title={experience.title}
+            picture={experience.heroMedia?.id}
+          />
         ) : undefined
       }
       heroActions={

@@ -11,6 +11,7 @@ import {
   useNextOpenDay,
 } from "@/lib/booking/next-open-day";
 import type { components } from "@/lib/api/schema.gen";
+import { useListingLive } from "./preview-context";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -83,7 +84,9 @@ export function BookingLayer({
   before?: ReactNode;
   after?: ReactNode;
 }) {
-  const next = useNextOpenDay(experience.slug, bookable);
+  // Not read by a listing preview until it is shown (T02 C).
+  const live = useListingLive();
+  const next = useNextOpenDay(experience.slug, bookable && live);
   const nextLine = nextOpenSentence(next);
   const price = formatFromPrice(experience.fromPrice);
 

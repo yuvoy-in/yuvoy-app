@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { publishedGuides } from "@/lib/guides/guides";
 import { pageMetadata } from "@/lib/site/metadata";
 import { breadcrumbJsonLd } from "@/lib/site/structured-data";

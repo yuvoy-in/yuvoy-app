@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import Link from "@/components/ui/link";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
 import { formatDuration } from "@/lib/format/time";
@@ -20,6 +26,12 @@ import {
   ChevronRightIcon,
 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+import {
+  DURATION,
+  EASE,
+  prefersReducedMotion,
+  scaledDuration,
+} from "@/lib/motion";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 
@@ -62,6 +74,14 @@ type ExperienceSummary = components["schemas"]["ExperienceSummary"];
  * `tabIndex` sweep: the attribute takes the subtree out of the accessibility
  * tree as well as out of the tab order, which is the difference between hidden
  * and merely unfocusable.
+ *
+ * ## It behaves as it looks (T05 A, approved 4 Oct 2026)
+ *
+ * It has a handle and a rounded top, so it is pulled down like a sheet: the
+ * panel follows the finger on the handle one to one, and let go past 64px, or
+ * flicked, it closes from where it is; otherwise it settles back (200ms). It
+ * opens in 250ms and closes faster than it opens, in 200ms. The handle stays a
+ * button, so the gesture is never the only way to close it (WCAG 2.5.7).
  */
 export function ReelDetails({
   experience,
@@ -94,7 +114,7 @@ export function ReelDetails({
 
     ## Why not simply render on `open`
 
-    Because the way out would be ugly: the panel takes 240ms to slide down, and
+    Because the way out would be ugly: the panel takes 200ms to slide down, and
     contents unmounted at the first frame leave an empty box sliding off the
     screen. Keeping them after the first open costs a few elements on a card the
     traveller has already engaged with.
@@ -115,6 +135,122 @@ export function ReelDetails({
   */
   const [everOpened, setEverOpened] = useState(false);
   if (open && !everOpened) setEverOpened(true);
+
+  /*
+    The pull on the handle. The panel's own transitions do the travel; while a
+    finger holds it the panel follows inline, and its release hands the rest
+    back to them from where it was let go.
+  */
+  const drag = useRef<PanelDrag | null>(null);
+  /** The click a drag ends in is not a tap on the handle. */
+  const swallow = useRef(false);
+  /** Clears the release's own timing once it has run. */
+  const release = useRef<number | undefined>(undefined);
+
+  /*
+    A fresh opening starts from the stylesheet, whatever the last release left
+    inline; and a panel closed under a finger (Escape, the next reel) is let go
+    so the stylesheet takes it from where it is. Before paint, so the opening
+    never runs a release's leftover curve.
+  */
+  useLayoutEffect(() => {
+    const panel = ref.current;
+    if (!panel) return;
+    if (open || drag.current) {
+      window.clearTimeout(release.current);
+      drag.current = null;
+      panel.removeAttribute("data-held");
+      panel.style.transition = "";
+      panel.style.transform = "";
+    }
+  }, [open]);
+
+  const onGrip = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!open || e.button > 0 || !e.isPrimary) return;
+    drag.current = {
+      id: e.pointerId,
+      y0: e.clientY,
+      y: e.clientY,
+      at: e.timeStamp,
+      v: 0,
+      dy: 0,
+      on: false,
+    };
+    ref.current?.setAttribute("data-held", "");
+  };
+
+  const onPull = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    const panel = ref.current;
+    if (!d || !panel || d.id !== e.pointerId) return;
+    /*
+      The card's swipe to the listing never sees a pull's moves, so a pull
+      that wanders sideways stays a pull. Its press does reach the card: that
+      is where the swipe forgets whatever its last gesture left behind.
+    */
+    e.stopPropagation();
+    if (!d.on) {
+      if (Math.abs(e.clientY - d.y0) < PULL.slop) return;
+      d.on = true;
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Not captured: the pull still works while the finger is on the handle.
+      }
+      window.clearTimeout(release.current);
+      panel.style.transition = "none";
+      // From here, so the panel does not jump by the slop.
+      d.y0 = e.clientY;
+    }
+    const dt = e.timeStamp - d.at;
+    if (dt > 0) d.v = (e.clientY - d.y) / dt;
+    d.y = e.clientY;
+    d.at = e.timeStamp;
+    d.dy = Math.max(0, e.clientY - d.y0);
+    panel.style.transform = `translateY(${d.dy}px)`;
+  };
+
+  const onLetGo = (
+    e: ReactPointerEvent<HTMLButtonElement>,
+    cancelled: boolean,
+  ) => {
+    const d = drag.current;
+    const panel = ref.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    panel?.removeAttribute("data-held");
+    if (!d.on || !panel) return;
+    e.stopPropagation();
+    swallow.current = true;
+    const closes = !cancelled && (d.dy > PULL.close || d.v >= PULL.flick);
+    const reduced = prefersReducedMotion();
+    let ms: number;
+    if (reduced) {
+      /*
+        Nothing travels: a closing pull fades out where it was let go, then the
+        panel goes home unseen; a short one is simply back.
+      */
+      ms = closes ? DURATION.reducedFade : 0;
+      panel.style.transition = closes
+        ? `opacity ${ms}ms linear, visibility 0s linear ${ms}ms`
+        : "none";
+      if (!closes) panel.style.transform = "";
+    } else {
+      const h = panel.offsetHeight || 1;
+      ms = closes
+        ? scaledDuration(h - Math.min(d.dy, h), h)
+        : DURATION.standard;
+      panel.style.transition = closes
+        ? `transform ${ms}ms ${EASE.move}, visibility 0s linear ${ms}ms`
+        : `transform ${ms}ms ${EASE.move}`;
+      panel.style.transform = "";
+    }
+    release.current = window.setTimeout(() => {
+      panel.style.transition = "";
+      if (closes) panel.style.transform = "";
+    }, ms + 50);
+    if (closes) onClose();
+  };
 
   /*
     `inert` is set imperatively because React does not yet type it as a DOM
@@ -188,11 +324,23 @@ export function ReelDetails({
       ref={ref}
       className="reel-sheet"
       data-open={open ? "open" : "shut"}
+      // Ships its own reduced motion (a crossfade), so the global rule leaves it.
+      data-motion=""
       id={id}
       role="group"
       aria-label={`Details, ${experience.title}`}
       // Focusable by script only, so focus can land here when it opens.
       tabIndex={-1}
+      // Every press starts clean, whatever the last pull left behind.
+      onPointerDownCapture={() => {
+        swallow.current = false;
+      }}
+      onClickCapture={(e) => {
+        if (!swallow.current) return;
+        swallow.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       {/*
         The handle. The 4px bar is the affordance; the CONTROL is 36px tall and
@@ -205,6 +353,10 @@ export function ReelDetails({
         onClick={onClose}
         aria-label="Close details"
         className="reel-sheet-handle"
+        onPointerDown={onGrip}
+        onPointerMove={onPull}
+        onPointerUp={(e) => onLetGo(e, false)}
+        onPointerCancel={(e) => onLetGo(e, true)}
       />
 
       {everOpened ? (
@@ -446,4 +598,26 @@ function DepartureRow({
       <ChevronRightIcon className="text-paper/60 size-4 shrink-0" />
     </Link>
   );
+}
+
+/** The pull on the handle (T05 A). */
+const PULL = {
+  /** A press becomes a pull past this many px. */
+  slop: 6,
+  /** Let go past this many px and it closes. */
+  close: 64,
+  /** Or flicked down at this speed, px per ms. */
+  flick: 0.5,
+} as const;
+
+interface PanelDrag {
+  id: number;
+  y0: number;
+  y: number;
+  at: number;
+  /** Downward speed, px per ms. */
+  v: number;
+  /** How far the panel is pulled, px. */
+  dy: number;
+  on: boolean;
 }

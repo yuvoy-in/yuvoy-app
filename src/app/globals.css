@@ -135,6 +135,17 @@
      halfway through every entrance on the site. */
   --ease-cinematic: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-interaction: cubic-bezier(0.32, 0.72, 0, 1);
+  /*
+    The motion system (approved 4 Oct 2026, yuvoy/motion-lab). Two curves
+    production had no word for. `move`: A to B with both ends on screen (an
+    indicator gliding, a list closing a gap); Material 3's standard curve.
+    `exit`: leaving, accelerating away so a dismissal never lingers; Material
+    3's emphasized accelerate. Durations are written where they are used, on
+    the scale press 100 / quick 150 / standard 200 / sheet 250 / spatial 350 /
+    moment 450ms, and palette.test.ts holds every pairing to its budget.
+  */
+  --ease-move: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
 
   /* ------------------------------------------------------------- tracking */
   --tracking-wordmark: 0.34em;
@@ -224,14 +235,22 @@
 
   /*
     Respect users who prefer less motion. This neutralises every animation and
-    transition globally, which is why individual components never need their
-    own reduced-motion branch. Feed autoplay is disabled separately in JS —
-    a paused video is not an animation the browser knows about.
+    transition globally. Feed autoplay is disabled separately in JS: a paused
+    video is not an animation the browser knows about.
+
+    Reduced motion SWAPS travel for a fade rather than deleting meaning (S01,
+    approved 4 Oct 2026): an element that ships its own reduced version (a
+    120ms crossfade in place of a slide) carries `data-motion` and is left to
+    it; everything unmarked is made instant, exactly as before. The motion
+    helpers in `lib/motion` are what mark an element, so no component writes
+    the branch by hand. `::backdrop` was missed by the old rule (a sheet's
+    tint still faded for 250ms); it is covered now.
   */
   @media (prefers-reduced-motion: reduce) {
-    *,
-    ::before,
-    ::after {
+    *:not([data-motion]),
+    *:not([data-motion])::before,
+    *:not([data-motion])::after,
+    :not([data-motion])::backdrop {
       animation-duration: 0.001ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.001ms !important;
@@ -609,27 +628,84 @@
 }
 
 /**
- * Skeletons. A slow shimmer rather than a spinner: a spinner says "wait",
+ * Skeletons. A slow breath rather than a spinner: a spinner says "wait",
  * a skeleton says "here is the shape of what is coming", and on a 0.5 Mbps
- * connection the second is the honest message. Killed by reduced-motion above.
+ * connection the second is the honest message. Stilled by reduced-motion
+ * above.
+ *
+ * T11 A (approved 4 Oct 2026): it breathes, opacity 1 to 0.55 and back over
+ * 1.6s, on `ease-in-out`, the one symmetric curve, because a loop needs one.
+ * It used to sweep a gradient across itself with `background-position`,
+ * which is paint, not composite: every frame of every wait, on island signal
+ * that is seconds, repainted every tile. Opacity is composited.
  */
 @utility skeleton {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, currentColor 8%, transparent) 25%,
-    color-mix(in srgb, currentColor 14%, transparent) 37%,
-    color-mix(in srgb, currentColor 8%, transparent) 63%
-  );
-  background-size: 400% 100%;
-  animation: skeleton-sweep 1.6s var(--ease-interaction) infinite;
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+  animation: skeleton-breath 1.6s ease-in-out infinite;
 }
 
-@keyframes skeleton-sweep {
-  from {
-    background-position: 100% 50%;
+/* The breath alone, for a placeholder whose shapes breathe as one layer. */
+@utility skeleton-breath {
+  animation: skeleton-breath 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-breath {
+  50% {
+    opacity: 0.55;
   }
-  to {
-    background-position: 0 50%;
+}
+
+/*
+  Content replacing a placeholder fades in where it lands (150ms; the motion
+  system §8). Instant under reduced motion, through the global rule.
+*/
+@utility motion-fade-in {
+  animation: motion-fade-in 150ms var(--ease-interaction) both;
+}
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+  Something that must be SEEN arrives where it lands: it fades in rising 8px
+  (150ms), as a refusal at the foot of a form does (T08 A). Reduced motion:
+  it only fades (120ms). Marked `data-motion` where it is used.
+*/
+@utility motion-rise-in {
+  animation: motion-rise-in 150ms var(--ease-interaction) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: motion-fade-in 120ms linear both;
+  }
+}
+
+@keyframes motion-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/*
+  A reason (a field's error) arriving: it fades in rising 4px (150ms), one
+  40ms step after what makes room for it has started to move (T16 A).
+  Reduced motion: it only fades (120ms). Marked `data-motion` where used.
+*/
+@utility motion-reason-in {
+  animation: motion-reason-in 150ms var(--ease-interaction) 40ms both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: motion-fade-in 120ms linear both;
+  }
+}
+
+@keyframes motion-reason-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
 }
 
@@ -663,6 +739,767 @@
 
   @media (min-width: 64rem) {
     padding-bottom: 2rem;
+  }
+}
+
+/* ------------------------------------------------- motion: presses, bar */
+
+/*
+  Press feedback (T13 A, approved 4 Oct 2026): the scale a finger causes eases
+  in over 100ms and back over 150ms. Tailwind 4 writes `active:scale-*` to the
+  standalone `scale` property, and every list here used to name only
+  `transform`, so every press in the app snapped in and snapped back. These
+  name `scale`; `palette.test.ts` fails an `active:scale-` with no list that
+  does. `motion-control` is a Button's set, `motion-disc` a disc's (no
+  opacity: a disabled disc has always dimmed at once).
+
+  Reduced motion: a press changes the control's ground instead of its size.
+*/
+@utility motion-control {
+  transition:
+    scale 150ms var(--ease-interaction),
+    transform 200ms var(--ease-interaction),
+    background-color 200ms var(--ease-interaction),
+    border-color 200ms var(--ease-interaction),
+    color 200ms var(--ease-interaction),
+    opacity 200ms var(--ease-interaction);
+
+  &:active {
+    transition-duration: 100ms, 200ms, 200ms, 200ms, 200ms, 200ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:active {
+      scale: 1 !important;
+      opacity: 0.85;
+    }
+  }
+}
+
+@utility motion-disc {
+  transition:
+    scale 150ms var(--ease-interaction),
+    transform 200ms var(--ease-interaction),
+    background-color 200ms var(--ease-interaction),
+    color 200ms var(--ease-interaction),
+    border-color 200ms var(--ease-interaction),
+    box-shadow 200ms var(--ease-interaction);
+
+  &:active {
+    transition-duration: 100ms, 200ms, 200ms, 200ms, 200ms, 200ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:active {
+      scale: 1 !important;
+      opacity: 0.85;
+    }
+  }
+}
+
+/*
+  A button working on its tap (T08 A, approved 4 Oct 2026; `ui/button.tsx`).
+  Its two labels share one grid cell, so the button keeps its size; the one
+  showing fades in over 150ms as the other fades out over 100ms. The ring is
+  there from the tap but invisible until the wait has lasted 300ms, then
+  fades in and turns once a second: honest progress, the one kind of loop.
+  Reduced motion: the labels cross-fade in 120ms and the ring steps a quarter
+  turn a second, so progress is still shown without anything spinning.
+*/
+@layer components {
+  .button-labels {
+    display: grid;
+  }
+
+  .button-label {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: opacity 150ms var(--ease-interaction);
+  }
+
+  .button-label[data-shown="false"] {
+    opacity: 0;
+    transition-duration: 100ms;
+    transition-timing-function: var(--ease-exit);
+  }
+
+  .button-ring {
+    width: 1rem;
+    height: 1rem;
+    flex: none;
+    border-radius: 9999px;
+    border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+    opacity: 0;
+  }
+
+  [data-pending] {
+    cursor: progress;
+  }
+
+  [data-pending] .button-ring {
+    animation:
+      button-ring-in 150ms var(--ease-interaction) 300ms forwards,
+      button-ring-turn 1s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button-label,
+    .button-label[data-shown="false"] {
+      transition: opacity 120ms linear;
+    }
+
+    [data-pending] .button-ring {
+      animation:
+        button-ring-in 120ms linear 300ms forwards,
+        button-ring-turn 4s steps(4, end) infinite;
+    }
+  }
+
+  @keyframes button-ring-in {
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes button-ring-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+/*
+  The tab bar (T04 B, approved 4 Oct 2026). The pill's surface is drawn by
+  `.tabbar-ground` so the glide can stretch it while the row inside stays
+  sharp; `tab-glide.ts` explains the rest. Until the glide is armed (the
+  server's HTML, no script) the open link paints its own paper, as it always
+  has, and the lit layer is not drawn at all.
+*/
+@layer components {
+  .tabbar-ground {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    transform-origin: 0 0;
+  }
+
+  .tab-lit {
+    visibility: hidden;
+  }
+
+  [data-tab-glide="on"] .tab-lit {
+    visibility: visible;
+    background-color: var(--color-paper);
+    color: var(--color-forest);
+  }
+
+  [data-tab-glide="on"] .tab-link[data-lit] {
+    background-color: transparent;
+    color: color-mix(in srgb, var(--color-paper) 70%, transparent);
+  }
+
+  .tab-lit-item[data-lit]::after {
+    content: attr(data-label);
+  }
+
+  /*
+    Save (T13 A): glyph, ring and colour change together, in 150ms. The
+    outline mark gives way to the filled one as it settles from 0.9.
+  */
+  .motion-disc.save-toggle {
+    transition-duration: 150ms, 200ms, 200ms, 150ms, 200ms, 150ms;
+  }
+
+  .motion-disc.save-toggle:active {
+    transition-duration: 100ms, 200ms, 200ms, 150ms, 200ms, 150ms;
+  }
+
+  .save-glyphs {
+    display: grid;
+  }
+
+  .save-glyphs > svg {
+    grid-area: 1 / 1;
+    transition:
+      opacity 150ms var(--ease-interaction),
+      scale 150ms var(--ease-interaction);
+  }
+
+  .save-toggle:not([aria-pressed="true"]) .save-glyphs > [data-glyph="on"],
+  .save-toggle[aria-pressed="true"] .save-glyphs > [data-glyph="off"] {
+    opacity: 0;
+  }
+
+  .save-toggle:not([aria-pressed="true"]) .save-glyphs > [data-glyph="on"] {
+    scale: 0.9;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .save-glyphs > svg {
+      transition: opacity 120ms linear;
+      scale: 1 !important;
+    }
+  }
+
+  /*
+    The share notice (T13 A) slides 6px out of the disc it belongs to as it
+    fades in, and fades as it leaves; 150ms each way. `transform`, because the
+    pill's vertical centring is Tailwind's `translate` and must not move.
+  */
+  .share-notice {
+    pointer-events: none;
+    transition:
+      opacity 150ms var(--ease-interaction),
+      transform 150ms var(--ease-interaction);
+  }
+
+  .share-notice[data-shown="false"] {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .share-notice {
+      transition: opacity 120ms linear;
+    }
+
+    .share-notice[data-shown="false"] {
+      transform: none;
+    }
+  }
+
+  /* The glyph dips under the finger: 0.86, in 100ms and out in 150ms. */
+  .tab-glyph > svg {
+    transition: scale 150ms var(--ease-interaction);
+  }
+
+  :is(.tab-link, .tab-lit-item)[data-pressed] .tab-glyph > svg {
+    scale: 0.86;
+    transition-duration: 100ms;
+  }
+
+  /*
+    The open destination's name arrives just after the paper starts moving,
+    in 150ms. Only once the bar has moved at least once: on first paint the
+    name is simply there.
+  */
+  [data-tab-glide="on"][data-moved] .tab-link[data-lit] .tab-label,
+  [data-tab-glide="on"][data-moved] .tab-lit-item[data-lit]::after {
+    animation: tab-label-in 150ms var(--ease-interaction) 60ms both;
+  }
+
+  @keyframes tab-label-in {
+    from {
+      opacity: 0;
+      transform: translateX(-4px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab-glyph > svg {
+      transition: none;
+    }
+
+    :is(.tab-link, .tab-lit-item)[data-pressed] .tab-glyph > svg {
+      scale: 1;
+    }
+
+    [data-tab-glide="on"][data-moved] .tab-link[data-lit] .tab-label,
+    [data-tab-glide="on"][data-moved] .tab-lit-item[data-lit]::after {
+      animation: tab-label-fade 120ms linear both;
+    }
+
+    @keyframes tab-label-fade {
+      from {
+        opacity: 0;
+      }
+    }
+  }
+}
+
+/*
+  The Trips tabs' fill (T07 A, approved 4 Oct 2026; `trips/trip-tabs.tsx`).
+  Not drawn until script has placed it; then the chips all draw unchosen and
+  the fill, clipped to the chosen one, draws the choice and glides to the next
+  in 250ms. Unlayered, so the chosen chip's own utilities give way to it.
+*/
+.trip-tab-fill {
+  visibility: hidden;
+}
+
+[data-tab-fill="on"] > .trip-tab-fill {
+  visibility: visible;
+  transition: clip-path 250ms var(--ease-move);
+}
+
+[data-tab-fill="on"] > [role="tab"][aria-selected="true"] {
+  border-color: var(--color-paper-line);
+  background-color: var(--color-paper-deep);
+  color: var(--color-forest);
+}
+
+/*
+  The chosen day's window (T09 A, approved 4 Oct 2026;
+  `checkout/day-strip.tsx`). Inside the strip, so it scrolls with the days;
+  one day wide, and clipped there, with the strip drawn chosen inside it.
+  Once it is placed the days under it all draw unchosen.
+*/
+.day-window {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  pointer-events: none;
+}
+
+.day-window-copy {
+  position: absolute;
+}
+
+[data-day-window="on"] > button[aria-pressed="true"] {
+  border-color: var(--color-paper-line);
+  background-color: var(--color-paper-deep);
+  color: var(--color-forest);
+}
+
+[data-day-window="on"] > button[aria-pressed="true"] > span:last-child {
+  color: color-mix(in srgb, var(--color-forest) 70%, transparent);
+}
+
+/*
+  A confirmed booking's eyebrow: a tick where the terra square is (T10 A,
+  approved 4 Oct 2026, with the owner's word on the tick). Drawn with a stroke
+  so the moment the booking lands can draw it (`booking-screen.tsx`); at rest
+  it is simply there. Terra, as the square was, and hidden from assistive
+  technology: the word beside it carries the state.
+*/
+.eyebrow-tick::before {
+  display: none;
+}
+
+.eyebrow-tick-mark {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  overflow: visible;
+}
+
+.eyebrow-tick-mark path {
+  fill: none;
+  stroke: var(--color-terra);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+/*
+  A reel that is slow to start, saying so (T12 A, approved 4 Oct 2026;
+  `feed/feed-player.tsx`). Drawn while the clip could be starting, shown only
+  while a start is slow: it fades in (150ms) and out as the clip plays (150ms,
+  accelerating away). It turns only while it shows, and stops where it is as
+  it fades. Reduced motion: it fades in and out (120ms) and holds still.
+*/
+.feed-slow-ring {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms var(--ease-exit);
+}
+
+.feed-slow-ring[data-shown="true"] {
+  opacity: 1;
+  transition-timing-function: var(--ease-interaction);
+}
+
+.feed-slow-ring > span {
+  animation: feed-ring-turn 1s linear infinite paused;
+}
+
+.feed-slow-ring[data-shown="true"] > span {
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-slow-ring,
+  .feed-slow-ring[data-shown="true"] {
+    transition: opacity 120ms linear;
+  }
+
+  .feed-slow-ring > span {
+    animation: none;
+  }
+}
+
+@keyframes feed-ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------ motion: the far side recedes */
+
+/*
+  THE FAR SIDE RECEDES (T15 A, approved 4 Oct 2026 on the condition that it
+  measures cheap; DESIGN_SYSTEM has the measurement). On a phone the sheet
+  scrolls up over a screen's picture, and as it covers it the picture scales
+  from 1 to 0.96 from its top edge while an abyss layer over it rises to 45%.
+  Linked to the scroll position, with no duration and no trigger: linear in
+  scroll, it moves only with the finger and stops when it stops.
+
+  CSS alone, on a scroll timeline the browser runs off the main thread: no
+  script, no listener. The range runs from the top to the sheet covering the
+  picture, which is the picture's own height (`--hero-height`, declared beside
+  its size) less the sheet's rise over it (`--hero-overlap`). A browser with
+  no scroll timelines keeps the still picture, as before. Only the far side's
+  own picture, and only under `lg`, where there is a far side at all.
+
+  Reduced motion: the picture does not scale; the dim stays (it is colour,
+  not movement). `animation-timeline` comes after the shorthand, which resets
+  it.
+*/
+@supports (animation-timeline: scroll()) {
+  @media (width < 64rem) {
+    .far-side > .far-side-picture {
+      transform-origin: 50% 0;
+      animation: far-side-recede auto linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 calc(var(--hero-height) - var(--hero-overlap, 0px));
+    }
+
+    .far-side > .far-side-picture::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-color: var(--color-abyss);
+      opacity: 0;
+      pointer-events: none;
+      animation: far-side-dim auto linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 calc(var(--hero-height) - var(--hero-overlap, 0px));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .far-side > .far-side-picture {
+        animation: none;
+      }
+    }
+  }
+}
+
+@keyframes far-side-recede {
+  to {
+    scale: 0.96;
+  }
+}
+
+@keyframes far-side-dim {
+  to {
+    opacity: 0.45;
+  }
+}
+
+/* --------------------------------------------- motion: screen changes */
+
+/*
+  How a screen change looks (T01 C and A, T02 C, T03 B; approved 4 Oct 2026).
+
+  Each screen change is a React view transition carrying one type, decided
+  from the two routes in `lib/motion/route-motion.ts`; the parts of a screen
+  answer each type with one of the classes below. A part a type does not name
+  stays out of the transition entirely, and so does the page around it: the
+  root is never animated, so the forest stage is simply there, and a change
+  with no type (the browser's own back, iOS Safari's swipe) does not move at
+  all.
+
+  The live page stays pressable underneath while a change runs.
+
+  Stacking, low to high: what leaves or arrives in place, then the picture
+  that flies (T03), then a sheet that rises or drops over both, then the bar.
+*/
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(root) {
+  display: none;
+}
+
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* Fade through (T01 A): the old leaves quickly, the new arrives gently. */
+::view-transition-old(.vt-fade-out) {
+  animation: vt-fade-out 100ms var(--ease-exit) both;
+}
+
+::view-transition-new(.vt-fade-in) {
+  animation: vt-fade-in 150ms var(--ease-interaction) both;
+}
+
+/* The stage strip: a header, or a picture and its discs (T01 C). */
+::view-transition-new(.vt-stage-in) {
+  animation: vt-fade-in 150ms var(--ease-interaction) both;
+}
+
+::view-transition-old(.vt-stage-out) {
+  animation: vt-fade-out 100ms var(--ease-exit) both;
+}
+
+::view-transition-old(.vt-stage-out-slow) {
+  animation: vt-fade-out 200ms var(--ease-exit) both;
+}
+
+/*
+  Into a focused screen (T01 C): the new sheet rises 32px and fades in over
+  the old one, whose words leave it first. The old sheet's PAPER is held
+  under them (the group's own ground) so the change never dips to the forest
+  stage between two white sheets; on a phone only, where a sheet is the full
+  width, since a desktop panel floats on the stage anyway.
+*/
+::view-transition-new(.vt-sheet-rise) {
+  animation: vt-rise 250ms var(--ease-interaction) both;
+}
+
+::view-transition-old(.vt-sheet-hold) {
+  animation: vt-fade-out 100ms var(--ease-exit) both;
+}
+
+/* Back (T01 C): the sheet drops 24px as it fades; the one behind returns. */
+::view-transition-old(.vt-sheet-drop) {
+  animation: vt-drop 200ms var(--ease-exit) both;
+}
+
+::view-transition-new(.vt-sheet-return) {
+  animation: vt-fade-in 150ms var(--ease-interaction) both;
+}
+
+@media (width < 64rem) {
+  ::view-transition-group(.vt-sheet-hold),
+  ::view-transition-group(.vt-sheet-return) {
+    background-color: var(--color-paper);
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+}
+
+/* The tab bar steps down as it leaves and up as it returns (T01 C). */
+::view-transition-old(.vt-bar-out) {
+  animation: vt-step-down 150ms var(--ease-exit) both;
+}
+
+::view-transition-new(.vt-bar-in) {
+  animation: vt-step-up 150ms var(--ease-interaction) both;
+}
+
+/*
+  A reel and its listing (T02 C). The listing is the page to the right of the
+  reel: it slides in over it while the reel moves a third as far and dims
+  25% toward the forest (its opacity over the stage), and Back reverses it.
+*/
+::view-transition-new(.vt-push-in) {
+  animation: vt-push-in 350ms var(--ease-cinematic) both;
+}
+
+::view-transition-old(.vt-reel-leave) {
+  animation: vt-reel-leave 350ms var(--ease-cinematic) both;
+}
+
+::view-transition-old(.vt-push-out) {
+  animation: vt-push-out 250ms var(--ease-move) both;
+}
+
+::view-transition-new(.vt-reel-return) {
+  animation: vt-reel-return 250ms var(--ease-move) both;
+}
+
+/*
+  The saved picture flies to the listing's hero, its corners squaring as it
+  lands, and home again on Back (T03 B). Neither image fades: the hero may
+  still be loading as the flight starts, and a crossfade to nothing would be
+  the picture vanishing mid-air, so the saved picture is drawn until the
+  hero's own pixels arrive over it.
+*/
+::view-transition-group(.vt-picture) {
+  animation-duration: 350ms;
+  animation-timing-function: var(--ease-cinematic);
+}
+
+::view-transition-group(.vt-picture-home) {
+  animation-duration: 250ms;
+  animation-timing-function: var(--ease-move);
+}
+
+::view-transition-image-pair(.vt-picture) {
+  overflow: clip;
+  animation: vt-corners-square 350ms var(--ease-cinematic) both;
+}
+
+::view-transition-image-pair(.vt-picture-home) {
+  overflow: clip;
+  animation: vt-corners-round 250ms var(--ease-move) both;
+}
+
+::view-transition-old(.vt-picture),
+::view-transition-new(.vt-picture),
+::view-transition-old(.vt-picture-home),
+::view-transition-new(.vt-picture-home) {
+  animation: none;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+::view-transition-group(.vt-picture),
+::view-transition-group(.vt-picture-home) {
+  z-index: 1;
+}
+
+::view-transition-group(.vt-sheet-rise),
+::view-transition-group(.vt-sheet-drop),
+::view-transition-group(.vt-push-in),
+::view-transition-group(.vt-push-out) {
+  z-index: 2;
+}
+
+::view-transition-group(.vt-bar-out),
+::view-transition-group(.vt-bar-in) {
+  z-index: 3;
+}
+
+/*
+  From `lg` up a reel is a column on the stage and its listing a panel beside
+  the rail; a page arriving from the viewport's right edge would cross the
+  rail. The listing rises like any focused screen there.
+*/
+@media (width >= 64rem) {
+  ::view-transition-new(.vt-push-in) {
+    animation: vt-rise 250ms var(--ease-interaction) both;
+  }
+
+  ::view-transition-old(.vt-reel-leave) {
+    animation: vt-fade-out 100ms var(--ease-exit) both;
+  }
+
+  ::view-transition-old(.vt-push-out) {
+    animation: vt-drop 200ms var(--ease-exit) both;
+  }
+
+  ::view-transition-new(.vt-reel-return) {
+    animation: vt-fade-in 150ms var(--ease-interaction) both;
+  }
+}
+
+/*
+  Reduced motion (S01 A): nothing travels. Every part crossfades in 120ms and
+  the picture lands where it is going at once. The root stays as it is.
+*/
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+  }
+
+  ::view-transition-image-pair(*) {
+    animation: none !important;
+  }
+
+  ::view-transition-old(*) {
+    animation: vt-fade-out 120ms linear both !important;
+  }
+
+  ::view-transition-new(*) {
+    animation: vt-fade-in 120ms linear both !important;
+  }
+
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+@keyframes vt-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+
+@keyframes vt-drop {
+  to {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+@keyframes vt-step-down {
+  to {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes vt-step-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes vt-push-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-push-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-reel-leave {
+  to {
+    opacity: 0.75;
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes vt-reel-return {
+  from {
+    opacity: 0.75;
+    transform: translateX(-30%);
+  }
+}
+
+@keyframes vt-corners-square {
+  from {
+    border-radius: var(--radius-tile);
+  }
+  to {
+    border-radius: 0;
+  }
+}
+
+@keyframes vt-corners-round {
+  from {
+    border-radius: 0;
+  }
+  to {
+    border-radius: var(--radius-tile);
   }
 }
 
@@ -741,29 +1578,53 @@
     a test detail.
 
     So visibility flips too, with a delay exactly the length of the slide: going
-    out it stays visible for the 240ms it takes to leave and hides at the end;
+    out it stays visible for the 200ms it takes to leave and hides at the end;
     coming in it becomes visible on the same frame the transform starts, because
     the open rule carries no delay. A transition on `visibility` steps rather
     than interpolating, which is what makes this work at all.
+
+    T05 A (approved 4 Oct 2026): in 250ms, out faster, in 200ms accelerating
+    away. A pull on the handle writes its own timing inline while it finishes
+    (`reel-details.tsx`), always on the same delayed-visibility shape.
   */
   visibility: hidden;
   transition:
-    transform 240ms var(--ease-interaction),
-    visibility 0s linear 240ms;
+    transform 200ms var(--ease-exit),
+    visibility 0s linear 200ms;
 
   &[data-open="open"] {
     transform: none;
     visibility: visible;
     transition:
-      transform 240ms var(--ease-interaction),
+      transform 250ms var(--ease-interaction),
       visibility 0s linear 0s;
+  }
+
+  /* Reduced motion (S01 A): it crossfades in place; nothing slides. */
+  @media (prefers-reduced-motion: reduce) {
+    transform: none;
+    opacity: 0;
+    transition:
+      opacity 120ms linear,
+      visibility 0s linear 120ms;
+
+    &[data-open="open"] {
+      opacity: 1;
+      transition:
+        opacity 120ms linear,
+        visibility 0s linear 0s;
+    }
   }
 }
 
 /* The 4px bar is the affordance; the CONTROL is 36px and the full width,
-   because a 4px target is not a target. */
+   because a 4px target is not a target. It is also the pull's grip (T05 A):
+   `touch-action: none`, or a pull down on it would scroll the feed back a
+   reel instead, and the bar brightens while it is held. */
 @utility reel-sheet-handle {
   @apply flex h-11 w-full items-center justify-center;
+  touch-action: none;
+  cursor: grab;
 
   &::before {
     content: "";
@@ -771,10 +1632,17 @@
     height: 0.25rem;
     border-radius: 9999px;
     background-color: color-mix(in srgb, var(--color-paper) 30%, transparent);
-    transition: background-color 200ms var(--ease-interaction);
+    transition: background-color 150ms var(--ease-interaction);
   }
   &:hover::before {
     background-color: color-mix(in srgb, var(--color-paper) 45%, transparent);
+  }
+  [data-held] > &::before {
+    background-color: color-mix(in srgb, var(--color-paper) 60%, transparent);
+    transition-duration: 100ms;
+  }
+  [data-held] > & {
+    cursor: grabbing;
   }
 }
 
@@ -1006,6 +1874,16 @@
  * The entrance is in the INTERACTION budget, not the cinematic one: a sheet
  * answers a tap. §3 of the design system, and the same ruling the feed's
  * chrome sits under.
+ *
+ * T06 A (approved 4 Oct 2026): on a phone it rises from the bottom edge and
+ * leaves the same way, and its head can be pulled down. The exit and the drag
+ * are script (`sheet.tsx`), which says what it is doing in `data-sheet`
+ * (dragging, settling, leaving) and marks a sheet a finger has held with
+ * `data-sheet-held`, after which its entrance keyframes stay off: dropped,
+ * they would start again from the edge. The tint follows the sheet through
+ * `--sheet-tint` and an exit's `--sheet-leave` and `--sheet-leave-ease`,
+ * which `::backdrop` inherits from its dialog (an engine too old to pass
+ * them down keeps a full tint and a 200ms exit).
  */
 @layer components {
   dialog.app-sheet {
@@ -1016,6 +1894,7 @@
 
   dialog.app-sheet::backdrop {
     background: color-mix(in srgb, var(--color-abyss) 55%, transparent);
+    opacity: var(--sheet-tint, 1);
   }
 
   /* The phone: foot-pinned, full width, its own bottom safe area. */
@@ -1043,12 +1922,76 @@
     }
   }
 
+  /* The phone: from the bottom edge. The panel: the rise it always had. */
   dialog.app-sheet[open] {
-    animation: sheet-rise 250ms var(--ease-interaction);
+    animation: sheet-edge-in 250ms var(--ease-interaction);
+  }
+
+  @media (min-width: 40rem) {
+    dialog.app-sheet[open] {
+      animation: sheet-rise 250ms var(--ease-interaction);
+    }
   }
 
   dialog.app-sheet[open]::backdrop {
     animation: sheet-tint 250ms var(--ease-interaction);
+  }
+
+  /* The head is the grip, on the edge sheet only. */
+  @media (width < 40rem) {
+    .app-sheet .sheet-head {
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+    }
+
+    .app-sheet[data-sheet="dragging"] .sheet-head {
+      cursor: grabbing;
+    }
+  }
+
+  dialog.app-sheet[data-sheet-held]::backdrop {
+    animation: none;
+  }
+
+  dialog.app-sheet[data-sheet="settling"]::backdrop {
+    transition: opacity 200ms var(--ease-move);
+  }
+
+  /* Leaving: nothing in it answers a tap, and the tint goes with it. */
+  dialog.app-sheet[data-sheet="leaving"] {
+    pointer-events: none;
+  }
+
+  dialog.app-sheet[data-sheet="leaving"]::backdrop {
+    animation: sheet-untint var(--sheet-leave, 200ms)
+      var(--sheet-leave-ease, var(--ease-exit)) forwards;
+  }
+
+  /* Reduced motion (S01 A): in and out are a 120ms fade; nothing travels. */
+  @media (prefers-reduced-motion: reduce) {
+    dialog.app-sheet[open],
+    dialog.app-sheet[open]::backdrop {
+      animation: sheet-tint 120ms linear;
+    }
+
+    dialog.app-sheet[data-sheet-held]::backdrop {
+      animation: none;
+    }
+
+    dialog.app-sheet[data-sheet="settling"]::backdrop {
+      transition: none;
+    }
+
+    dialog.app-sheet[data-sheet="leaving"]::backdrop {
+      animation: sheet-untint 120ms linear forwards;
+    }
+  }
+
+  @keyframes sheet-edge-in {
+    from {
+      transform: translateY(100%);
+    }
   }
 
   @keyframes sheet-rise {
@@ -1060,6 +2003,12 @@
 
   @keyframes sheet-tint {
     from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes sheet-untint {
+    to {
       opacity: 0;
     }
   }

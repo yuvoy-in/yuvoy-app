@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/ui/link";
+import { cn } from "@/lib/cn";
 import type { components } from "@/lib/api/schema.gen";
 import { FeedPlayer } from "./feed-player";
 import { ReelDetails } from "./reel-details";
 import { useFeedStore } from "@/lib/feed/store";
 import { useSwipeToOpen } from "@/lib/feed/use-swipe-to-open";
+import { armPeek, DWELL_MS } from "@/lib/feed/listing-peek";
 import { useSaved } from "@/lib/feed/use-saved";
 import { useSaveGate } from "@/components/auth/invite-guard";
 import { nextDepartureSentence } from "@/lib/feed/availability";
@@ -117,7 +119,7 @@ export function ExperienceCard({
   */
   const href = `/e/${experience.slug}`;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const swipeHandlers = useSwipeToOpen(href, surfaceRef);
+  const swipeHandlers = useSwipeToOpen(href, surfaceRef, experience.slug);
   // Whether there is a clip to control. Set by the player; false for a poster
   // that will never play, so no dead mute disc is drawn.
   const [playable, setPlayable] = useState(false);
@@ -152,6 +154,17 @@ export function ExperienceCard({
   useEffect(() => {
     toggle.current = toggleSaved;
   }, [toggleSaved]);
+
+  /*
+    The listing this reel's swipe brings in from the right (T02 C), built once
+    the reel has been watched a moment: a reel scrolled straight past builds
+    nothing. See `lib/feed/listing-peek.ts`.
+  */
+  useEffect(() => {
+    if (!active) return;
+    const timer = setTimeout(() => armPeek(experience.slug, href), DWELL_MS);
+    return () => clearTimeout(timer);
+  }, [active, experience.slug, href]);
 
   const departure = nextDepartureSentence(experience);
   const saved = isSaved(experience.id);
@@ -421,14 +434,24 @@ export function ExperienceCard({
               variant="onDark"
               size="md"
               aria-pressed={saved}
-              className={
-                saved ? "text-terra-soft ring-terra-soft/45" : undefined
-              }
+              className={cn(
+                "save-toggle",
+                saved && "text-terra-soft ring-terra-soft/45",
+              )}
               onClick={() =>
                 askToSave(() => toggle.current(experience.id, experience.slug))
               }
             >
-              {saved ? <BookmarkFilledIcon /> : <BookmarkIcon />}
+              {/*
+                Both glyphs, always drawn, so a save is ONE change (T13 A): the
+                outline gives way to the filled mark as it settles from 0.9,
+                while the ring and the colour arrive, all in 150ms. Quiet on
+                purpose: a pop would read as a like, and saves are private.
+              */}
+              <span className="save-glyphs" aria-hidden="true">
+                <BookmarkIcon data-glyph="off" data-motion="" />
+                <BookmarkFilledIcon data-glyph="on" data-motion="" />
+              </span>
             </IconButton>
 
             {/*

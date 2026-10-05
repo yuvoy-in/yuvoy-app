@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import Image from "next/image";
 import { IconButton } from "@/components/ui/icon-button";
 import {
@@ -14,6 +21,10 @@ import {
 import { FeedPlayer } from "@/components/feed/feed-player";
 import { detectAutoplayAllowed, useFeedStore } from "@/lib/feed/store";
 import { cn } from "@/lib/cn";
+import { ViewTransition } from "@/lib/motion/view-transition";
+import { PICTURE_MOTION, pictureName } from "@/lib/motion/route-motion";
+import { clearPicture, pictureHandedOff } from "@/lib/motion/picture-handoff";
+import { useIsListingPreview, useListingLive } from "./preview-context";
 import type { components } from "@/lib/api/schema.gen";
 
 type Media = components["schemas"]["Media"];
@@ -64,16 +75,37 @@ type Media = components["schemas"]["Media"];
 export function Gallery({
   items,
   title,
+  picture,
 }: {
   items: Media[];
   /** The listing's name, for the alt text of an image that has none. */
   title: string;
+  /**
+   * The picture a saved card shows for this listing (its `heroMedia`). Its
+   * frame and that card are one object: the picture flies between them when
+   * one leads to the other (T03 B).
+   */
+  picture?: string;
 }) {
-  const [active, setActive] = useState(0);
+  /*
+    The frame to open on: the first, unless a card has just handed over the
+    picture it was showing (T03 B). Read once, on the client, never on the
+    server, so a loaded page and its hydration both open on the first.
+  */
+  // The page, or the preview that slides in from a reel (T02 C).
+  const preview = useIsListingPreview();
+  const live = useListingLive();
+  const [opening] = useState(() => {
+    const handed = preview
+      ? null
+      : pictureHandedOff(items.map((media) => media.id));
+    return handed ? items.findIndex((media) => media.id === handed) : 0;
+  });
+  const [active, setActive] = useState(opening);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const hasClip = items.some(playsInPlace);
+  const hasClip = !preview && items.some(playsInPlace);
   const onScreen = useUncovered(rootRef, hasClip);
   const setAutoplayAllowed = useFeedStore((s) => s.setAutoplayAllowed);
 
@@ -91,13 +123,26 @@ export function Gallery({
   }, [hasClip, setAutoplayAllowed]);
 
   /*
+    Open on that frame before anything is painted, and before a screen
+    change takes its picture of the arrival: the picture can only land on a
+    hero that is showing it. Instant by definition (see the reel strip's
+    jump for why not `scrollTo`).
+  */
+  useLayoutEffect(() => {
+    if (preview) return;
+    clearPicture();
+    const strip = stripRef.current;
+    if (strip && opening > 0) strip.scrollLeft = strip.clientWidth * opening;
+  }, [opening, preview]);
+
+  /*
     Which frame is showing. One observer over the strip's children, set up once
     per item count — never a scroll handler, which fires at frame rate and
     fights the browser's own momentum.
   */
   useEffect(() => {
     const strip = stripRef.current;
-    if (!strip) return;
+    if (!strip || preview) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -115,7 +160,7 @@ export function Gallery({
       observer.observe(frame);
     }
     return () => observer.disconnect();
-  }, [items.length]);
+  }, [items.length, preview]);
 
   const scrollTo = (index: number) => {
     const strip = stripRef.current;
@@ -128,7 +173,17 @@ export function Gallery({
 
   return (
     <>
-      <div ref={rootRef} className="bg-abyss relative">
+      {/*
+        The listing's far side (T15 A): it recedes as the sheet covers it,
+        over its own height, which is its frame's shape at full width (4:5 on
+        a phone, 16:9 from `sm`; FRAME below). Kept beside each other so the
+        two cannot drift; `e2e/support/media-motion.ts` measures both.
+      */}
+      <div
+        ref={rootRef}
+        data-motion=""
+        className="bg-abyss far-side-picture relative [--hero-height:125vw] sm:[--hero-height:56.25vw]"
+      >
         <div
           ref={stripRef}
           className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
@@ -137,41 +192,57 @@ export function Gallery({
           aria-label={`Photographs and clips of ${title}`}
         >
           {items.map((media, i) =>
-            playsInPlace(media) ? (
-              <ClipFrame
+            preview ? (
+              <StillFrame
                 key={media.id}
                 media={media}
                 index={i}
-                count={items.length}
-                current={i === active}
-                onScreen={onScreen}
+                title={title}
+                load={live && i === opening}
               />
             ) : (
-              <button
-                key={media.id}
-                type="button"
-                data-frame={i}
-                onClick={() => setLightbox(i)}
-                className={FRAME}
-                aria-label={`Open ${i + 1} of ${items.length} full screen`}
-              >
-                <Image
-                  src={media.posterUrl}
-                  alt={media.alt ?? title}
-                  fill
-                  sizes={FRAME_SIZES}
-                  className="object-cover"
-                  /*
-                    Only the first frame is on the LCP path. The rest are one
-                    swipe away and eagerly loading six full-bleed images on a
-                    0.5 Mbps island link is the page's whole budget.
-                  */
-                  priority={i === 0}
-                  loading={i === 0 ? undefined : "lazy"}
-                  unoptimized={media.posterUrl.startsWith("data:")}
-                />
-                {media.kind === "video" ? <ClipBadge /> : null}
-              </button>
+              sharedWithCard(
+                media,
+                picture,
+                playsInPlace(media) ? (
+                  <ClipFrame
+                    key={media.id}
+                    media={media}
+                    index={i}
+                    count={items.length}
+                    current={i === active}
+                    onScreen={onScreen}
+                  />
+                ) : (
+                  <button
+                    key={media.id}
+                    type="button"
+                    data-frame={i}
+                    onClick={() => setLightbox(i)}
+                    className={FRAME}
+                    aria-label={`Open ${i + 1} of ${items.length} full screen`}
+                  >
+                    <Image
+                      src={media.posterUrl}
+                      alt={media.alt ?? title}
+                      fill
+                      sizes={FRAME_SIZES}
+                      className="object-cover"
+                      /*
+                      Only the frame it opens on is on the LCP path (the
+                      first, unless a saved card handed over another). The
+                      rest are one swipe away and eagerly loading six
+                      full-bleed images on a 0.5 Mbps island link is the
+                      page's whole budget.
+                    */
+                      priority={i === opening}
+                      loading={i === opening ? undefined : "lazy"}
+                      unoptimized={media.posterUrl.startsWith("data:")}
+                    />
+                    {media.kind === "video" ? <ClipBadge /> : null}
+                  </button>
+                ),
+              )
             ),
           )}
         </div>
@@ -234,6 +305,66 @@ export function Gallery({
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * The frame a saved card shows, wrapped so the two are one object across a
+ * screen change (T03 B). Every other frame is left as it is. The name is only
+ * ever given during the two picture changes (`PICTURE_MOTION`), and only to a
+ * frame on screen, so a gallery swiped to another picture simply does not fly.
+ */
+function sharedWithCard(
+  media: Media,
+  picture: string | undefined,
+  frame: ReactNode,
+): ReactNode {
+  if (!picture || media.id !== picture) return frame;
+  return (
+    <ViewTransition
+      key={media.id}
+      name={pictureName(media.id)}
+      {...PICTURE_MOTION}
+    >
+      {frame}
+    </ViewTransition>
+  );
+}
+
+/**
+ * A frame as the listing's preview draws it (T02 C): the picture alone, as
+ * the page's first paint shows it, with nothing to play and nothing to press.
+ * Its picture is only asked for once the preview is shown (`load`), and only
+ * for the frame on screen, which is the one the page itself loads first.
+ */
+function StillFrame({
+  media,
+  index,
+  title,
+  load,
+}: {
+  media: Media;
+  index: number;
+  title: string;
+  load: boolean;
+}) {
+  return (
+    <div data-frame={index} className={FRAME}>
+      {load ? (
+        <Image
+          src={media.posterUrl}
+          alt={media.alt ?? title}
+          fill
+          sizes={FRAME_SIZES}
+          className="object-cover"
+          // Shown means a finger is bringing it in: the page's own LCP image.
+          loading="eager"
+          fetchPriority="high"
+          unoptimized={media.posterUrl.startsWith("data:")}
+        />
+      ) : null}
+      {media.kind === "video" ? <ClipBadge /> : null}
+    </div>
   );
 }
 

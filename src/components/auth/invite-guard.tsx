@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Sheet } from "@/components/ui/sheet";
+import { Sheet, SheetPresence } from "@/components/ui/sheet";
 import { INVITE_ONLY, type Standing } from "@/lib/site/access";
 import { ensureStanding, useStanding } from "@/lib/auth/use-access";
 import { InviteGate, gateTitle, type GateView } from "./invite-gate";
@@ -160,11 +160,12 @@ function GuardedTree({ children }: { children: ReactNode }) {
     <InviteGuardContext value={ask}>
       {children}
       {/*
-        Mounted only while it is open. The sheet is a `<dialog>`, and a closed
-        one on every page is a focus trap waiting to be opened by something
-        else; it also costs the sign-in steps' state on every reel.
+        Mounted only while it is open, and through its exit. The sheet is a
+        `<dialog>`, and a closed one on every page is a focus trap waiting to
+        be opened by something else; it also costs the sign-in steps' state on
+        every reel.
       */}
-      {open ? (
+      <SheetPresence open={open}>
         <Sheet open onClose={close} title={gateTitle(view, "sheet")}>
           <InviteGate
             view={view}
@@ -183,7 +184,7 @@ function GuardedTree({ children }: { children: ReactNode }) {
             onContinue={proceed}
           />
         </Sheet>
-      ) : null}
+      </SheetPresence>
     </InviteGuardContext>
   );
 }

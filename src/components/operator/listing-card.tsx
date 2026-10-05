@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { formatFromPrice } from "@/lib/format/money";
 import { nextDepartureSentence } from "@/lib/feed/availability";
 import { ChevronRightIcon } from "@/components/ui/icons";
