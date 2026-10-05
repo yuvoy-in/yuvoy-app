@@ -92,21 +92,30 @@ export function ReelFrame({
  * `scripts/generate-feed-lockup.mjs`, which derives the ensō and the YUVOY
  * caps from the delivered file and re-centres them.
  *
+ * ## The screen header's row, to the pixel
+ *
+ * The row is the one every other tab root draws (`Screen`'s header): 64px
+ * tall, 16px in from each edge, the mark and Login centred in it. A tab
+ * change from the feed crossfades this masthead into that header, and the two
+ * used to disagree by 4px across and 2px to 6px down (the mark at 20px in,
+ * Login hung from a 16px top padding), so the mark and Login visibly jumped
+ * and doubled on every change to or from the feed. Now nothing in that strip
+ * moves when the tab does.
+ *
  * ## The geometry is measured, not chosen
  *
- * The block is 16px above the row, a 44px row, and 48px of tail: 108px, and
- * `feed-scrim-top`'s stops are percentages of exactly that. The mark is `h-7`
- * centred in the row, so it occupies 24px to 52px, which is 22% to 48% of the
- * gradient. Changing the padding or the height without changing the stops
+ * The block is the 64px row and 44px of tail: 108px, and `feed-scrim-top`'s
+ * stops are percentages of exactly that. The mark is `h-7` centred in the
+ * row, so it occupies 18px to 46px, which is 17% to 43% of the gradient, and
+ * Login 10px to 54px. Changing the row or the tail without changing the stops
  * slides the mark into a lighter band with every contrast test still passing,
  * which is the quietest way to break this; `palette.test.ts` pins all of it.
  *
- * The row is 44px because `LoginButton` is `size="md"` and is the tallest thing
- * in it (yuvoy-app#56). It was 28px, the mark alone, until 14 September, and
- * this arithmetic did not follow at the time: both the comment and the test
- * still described a 124px block that had become 140px. Both are corrected here
- * along with the tail, which came down from 80px to 48px when the owner asked
- * for less shade over the picture.
+ * The block has been 108px since the owner asked for less shade over the
+ * picture (the tail came down from 80px), and it still is: the row grew from
+ * 16px of padding over a 44px row to the header's 64px, and the tail gave
+ * back the 4px. `LoginButton` at `size="md"` is the tallest thing in the row
+ * (yuvoy-app#56).
  *
  * `h-7` rather than the lockup's `h-9`: the ensō is 70% of the delivered
  * drawing's height and 95% of the compact one, so the same class would have
@@ -133,19 +142,21 @@ export function ReelMasthead({ href }: { href?: string }) {
       (yuvoy-app#56 item 2). Getting that wrong makes a two-inch band at the
       top of every reel dead to a swipe, which is where a thumb rests.
     */
-    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-5 pt-4 pb-12 lg:hidden">
-      {href ? (
-        <Link
-          href={href}
-          className="pointer-events-auto flex min-h-11 items-center"
-          aria-label="Yuvoy home"
-        >
+    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 pb-11 lg:hidden">
+      <div className="flex h-16 items-center justify-between gap-3 px-4">
+        {href ? (
+          <Link
+            href={href}
+            className="pointer-events-auto flex min-h-11 items-center"
+            aria-label="Yuvoy home"
+          >
+            <Wordmark tone="paper" className="h-7" priority />
+          </Link>
+        ) : (
           <Wordmark tone="paper" className="h-7" priority />
-        </Link>
-      ) : (
-        <Wordmark tone="paper" className="h-7" priority />
-      )}
-      <LoginButton className="pointer-events-auto" />
+        )}
+        <LoginButton className="pointer-events-auto" />
+      </div>
     </div>
   );
 }

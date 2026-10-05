@@ -122,6 +122,44 @@ test.describe("the reel keeps the screen", () => {
     expect(mark.x).toBeLessThan(viewport.width / 4);
   });
 
+  test("the mark and Login sit where every other tab puts them", async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, "no masthead above lg");
+    /*
+      A tab change from the feed crossfades this masthead into a screen's
+      header. They used to disagree by 4px across and 2px to 6px down, so the
+      mark and Login jumped and doubled on every change to or from the feed.
+    */
+    const boxes = async () => {
+      const mark = await page
+        .getByRole("img", { name: "Yuvoy" })
+        .first()
+        .boundingBox();
+      const login = await page
+        .getByRole("link", { name: "Login" })
+        .first()
+        .boundingBox();
+      if (!mark || !login) throw new Error("no mark or Login");
+      return { mark, login };
+    };
+    const feed = await boxes();
+    await page
+      .locator('nav[aria-label="Primary"]:visible')
+      .getByRole("link", { name: "Search" })
+      .tap();
+    await page.waitForURL("**/search");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const search = await boxes();
+    for (const part of ["mark", "login"] as const)
+      for (const edge of ["x", "y", "width", "height"] as const)
+        expect(
+          Math.abs(feed[part][edge] - search[part][edge]),
+          `${part}.${edge}`,
+        ).toBeLessThan(0.5);
+  });
+
   test("the overlay says what it is and when, and nothing it cannot keep", async ({
     page,
   }) => {
