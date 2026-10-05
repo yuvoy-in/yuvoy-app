@@ -439,10 +439,13 @@ const TYPE_RULES: { rule: string; broken: (t: string[]) => boolean }[] = [
       t.some((c) => WEIGHT.test(c)),
   },
   {
+    // The board is untracked. `tracking-normal` is that zero, written on a
+    // figure inside a tracked headline, so it is the one tracking allowed.
     rule: "a figure on the board without tabular figures, or tracked",
     broken: (t) =>
       t.includes("font-board") &&
-      (!t.includes("tabular-nums") || t.some((c) => TRACKING.test(c))),
+      (!t.includes("tabular-nums") ||
+        t.some((c) => TRACKING.test(c) && c !== "tracking-normal")),
   },
   {
     rule: "a Yuvoy headline without its leading and its balance",
@@ -489,12 +492,21 @@ const TYPE_RULES: { rule: string; broken: (t: string[]) => boolean }[] = [
       t.some((c) => SIZE.test(c)),
   },
   {
+    // A label is weight 500 at every use, as it is 13/18: a weight beside it
+    // wins in the cascade and turns the label back into a heading.
+    rule: "a label or eyebrow at another weight",
+    broken: (t) =>
+      (t.includes("label") || t.includes("eyebrow")) &&
+      t.some((c) => WEIGHT.test(c)),
+  },
+  {
+    // `uppercase` on machine text in `font-mono` (a code, typed in either
+    // case) is the data's own case rather than a voice, and it is never
+    // tracked.
     rule: "tracked capitals",
     broken: (t) =>
-      t.some(
-        (c) =>
-          c === "uppercase" || /^tracking-(wide|wider|widest|label)$/.test(c),
-      ),
+      t.some((c) => /^tracking-(wide|wider|widest|label)$/.test(c)) ||
+      (t.includes("uppercase") && !t.includes("font-mono")),
   },
 ];
 
@@ -565,8 +577,15 @@ describe("type", () => {
     ["label text-forest/75 text-xs", "a label or eyebrow resized"],
     ["eyebrow text-terra-deep sm:text-sm", "a label or eyebrow resized"],
     ["label text-[11px] font-bold", "a label or eyebrow resized"],
+    ["label text-forest/75 font-bold", "a label or eyebrow at another weight"],
+    [
+      "eyebrow text-terra-deep font-medium",
+      "a label or eyebrow at another weight",
+    ],
     ["text-xs font-bold uppercase", "tracked capitals"],
     ["label tracking-wider", "tracked capitals"],
+    ["font-mono text-sm tracking-wider", "tracked capitals"],
+    ["font-mono uppercase tracking-widest", "tracked capitals"],
   ])("fires on %j: %s", (planted, rule) => {
     const fired = classStrings(`"${planted}"`).flatMap((tokens) =>
       TYPE_RULES.filter(({ broken }) => broken(tokens)).map((r) => r.rule),
@@ -577,6 +596,7 @@ describe("type", () => {
   it.each([
     "font-display tracking-display leading-display text-3xl text-balance sm:text-4xl",
     "font-board mt-2 text-3xl leading-tight tabular-nums",
+    "font-board tracking-normal tabular-nums",
     "voice-host text-paper leading-display line-clamp-3 text-3xl text-balance",
     "voice-host text-forest/70 leading-body mt-3 max-w-prose text-sm text-pretty",
     "text-forest/70 text-body mt-3 max-w-prose text-pretty",
@@ -584,6 +604,7 @@ describe("type", () => {
     "eyebrow text-terra-deep",
     "text-button font-bold",
     "tracking-ref text-lg font-bold slashed-zero tabular-nums",
+    "mt-2 font-mono uppercase",
   ])("allows %j", (allowed) => {
     const fired = classStrings(`"${allowed}"`).flatMap((tokens) =>
       TYPE_RULES.filter(({ broken }) => broken(tokens)).map((r) => r.rule),
