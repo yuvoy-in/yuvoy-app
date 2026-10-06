@@ -29,14 +29,24 @@ export function SavedReelScreen({ experienceId }: { experienceId: string }) {
   );
 
   const back = <BackButton href="/saved" label="your saved experiences" />;
+  /*
+    The way back to the grid, as on a business's reels: the tab bar is hidden
+    here, so this is the only exit, on every viewport. Drawn while the saves
+    are read too, not only once they play.
+  */
+  const chrome = (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start px-4 pt-4 pb-20">
+      <span className="pointer-events-auto">{back}</span>
+    </div>
+  );
 
   if (saved.state === "pending") {
     return (
-      <LoadingState label="Loading your saves">
-        <ReelFrame>
+      <ReelFrame chrome={chrome}>
+        <LoadingState label="Loading your saves">
           <Skeleton className="absolute inset-0 rounded-none" />
-        </ReelFrame>
-      </LoadingState>
+        </LoadingState>
+      </ReelFrame>
     );
   }
 
@@ -87,15 +97,7 @@ export function SavedReelScreen({ experienceId }: { experienceId: string }) {
         isFetchNextPageError={saved.isFetchNextPageError}
         fetchNextPage={saved.fetchNextPage}
         emptyTailNote="That is everything you have saved."
-        chrome={
-          /*
-            The way back to the grid, as on a business's reels: the tab bar is
-            hidden here, so this is the only exit, on every viewport.
-          */
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start px-4 pt-4 pb-20">
-            <span className="pointer-events-auto">{back}</span>
-          </div>
-        }
+        chrome={chrome}
       />
     </>
   );

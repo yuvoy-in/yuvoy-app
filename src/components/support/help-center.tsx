@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
 import { FAQ, searchFaq } from "@/lib/support/faq";
@@ -10,6 +10,7 @@ import { Field } from "@/components/ui/field";
 import { SearchIcon } from "@/components/ui/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { SheetPresence } from "@/components/ui/sheet";
+import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydration";
 import { MessageSheet } from "./message-sheet";
 import { YourRequests } from "./your-requests";
 import { cn } from "@/lib/cn";
@@ -47,6 +48,9 @@ const BACK = { href: "/account", label: "your account" };
 export function HelpCenter() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  // Typed before the page hydrated: answered as if typed after it.
+  const box = useRef<HTMLInputElement>(null);
+  useChangedBeforeHydration(box, ([field]) => setQuery(field.value));
 
   /*
     Account is read for the support number only, and its absence is not an
@@ -99,6 +103,7 @@ export function HelpCenter() {
       <YourRequests />
 
       <Field
+        ref={box}
         label="Search help"
         labelHidden
         type="search"
@@ -156,7 +161,7 @@ export function HelpCenter() {
               reasoning `LoginButton` records for the same problem.
             */
             <div aria-hidden="true" className="h-11" />
-          ) : me.isError || !waHref ? null : (
+          ) : me.isLoadingError || !waHref ? null : (
             <>
               {/*
                 `rel="noopener"` because `target="_blank"` otherwise hands the

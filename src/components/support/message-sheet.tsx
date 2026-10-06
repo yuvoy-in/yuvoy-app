@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
 import { RequestStatus } from "./request-status";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * The message form, lifted out of `help-section` so two surfaces share it.
@@ -206,7 +207,7 @@ export function MessageSheet({
 
       <label className="mt-5 block">
         <span className="label text-forest/75">Your message</span>
-        <textarea
+        <Textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={5}

@@ -174,7 +174,7 @@ export function FilterSheet({
         <Group label="Where">
           <ChipSkeletons />
         </Group>
-      ) : vocabulary.isError ? null : destinations.length > 1 ? (
+      ) : vocabulary.isLoadingError ? null : destinations.length > 1 ? (
         <Group label="Where">
           <ChipButton
             size="lg"
@@ -265,7 +265,7 @@ export function FilterSheet({
         <Group label="What" className="mt-6">
           <ChipSkeletons />
         </Group>
-      ) : vocabulary.isError ? (
+      ) : vocabulary.isLoadingError ? (
         <div className="mt-6">
           <p role="alert" className="text-sm">
             Places and activities did not load.

@@ -62,11 +62,17 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
 
   /*
     The press, held until the route answers. Kept with the path it was made
-    on, so it lapses by itself the moment the route moves anywhere (where it
-    was going, or somewhere else): no effect has to clear it, and a press on
-    the destination already showing is not a press at all.
+    on, and let go the moment the route moves anywhere (where it was going,
+    or somewhere else), during the render that sees it move, so no effect has
+    to clear it. A press on the destination already showing is not a press at
+    all.
+
+    It used to lapse by comparison alone (`press.on === pathname`), which
+    comes true again when history brings that path back: Search, Trips,
+    Account, then Back to Trips lit Account, a press two screens old.
   */
   const [press, setPress] = useState<{ href: string; on: string } | null>(null);
+  if (press && press.on !== pathname) setPress(null);
   const [down, setDown] = useState<string | null>(null);
   const current = NAV.find((item) => item.match(pathname))?.href ?? null;
   const lit =

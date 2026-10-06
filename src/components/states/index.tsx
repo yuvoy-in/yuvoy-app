@@ -469,11 +469,17 @@ export function describeError(
 export function ErrorState({
   error,
   onRetry,
+  retrying,
   tone = "paper",
   tokenBearing = false,
 }: {
   error: unknown;
   onRetry?: () => void;
+  /**
+   * The retry is on its way, for a screen that can tell: Try again turns busy
+   * rather than looking idle. Left out, the button is drawn as it always was.
+   */
+  retrying?: boolean;
   tone?: "paper" | "dark";
   /** The failed request carried a status token, so a 401 is a dead link. */
   tokenBearing?: boolean;
@@ -512,6 +518,8 @@ export function ErrorState({
       ) : d.canRetry && onRetry ? (
         <Button
           onClick={onRetry}
+          pending={retrying}
+          pendingLabel={retrying === undefined ? undefined : "Trying again"}
           variant={dark ? "paper" : "primary"}
           className="mt-6"
         >

@@ -90,6 +90,13 @@ export const FOCUSED_ROUTE_PREFIXES = [
   "/booking",
   "/trip/",
   "/trips/recover",
+  /*
+    A trip somebody was invited on. Every branch of the screen draws a Back
+    to Trips, which drops the bar's clearance, and the bar floated over it:
+    the pill covered the foot of the sheet and, scrolled to the end, the
+    centred Decline sat under it (stability audit, 6 Oct 2026).
+  */
+  "/trips/invited/",
   "/guides/",
   "/offline",
   /*

@@ -122,6 +122,44 @@ test.describe("the reel keeps the screen", () => {
     expect(mark.x).toBeLessThan(viewport.width / 4);
   });
 
+  test("the mark and Login sit where every other tab puts them", async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(!isMobile, "no masthead above lg");
+    /*
+      A tab change from the feed crossfades this masthead into a screen's
+      header. They used to disagree by 4px across and 2px to 6px down, so the
+      mark and Login jumped and doubled on every change to or from the feed.
+    */
+    const boxes = async () => {
+      const mark = await page
+        .getByRole("img", { name: "Yuvoy" })
+        .first()
+        .boundingBox();
+      const login = await page
+        .getByRole("link", { name: "Login" })
+        .first()
+        .boundingBox();
+      if (!mark || !login) throw new Error("no mark or Login");
+      return { mark, login };
+    };
+    const feed = await boxes();
+    await page
+      .locator('nav[aria-label="Primary"]:visible')
+      .getByRole("link", { name: "Search" })
+      .tap();
+    await page.waitForURL("**/search");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const search = await boxes();
+    for (const part of ["mark", "login"] as const)
+      for (const edge of ["x", "y", "width", "height"] as const)
+        expect(
+          Math.abs(feed[part][edge] - search[part][edge]),
+          `${part}.${edge}`,
+        ).toBeLessThan(0.5);
+  });
+
   test("the overlay says what it is and when, and nothing it cannot keep", async ({
     page,
   }) => {
@@ -195,6 +233,48 @@ test.describe("the reel keeps the screen", () => {
     // Tapping the picture puts it away.
     await page.mouse.click(cardBox.x + cardBox.width / 2, cardBox.y + 80);
     await expect(panel).not.toBeVisible();
+  });
+
+  test("the departures hold the height of the rows they stand for", async ({
+    page,
+  }) => {
+    /*
+      The wait was three 32px bars with margins, 128px, against the 147px of
+      three real rows, so everything under them dropped as the departures
+      landed (stability audit, 6 Oct 2026). The read is held long enough to
+      measure the wait itself.
+    */
+    await page.addInitScript(() => {
+      const fetchOf = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof Request
+              ? input.url
+              : String(input);
+        if (/\/availability\?/.test(url))
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        return fetchOf(input, init);
+      };
+    });
+    await page.reload();
+    const card = page.locator('article[aria-posinset="1"]');
+    await card.getByRole("button", { name: /Aug|No dates/ }).click();
+
+    const comingUp = card
+      .getByRole("group", { name: /^Details, / })
+      .getByRole("region", { name: "Coming up" });
+    await expect(
+      comingUp.getByRole("status", { name: "Loading departures" }),
+    ).toBeVisible();
+    const waiting = (await comingUp.boundingBox())!.height;
+
+    const rows = comingUp.getByRole("link");
+    await expect(rows.first()).toBeVisible({ timeout: 6000 });
+    await expect(rows).toHaveCount(3);
+    const landed = (await comingUp.boundingBox())!.height;
+    expect(Math.abs(landed - waiting)).toBeLessThan(1);
   });
 
   test("a departure in the panel opens checkout on it", async ({ page }) => {

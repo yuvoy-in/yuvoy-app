@@ -98,7 +98,7 @@ export function OperatorScreen({
     );
   }
 
-  if (operator.isError) {
+  if (operator.isLoadingError) {
     return (
       <Screen back={BACK}>
         <ErrorState

@@ -141,3 +141,54 @@ describe("the feed's observer", () => {
     cleanup();
   });
 });
+
+/*
+  Which card is playing is decided by how much of it is on screen. The spec
+  sets `isIntersecting` for ANY overlap, so the entry reporting a card on its
+  way OUT (crossing back under 0.6) says true, and trusting it made the
+  leaving card the active one in a batch that held both (6 Oct 2026).
+*/
+describe("the card that is playing", () => {
+  it("is the one 60% on screen, never one on its way out", async () => {
+    let report: IntersectionObserverCallback | null = null;
+    class Capturing extends TrackingObserver {
+      constructor(
+        callback: IntersectionObserverCallback,
+        options?: IntersectionObserverInit,
+      ) {
+        super();
+        // The strip's observer is the one rooted on the scroller.
+        if (options?.root) report = callback;
+      }
+    }
+    vi.stubGlobal("IntersectionObserver", Capturing);
+    const { Feed } = await import("./feed");
+    const { useFeedStore } = await import("@/lib/feed/store");
+    const { act, screen, waitFor } = await import("@testing-library/react");
+    renderWithQuery(<Feed />);
+    await waitFor(() =>
+      expect(screen.getAllByRole("article").length).toBeGreaterThan(2),
+    );
+    expect(report).not.toBeNull();
+
+    const card = (index: number) =>
+      document.querySelector(`[data-feed-index="${index}"]`)!;
+    const entry = (index: number, ratio: number) =>
+      ({
+        target: card(index),
+        isIntersecting: ratio > 0,
+        intersectionRatio: ratio,
+      }) as unknown as IntersectionObserverEntry;
+
+    // One batch: the second card arrives, the first leaves (still overlapping).
+    act(() => {
+      report!(
+        [entry(1, 0.9), entry(0, 0.3)],
+        null as unknown as IntersectionObserver,
+      );
+    });
+    expect(useFeedStore.getState().activeIndex).toBe(1);
+
+    cleanup();
+  });
+});

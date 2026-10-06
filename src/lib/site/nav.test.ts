@@ -16,6 +16,8 @@ describe("focused routes", () => {
     ["/booking", true],
     ["/trip/abc", true],
     ["/trips/recover", true],
+    // An invited trip has a Back to Trips, so no bar floating over Decline.
+    ["/trips/invited/inv_123", true],
     ["/guides/diving-in-havelock", true],
     ["/offline", true],
     ["/", false],

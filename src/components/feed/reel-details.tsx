@@ -562,7 +562,9 @@ function Departures({
               key={i}
               aria-hidden="true"
               className="reel-sheet-dep-skeleton"
-            />
+            >
+              <span className="reel-sheet-dep-skeleton-bar" />
+            </span>
           ))}
         </div>
       )}

@@ -27,6 +27,7 @@ import { Panel } from "@/components/ui/panel";
 import { TripCard, InvitedTripCard } from "./trip-card";
 import { NextUpPass } from "./next-up-pass";
 import { IslandDays } from "./island-days";
+import { useStay } from "@/lib/trips/use-stay";
 import { nextUpTrip } from "@/lib/trips/next-up";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { marketDayOf } from "@/lib/booking/availability-window";
@@ -96,6 +97,14 @@ export function TripsScreen() {
   const { signedIn } = useTravellerSession();
   const server = useMyBookings(signedIn, { tab, ...range });
   const invited = useInvitedTrips(signedIn);
+  /*
+    The stay on this phone, asked for alongside the session rather than after
+    it. Your island days only mount once the session has answered, so they
+    used to ask the device then, and their panel arrived a moment after the
+    screen, pushing everything under it down (stability audit, 6 Oct 2026).
+    One query: the panel reads this same answer.
+  */
+  useStay();
 
   /*
     A tab's contents fade THROUGH to the next tab's (T07 A, approved 4 Oct
@@ -115,10 +124,16 @@ export function TripsScreen() {
     list, so the flash would be a much louder one than it used to be.
   */
   if (signedIn === undefined) {
+    /*
+      The heading is the same whichever way the session answers, so it is
+      drawn now: it used to arrive with the answer and push the blocks under
+      it down by its own height. What follows it depends on the answer.
+    */
     return (
       <Screen>
+        <Header />
         <LoadingState label="Loading your trips">
-          <div className="space-y-3">
+          <div className="mt-6 space-y-3">
             <Skeleton className="h-24 w-full" />
             <Skeleton className="h-24 w-full" />
           </div>
@@ -129,7 +144,7 @@ export function TripsScreen() {
 
   if (!signedIn) return <SignedOut />;
 
-  const sessionDead = server.isError && isDeadToken(server.error);
+  const sessionDead = isDeadToken(server.error);
 
   /*
     Every row across every page fetched so far. The API has already put each
@@ -218,17 +233,30 @@ export function TripsScreen() {
       */}
       <div ref={contents}>
         <div key={tab} data-motion-key={tab}>
-          {nextUp ? <NextUpPass trip={nextUp} now={serverNow} /> : null}
+          {nextUp ? (
+            <NextUpPass
+              key={nextUp.reference || nextUp.reservationId}
+              trip={nextUp}
+              now={serverNow}
+            />
+          ) : null}
           {tab === "upcoming" ? <IslandDays signedIn={signedIn} /> : null}
 
           {/*
             The server's failure is now the whole screen's failure, where it used to
             be a line over a list this device could still show. So it no longer
             promises that anything survived it: there is nothing left to survive.
+
+            Only a list that never loaded, though (`isLoadingError`). A refresh
+            or a "Show more" that fails keeps the trips already on screen, and
+            the page that did not arrive says so under the list; this panel
+            over the top of them said "We could not load your trips" about
+            trips it was showing. A dead session is the exception, loaded or
+            not: it will not come back by itself.
             A dead session says so plainly, because `retry: false` means it will not
             resolve itself.
           */}
-          {server.isError ? (
+          {sessionDead || server.isLoadingError ? (
             <Panel role="alert" className="mt-4 px-4 py-3">
               <p className="text-sm font-bold">
                 {sessionDead

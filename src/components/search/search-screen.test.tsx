@@ -1,8 +1,18 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterAll,
+  afterEach,
+} from "vitest";
 import { act, screen, waitFor, cleanup, within } from "@testing-library/react";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
+import { addressBar, followHistory, navigateTo } from "@/test/address";
 import { SearchScreen } from "./search-screen";
 import { server } from "../../../mocks/server";
 import { delay, http, HttpResponse } from "msw";
@@ -15,38 +25,43 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 /**
  * Search — a bar, one Filters button, and results as reels (yuvoy-app#37).
  *
- * ## The router is real enough to hold a URL
+ * ## The address is real enough to hold a search
  *
- * The filters live in the address now, and that is the mechanism rather than a
+ * The filters live in the address, and that is the mechanism rather than a
  * detail: it is what lets a reel opened from the grid page the same filtered
- * order, and what makes back return to the same grid. A router mock that threw
- * the URL away would make every test here pass against a screen that had
- * silently stopped writing it.
+ * order, and what makes back return to the same grid. The screen writes it in
+ * place with `history.replaceState`, which Next folds into `useSearchParams`;
+ * `followHistory` does the same here, so a screen that stopped writing it, or
+ * went back to the router to write it, fails rather than passes.
  */
-const nav = vi.hoisted(() => ({ url: "/search" }));
-vi.mock("next/navigation", () => ({
-  /*
-    `LoginButton` sits in every logo header and in the feed masthead
-    (yuvoy-app#56), and it reads both of these. A mock missing either
-    fails the whole file with "No export is defined", which reads as a
-    broken screen rather than an incomplete mock.
-  */
-  usePathname: () => "/search",
-  useRouter: () => ({
-    replace: (href: string) => {
-      nav.url = href;
-    },
-    push: (href: string) => {
-      nav.url = href;
-    },
-  }),
-  useSearchParams: () => new URLSearchParams(nav.url.split("?")[1] ?? ""),
-}));
+const router = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", async () => {
+  const { useShownAddress } = await import("@/test/address");
+  return {
+    /*
+      `LoginButton` sits in every logo header and in the feed masthead
+      (yuvoy-app#56), and it reads both of these. A mock missing either
+      fails the whole file with "No export is defined", which reads as a
+      broken screen rather than an incomplete mock.
+    */
+    usePathname: () => "/search",
+    useRouter: () => router,
+    useSearchParams: () =>
+      new URLSearchParams(useShownAddress().split("?")[1] ?? ""),
+  };
+});
 
-const params = () => new URLSearchParams(nav.url.split("?")[1] ?? "");
+const params = addressBar;
 
+let unfollow = () => {};
+beforeAll(() => {
+  unfollow = followHistory();
+});
+afterAll(() => unfollow());
 beforeEach(() => {
-  nav.url = "/search";
+  navigateTo("/search");
+  router.replace.mockClear();
+  router.push.mockClear();
 });
 afterEach(cleanup);
 
@@ -101,7 +116,7 @@ describe("the default state is the grid, not a prompt", () => {
 
   it("returns to the unfiltered grid when the words are cleared", async () => {
     const user = userEvent.setup();
-    const { rerender } = renderWithQuery(<SearchScreen />);
+    renderWithQuery(<SearchScreen />);
 
     const box = screen.getByRole("searchbox", { name: "Search experiences" });
     await user.type(box, "kayak");
@@ -109,11 +124,62 @@ describe("the default state is the grid, not a prompt", () => {
 
     await user.clear(box);
     await waitFor(() => expect(params().get("q")).toBeNull());
-    rerender(<SearchScreen />);
     // A grid, not a prompt.
     expect(
       await screen.findByRole("list", { name: "Search results" }),
     ).toBeInTheDocument();
+  });
+});
+
+/*
+  The Search tab on this screen, or Back from one search to another, changes
+  the address while the screen stays mounted. The box used to keep its own
+  word and write it straight back over the new address: the tab cleared the
+  filters and not the word, neither a reset nor a no-op.
+*/
+describe("an address that changes from outside", () => {
+  it("takes the word out of the box when the Search tab clears it", async () => {
+    navigateTo("/search?q=dive&place=andaman%2Fhavelock");
+    renderWithQuery(<SearchScreen />);
+    const box = screen.getByRole("searchbox", { name: "Search experiences" });
+    expect(box).toHaveValue("dive");
+
+    act(() => navigateTo("/search"));
+
+    expect(box).toHaveValue("");
+    // And nothing wrote it back once the grid had answered.
+    expect(
+      await screen.findByRole("list", { name: "Search results" }),
+    ).toBeInTheDocument();
+    expect(params().get("q")).toBeNull();
+    expect(params().get("place")).toBeNull();
+  });
+
+  it("puts an earlier word back in the box when Back returns to it", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    const box = screen.getByRole("searchbox", { name: "Search experiences" });
+    await user.type(box, "dive");
+    await waitFor(() => expect(params().get("q")).toBe("dive"));
+
+    act(() => navigateTo("/search"));
+    expect(box).toHaveValue("");
+
+    act(() => navigateTo("/search?q=dive"));
+    expect(box).toHaveValue("dive");
+  });
+
+  it("leaves the typed word alone when only a filter changes", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+    const box = screen.getByRole("searchbox", { name: "Search experiences" });
+    await user.type(box, "kayak ");
+    await waitFor(() => expect(params().get("q")).toBe("kayak"));
+
+    act(() => navigateTo("/search?q=kayak&kind=adventure"));
+
+    // The trailing space is the traveller's, mid-word, and stays theirs.
+    expect(box).toHaveValue("kayak ");
   });
 });
 
@@ -140,7 +206,7 @@ describe("the way to the guides", () => {
   });
 
   it("is not offered while a filter is applied", () => {
-    nav.url = "/search?kind=adventure";
+    navigateTo("/search?kind=adventure");
     renderWithQuery(<SearchScreen />);
     expect(screen.queryByRole("link", { name: "Read a guide" })).toBeNull();
   });
@@ -163,6 +229,33 @@ describe("the filter set lives in the address", () => {
     expect(
       screen.queryByRole("link", { name: /Try-dive at Nemo Reef/ }),
     ).toBeNull();
+  });
+
+  it("writes it in place: no router, and no history entry", async () => {
+    /*
+      `router.replace` was the old way, and on this dynamic route it is a
+      request for the whole page per keystroke and per filter
+      (`e2e/address.spec.ts` counts them). In place, and replaced: one search
+      being refined is one entry in the history, not one per letter.
+    */
+    navigateTo("/search?kind=adventure");
+    const entries = window.history.length;
+    const user = userEvent.setup();
+    renderWithQuery(<SearchScreen />);
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search experiences" }),
+      "kayak",
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Adventure" }),
+    );
+
+    await waitFor(() => expect(params().get("kind")).toBeNull());
+    expect(params().get("q")).toBe("kayak");
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(window.history.length).toBe(entries);
   });
 
   it("treats a day alone as a real question, sent without q", async () => {
@@ -527,13 +620,13 @@ describe("results", () => {
       INSERT, so an unknown one is an empty page. A client that could not tell
       them apart is exactly what the contract is guarding against.
     */
-    nav.url = "/search?kind=not_a_category";
+    navigateTo("/search?kind=not_a_category");
     renderWithQuery(<SearchScreen />);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
   it("treats an unknown activity type as an empty page, not an error", async () => {
-    nav.url = "/search?doing=not_a_thing_yet";
+    navigateTo("/search?doing=not_a_thing_yet");
     renderWithQuery(<SearchScreen />);
     expect(await screen.findByText("No matches")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
@@ -607,7 +700,7 @@ describe("the grid as one visit", () => {
 
   it("restarts a refused cursor with the same filters, and repeats no tile", async () => {
     const user = userEvent.setup();
-    nav.url = "/search?kind=adventure";
+    navigateTo("/search?kind=adventure");
     const asked: URLSearchParams[] = [];
     server.use(
       http.get(`${BASE}/reels`, ({ request }) => {
@@ -718,14 +811,14 @@ describe("length and price", () => {
   });
 
   it("keeps saying so under the pills for as long as a price band is applied", async () => {
-    nav.url = "/search?price=high";
+    navigateTo("/search?price=high");
     renderWithQuery(<SearchScreen />);
     const row = await screen.findByRole("group", { name: "Filters applied" });
     expect(within(row).getByText("₹4,000 and up")).toBeInTheDocument();
     expect(screen.getByText(/priced for a whole group/)).toBeInTheDocument();
 
     cleanup();
-    nav.url = "/search?length=short";
+    navigateTo("/search?length=short");
     renderWithQuery(<SearchScreen />);
     await screen.findByRole("group", { name: "Filters applied" });
     // A length band says nothing about group pricing: duration is unaffected.
@@ -738,7 +831,7 @@ describe("length and price", () => {
       charter is ₹18,000 FOR THE GROUP, which "₹4,000 and up" would include
       if a price for the whole boat were compared with a price for one person.
     */
-    nav.url = "/search?price=high";
+    navigateTo("/search?price=high");
     renderWithQuery(<SearchScreen />);
     // The try-dive (₹4,500 per person) has three reels, all of them in.
     expect(
@@ -752,7 +845,7 @@ describe("length and price", () => {
 
   it("takes a band off with its own x", async () => {
     const user = userEvent.setup();
-    nav.url = "/search?length=short&kind=adventure";
+    navigateTo("/search?length=short&kind=adventure");
     renderWithQuery(<SearchScreen />);
 
     const row = await screen.findByRole("group", { name: "Filters applied" });
@@ -764,7 +857,7 @@ describe("length and price", () => {
   });
 
   it("counts a band on the Filters button", async () => {
-    nav.url = "/search?length=long&price=low";
+    navigateTo("/search?length=long&price=low");
     renderWithQuery(<SearchScreen />);
     expect(
       screen.getByRole("button", { name: "Filters, 2 on" }),
@@ -790,7 +883,7 @@ describe("what is applied, on the screen", () => {
   });
 
   it("names each applied filter in the server's own words", async () => {
-    nav.url = "/search?place=andaman%2Fhavelock&kind=adventure";
+    navigateTo("/search?place=andaman%2Fhavelock&kind=adventure");
     renderWithQuery(<SearchScreen />);
 
     const row = await screen.findByRole("group", { name: "Filters applied" });
@@ -804,7 +897,7 @@ describe("what is applied, on the screen", () => {
 
   it("does not make a pill out of the typed word", async () => {
     // The search box is already on screen and already holds it.
-    nav.url = "/search?q=diving";
+    navigateTo("/search?q=diving");
     renderWithQuery(<SearchScreen />);
     await screen.findByRole("list", { name: "Search results" });
     expect(screen.queryByRole("group", { name: "Filters applied" })).toBeNull();
@@ -817,7 +910,7 @@ describe("what is applied, on the screen", () => {
       replayed under different filters.
     */
     const user = userEvent.setup();
-    nav.url = "/search?place=andaman%2Fhavelock&kind=adventure";
+    navigateTo("/search?place=andaman%2Fhavelock&kind=adventure");
     renderWithQuery(<SearchScreen />);
 
     const row = await screen.findByRole("group", { name: "Filters applied" });
@@ -833,7 +926,7 @@ describe("what is applied, on the screen", () => {
 
   it("takes the activity off with the category that framed it", async () => {
     const user = userEvent.setup();
-    nav.url = "/search?kind=adventure&doing=scuba-diving";
+    navigateTo("/search?kind=adventure&doing=scuba-diving");
     renderWithQuery(<SearchScreen />);
 
     const row = await screen.findByRole("group", { name: "Filters applied" });
@@ -857,7 +950,7 @@ describe("what is applied, on the screen", () => {
       read before discovering it was not one.
     */
     const { unmount } = renderWithQuery(<SearchScreen />);
-    nav.url = "/search?kind=adventure";
+    navigateTo("/search?kind=adventure");
     unmount();
 
     renderWithQuery(<SearchScreen />);
@@ -865,7 +958,7 @@ describe("what is applied, on the screen", () => {
     expect(within(one).queryByRole("button", { name: "Clear all" })).toBeNull();
 
     cleanup();
-    nav.url = "/search?kind=adventure&place=andaman%2Fhavelock";
+    navigateTo("/search?kind=adventure&place=andaman%2Fhavelock");
     renderWithQuery(<SearchScreen />);
     const two = await screen.findByRole("group", { name: "Filters applied" });
     expect(within(two).getByRole("button", { name: "Clear all" })).toBeTruthy();
@@ -883,7 +976,7 @@ describe("what is applied, on the screen", () => {
       in `lib/search/labels.test.ts`, where it fails on its own.
     */
     const user = userEvent.setup();
-    nav.url = "/search?q=diving&kind=adventure&place=andaman%2Fhavelock";
+    navigateTo("/search?q=diving&kind=adventure&place=andaman%2Fhavelock");
     renderWithQuery(<SearchScreen />);
 
     const row = await screen.findByRole("group", { name: "Filters applied" });
@@ -912,7 +1005,7 @@ describe("what is applied, on the screen", () => {
       }),
     );
 
-    nav.url = "/search?place=andaman%2Fhavelock";
+    navigateTo("/search?place=andaman%2Fhavelock");
     renderWithQuery(<SearchScreen />);
 
     const row = await screen.findByRole("group", { name: "Filters applied" });
@@ -923,7 +1016,7 @@ describe("what is applied, on the screen", () => {
   });
 
   it("names a day as a word rather than a date where it can", async () => {
-    nav.url = `/search?on=${marketToday()}`;
+    navigateTo(`/search?on=${marketToday()}`);
     renderWithQuery(<SearchScreen />);
     const row = await screen.findByRole("group", { name: "Filters applied" });
     expect(within(row).getByText("Today")).toBeInTheDocument();
@@ -962,14 +1055,13 @@ describe("waiting for an answer (T11 A)", () => {
 
   it("keeps the last answer on screen, marked busy, while the next one loads", async () => {
     serveThenWait(250);
-    const { rerender } = renderWithQuery(<SearchScreen />);
+    renderWithQuery(<SearchScreen />);
     await screen.findByRole("list", { name: "Search results" });
     const before = tiles().length;
     expect(before).toBeGreaterThan(2);
 
     // A filter, not the word: the search box owns the word.
-    nav.url = "/search?kind=adventure";
-    rerender(<SearchScreen />);
+    act(() => navigateTo("/search?kind=adventure"));
 
     // The old grid, still there, said to be out of date; no skeleton yet.
     expect(tiles()).toHaveLength(before);
@@ -987,13 +1079,12 @@ describe("waiting for an answer (T11 A)", () => {
 
   it("shows the skeleton only once a wait has lasted 300ms, then keeps it 300ms", async () => {
     serveThenWait(700);
-    const { rerender } = renderWithQuery(<SearchScreen />);
+    renderWithQuery(<SearchScreen />);
     await screen.findByRole("list", { name: "Search results" });
 
     const changed = performance.now();
     // A filter, not the word: the search box owns the word.
-    nav.url = "/search?kind=adventure";
-    rerender(<SearchScreen />);
+    act(() => navigateTo("/search?kind=adventure"));
 
     await new Promise((r) => setTimeout(r, 150));
     expect(searching(), "a skeleton for a wait of 150ms").toBeNull();

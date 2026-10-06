@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { MessageThread } from "./message-thread";
 import { server } from "../../../mocks/server";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import type { components } from "@/lib/api/schema.gen";
 import { qk } from "@/lib/query/policy";
 
@@ -115,6 +115,39 @@ describe("MessageThread", () => {
     const log = screen.getByRole("log", { name: "Messages" });
     const list = within(log).getByRole("list");
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("keeps the conversation and the draft while a new booking state is read", async () => {
+    /*
+      The booking's state is part of the key, so a booking confirmed under
+      somebody's thumb was a new, empty query: the thread and the composer
+      became a skeleton for a round trip, and the keyboard went with them
+      (6 Oct 2026).
+    */
+    let reads = 0;
+    server.use(
+      http.get(`${BASE}/bookings/messages`, async () => {
+        reads += 1;
+        if (reads > 1) await delay(300);
+        return HttpResponse.json(thread());
+      }),
+    );
+    const user = userEvent.setup();
+    const { rerender } = renderWithQuery(
+      <MessageThread token="t" bookingState="held" />,
+    );
+    const box = await screen.findByLabelText("Write to the operator");
+    await user.type(box, "On my way");
+
+    rerender(<MessageThread token="t" bookingState="confirmed" />);
+
+    await waitFor(() => expect(reads).toBe(2));
+    expect(screen.getByLabelText("Write to the operator")).toHaveValue(
+      "On my way",
+    );
+    expect(
+      screen.getByText("Bring a towel, the wind is up."),
+    ).toBeInTheDocument();
   });
 
   it("draws the operator's side on paper, apart from the panel it sits in", async () => {
@@ -486,6 +519,50 @@ describe("MessageThread", () => {
       await waitFor(() => expect(marks).toBe(1));
       await new Promise((r) => setTimeout(r, 60));
       expect(client.getQueryState(upcoming)?.isInvalidated).toBe(false);
+    } finally {
+      stop();
+    }
+  });
+
+  it("asks again on the next poll when a mark did not land", async () => {
+    /*
+      A failed mark counted as done, so "2 new" stayed over messages the
+      traveller had read until somebody wrote again (stability audit,
+      6 Oct 2026). Not at once, which on a dead link is a request per render:
+      on the next poll.
+    */
+    let marks = 0;
+    serveThread({ unreadCount: 2 });
+    server.use(
+      http.post(`${BASE}/bookings/messages/read`, () => {
+        marks += 1;
+        if (marks === 1) {
+          return HttpResponse.json(
+            { error: { code: "service_unavailable", message: "Later." } },
+            { status: 503 },
+          );
+        }
+        return HttpResponse.json({ unreadCount: 0 });
+      }),
+    );
+
+    const stop = observeAsOnScreen();
+    try {
+      const { client } = renderWithQuery(
+        <MessageThread token="t" bookingState="confirmed" />,
+      );
+      await screen.findByText("Bring a towel, the wind is up.");
+      await waitFor(() => expect(marks).toBe(1));
+      await new Promise((r) => setTimeout(r, 60));
+      expect(marks).toBe(1);
+      expect(screen.getByText("2 new")).toBeInTheDocument();
+
+      // The next poll.
+      await client.refetchQueries({ queryKey: ["getBookingMessages", "t"] });
+      await waitFor(() => expect(marks).toBe(2));
+      await waitFor(() =>
+        expect(screen.queryByText("2 new")).not.toBeInTheDocument(),
+      );
     } finally {
       stop();
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { focusManager, onlineManager } from "@tanstack/react-query";
 import { renderWithQuery } from "@/test/render";
 import { Feed } from "./feed";
@@ -8,7 +8,7 @@ import { useFeedStore } from "@/lib/feed/store";
 import { setConsent } from "@/lib/analytics/consent";
 import { __resetReelViewCollector } from "@/lib/analytics/reel-views";
 import { server } from "../../../mocks/server";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -188,6 +188,44 @@ describe("Feed", () => {
     expect(
       screen.getByRole("status", { name: "Loading experiences" }),
     ).toBeInTheDocument();
+  });
+
+  it("wears its masthead while it loads, outside the busy region", () => {
+    /*
+      The wait, the failure and the empty feed drew the well alone, so the
+      mark and Login arrived with the first clip (stability audit,
+      6 Oct 2026). The masthead is the strip's own, and sits beside the
+      status rather than inside it.
+    */
+    server.use(
+      http.get(`${BASE}/reels`, async () => {
+        await delay("infinite");
+      }),
+    );
+    renderWithQuery(<Feed />);
+    const status = screen.getByRole("status", { name: "Loading experiences" });
+    expect(screen.getByRole("img", { name: "Yuvoy" })).toBeInTheDocument();
+    expect(within(status).queryByRole("img", { name: "Yuvoy" })).toBeNull();
+  });
+
+  it("wears its masthead when the feed fails, and when it is empty", async () => {
+    server.use(
+      http.get(`${BASE}/reels`, () =>
+        HttpResponse.json(
+          { error: { code: "not_found", message: "Not found." } },
+          { status: 404 },
+        ),
+      ),
+    );
+    const failed = renderWithQuery(<Feed />);
+    await screen.findByRole("alert");
+    expect(screen.getByRole("img", { name: "Yuvoy" })).toBeInTheDocument();
+    failed.unmount();
+
+    server.use(reels([]));
+    renderWithQuery(<Feed />);
+    await screen.findByText("Nothing bookable here yet");
+    expect(screen.getByRole("img", { name: "Yuvoy" })).toBeInTheDocument();
   });
 
   it("renders the feed", async () => {

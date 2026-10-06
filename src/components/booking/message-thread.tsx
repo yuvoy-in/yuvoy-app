@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { describeError, FailurePanel, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -14,6 +19,7 @@ import {
   describeSendRefusal,
 } from "@/lib/booking/messages";
 import type { components } from "@/lib/api/schema.gen";
+import { Textarea } from "@/components/ui/textarea";
 
 type BookingMessage = components["schemas"]["BookingMessage"];
 type BookingMessageThread = components["schemas"]["BookingMessageThread"];
@@ -104,6 +110,15 @@ export function MessageThread({
     refetchOnReconnect: true,
     staleTime: 0,
     retry: false,
+    /*
+      A new state is a new key, and a new key used to start empty: the thread
+      and the composer turned into a skeleton for a round trip, and somebody
+      typing lost their keyboard the moment the booking was confirmed. The
+      conversation stays while the new answer is asked; `canWrite` follows it
+      a round trip later, and a send in between is refused by the API in its
+      own words, as any send to a closed thread is.
+    */
+    placeholderData: keepPreviousData,
   });
 
   const loadOlder = useMutation({
@@ -244,18 +259,35 @@ export function MessageThread({
   */
   const mark = markRead.mutate;
   const markedUpTo = markRead.variables ?? null;
+  /*
+    A mark that failed is asked again on the next poll. It used to count as
+    done, since its `variables` are still the newest id, so "2 new" and the
+    dot on Trips stayed until somebody wrote again (stability audit,
+    6 Oct 2026). Not at once either: on a dead link that is a request per
+    render. A poll that landed after the failed ask is the cue.
+  */
+  const markFailedBeforePoll =
+    markRead.error !== null && thread.dataUpdatedAt > markRead.submittedAt;
 
   useEffect(() => {
     if (!page || !newest) return;
     if (page.unreadCount === 0) return;
     // Already marked this one. The server refuses to move a marker back, so a
     // repeat would be harmless, but it would also be a request saying nothing.
-    if (markedUpTo === newest.id) return;
+    if (markedUpTo === newest.id && !markFailedBeforePoll) return;
     // "Mark only what was on screen." Both halves: the panel is in view AND
     // the tab is in front. See `onScreen` for why one of them is not enough.
     if (!onScreen || !tabVisible) return;
     mark(newest.id);
-  }, [page, newest, markedUpTo, mark, onScreen, tabVisible]);
+  }, [
+    page,
+    newest,
+    markedUpTo,
+    markFailedBeforePoll,
+    mark,
+    onScreen,
+    tabVisible,
+  ]);
 
   /*
     The badge reads the RECEIPT while the mark still covers the newest message
@@ -298,7 +330,7 @@ export function MessageThread({
 
         {thread.isPending ? (
           <Skeleton className="mt-4 h-24 w-full" />
-        ) : thread.isError ? (
+        ) : thread.isLoadingError ? (
           /*
             QUIET, AND NEVER THE DEAD-LINK PANEL.
 
@@ -392,7 +424,7 @@ export function MessageThread({
                 <label htmlFor="message-text" className="sr-only">
                   Write to the operator
                 </label>
-                <textarea
+                <Textarea
                   id="message-text"
                   rows={3}
                   value={draft}

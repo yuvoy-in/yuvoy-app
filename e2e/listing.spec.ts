@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { chooseDeparture } from "./support/checkout";
 import AxeBuilder from "@axe-core/playwright";
 
@@ -42,6 +42,33 @@ test.describe("the gallery", () => {
     */
     await page.keyboard.press("Escape");
     await expect(lightbox).toBeHidden();
+  });
+
+  test("the page behind holds still while the view is open", async ({
+    page,
+  }) => {
+    /*
+      A wheel or a drag over the photograph scrolled the listing under it, so
+      closing the view landed somewhere else on the page (stability audit,
+      6 Oct 2026). The page's own scroller is shut while the view is open,
+      and opened again when it closes.
+    */
+    await page.goto(REQUEST);
+    const rootOverflow = () =>
+      page.evaluate(() => getComputedStyle(document.documentElement).overflowY);
+    expect(await rootOverflow()).not.toBe("hidden");
+
+    await page
+      .getByRole("group", { name: /Photographs and clips of/ })
+      .getByRole("button", { name: /^Open 1 of/ })
+      .click();
+    const lightbox = page.getByRole("dialog", { name: /1 of/ });
+    await expect(lightbox).toBeVisible();
+    expect(await rootOverflow()).toBe("hidden");
+
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toBeHidden();
+    expect(await rootOverflow()).not.toBe("hidden");
   });
 
   test("the full-screen view is accessible", async ({ page }) => {
@@ -279,6 +306,63 @@ test.describe("how it is paid for", () => {
   }
 });
 
+test.describe("the price panel holds still while the open days are read", () => {
+  /*
+    The open days land after the page is on screen, and the panel used to
+    change height when they did: two bars, then one line, two, or nothing on a
+    failure, with the payment line and everything under it moving each time
+    (stability audit, 6 Oct 2026). Measured where it shows.
+  */
+  for (const outcome of ["answered", "failed"] as const) {
+    test(`the lines under it stay put when the read is ${outcome}`, async ({
+      page,
+    }) => {
+      await page.addInitScript((fail) => {
+        const fetchOf = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof Request
+                ? input.url
+                : String(input);
+          if (/\/availability\?/.test(url)) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            if (fail) {
+              return new Response(
+                JSON.stringify({
+                  error: { code: "not_found", message: "Not found." },
+                }),
+                {
+                  status: 404,
+                  headers: { "content-type": "application/json" },
+                },
+              );
+            }
+          }
+          return fetchOf(input, init);
+        };
+      }, outcome === "failed");
+      await page.goto(INSTANT);
+      const pay = page.getByText("Pay at the counter on the day").first();
+      await expect(pay).toBeVisible();
+      const before = (await pay.boundingBox())!.y;
+
+      // Read in the panel the payment line sits in: the bar names the day too.
+      const panel = pay.locator("..");
+      await expect(
+        panel.getByText(
+          outcome === "answered"
+            ? /^Next open:/
+            : /^The open days did not load\./,
+        ),
+      ).toBeVisible({ timeout: 6000 });
+      const after = (await pay.boundingBox())!.y;
+      expect(Math.abs(after - before)).toBeLessThan(1);
+    });
+  }
+});
+
 test.describe("choosing a departure on checkout", () => {
   test("picks a day and a time, and keeps both in the URL", async ({
     page,
@@ -362,4 +446,79 @@ test.describe("choosing a departure on checkout", () => {
       .analyze();
     expect(results.violations).toEqual([]);
   });
+});
+
+test.describe("checkout's heading holds its height", () => {
+  /*
+    The heading is the question in the display cut until a departure is
+    chosen, then the day and the hour on the board, and the two are not one
+    height: the question is one line from 375px up and two below, the answer
+    one board line. Swapping them moved everything under the heading, 5px from
+    375px up and 27px at 360px, as the dates landed and again on a tap
+    (stability audit, 6 Oct 2026). Measured on both sides of the wrap.
+  */
+  const firstOpenDay = (page: Page) =>
+    page
+      .getByRole("group", { name: "The next two weeks" })
+      .locator("button[aria-pressed]:not([disabled])")
+      .first();
+
+  for (const width of [360, 412]) {
+    test(`as the dates land, at ${width}px`, async ({ page }) => {
+      // Checkout's own read is held, so the heading is seen before and after.
+      await page.addInitScript(() => {
+        const fetchOf = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof Request
+                ? input.url
+                : String(input);
+          if (
+            location.pathname.endsWith("/book") &&
+            /\/availability\?/.test(url)
+          ) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          }
+          return fetchOf(input, init);
+        };
+      });
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(INSTANT);
+      // The bar names the next open day, so checkout opens on it.
+      const pick = page.getByRole("link", { name: /^Pick a day/ });
+      await expect(pick).toHaveAttribute("href", /\?date=/);
+      await pick.click();
+      await page.waitForURL(/\/book\?date=/);
+
+      const heading = page.getByRole("heading", { level: 1 });
+      await expect(heading).toHaveAccessibleName("When would you like to go?");
+      const pay = page.getByText("Pay at the counter on the day");
+      const before = (await pay.boundingBox())!.y;
+      // That day has one departure, so the dates landing choose it.
+      await expect(heading).toHaveAccessibleName(/ · \d{2}:\d{2}$/, {
+        timeout: 6000,
+      });
+      const after = (await pay.boundingBox())!.y;
+      expect(Math.abs(after - before)).toBeLessThan(1);
+    });
+
+    test(`as a tap chooses a departure, at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`${INSTANT}/book`);
+      const day = firstOpenDay(page);
+      await expect(day).toBeVisible();
+
+      const heading = page.getByRole("heading", { level: 1 });
+      await expect(heading).toHaveAccessibleName("When would you like to go?");
+      const pay = page.getByText("Pay at the counter on the day");
+      const before = (await pay.boundingBox())!.y;
+      // The first open day has one departure, so the tap chooses it.
+      await day.click();
+      await expect(heading).toHaveAccessibleName(/ · \d{2}:\d{2}$/);
+      const after = (await pay.boundingBox())!.y;
+      expect(Math.abs(after - before)).toBeLessThan(1);
+    });
+  }
 });

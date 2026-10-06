@@ -75,7 +75,7 @@ export function InviteGuests({ token }: { token: string }) {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-2/3" />
           </div>
-        ) : list.isError ? (
+        ) : list.isLoadingError ? (
           /*
             Token-bearing, so a 401 here is the booking link dying rather than
             an invite problem. It is stated and nothing else on the page is

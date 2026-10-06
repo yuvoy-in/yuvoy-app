@@ -194,3 +194,30 @@ describe("a clip in the gallery", () => {
     expect(screen.getByRole("button", { name: "Mute" })).toBeInTheDocument();
   });
 });
+
+describe("the full-screen view", () => {
+  it("draws the next photograph as a new picture, not the old one renamed", async () => {
+    /*
+      The picture was one element whose address changed, so the old frame
+      stayed on screen under the new counter until the next had loaded,
+      "2 of 2" over photograph 1 (stability audit, 6 Oct 2026).
+    */
+    const user = userEvent.setup();
+    render(<Gallery items={[photo("a"), photo("b")]} title="Reef" />);
+    await user.click(
+      screen.getByRole("button", { name: "Open 1 of 2 full screen" }),
+    );
+    const view = screen.getByRole("dialog", { name: "Reef, 1 of 2" });
+    const first = view.querySelector("img");
+    expect(first).not.toBeNull();
+
+    await user.click(
+      within(view).getByRole("button", { name: "Next photograph" }),
+    );
+    expect(view).toHaveAccessibleName("Reef, 2 of 2");
+    const next = view.querySelector("img");
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(first);
+    expect(first?.isConnected).toBe(false);
+  });
+});

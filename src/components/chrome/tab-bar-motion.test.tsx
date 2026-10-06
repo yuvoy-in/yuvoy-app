@@ -121,6 +121,58 @@ describe("the tab bar's lit layer", () => {
 });
 
 /**
+ * The well takes a tap while a screen change has the bar captured, and hands
+ * it to the destination under the finger (stability audit, 6 Oct 2026).
+ */
+describe("the tab bar's well", () => {
+  /** Lays the four out as the glide has them, and records which is opened. */
+  function midGlide(boxes: Record<string, [left: number, right: number]>) {
+    const { container } = renderWithQuery(<TabBar />);
+    const opened: string[] = [];
+    for (const [name, [left, right]] of Object.entries(boxes)) {
+      const target = link(name);
+      target.getBoundingClientRect = () =>
+        DOMRect.fromRect({ x: left, y: 790, width: right - left, height: 44 });
+      target.addEventListener("click", (e) => {
+        e.preventDefault();
+        opened.push(name);
+      });
+    }
+    const well = container.querySelector<HTMLElement>("[data-tabbar-well]")!;
+    return { well, opened };
+  }
+
+  it("opens the glyph under the finger when two destinations overlap mid-glide", () => {
+    /*
+      From Trips, Search pressed: Search is already its new, wide self, and
+      Trips is still sliding out of its old place, over Search's right half.
+      A tap on the Trips glyph there used to open Search, first in the row.
+    */
+    const { well, opened } = midGlide({
+      Feed: [6, 50],
+      Search: [54, 149],
+      Trips: [111, 155],
+      Account: [204, 248],
+    });
+    fireEvent.click(well, { clientX: 133, clientY: 812 });
+    expect(opened).toEqual(["Trips"]);
+  });
+
+  it("opens the one destination under the finger at rest", () => {
+    const { well, opened } = midGlide({
+      Feed: [6, 50],
+      Search: [54, 149],
+      Trips: [153, 197],
+      Account: [201, 245],
+    });
+    fireEvent.click(well, { clientX: 100, clientY: 812 });
+    fireEvent.click(well, { clientX: 223, clientY: 812 });
+    fireEvent.click(well, { clientX: 300, clientY: 812 });
+    expect(opened).toEqual(["Search", "Account"]);
+  });
+});
+
+/**
  * The share notice fades in and out (T13 A). It keeps its sentence for the
  * 150ms it takes to fade, so it leaves with its words rather than shrinking
  * to an empty capsule; and it is the live region, so it is never taken out of

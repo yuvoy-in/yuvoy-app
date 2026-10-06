@@ -7,9 +7,12 @@ import {
   beforeEach,
   afterEach,
 } from "vitest";
-import { cleanup, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
+import { cleanup, render, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
+import { qk } from "@/lib/query/policy";
 import { AdoptStoredSession } from "./adopt-stored-session";
 import { server } from "../../../mocks/server";
 
@@ -63,6 +66,43 @@ describe("adopting a session stored before the cookie", () => {
     await waitFor(() => expect(sentToken).toBe("sess_919000000000"));
     // Gone, so the next load does not send it again.
     await waitFor(() => expect(idb.store.has(KEY)).toBe(false));
+  });
+
+  it("adopts once under StrictMode, and tells the session it changed", async () => {
+    /*
+      StrictMode runs the effect, cleans it up and runs it again. The first
+      run was cancelled before it posted and the second found a "ran" flag
+      set, so in development nothing was ever adopted (stability audit,
+      6 Oct 2026).
+    */
+    idb.store.set(KEY, { sessionToken: "sess_919000000000" });
+    let posts = 0;
+    server.use(
+      http.post("*/api/session/adopt", () => {
+        posts += 1;
+        return HttpResponse.json({ adopted: true });
+      }),
+    );
+
+    // At the root, as Next puts it in development: nested inside the test
+    // helper's wrapper, React does not run the effects twice.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    render(
+      <StrictMode>
+        <QueryClientProvider client={client}>
+          <AdoptStoredSession />
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(idb.store.has(KEY)).toBe(false));
+    expect(posts).toBe(1);
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.session() }),
+    );
   });
 
   it("clears the record even when the token is refused", async () => {

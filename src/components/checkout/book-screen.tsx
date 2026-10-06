@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
 import {
@@ -11,6 +11,7 @@ import {
   CALENDAR_WINDOW_DAYS,
 } from "@/lib/booking/availability-window";
 import { clockOffsetMs } from "@/lib/booking/clock";
+import { useServerClock } from "@/lib/booking/use-server-clock";
 import { fetchAvailability } from "@/lib/booking/availability-query";
 import { paymentLine } from "@/lib/booking/listing-lines";
 import {
@@ -21,18 +22,26 @@ import {
 import { monthStart } from "@/lib/search/month-grid";
 import { civilFromDate, civilInZone, weekdayDayMonth } from "@/lib/format/date";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
+import { CheckoutSkeleton } from "./checkout-skeleton";
 import { DateChooser } from "./day-strip";
 import { CheckoutPicture } from "./checkout-picture";
-import { PicturePlaceholder } from "@/components/chrome/picture-strip";
 import { slotIsOpen } from "@/lib/booking/slot-open";
 import { TimePicker } from "./time-picker";
-import { ErrorState, LoadingState, Skeleton } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
 import { FadeText } from "@/components/ui/fade-text";
+import { cn } from "@/lib/cn";
 
 type Slot = components["schemas"]["Slot"];
+
+/** The heading until a departure is chosen, in the display cut. */
+const QUESTION = "When would you like to go?";
+const QUESTION_VOICE =
+  "font-display tracking-display leading-display text-balance";
+/** The chosen day and hour, on the board. */
+const BOARD_VOICE = "font-board leading-tight tabular-nums";
 
 /**
  * Checkout: day, time, party and details, on one page (yuvoy-app#62).
@@ -49,11 +58,19 @@ type Slot = components["schemas"]["Slot"];
  *
  * ## The URL keeps the choices, and `replace` is why
  *
- * `?date=&slot=&guests=` is written with `router.replace`, not `push`. A
- * `push` would put every tap of a calendar square in the history, so Back
- * would walk a traveller through their own deliberation instead of returning
- * to the listing. The issue asks for both: choices survive a refresh, and
- * "Back returns to the listing page".
+ * `?date=&slot=&guests=` is written in place with `history.replaceState`,
+ * not pushed. A push would put every tap of a calendar square in the history,
+ * so Back would walk a traveller through their own deliberation instead of
+ * returning to the listing. The issue asks for both: choices survive a
+ * refresh, and "Back returns to the listing page".
+ *
+ * Not `router.replace`, which it was until 6 Oct 2026: this route is dynamic,
+ * so every day, time and party size was a navigation, a request for the whole
+ * page (four of them to choose one departure). On a dropped connection a
+ * failed one became a full page load into the offline page, and the name,
+ * number and answers typed into the form went with it. `replaceState` is the
+ * documented way to change the query without a navigation; Next folds it into
+ * `useSearchParams` with no request. `e2e/address.spec.ts` counts them.
  *
  * An old `?slot=&guests=` link still opens with that departure chosen, which
  * is what makes every bookmark and every link in the wild from before this
@@ -66,7 +83,6 @@ type Slot = components["schemas"]["Slot"];
  * is the one place that distinction costs money.
  */
 export function BookScreen({ slug }: { slug: string }) {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   /*
@@ -159,7 +175,17 @@ export function BookScreen({ slug }: { slug: string }) {
       : marketToday();
   }, [asOf, availability.data?.marketTimezone]);
 
-  const now = availability.dataUpdatedAt + clockOffsetMs();
+  /*
+    AND IT KEEPS TIME WHILE THE SCREEN IS OPEN (6 Oct 2026).
+
+    `now` was only ever the instant the seats were read, so a traveller who
+    sat on checkout while a departure's cutoff passed was still offered it,
+    and learned otherwise at the end of the form. The server's clock, read
+    every 30 seconds the way the Next up pass reads it, and never earlier than
+    the read itself; coming back to the tab reads the seats again
+    (`CACHE.getAvailability`).
+  */
+  const now = useServerClock(availability.dataUpdatedAt + clockOffsetMs());
   const days = useMemo(
     () => daysFromSlots(availability.data?.slots, now),
     [availability.data, now],
@@ -204,26 +230,40 @@ export function BookScreen({ slug }: { slug: string }) {
   const slot: Slot | null =
     chosenDay?.slots.find((s) => s.id === effectiveSlotId) ?? null;
 
+  // The heading reads the choice: the day and the hour once a departure is
+  // chosen, the question until then.
+  const chosenCivil = date ? civilFromDate(date) : null;
+  const heading =
+    chosenCivil && slot
+      ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
+      : null;
+
   /*
     What appears because of a choice made HERE arrives (T09 A, approved
     4 Oct 2026): the day's times when a day is tapped, the rest of checkout
-    and its foot when a departure is. A screen opened with them already
-    chosen (a link that names the day and the time) arrives whole. Derived
-    during render from the last values seen, not set in an effect.
+    and its foot when a departure is, and the heading's words fade through.
+    A screen opened with them already chosen (a link that names the day, or
+    the day and the time) arrives whole, the heading included. Derived during
+    render from the last values seen, not set in an effect.
   */
   const timesFor = chosenDay ? date : null;
   const formFor = slot?.id ?? null;
   // Only a change made once the dates were on screen is a choice made here;
   // what appears as they load (a link naming the day) is simply there.
   const ready = !availability.isPending;
-  const [seen, setSeen] = useState({ timesFor, formFor, ready });
-  const [arriving, setArriving] = useState({ times: false, form: false });
+  const [seen, setSeen] = useState({ timesFor, formFor, heading, ready });
+  const [arriving, setArriving] = useState({
+    times: false,
+    form: false,
+    heading: false,
+  });
   if (
     seen.timesFor !== timesFor ||
     seen.formFor !== formFor ||
+    seen.heading !== heading ||
     seen.ready !== ready
   ) {
-    setSeen({ timesFor, formFor, ready });
+    setSeen({ timesFor, formFor, heading, ready });
     setArriving({
       times:
         seen.timesFor !== timesFor
@@ -233,12 +273,18 @@ export function BookScreen({ slug }: { slug: string }) {
         seen.formFor !== formFor
           ? seen.ready && seen.formFor === null && formFor !== null
           : arriving.form,
+      heading: seen.heading !== heading ? seen.ready : arriving.heading,
     });
   }
 
   /*
-    The URL follows the choices. `replace`, so Back leaves the page rather than
-    walking back through a traveller's own deliberation.
+    The URL follows the choices, in place (see above), so Back leaves the page
+    rather than walking back through a traveller's own deliberation.
+
+    Compared with the address bar itself, which changes the moment it is
+    written (the router's copy changes a render later), and whose `search` is
+    empty rather than a bare `?`. Comparing `pathname?params` with a target
+    that had no query sent a navigation on every open with nothing chosen.
 
     It writes `effectiveSlotId`, not `slotId`, and the difference is a real
     one: a day with a single open departure selects it without the traveller
@@ -253,25 +299,16 @@ export function BookScreen({ slug }: { slug: string }) {
     if (guests > 1) next.set("guests", String(guests));
     const query = next.toString();
     const target = query ? `${pathname}?${query}` : pathname;
-    if (`${pathname}?${params.toString()}` !== target) {
-      router.replace(target, { scroll: false });
+    const { pathname: path, search } = window.location;
+    if (`${path}${search}` !== target) {
+      window.history.replaceState(null, "", target);
     }
-  }, [date, effectiveSlotId, guests, pathname, params, router]);
+  }, [date, effectiveSlotId, guests, pathname]);
 
-  if (experience.isPending) {
-    return (
-      <Screen back={back} stageLabel="Checkout" hero={<PicturePlaceholder />}>
-        <LoadingState label="Loading checkout">
-          <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </LoadingState>
-      </Screen>
-    );
-  }
+  // The same frame the route's boundary drew, so nothing swaps as it lands.
+  if (experience.isPending) return <CheckoutSkeleton slug={slug} />;
 
-  if (experience.isError) {
+  if (experience.isLoadingError) {
     return (
       <Screen back={back} stageLabel="Checkout">
         <ErrorState
@@ -282,7 +319,6 @@ export function BookScreen({ slug }: { slug: string }) {
     );
   }
 
-  const chosenCivil = date ? civilFromDate(date) : null;
   /*
     The listing's picture over the top of checkout (the approved redesign,
     3 Oct 2026), with the title on it, so the eyebrow can say where they are.
@@ -307,23 +343,36 @@ export function BookScreen({ slug }: { slug: string }) {
           <span className="voice-host">{experience.data.title}</span>
         )}
       </p>
-      <h1 className="mt-3 text-3xl">
+      <h1 className="mt-3 grid text-3xl">
         {/*
-          It reads the choice, so it fades through as the choice changes: the
-          question in the display cut, the chosen day and hour on the board.
+          It reads the choice, so it fades through as a choice made here
+          changes it: the question in the display cut, the chosen day and hour
+          on the board.
+
+          The two voices are not one height. The question is one display line
+          from 375px up and two below, the answer one board line, so swapping
+          them moved the calendar under the finger: 5px, or 27px at 360px
+          (stability audit, 6 Oct 2026). The heading holds the taller of the
+          two at every width, the voice not shown laid in the same cell,
+          unseen and unread.
         */}
         <FadeText
           block
-          wordsClassName={
-            chosenCivil && slot
-              ? "font-board leading-tight tabular-nums"
-              : "font-display tracking-display leading-display text-balance"
-          }
+          fade={arriving.heading}
+          className="col-start-1 row-start-1"
+          wordsClassName={heading ? BOARD_VOICE : QUESTION_VOICE}
         >
-          {chosenCivil && slot
-            ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
-            : "When would you like to go?"}
+          {heading ?? QUESTION}
         </FadeText>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "invisible col-start-1 row-start-1",
+            heading ? QUESTION_VOICE : BOARD_VOICE,
+          )}
+        >
+          {heading ? QUESTION : " "}
+        </span>
       </h1>
       {/*
         Said before a day is chosen, not discovered at the pay step
@@ -354,7 +403,7 @@ export function BookScreen({ slug }: { slug: string }) {
           state={
             availability.isPending
               ? "pending"
-              : availability.isError
+              : availability.isLoadingError
                 ? "error"
                 : "ready"
           }

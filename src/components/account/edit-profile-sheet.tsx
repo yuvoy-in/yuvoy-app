@@ -140,7 +140,7 @@ export function EditProfileSheet({
             <Skeleton className="h-10 w-24" />
             <Skeleton className="h-10 w-32" />
           </div>
-        ) : options.isError ? (
+        ) : options.isLoadingError ? (
           /*
             The list is an enhancement to a form that saves without it. A
             failure here must not block a name change, so it says what is

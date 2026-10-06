@@ -1,4 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { act } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { cleanup, render, screen } from "@testing-library/react";
 
 /**
@@ -45,5 +48,48 @@ describe("ConsentBanner", () => {
       const card = await banner();
       expect(card.className, route).toMatch(/\bbottom-\[/);
     }
+  });
+});
+
+describe("before the page is in a browser", () => {
+  /*
+    The server cannot read this browser's choice, and it used to answer
+    "unset", so the banner was in every server-rendered page: a traveller who
+    had already chosen saw it on every hard load until hydration (stability
+    audit, 6 Oct 2026).
+  */
+  it("is not in the server's HTML, and asks once the page has hydrated", async () => {
+    pathname = "/search";
+    vi.resetModules();
+    const { ConsentBanner } = await import("./consent-banner");
+    const html = renderToString(<ConsentBanner />);
+    expect(html).toBe("");
+
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    document.body.append(host);
+    await act(async () => {
+      hydrateRoot(host, <ConsentBanner />);
+    });
+    expect(
+      screen.getByRole("region", { name: "Analytics choice" }),
+    ).toBeInTheDocument();
+    host.remove();
+  });
+
+  it("never draws itself for a traveller who has chosen", async () => {
+    sessionStorage.setItem("yuvoy.consent.analytics", "denied");
+    vi.resetModules();
+    const { ConsentBanner } = await import("./consent-banner");
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(<ConsentBanner />);
+    document.body.append(host);
+    await act(async () => {
+      hydrateRoot(host, <ConsentBanner />);
+    });
+    expect(
+      screen.queryByRole("region", { name: "Analytics choice" }),
+    ).toBeNull();
+    host.remove();
   });
 });

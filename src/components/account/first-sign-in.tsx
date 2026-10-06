@@ -115,7 +115,7 @@ export function FirstSignIn({ onDone }: { onDone?: () => void }) {
             <Skeleton className="h-10 w-32" />
             <Skeleton className="h-10 w-28" />
           </div>
-        ) : options.isError ? (
+        ) : options.isLoadingError ? (
           /*
             Silent about the failure beyond one line. This screen is optional
             in its entirety, so a broken list must not look like a broken

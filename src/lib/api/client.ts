@@ -86,7 +86,27 @@ export function backoffMs(attempt: number): number {
   return Math.round(base * (0.5 + Math.random() * 0.5));
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/**
+ * Waits out a backoff, unless the request is cancelled first: then it
+ * rejects at once with the reason, and no timer is left behind.
+ */
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const stop = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", stop);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", stop, { once: true });
+  });
+}
 
 /* ----------------------------------------------------------------- client */
 
@@ -221,8 +241,16 @@ function retryingFetch(input: Request): Promise<Response> {
       await awaitMocks();
       res = await fetch(isGet ? input.clone() : input);
     } catch (cause) {
+      /*
+        A read the caller cancelled is not a network fault. It used to be
+        retried, sleeps and all, and to end as a NetworkError, so every
+        superseded or unmounted read left timers running and told a caller
+        that checks for an abort something else (stability audit,
+        6 Oct 2026).
+      */
+      if (input.signal.aborted) throw cause;
       if (isGet && n < MAX_GET_ATTEMPTS - 1) {
-        await sleep(backoffMs(n));
+        await pause(backoffMs(n), input.signal);
         return attempt(n + 1);
       }
       throw new NetworkError(undefined, cause);
@@ -239,7 +267,7 @@ function retryingFetch(input: Request): Promise<Response> {
       // Unparseable body: treat the status alone as the signal.
     }
 
-    await sleep(backoffMs(n));
+    await pause(backoffMs(n), input.signal);
     return attempt(n + 1);
   };
 

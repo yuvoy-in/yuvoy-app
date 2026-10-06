@@ -36,7 +36,7 @@ export function useStanding(enabled: boolean): Standing | undefined {
   if (!enabled || !mounted || signedIn === undefined) return undefined;
   if (!signedIn) return "signed-out";
   if (account.data) return standingOfAccount(account.data);
-  if (account.isError) return "unknown";
+  if (account.isLoadingError) return "unknown";
   return undefined;
 }
 

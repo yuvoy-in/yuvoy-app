@@ -68,9 +68,19 @@ export function consentSnapshot(): Consent {
   return cached;
 }
 
-/** The server knows nothing about a browser's sessionStorage. */
-export function consentServerSnapshot(): Consent {
-  return "unset";
+/** What a screen can know of the choice: `unknown` before it is in a browser. */
+export type ConsentRead = Consent | "unknown";
+
+/**
+ * The server knows nothing about a browser's sessionStorage, and says so.
+ *
+ * It used to answer "unset", which is a claim about this browser: the banner
+ * was in every server-rendered page, so a traveller who had already chosen saw
+ * it on every hard load until the page hydrated (stability audit, 6 Oct 2026).
+ * `unknown` asks nothing; the browser's own answer arrives with hydration.
+ */
+export function consentServerSnapshot(): ConsentRead {
+  return "unknown";
 }
 
 export function setConsent(value: Exclude<Consent, "unset">): void {

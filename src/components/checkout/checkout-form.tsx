@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
@@ -359,6 +359,32 @@ function CheckoutFields({
       // rejection for a failure the traveller can already see. Nothing is lost:
       // the error object is still on the mutation.
       /*
+        A REFUSAL THAT MEANS "THE CALENDAR IS OUT OF DATE" - yuvoy-app#62
+        item 7.
+
+        `capacity_unavailable` (the seats went while they were filling this
+        in) and `price_moved` (the departure is not the price the calendar
+        showed) are both statements about the availability this page was drawn
+        from, not about the form. So they are reported UPWARD: the screen
+        refetches the month and puts the API's own sentence over the calendar,
+        which is where somebody looks next. The panel below still renders it
+        from `create.error`: one event, two audiences.
+
+        Reported HERE, once per refusal, because a refusal is an event and this
+        is where it happens. It used to be an effect watching `create.error`
+        and `onRefused`, and the screen above hands down a new `onRefused` on
+        every render: the refetch it started re-rendered that screen, which
+        re-ran the effect, which refetched. Availability was read back to back
+        for as long as the form stood refused (6 Oct 2026, 91 reads in one
+        test's wait).
+      */
+      if (
+        error instanceof YuvoyError &&
+        (error.code === "capacity_unavailable" || error.code === "price_moved")
+      ) {
+        onRefused?.(error.message);
+      }
+      /*
         A 401 is the exception worth acting on rather than only showing. The
         proxy has already dropped the cookie by the time it arrives, so the
         cached "signed in" is stale and the form is still hiding the name and
@@ -481,31 +507,6 @@ function CheckoutFields({
     markArrival(reservation.statusToken);
     router.replace(bookingUrl(reservation.statusToken));
   }
-
-  /*
-    A REFUSAL THAT MEANS "THE CALENDAR IS OUT OF DATE" - yuvoy-app#62 item 7.
-
-    `capacity_unavailable` (the seats went while they were filling this in) and
-    `price_moved` (the departure is not the price the calendar showed) are both
-    statements about the availability this page was drawn from, not about the
-    form. So they are reported UPWARD: the screen refetches the month and puts
-    the API's own sentence over the calendar, which is where somebody looks
-    next.
-
-    Reported in an effect rather than from the mutation's `onError`, because
-    `describeError` and the branches below still render it here too. One event,
-    two audiences, and neither is a substitute for the other.
-  */
-  useEffect(() => {
-    if (!(create.error instanceof YuvoyError)) return;
-    if (
-      create.error.code !== "capacity_unavailable" &&
-      create.error.code !== "price_moved"
-    ) {
-      return;
-    }
-    onRefused?.(create.error.message);
-  }, [create.error, onRefused]);
 
   const failure = create.error ? describeError(create.error) : null;
   /*

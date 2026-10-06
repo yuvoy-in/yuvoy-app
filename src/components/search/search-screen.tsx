@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  useDeferredValue,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
-import Link from "@/components/ui/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/chrome/screen";
@@ -19,6 +12,7 @@ import { RollingNumber } from "@/components/ui/rolling-number";
 import { SheetPresence } from "@/components/ui/sheet";
 import { FilterSheet, GroupPricedNote } from "./filter-sheet";
 import { ActiveFilters } from "./active-filters";
+import { GuideDoor, SearchHeading, SearchSkeleton } from "./search-parts";
 import { playableReels } from "@/lib/feed/reels";
 import {
   filtersFromParams,
@@ -30,6 +24,7 @@ import { useSearchReels, useVocabulary } from "@/lib/search/use-search-reels";
 import { DURATION, EASE, prefersReducedMotion } from "@/lib/motion";
 import { useDelayedFlag } from "@/lib/motion/use-delayed-flag";
 import { useListMotion } from "@/lib/motion/use-list-motion";
+import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydration";
 
 /**
  * The Search tab — a search bar, one Filters button, and results as reels.
@@ -93,46 +88,79 @@ import { useListMotion } from "@/lib/motion/use-list-motion";
  * rises in tile by tile.
  */
 export function SearchScreen() {
-  const router = useRouter();
   const params = useSearchParams();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const filters = filtersFromParams(params);
+  const addressWord = filters.q ?? "";
 
   /*
-    The text box is local and the URL follows it, rather than the other way
-    round: a controlled input driven by a router push loses a keystroke to
-    every navigation on a mid-range Android.
-
-    `useDeferredValue` keeps typing responsive without a debounce timer, and
-    the URL is written from the DEFERRED value — so the address settles when
-    the typing does, and the history stack does not get an entry per letter.
+    The text box is local and the address follows it, rather than the other
+    way round: a controlled input driven by the router loses a keystroke to
+    every navigation on a mid-range Android. Seeded from the address, which is
+    how `/go/<code>` hands over a `?place=` (yuvoy-app#27) and how Back
+    restores a search.
   */
-  const [q, setQ] = useState(filters.q ?? "");
-  const deferredQ = useDeferredValue(q);
+  const [q, setQ] = useState(addressWord);
 
   /*
-    Seeded from the URL once. `/go/<code>` sends a traveller here with
-    `?place=…` when a printed card names one (yuvoy-app#27), and a back
-    navigation restores whatever the address said.
+    THE ADDRESS IS WRITTEN IN PLACE, NEVER NAVIGATED TO (6 Oct 2026).
+
+    It was `router.replace`, and this route is dynamic (it reads the clock),
+    so every keystroke and every filter was a navigation: a request for the
+    whole page, answered before the grid could even ask for its reels (seven
+    of them for the word "dive"). Offline, a failed one became a full page
+    load into the offline page. And while one was out, the effect that sent
+    it sent it again on every render, so a tab tapped in that window could be
+    cancelled by the screen it was leaving.
+
+    `history.replaceState` is the documented way to change the query without
+    a navigation: Next folds it into `useSearchParams` with no request
+    (node_modules/next/dist/docs, "Native History API"). Replace, not push:
+    typing is one search being refined, and a Back that walks a word
+    backwards letter by letter is a trap. Written from the event that made
+    the change, never from an effect that could fire later, and only when it
+    is a change. `e2e/address.spec.ts` counts the page requests.
+
+    Inside a transition of this screen's own, because that is how it knows
+    when its write has landed: Next applies the new address in the same
+    transition, so `writing` stays true until `useSearchParams` says what was
+    written.
   */
-  useEffect(() => {
-    const term = deferredQ.trim();
-    if ((filters.q ?? "") === term) return;
-    const next = filtersToParams({ ...filters, q: term || undefined });
-    // `replace`, not `push`: typing is one search being refined, not a
-    // sequence of them, and a back button that walks a word backwards letter
-    // by letter is a trap.
-    router.replace(next.size ? `/search?${next}` : "/search", {
-      scroll: false,
+  const [writing, startWriting] = useTransition();
+  const [written, setWritten] = useState(addressWord);
+  const write = (next: ReelFilters) => {
+    const query = filtersToParams(next).toString();
+    const href = query ? `/search?${query}` : "/search";
+    setWritten(next.q?.trim() ?? "");
+    const { pathname, search } = window.location;
+    if (`${pathname}${search}` === href) return;
+    startWriting(() => {
+      window.history.replaceState(null, "", href);
     });
-  }, [deferredQ, filters, router]);
+  };
+
+  /*
+    AND THE ADDRESS STILL WINS WHEN IT CHANGES FROM OUTSIDE.
+
+    The Search tab on this screen, or Back from one search to another, changes
+    the address while this screen stays mounted. The box used to keep its own
+    word and write it straight back, so the tab cleared the filters and not
+    the word: neither a reset nor a no-op.
+
+    So once nothing this screen wrote is still on its way, an address that
+    says something other than what it wrote came from outside, and the box
+    takes it. Not while a write is landing: the address is a render behind
+    the typing then, and taking "div" from it while the box says "dive" would
+    eat the letter just typed.
+  */
+  if (!writing && addressWord !== written) {
+    setWritten(addressWord);
+    setQ(addressWord);
+  }
 
   const apply = (next: ReelFilters) => {
-    const params = filtersToParams({ ...next, q: q.trim() || undefined });
-    router.replace(params.size ? `/search?${params}` : "/search", {
-      scroll: false,
-    });
+    write({ ...next, q: q.trim() || undefined });
   };
 
   const search = useSearchReels(filters, { keepPrevious: true });
@@ -161,6 +189,12 @@ export function SearchScreen() {
   const stale = search.isPlaceholderData;
   const waiting = useDelayedFlag(
     search.isPending || (stale && search.isFetching),
+    /*
+      Opened with nothing to show, the route's fallback was already drawing
+      this skeleton: it stays, rather than blanking for 300ms and fading in
+      again (stability audit, 6 Oct 2026).
+    */
+    { initial: search.isPending },
   );
   const view: ResultsView =
     waiting || search.isPending
@@ -188,11 +222,22 @@ export function SearchScreen() {
   );
   useListMotion(results, view, { arrive: "fade" });
 
+  function searchFor(word: string) {
+    setQ(word);
+    write({ ...filters, q: word.trim() || undefined });
+  }
+
+  /*
+    Typed before the page hydrated: on a slow link the box is there for
+    seconds before its script, and the word on screen searched nothing (the
+    stability pass, 6 Oct 2026). Searched now, as a keystroke would.
+  */
+  const box = useRef<HTMLInputElement>(null);
+  useChangedBeforeHydration(box, ([field]) => searchFor(field.value));
+
   return (
     <Screen>
-      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
-        What is on
-      </h1>
+      <SearchHeading />
 
       <div className="mt-5 flex items-center gap-3">
         <Field
@@ -202,8 +247,9 @@ export function SearchScreen() {
           type="search"
           shape="pill"
           leading={<SearchIcon className="size-5" />}
+          ref={box}
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => searchFor(e.target.value)}
           placeholder="Diving, boats, Havelock…"
         />
         <Button
@@ -260,20 +306,7 @@ export function SearchScreen() {
           where it is the next thing such a person needs; once they are
           searching it would be a line in the way.
         */}
-        {showGuide ? (
-          <p
-            data-motion-key="guide"
-            className="text-forest/70 text-body mt-4 text-pretty"
-          >
-            Not sure where to start?{" "}
-            <Link
-              href="/guides"
-              className="text-forest tap-target font-bold underline underline-offset-4"
-            >
-              Read a guide
-            </Link>
-          </p>
-        ) : null}
+        {showGuide ? <GuideDoor /> : null}
 
         <div
           ref={results}
@@ -294,7 +327,7 @@ export function SearchScreen() {
               data-motion-arrive="self"
             >
               <LoadingState label="Searching">
-                {waiting ? <SearchSkeleton /> : null}
+                {waiting ? <SearchSkeleton arrive={touched} /> : null}
               </LoadingState>
             </div>
           ) : /*
@@ -439,28 +472,5 @@ function FilterCount({ count, arrive }: { count: number; arrive: boolean }) {
     >
       <RollingNumber value={count} />
     </span>
-  );
-}
-
-/**
- * The shape of the answer that is coming (T11 A): `ReelGrid`'s own tiles,
- * two across at 4:5 with two lines of words, where the old skeleton was
- * three narrow 9:16 columns and the screen changed shape twice. It breathes
- * as ONE layer, rather than each shape on its own, and fades in when the
- * wait has lasted long enough to show it.
- */
-function SearchSkeleton() {
-  return (
-    <div className="motion-fade-in" aria-hidden="true">
-      <div className="skeleton-breath grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i}>
-            <div className="bg-forest/8 rounded-tile aspect-[4/5]" />
-            <div className="bg-forest/8 mt-3 h-3 w-[85%] rounded-full" />
-            <div className="bg-forest/8 mt-2 h-3 w-[55%] rounded-full" />
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }

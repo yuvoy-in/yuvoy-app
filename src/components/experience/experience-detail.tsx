@@ -39,7 +39,14 @@ type Experience = components["schemas"]["Experience"];
  *   - Urgency. No "3 people are looking at this". The only scarcity shown is
  *     the real seat count, and only when it is real.
  */
-export function ExperienceDetail({ experience }: { experience: Experience }) {
+export function ExperienceDetail({
+  experience,
+  readAt,
+}: {
+  experience: Experience;
+  /** When the server read it: the listing page passes it on to checkout. */
+  readAt?: number;
+}) {
   const price = formatFromPrice(experience.fromPrice);
   const cancellation = cancellationLine(experience);
   const instant = experience.bookingMode === "allotment";
@@ -115,6 +122,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       <BookingLayer
         experience={experience}
         bookable={bookable}
+        readAt={readAt}
         before={
           <>
             {/*
@@ -297,26 +305,12 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     {/*
-                      `logoUrl` is absent when they have not set one, so there
-                      is no placeholder branch and no broken-image state to
-                      design around — the name simply stands alone, as it did
-                      before.
-
-                      A plain `<img>`: a small mark beside a name, not the LCP
-                      element, loaded straight from Cloudflare Images, which is
-                      the host the CSP's `img-src` names for it.
+                      The mark is `OperatorName`'s, inside the link to their
+                      page. A second copy stood beside it from 13 Sep 2026,
+                      when the listing's rebuild brought back the one the
+                      business page's link (11 Sep) had moved inside it: two
+                      logos, one square and one round, before one name.
                     */}
-                    {experience.operator.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={experience.operator.logoUrl}
-                        alt=""
-                        aria-hidden="true"
-                        className="rounded-tile bg-paper-deep border-paper-line size-10 shrink-0 border object-contain"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : null}
                     <OperatorName operator={experience.operator} />
                   </div>
                   {experience.operator.verified ? (

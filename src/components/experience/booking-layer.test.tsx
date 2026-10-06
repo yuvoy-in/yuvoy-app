@@ -257,3 +257,44 @@ describe("what surrounds it", () => {
     expect(screen.getByText("Where you meet")).toBeInTheDocument();
   });
 });
+
+/*
+  Checkout reads the listing through the query cache, and arriving from the
+  listing page it always started cold, so it drew its own skeleton for a
+  round trip after the route's (6 Oct 2026). The page hands it what it read.
+*/
+describe("the listing page hands checkout what it read", () => {
+  it("puts the listing in the cache, aged by when the server read it", async () => {
+    const { qk } = await import("@/lib/query/policy");
+    const listing = experience();
+    const { client } = renderWithQuery(
+      <BookingLayer experience={listing} bookable readAt={1_700_000_000_000} />,
+    );
+    const state = client.getQueryState(qk.experience(listing.slug));
+    expect(state?.data).toEqual(listing);
+    expect(state?.dataUpdatedAt).toBe(1_700_000_000_000);
+  });
+
+  it("never over a read that is newer", async () => {
+    const { qk } = await import("@/lib/query/policy");
+    const listing = experience();
+    const fresher = { ...listing, title: "Read since" };
+    const { client, rerender } = renderWithQuery(<div />);
+    client.setQueryData(qk.experience(listing.slug), fresher, {
+      updatedAt: 1_800_000_000_000,
+    });
+    rerender(
+      <BookingLayer experience={listing} bookable readAt={1_700_000_000_000} />,
+    );
+    expect(client.getQueryData(qk.experience(listing.slug))).toEqual(fresher);
+  });
+
+  it("puts nothing in a preview, which drew it from the cache", async () => {
+    const { qk } = await import("@/lib/query/policy");
+    const listing = experience();
+    const { client } = renderWithQuery(
+      <BookingLayer experience={listing} bookable />,
+    );
+    expect(client.getQueryState(qk.experience(listing.slug))).toBeUndefined();
+  });
+});

@@ -266,13 +266,9 @@ export function ExperienceCard({
           */
           <div className="bg-abyss absolute inset-0 flex flex-col items-center justify-center gap-6 px-8">
             {experience.operator.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <PlateLogo
                 src={experience.operator.logoUrl}
-                alt={experience.operator.name}
-                className="max-h-20 w-auto max-w-[40%] object-contain opacity-80"
-                loading="lazy"
-                decoding="async"
+                name={experience.operator.name}
               />
             ) : null}
             <p className="voice-host text-paper/60 leading-display text-center text-3xl text-balance">
@@ -505,5 +501,37 @@ export function ExperienceCard({
         ) : null}
       </div>
     </article>
+  );
+}
+
+/**
+ * The operator's mark on a card with no clip, in a box that is its full height
+ * before it has loaded. The image alone had no size until it arrived, so the
+ * centred title under it jumped by up to 80px when it did (stability audit,
+ * 6 Oct 2026).
+ *
+ * A logo that fails to load leaves the box empty, never its alt text in the
+ * middle of a reel. The check on mount catches one that failed before the page
+ * hydrated, whose error event nothing was listening for yet.
+ */
+function PlateLogo({ src, name }: { src: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div className="flex h-20 w-full items-center justify-center">
+      {failed ? null : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={(node) => {
+            if (node?.complete && node.naturalWidth === 0) setFailed(true);
+          }}
+          src={src}
+          alt={name}
+          className="max-h-20 w-auto max-w-[40%] object-contain opacity-80"
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      )}
+    </div>
   );
 }

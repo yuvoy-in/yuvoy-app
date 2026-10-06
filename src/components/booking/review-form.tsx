@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { StarIcon } from "@/components/ui/icons";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * A post-trip review.
@@ -225,7 +226,7 @@ export function ReviewForm({ token }: { token: string }) {
           <span className="label text-forest/75">
             Anything else? (optional)
           </span>
-          <textarea
+          <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={3}
