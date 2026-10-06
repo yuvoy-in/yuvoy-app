@@ -320,10 +320,19 @@ export function serverScenarioHeaders(
 }
 
 export function createApiClient(options?: { baseUrl?: string }) {
+  /*
+    No default Content-Type. openapi-fetch writes `application/json` itself on
+    any request that carries a JSON body, and leaves a bodiless one bare.
+
+    A default here put it on every GET as well, which makes a cross-origin read
+    non-simple: the browser preflighted each one with an OPTIONS round trip,
+    and the API sends no Access-Control-Max-Age, so the answer was forgotten
+    after five seconds. That was one extra round trip in front of every search
+    and every page of the feed (production readiness, 6 Oct 2026).
+  */
   const client = createFetchClient<paths>({
     baseUrl: options?.baseUrl ?? apiBaseUrl(),
     fetch: retryingFetch as typeof fetch,
-    headers: { "Content-Type": "application/json" },
   });
 
   if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
