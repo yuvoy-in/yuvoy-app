@@ -553,13 +553,29 @@ function coversRoute(rule, route) {
     : [];
   for (const r of nonPageRoutes) {
     const prefix = r.replace(/\/$/, "");
+    const under = (f) =>
+      ("/" + relative(APP, f).replace(/\\/g, "/")).startsWith(prefix + "/");
+    // A page or a route handler: either way it must answer with a redirect.
     const pages = appFiles.filter(
-      (f) =>
-        /[/\\]page\.tsx$/.test(f) &&
-        ("/" + relative(APP, f).replace(/\\/g, "/")).startsWith(prefix + "/"),
+      (f) => /[/\\](page\.tsx|route\.ts)$/.test(f) && under(f),
     );
     if (pages.length === 0) {
       problems.push(`NON_PAGE_ROUTES lists "${r}" but no page lives there`);
+    }
+    /*
+      And never under a boundary. A `loading.tsx` makes the route stream, the
+      shell goes out before the redirect, and Next can no longer send a 307:
+      `/go/[code]` drew a skeleton and reloaded the whole document through a
+      meta refresh until 6 Oct 2026.
+    */
+    for (const f of appFiles.filter(
+      (f) => /[/\\]loading\.tsx$/.test(f) && under(f),
+    )) {
+      problems.push(
+        `${rel(f)}: a boundary over "${r}", which only redirects. It makes ` +
+          `the route stream, so the redirect becomes a meta refresh in a ` +
+          `skeleton instead of a 307`,
+      );
     }
     for (const f of pages) {
       if (!/\bredirect\(/.test(code(f))) {

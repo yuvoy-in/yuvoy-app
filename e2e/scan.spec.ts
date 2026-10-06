@@ -30,10 +30,35 @@ test.describe("arriving from a QR code", () => {
     await page.waitForURL(/\/search\?/);
 
     const url = new URL(page.url());
-    expect(url.searchParams.get("destinationKey")).toBe("andaman/havelock");
+    // In Search's own spelling. `destinationKey` here was a name Search never
+    // read, and this test, reading only the URL, passed over an unfiltered
+    // Search until 6 Oct 2026. So the place is checked on the SCREEN too.
+    expect(url.searchParams.get("place")).toBe("andaman/havelock");
+    await expect(
+      page
+        .getByRole("group", { name: "Filters applied" })
+        .getByText("Havelock (Swaraj Dweep)"),
+    ).toBeVisible();
     // Attribution is untouched by this change and must stay on the URL.
     expect(url.searchParams.get("src")).toBe("qr");
     expect(url.searchParams.get("code")).toBe("ISLAND-HAV-01");
+  });
+
+  test("answers with a redirect, not a page that reloads itself", async ({
+    request,
+  }) => {
+    /*
+      It was a page under a loading boundary, which streams: the redirect
+      became a meta refresh inside a skeleton, so a traveller saw a grey
+      sheet and then a full reload of the document.
+    */
+    const response = await request.get("/go/ISLAND-HAV-01", {
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(307);
+    expect(response.headers()["location"]).toMatch(
+      /^\/search\?place=andaman%2Fhavelock&src=qr&code=ISLAND-HAV-01$/,
+    );
   });
 
   test("a card printed for one listing still opens that listing", async ({
