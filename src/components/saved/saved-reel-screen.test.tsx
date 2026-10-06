@@ -13,9 +13,14 @@ import { EXPERIENCES } from "../../../mocks/fixtures";
  * toggle", traveller A, 3 Oct 2026).
  */
 
-const idb = vi.hoisted(() => ({ store: new Map<string, unknown>() }));
+const idb = vi.hoisted(() => ({
+  store: new Map<string, unknown>(),
+  /** Never answer a read: the phone still reading its saves. */
+  hang: false,
+}));
 vi.mock("idb-keyval", () => ({
-  get: async (k: string) => idb.store.get(k),
+  get: (k: string) =>
+    idb.hang ? new Promise(() => {}) : Promise.resolve(idb.store.get(k)),
   set: async (k: string, v: unknown) => void idb.store.set(k, v),
 }));
 
@@ -32,6 +37,7 @@ const [first, second] = EXPERIENCES;
 
 beforeEach(() => {
   idb.store.clear();
+  idb.hang = false;
   vi.stubGlobal("indexedDB", {});
 });
 afterEach(cleanup);
@@ -60,6 +66,22 @@ describe("SavedReelScreen", () => {
       screen.getAllByRole("link", {
         name: "Back to your saved experiences",
       })[0],
+    ).toHaveAttribute("href", "/saved");
+  });
+
+  it("offers the way back while the saves are read", () => {
+    /*
+      The tab bar is hidden here, and the wait drew the well alone, with no
+      way back to the grid until the saves arrived (stability audit,
+      6 Oct 2026).
+    */
+    idb.hang = true;
+    renderWithQuery(<SavedReelScreen experienceId={second.id} />);
+    expect(
+      screen.getByRole("status", { name: "Loading your saves" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Back to your saved experiences" }),
     ).toHaveAttribute("href", "/saved");
   });
 

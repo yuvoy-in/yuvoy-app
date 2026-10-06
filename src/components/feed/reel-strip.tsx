@@ -65,17 +65,29 @@ export const REEL_WELL_CENTRED =
 /** How much of a card is on screen before it is the one playing. */
 const ACTIVE_RATIO = 0.6;
 
-/** The well, for the states that do not scroll. */
+/**
+ * The well, for the states that do not scroll.
+ *
+ * `chrome` is the strip's own, drawn where the strip draws it. Every state of
+ * a reel screen used to leave it out, so the feed waited with no mark and no
+ * Login, and a focused reel screen, whose tab bar is hidden, waited (or
+ * failed) with no way back at all; the chrome only arrived with the clips
+ * (stability audit, 6 Oct 2026). A state that is still in flight keeps its
+ * `LoadingState` inside the well, so the chrome is never inside a busy region.
+ */
 export function ReelFrame({
   children,
   className,
+  chrome,
 }: {
   children: ReactNode;
   className?: string;
+  chrome?: ReactNode;
 }) {
   return (
     <ViewTransition {...REEL_MOTION}>
       <div className="container-feed relative lg:my-6">
+        {chrome}
         <div className={cn(REEL_WELL, "lg:overflow-hidden", className)}>
           {children}
         </div>

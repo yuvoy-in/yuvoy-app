@@ -87,20 +87,40 @@ export function OperatorReelScreen({
   }, [index, reels]);
 
   const back = <BackButton href={`/o/${slug}`} label="their reels" />;
+  /*
+    A way back rather than the mark. This is a focused screen reached from one
+    place, the grid, and the tab bar is hidden on it, so the back control is
+    the only exit. `/r/{id}` is the opposite case: no history behind it, so
+    the mark is the way in.
+
+    NOT `lg:hidden`, unlike the feed's masthead. Above `lg` the rail replaces
+    the tab bar and carries the mark, so hiding the mark there is right, but
+    the rail carries no way BACK, and a reel screen with the bar suppressed
+    and the back control hidden is a desktop dead end. Caught by the e2e
+    running on both projects.
+
+    Drawn while the reel is looked for and when the business fails to load,
+    as well as over the clips: both used to have no way back at all.
+  */
+  const chrome = (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start px-4 pt-4 pb-20">
+      <span className="pointer-events-auto">{back}</span>
+    </div>
+  );
 
   if (operator.isPending || (searching && !reels.isFetchNextPageError)) {
     return (
-      <LoadingState label="Loading this reel">
-        <ReelFrame>
+      <ReelFrame chrome={chrome}>
+        <LoadingState label="Loading this reel">
           <Skeleton className="absolute inset-0 rounded-none" />
-        </ReelFrame>
-      </LoadingState>
+        </LoadingState>
+      </ReelFrame>
     );
   }
 
   if (operator.isLoadingError) {
     return (
-      <ReelFrame className={REEL_WELL_CENTRED}>
+      <ReelFrame className={REEL_WELL_CENTRED} chrome={chrome}>
         <ErrorState
           error={operator.error}
           onRetry={() => void operator.refetch()}
@@ -154,23 +174,7 @@ export function OperatorReelScreen({
             ? `That is everything ${operator.data.name} has filmed.`
             : undefined
         }
-        chrome={
-          /*
-            A way back rather than the mark. This is a focused screen reached
-            from one place — the grid — and the tab bar is hidden on it, so the
-            back control is the only exit. `/r/{id}` is the opposite case: no
-            history behind it, so the mark is the way in.
-
-            NOT `lg:hidden`, unlike the feed's masthead. Above `lg` the rail
-            replaces the tab bar and carries the mark, so hiding the mark there
-            is right — but the rail carries no way BACK, and a reel screen with
-            the bar suppressed and the back control hidden is a desktop dead
-            end. Caught by the e2e running on both projects.
-          */
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start px-4 pt-4 pb-20">
-            <span className="pointer-events-auto">{back}</span>
-          </div>
-        }
+        chrome={chrome}
       />
     </>
   );
