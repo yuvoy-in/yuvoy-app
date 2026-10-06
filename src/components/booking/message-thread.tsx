@@ -71,7 +71,14 @@ export function MessageThread({
   bookingState: string;
 }) {
   const [older, setOlder] = useState<BookingMessage[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
+  /*
+    Where the next older page starts. `undefined` until one has been loaded,
+    when it is the first page's own cursor, and `null` once the conversation's
+    start is drawn. One `null` for both used to fall back to the first page's
+    cursor after the last page, so "See earlier messages" came back and asked
+    for a page already on screen (production readiness, 6 Oct 2026).
+  */
+  const [cursor, setCursor] = useState<string | null | undefined>(undefined);
   const [draft, setDraft] = useState("");
 
   const thread = useQuery({
@@ -133,12 +140,24 @@ export function MessageThread({
       return data as BookingMessageThread;
     },
     onSuccess: (page) => {
-      // Prepended, because a later page is older than everything already held.
-      setOlder((prev) => [...page.messages, ...prev]);
-      setCursor(page.nextCursor ?? null);
+      /*
+        Prepended, because a later page is older than everything already held.
+        The first page as it stands goes in after them, so what it holds stays
+        once it has moved on: see `messages` below.
+      */
+      const first = thread.data?.messages ?? [];
+      setOlder((prev) => [...page.messages, ...prev, ...first]);
+      setCursor(page.complete ? null : (page.nextCursor ?? null));
     },
   });
 
+  /*
+    One send at a time, decided as the form is submitted. `send.isPending`
+    reaches the form a render later, so a second Enter or tap in between sent
+    the message twice, and the API takes no key that would fold the two into
+    one (production readiness, 6 Oct 2026).
+  */
+  const sending = useRef(false);
   const send = useMutation({
     retry: false,
     mutationFn: async (text: string) => {
@@ -166,12 +185,20 @@ export function MessageThread({
   });
 
   const page = thread.data;
+  const earlier = cursor === undefined ? page?.nextCursor : cursor;
   /*
     Oldest at the top, which is how a conversation reads. Each page is
     oldest-first within itself and each later page is older than the one before
     it, so the pages already held are in reverse chronological order as blocks.
+
+    The first page is the newest fifty, so a new message moves it on by one,
+    and the message it lets go of is in no earlier page: with earlier pages
+    loaded, every new message took one older one off the screen (production
+    readiness, 6 Oct 2026). The first page is kept as it stood when they were
+    loaded, and the blocks overlap, so each message is drawn once, where it
+    first appears, as the newest read has it.
   */
-  const messages = page ? [...older, ...page.messages] : older;
+  const messages = inOrderOnce(older, page?.messages ?? []);
   const newest = messages.at(-1);
 
   /*
@@ -370,13 +397,13 @@ export function MessageThread({
               earlier ones will appear. `complete` is told by the server: true
               when the conversation begins on this page.
             */}
-            {!page!.complete && (cursor ?? page!.nextCursor) ? (
+            {!page!.complete && earlier ? (
               <Button
                 variant="outline"
                 size="sm"
                 className="mt-4"
                 disabled={loadOlder.isPending}
-                onClick={() => loadOlder.mutate((cursor ?? page!.nextCursor)!)}
+                onClick={() => loadOlder.mutate(earlier)}
               >
                 {loadOlder.isPending ? "Loading…" : "See earlier messages"}
               </Button>
@@ -417,8 +444,15 @@ export function MessageThread({
                 onSubmit={(e) => {
                   e.preventDefault();
                   const text = draft.trim();
-                  if (!text || over || send.isPending) return;
-                  send.mutate(text);
+                  if (!text || over || send.isPending || sending.current) {
+                    return;
+                  }
+                  sending.current = true;
+                  send.mutate(text, {
+                    onSettled: () => {
+                      sending.current = false;
+                    },
+                  });
                 }}
               >
                 <label htmlFor="message-text" className="sr-only">
@@ -581,6 +615,25 @@ function Message({ message }: { message: BookingMessage }) {
       </time>
     </li>
   );
+}
+
+/**
+ * The messages in the order given, each once, as its last mention has it: a
+ * message removed since an earlier page was read is drawn removed.
+ */
+function inOrderOnce(...lists: BookingMessage[][]): BookingMessage[] {
+  const latest = new Map<string, BookingMessage>();
+  for (const list of lists) for (const m of list) latest.set(m.id, m);
+  const drawn = new Set<string>();
+  const out: BookingMessage[] = [];
+  for (const list of lists) {
+    for (const m of list) {
+      if (drawn.has(m.id)) continue;
+      drawn.add(m.id);
+      out.push(latest.get(m.id) ?? m);
+    }
+  }
+  return out;
 }
 
 /**
