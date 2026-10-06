@@ -132,7 +132,16 @@ async function asUrlAndInit(
   ];
 }
 
-/** The whole body, with `progress` told of every chunk as it lands. */
+/**
+ * The whole body, with `progress` told of every chunk as it lands.
+ *
+ * Chromium's network panel lists a response read this way as "(canceled)",
+ * `net::ERR_ABORTED`, once its last byte is in. Nothing was lost. Measured
+ * against production on 6 Oct 2026: the whole body arrived, the next request
+ * reused the same connection, and the same URL read with `arrayBuffer()` is
+ * listed as finished. It is how the panel reports a body drained through a
+ * reader, so a red row there is not a failed read.
+ */
 async function readWhole(
   response: Response,
   progress: () => void,
