@@ -19,6 +19,7 @@ import {
   type Stay,
 } from "@/lib/trips/stay";
 import { useStay } from "@/lib/trips/use-stay";
+import { cn } from "@/lib/cn";
 import { StateChip } from "@/components/booking/state-chip";
 import { LoadingState, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,8 @@ import { Sheet, SheetPresence } from "@/components/ui/sheet";
 export function IslandDays({ signedIn }: { signedIn: boolean }) {
   const { stay, save } = useStay();
   const [editing, setEditing] = useState(false);
+  // For laying out the days before any answer has set the server's clock.
+  const [deviceToday] = useState(marketToday);
   const value = stay.data ?? null;
 
   // The stay's own trips: the whole range, on its own query.
@@ -75,8 +78,30 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
     </SheetPresence>
   );
 
-  // The device store answers in a moment; nothing is drawn until it has.
-  if (stay.isPending) return null;
+  /*
+    The device store answers in a moment, and Trips asks it alongside the
+    session, so this is rarely seen. It used to draw nothing, and the panel
+    then arrived above the list and pushed it down; now the panel is here from
+    the first frame, with its heading, and only what it says is still to come.
+  */
+  if (stay.isPending) {
+    return (
+      <Panel className="mt-6">
+        <section aria-labelledby="island-days">
+          <h2 id="island-days" className="text-base font-bold text-balance">
+            Your island days
+          </h2>
+          <LoadingState label="Reading your days">
+            <div className="text-body mt-1.5 text-pretty">
+              <SkeletonLine width="w-full" />
+              <SkeletonLine width="w-3/4" />
+            </div>
+            <Skeleton className="mt-4 h-11 w-36" />
+          </LoadingState>
+        </section>
+      </Panel>
+    );
+  }
 
   if (!value) {
     return (
@@ -118,16 +143,43 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
   );
 
   if (trips.isPending) {
+    /*
+      The days are known before the bookings on them are: they are the
+      stay's own. So each day is drawn now, under its own label, and only what
+      is booked on it waits, as a line of the height the row will have. Two
+      fixed bars stood in for all of them, and a week's stay then grew by five
+      rows at once (stability audit, 6 Oct 2026). Today is this device's here,
+      since no answer has set the server's clock yet; a day out at midnight is
+      one row, put right when the bookings land.
+    */
+    const waiting = planDays(value, [], deviceToday);
     return (
       <Panel className="mt-6">
         <section aria-labelledby="island-days">
           {header}
           <LoadingState label="Laying out your days">
-            <div className="mt-4 space-y-3">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
+            {waiting.state === "over" ? (
+              <div className="mt-3 py-3 text-sm">
+                <SkeletonLine width="w-2/3" />
+              </div>
+            ) : (
+              <ol className="divide-paper-line mt-3 divide-y">
+                {waiting.days.map((day) => (
+                  <li key={day.date} className="py-3">
+                    <p className="text-sm font-bold tabular-nums">
+                      {day.label}
+                    </p>
+                    <div className="mt-1 flex min-h-7 items-center">
+                      <Skeleton className="h-3 w-44 max-w-full" />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
           </LoadingState>
+          <p className="text-forest/70 mt-2 text-xs">
+            Your dates are kept on this phone.
+          </p>
         </section>
         {sheet}
       </Panel>
@@ -341,5 +393,14 @@ function StaySheet({
         </p>
       </div>
     </Sheet>
+  );
+}
+
+/** One line of text still to come, at the height of the line it stands for. */
+function SkeletonLine({ width }: { width: string }) {
+  return (
+    <div className="flex h-[1lh] items-center">
+      <Skeleton className={cn("h-3 max-w-full", width)} />
+    </div>
   );
 }

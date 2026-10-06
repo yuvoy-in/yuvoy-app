@@ -26,9 +26,19 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
   against a screen with nothing on it. Same stub `token-store.idb.test.ts`
   uses.
 */
-const idb = vi.hoisted(() => ({ store: new Map<string, unknown>() }));
+const idb = vi.hoisted(() => ({
+  store: new Map<string, unknown>(),
+  /** Every key read, in order. */
+  reads: [] as string[],
+  /** Keys whose read never answers, for a test of the wait itself. */
+  hang: new Set<string>(),
+}));
 vi.mock("idb-keyval", () => ({
-  get: async (k: string) => idb.store.get(k),
+  get: async (k: string) => {
+    idb.reads.push(k);
+    if (idb.hang.has(k)) return new Promise(() => {});
+    return idb.store.get(k);
+  },
   set: async (k: string, v: unknown) => void idb.store.set(k, v),
   del: async (k: string) => void idb.store.delete(k),
   keys: async () => [...idb.store.keys()],
@@ -43,6 +53,8 @@ vi.mock("next/navigation", () => ({
 beforeAll(() => vi.stubGlobal("indexedDB", {}));
 beforeEach(() => {
   idb.store.clear();
+  idb.reads.length = 0;
+  idb.hang.clear();
   sent.length = 0;
 });
 afterEach(cleanup);
@@ -200,6 +212,41 @@ describe("signed out", () => {
     await screen.findByText("Sign in to see your trips");
     expect(document.body.textContent).not.toMatch(/without signal/i);
     expect(document.body.textContent).not.toMatch(/on this device/i);
+  });
+});
+
+describe("while the session is read", () => {
+  /*
+    Held open: the session route never answers, so the screen stays on its
+    first frame for as long as the test looks at it.
+  */
+  const holdSession = () =>
+    server.use(
+      http.get("*/api/session", async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
+
+  it("draws the heading it will have either way", async () => {
+    // It arrived with the answer, and pushed the blocks under it down.
+    holdSession();
+    renderWithQuery(<TripsScreen />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Your trips" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Loading your trips" }),
+    ).toBeInTheDocument();
+  });
+
+  it("asks the phone for the stay alongside it, not after it", async () => {
+    holdSession();
+    renderWithQuery(<TripsScreen />);
+    await waitFor(() => expect(idb.reads).toContain("yuvoy:stay:v1"));
+    expect(
+      screen.getByRole("status", { name: "Loading your trips" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -887,6 +934,55 @@ describe("your island days", () => {
         )
       ).length,
     ).toBe(2);
+  });
+
+  it("lays out the stay's own days while the bookings on them are read", async () => {
+    /*
+      The days are the stay's, known before any booking is. Two fixed bars
+      stood in for all of them, and a week's stay grew by five rows when the
+      bookings landed (stability audit, 6 Oct 2026).
+    */
+    const [today, , third] = days(3);
+    idb.store.set(STAY_KEY, { from: today, to: third });
+    signIn();
+    noInvites();
+    server.use(
+      http.get(`${BASE}/me/bookings`, async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
+    renderWithQuery(<TripsScreen />);
+
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    const rows = await within(plan).findAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]).getByText("Today")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Tomorrow")).toBeInTheDocument();
+    rows.forEach((row) =>
+      expect(row.querySelector(".skeleton")).not.toBeNull(),
+    );
+    expect(within(plan).queryByText(/Nothing booked/)).toBeNull();
+  });
+
+  it("is a panel from the first frame while the phone reads the days", async () => {
+    // It drew nothing, then arrived above the list and pushed it down.
+    idb.hang.add(STAY_KEY);
+    signIn();
+    noInvites();
+    server.use(serverBookings([]));
+    renderWithQuery(<TripsScreen />);
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    expect(
+      within(plan).getByRole("status", { name: "Reading your days" }),
+    ).toBeInTheDocument();
+    expect(
+      within(plan).queryByRole("button", { name: "Set your days" }),
+    ).toBeNull();
   });
 
   it("says when the days are over, and lets them go", async () => {

@@ -104,20 +104,7 @@ export function AccountScreen() {
   }
 
   if (signedIn === undefined) {
-    return (
-      <Screen>
-        <LoadingState label="Checking this device">
-          <Skeleton className="h-32 w-full" />
-        </LoadingState>
-        {/*
-          Here too, because this is the branch that PRERENDERS: `/account` is
-          a static route and this shell is what the HTML contains. A policy
-          link that only exists after hydration is one a crawler, a reader with
-          JavaScript off, and anybody reading the source cannot find.
-        */}
-        <LegalLinks className="mt-10 text-xs" />
-      </Screen>
-    );
+    return <AccountWaiting label="Checking this device" />;
   }
 
   if (signedIn) return <SignedIn onSignOut={signOut} />;
@@ -189,6 +176,46 @@ export function AccountScreen() {
 }
 
 /**
+ * The screen before it knows which screen it is: the device's session first,
+ * then, signed in, the account. One shape for both waits, the shape both
+ * answers share: a heading's line, the lines under it, a block, and the
+ * policy links where both answers put them.
+ *
+ * The two waits used to be two different skeletons, and only the first had
+ * the links, so a signed-in visit went from one shape, to another without
+ * the links, to the screen with them (stability audit, 6 Oct 2026).
+ *
+ * The links are here for a second reason: the first wait is the branch that
+ * PRERENDERS. `/account` is a static route and this is what its HTML
+ * contains, and a policy link that only exists after hydration is one a
+ * crawler, a reader with JavaScript off, and anybody reading the source
+ * cannot find.
+ */
+function AccountWaiting({ label }: { label: string }) {
+  const line = (width: string) => (
+    <div className="flex h-[1lh] items-center">
+      <Skeleton className={`h-3 max-w-full ${width}`} />
+    </div>
+  );
+  return (
+    <Screen>
+      <LoadingState label={label}>
+        {/* The heading's own line box, whichever heading it becomes. */}
+        <div className="font-display leading-display flex h-[1lh] items-center text-3xl text-balance">
+          <Skeleton className="h-7 w-2/3" />
+        </div>
+        <div className="text-body mt-3 text-pretty">
+          {line("w-full")}
+          {line("w-4/5")}
+        </div>
+        <Skeleton className="mt-6 h-24 w-full" />
+      </LoadingState>
+      <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
+    </Screen>
+  );
+}
+
+/**
  * Signed in: who you are, and the four things an account can do.
  *
  * yuvoy-app#38 item 9. This screen used to be a sentence and a sign-out
@@ -224,14 +251,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
   const [redeemed, setRedeemed] = useState(false);
 
   if (account.isPending) {
-    return (
-      <Screen>
-        <LoadingState label="Loading your account">
-          <Skeleton className="h-10 w-2/3" />
-          <Skeleton className="mt-4 h-24 w-full" />
-        </LoadingState>
-      </Screen>
-    );
+    return <AccountWaiting label="Loading your account" />;
   }
 
   /*
