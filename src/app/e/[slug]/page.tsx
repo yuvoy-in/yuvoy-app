@@ -6,6 +6,7 @@ import { ExperienceDetail } from "@/components/experience/experience-detail";
 import { pageMetadata } from "@/lib/site/metadata";
 import { breadcrumbJsonLd } from "@/lib/site/structured-data";
 import { JsonLd } from "@/components/site/json-ld";
+import { preconnectApi } from "@/lib/site/preconnect";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -104,6 +105,8 @@ export default async function ExperiencePage({
   const read = await readExperience(slug);
   if (!read) notFound();
   const { experience, readAt } = read;
+  // Availability is read from the browser, live, the moment the page opens.
+  preconnectApi();
 
   return (
     <>

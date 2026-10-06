@@ -16,6 +16,7 @@ import { SearchScreen } from "@/components/search/search-screen";
 import { gatedRoute } from "@/components/auth/gated-route";
 import { pageMetadata } from "@/lib/site/metadata";
 import { gatedRobots } from "@/lib/site/indexing";
+import { preconnectApi } from "@/lib/site/preconnect";
 
 export const metadata: Metadata = {
   ...pageMetadata({
@@ -75,6 +76,10 @@ export default async function SearchPage({
   return gatedRoute({
     purpose: "search",
     searchParams,
-    content: () => <SearchScreen />,
+    content: () => {
+      // The results and the filter vocabulary are both read from the browser.
+      preconnectApi();
+      return <SearchScreen />;
+    },
   });
 }

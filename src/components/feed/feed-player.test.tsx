@@ -689,3 +689,53 @@ describe("the reel player's poster", () => {
     expect(poster(container)).toHaveAttribute("loading", "lazy");
   });
 });
+
+/**
+ * The media host's connection (production readiness, 6 Oct 2026). The first
+ * request to it paid ~550ms of connection setup on the live feed; the player
+ * warms it from its first render so the manifest does not wait for one.
+ */
+describe("the media host's connection", () => {
+  /*
+    A host of its own per case. React sends one hint per origin for the life
+    of the page, and earlier cases in this file have already warmed CLIP's.
+  */
+  const clipOn = (host: string): Media => ({
+    ...CLIP,
+    hlsUrl: `https://${host}/clip.m3u8`,
+  });
+  const warmed = (host: string) =>
+    [...document.head.querySelectorAll('link[rel="preconnect"]')].filter(
+      (l) => l.getAttribute("href") === `https://${host}`,
+    );
+
+  it("is left cold for a card outside the preload budget", () => {
+    render(
+      <FeedPlayer
+        media={clipOn("cold.example.test")}
+        active={false}
+        mounted={false}
+        muted
+        autoplayAllowed
+      />,
+    );
+    expect(warmed("cold.example.test")).toHaveLength(0);
+  });
+
+  it("is warmed for a card with a clip, in the pool native HLS loads from", () => {
+    render(
+      <FeedPlayer
+        media={clipOn("warm.example.test")}
+        active
+        mounted
+        muted
+        autoplayAllowed
+      />,
+    );
+    expect(warmed("warm.example.test")).toHaveLength(1);
+    // No crossorigin: native HLS fetches as no-cors media.
+    expect(warmed("warm.example.test")[0].hasAttribute("crossorigin")).toBe(
+      false,
+    );
+  });
+});

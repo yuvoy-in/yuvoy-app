@@ -4,6 +4,7 @@ import { pageMetadata } from "@/lib/site/metadata";
 import { Feed } from "@/components/feed/feed";
 import { gatedRoute } from "@/components/auth/gated-route";
 import { REELS_PAGE_SIZE, type ReelsPage } from "@/lib/feed/reels";
+import { preconnectApi } from "@/lib/site/preconnect";
 
 /**
  * T2 — the reels feed. The app's front door.
@@ -148,6 +149,8 @@ export default async function FeedPage({
     purpose: "browse",
     searchParams,
     content: async () => {
+      // The cards read their listings from the browser once they are on screen.
+      preconnectApi();
       const { page, fetchedAt } = await getFirstPage(scenario);
       return <Feed initialPage={page} initialFetchedAt={fetchedAt} />;
     },
