@@ -44,6 +44,17 @@ async function getExperience(slug: string): Promise<Experience | null> {
   }
 }
 
+/**
+ * The listing, with the moment it was read: checkout's cache is handed it
+ * (`BookingLayer`), and needs its age to know when to read it again.
+ */
+async function readExperience(
+  slug: string,
+): Promise<{ experience: Experience; readAt: number } | null> {
+  const experience = await getExperience(slug);
+  return experience ? { experience, readAt: Date.now() } : null;
+}
+
 export async function generateStaticParams() {
   // The catalog index exists for exactly this: everything with a public page,
   // and when it last changed.
@@ -90,8 +101,9 @@ export default async function ExperiencePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const experience = await getExperience(slug);
-  if (!experience) notFound();
+  const read = await readExperience(slug);
+  if (!read) notFound();
+  const { experience, readAt } = read;
 
   return (
     <>
@@ -101,7 +113,7 @@ export default async function ExperiencePage({
           { name: experience.title, path: `/e/${experience.slug}` },
         ])}
       />
-      <ExperienceDetail experience={experience} />
+      <ExperienceDetail experience={experience} readAt={readAt} />
     </>
   );
 }

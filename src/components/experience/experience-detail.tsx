@@ -39,7 +39,14 @@ type Experience = components["schemas"]["Experience"];
  *   - Urgency. No "3 people are looking at this". The only scarcity shown is
  *     the real seat count, and only when it is real.
  */
-export function ExperienceDetail({ experience }: { experience: Experience }) {
+export function ExperienceDetail({
+  experience,
+  readAt,
+}: {
+  experience: Experience;
+  /** When the server read it: the listing page passes it on to checkout. */
+  readAt?: number;
+}) {
   const price = formatFromPrice(experience.fromPrice);
   const cancellation = cancellationLine(experience);
   const instant = experience.bookingMode === "allotment";
@@ -115,6 +122,7 @@ export function ExperienceDetail({ experience }: { experience: Experience }) {
       <BookingLayer
         experience={experience}
         bookable={bookable}
+        readAt={readAt}
         before={
           <>
             {/*

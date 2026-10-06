@@ -21,12 +21,12 @@ import {
 import { monthStart } from "@/lib/search/month-grid";
 import { civilFromDate, civilInZone, weekdayDayMonth } from "@/lib/format/date";
 import { CheckoutForm } from "@/components/checkout/checkout-form";
+import { CheckoutSkeleton } from "./checkout-skeleton";
 import { DateChooser } from "./day-strip";
 import { CheckoutPicture } from "./checkout-picture";
-import { PicturePlaceholder } from "@/components/chrome/picture-strip";
 import { slotIsOpen } from "@/lib/booking/slot-open";
 import { TimePicker } from "./time-picker";
-import { ErrorState, LoadingState, Skeleton } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
@@ -289,18 +289,8 @@ export function BookScreen({ slug }: { slug: string }) {
     }
   }, [date, effectiveSlotId, guests, pathname]);
 
-  if (experience.isPending) {
-    return (
-      <Screen back={back} stageLabel="Checkout" hero={<PicturePlaceholder />}>
-        <LoadingState label="Loading checkout">
-          <div className="space-y-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </LoadingState>
-      </Screen>
-    );
-  }
+  // The same frame the route's boundary drew, so nothing swaps as it lands.
+  if (experience.isPending) return <CheckoutSkeleton slug={slug} />;
 
   if (experience.isLoadingError) {
     return (

@@ -1,7 +1,7 @@
-import { SheetSkeleton } from "@/components/states/route-skeletons";
-import { PicturePlaceholder } from "@/components/chrome/picture-strip";
+import { CheckoutRouteSkeleton } from "@/components/checkout/checkout-skeleton";
 
 export default function Loading() {
-  // Checkout opens under the listing's picture (`CheckoutPicture`).
-  return <SheetSkeleton hero={<PicturePlaceholder />} />;
+  // Checkout's own frame, its Back read from the route, so the boundary and
+  // the screen are one shape.
+  return <CheckoutRouteSkeleton />;
 }

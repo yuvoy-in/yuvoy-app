@@ -75,16 +75,25 @@ export function DateChooser({
         <h2 id="date-heading" className="label text-forest/75">
           Pick a day
         </h2>
-        {/* Nothing to see more of until the dates have arrived. */}
-        {state === "ready" ? (
-          <button
-            type="button"
-            onClick={() => setChosenView(view === "strip" ? "month" : "strip")}
-            className="text-terra-deep tap-target text-button font-bold underline-offset-4 hover:underline"
-          >
-            {view === "strip" ? "More dates" : "Next two weeks"}
-          </button>
-        ) : null}
+        {/*
+          Nothing to see more of until the dates have arrived, so until then
+          it is held in place, unseen and out of reach. It is taller than the
+          heading beside it (a 28px target over an 18px line), and drawing it
+          only once the dates landed pushed the whole calendar down 10px
+          (stability audit, 6 Oct 2026).
+        */}
+        <button
+          type="button"
+          disabled={state !== "ready"}
+          aria-hidden={state !== "ready" ? true : undefined}
+          onClick={() => setChosenView(view === "strip" ? "month" : "strip")}
+          className={cn(
+            "text-terra-deep tap-target text-button font-bold underline-offset-4 hover:underline",
+            state !== "ready" && "invisible",
+          )}
+        >
+          {view === "strip" ? "More dates" : "Next two weeks"}
+        </button>
       </div>
 
       <div className="mt-3">
