@@ -79,7 +79,7 @@ export function NextUpPass({ trip, now }: { trip: ServerTrip; now: number }) {
     nothing. One that failed to REFRESH keeps what it had: the meeting point
     did not move because a poll dropped.
   */
-  const extras = status.data ?? null;
+  const extras = status.isPending || status.isLoadingError ? null : status.data;
   const landmark = extras?.meetingPoint?.landmark?.trim();
   const update = extras?.operatorUpdates?.[0];
   const updateAt = update?.sentAt

@@ -139,7 +139,11 @@ for (const f of files) {
   // things that actually paint.
   if (!queries || /[/\\]lib[/\\]/.test(f)) continue;
   const hasLoading = /isPending|isLoading|LoadingState|Skeleton/.test(s);
-  const hasError = /isError|ErrorState/.test(s);
+  // By name: `isError` alone is banned (eslint.config.mjs), because it is
+  // also true for a refetch that failed with data still on screen.
+  const hasError = /is(Loading|Refetch|FetchNextPage)?Error\b|ErrorState/.test(
+    s,
+  );
   if (!hasLoading)
     problems.push(`${rel(f)}: queries but renders no loading state`);
   if (!hasError) problems.push(`${rel(f)}: queries but renders no error state`);
