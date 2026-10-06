@@ -201,6 +201,15 @@ export function defineTabBarGlide() {
       await holdNextChange(page);
     });
 
+    /** Tap `to` on the bar and hold the change it starts at `at` ms. */
+    async function holdTap(page: Page, to: string, at = 60) {
+      await page.evaluate((t) => {
+        window.__holdAt = t;
+      }, at);
+      await page.locator(BAR).getByRole("link", { name: to }).tap();
+      await page.waitForFunction(() => window.__held === true);
+    }
+
     /** From `from`, tap `to` and hold the change it starts at `at` ms. */
     async function holdTabChange(
       page: Page,
@@ -210,11 +219,7 @@ export function defineTabBarGlide() {
     ) {
       await page.goto(from);
       await page.waitForLoadState("networkidle");
-      await page.evaluate((t) => {
-        window.__holdAt = t;
-      }, at);
-      await page.locator(BAR).getByRole("link", { name: to }).tap();
-      await page.waitForFunction(() => window.__held === true);
+      await holdTap(page, to, at);
     }
 
     test("the bar is drawn above both screens all the way through", async ({
@@ -267,7 +272,20 @@ export function defineTabBarGlide() {
     test("over a reel the pill is solid while the change runs, frosted after", async ({
       page,
     }) => {
-      await holdTabChange(page, "/search", "Feed");
+      /*
+        Back to a feed the router still holds. A first change into the feed
+        waits on the network (the feed keeps no loading boundary, by ruling),
+        and while it waits React can commit Next's empty deferred render on
+        its own, which claims the change's types: 3 to 8 cold changes in 100
+        then ran untyped, so unheld and unanimated (stability audit, 6 Oct
+        2026). That is upstream and is in docs/ux-stability-final-report.md;
+        this test is about the bar.
+      */
+      await openFeed(page);
+      await page.locator(BAR).getByRole("link", { name: "Search" }).tap();
+      await page.waitForURL((url) => url.pathname === "/search");
+      await page.waitForLoadState("networkidle");
+      await holdTap(page, "Feed");
       const during = await page.evaluate(
         () =>
           getComputedStyle(document.querySelector("[data-tabbar-ground]")!)
