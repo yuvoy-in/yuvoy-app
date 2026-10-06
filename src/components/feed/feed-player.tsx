@@ -330,8 +330,24 @@ export function FeedPlayer({
           capLevelToPlayerSize: true,
         });
         hls = instance;
+        /*
+          A fatal decode fault is often one bad fragment, and hls.js's own
+          answer is to rebuild the media buffer and carry on: tried once per
+          attachment. It used to end the clip at once (stability audit,
+          6 Oct 2026). A network fault is only fatal once hls.js has spent
+          its own retries, and a second decode fault means the clip will not
+          decode here, so both are a failure, which the card's next time on
+          screen tries afresh.
+        */
+        let recovered = false;
         instance.on(Hls.Events.ERROR, (_e, data) => {
-          if (data.fatal) setFailed(true);
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) {
+            recovered = true;
+            instance.recoverMediaError();
+            return;
+          }
+          setFailed(true);
         });
         instance.loadSource(src);
         instance.attachMedia(video);
