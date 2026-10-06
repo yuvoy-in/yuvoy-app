@@ -61,6 +61,208 @@ async function refuseReservations(page: Page) {
   });
 }
 
+/** Holds every read of the trips list for `ms`, as a slow signal does. */
+async function slowTrips(page: Page, ms: number) {
+  await page.addInitScript((wait) => {
+    const fetchOf = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (/\/api\/v1\/me\/bookings/.test(url))
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      return fetchOf(input, init);
+    };
+  }, ms);
+}
+
+/**
+ * One frame of a Trips tab change, as drawn: computed opacity, which carries
+ * every animation running on the element.
+ */
+interface TabFrame {
+  /** ms since the tab was pressed. */
+  t: number;
+  /** The new tab's own element. */
+  tab: number | null;
+  /** Its trips, or its empty state, inside it. */
+  content: number | null;
+  /** Its skeleton as drawn (under the tab), 0 when there is none. */
+  skeleton: number;
+  /** The fading copy of the tab it replaced, 0 when there is none. */
+  leaving: number;
+}
+
+/** A tab pressed: when, and how opaque the tab on screen was drawn then. */
+interface TabPress {
+  t: number;
+  drawn: number;
+}
+
+interface TabFrames {
+  frames: TabFrame[];
+  presses: TabPress[];
+}
+
+type TabFramesWindow = { __tabFrames: () => TabFrames };
+
+/**
+ * Starts reading every frame drawn under the Trips tabs, and every press on
+ * one, timed from the first press. A press is read in the capture phase,
+ * before the app has heard of it, so `drawn` is the tab as it was then.
+ */
+async function readTabFrames(page: Page) {
+  await page.evaluate(() => {
+    const frames: TabFrame[] = [];
+    const presses: TabPress[] = [];
+    const op = (el: Element | null | undefined) =>
+      el ? Number(getComputedStyle(el).opacity) : null;
+    const shown = () => {
+      const key = document
+        .querySelector('[aria-label="Which trips"] [aria-selected="true"]')
+        ?.getAttribute("data-tab");
+      return key ? document.querySelector(`[data-motion-key="${key}"]`) : null;
+    };
+    const press = (e: Event) => {
+      if (
+        (e.target as Element | null)?.closest?.(
+          '[aria-label="Which trips"] [data-tab]',
+        )
+      )
+        presses.push({ t: performance.now(), drawn: op(shown()) ?? 0 });
+    };
+    document.addEventListener("click", press, { capture: true });
+    let on = true;
+    const read = () => {
+      if (!on) return;
+      const tab = shown();
+      const content = tab?.querySelector(
+        '[data-motion-key="list"], [data-motion-key="empty"]',
+      );
+      const loading = tab?.querySelector('[data-motion-key="loading"]');
+      const copies = tab?.parentElement
+        ? [...tab.parentElement.children].filter((el) =>
+            el.hasAttribute("data-motion-ghost"),
+          )
+        : [];
+      frames.push({
+        t: performance.now(),
+        tab: op(tab),
+        content: op(content),
+        skeleton: loading ? (op(tab) ?? 0) * (op(loading) ?? 0) : 0,
+        leaving: Math.max(0, ...copies.map((el) => op(el) ?? 0)),
+      });
+      requestAnimationFrame(read);
+    };
+    requestAnimationFrame(read);
+    (window as unknown as TabFramesWindow).__tabFrames = () => {
+      on = false;
+      document.removeEventListener("click", press, { capture: true });
+      const start = presses[0]?.t ?? Infinity;
+      return {
+        frames: frames
+          .filter((f) => f.t >= start)
+          .map((f) => ({ ...f, t: f.t - start })),
+        presses: presses.map((p) => ({ ...p, t: p.t - start })),
+      };
+    };
+  });
+}
+
+const tabFrames = (page: Page) =>
+  page.evaluate(() => (window as unknown as TabFramesWindow).__tabFrames());
+
+/** Presses a tab and reads every frame drawn for `ms` after it. */
+async function tabChange(
+  page: Page,
+  name: RegExp,
+  ms = 700,
+): Promise<TabFrame[]> {
+  await readTabFrames(page);
+  await page
+    .getByRole("tablist", { name: "Which trips" })
+    .getByRole("tab", { name })
+    .click();
+  await page.waitForTimeout(ms);
+  return (await tabFrames(page)).frames;
+}
+
+/**
+ * Two tabs pressed `gap` ms apart. From inside the page, so the gap is the
+ * page's own clock and not the time a driver takes between two clicks.
+ */
+async function twoQuickTabs(
+  page: Page,
+  [first, second]: [string, string],
+  gap: number,
+  ms = 900,
+): Promise<TabFrames> {
+  await readTabFrames(page);
+  await page.evaluate(
+    ([a, b, wait]) => {
+      const tab = (name: string) =>
+        document.querySelector<HTMLElement>(
+          `[aria-label="Which trips"] [data-tab="${name}"]`,
+        )!;
+      tab(a).click();
+      setTimeout(() => tab(b).click(), wait);
+    },
+    [first, second, gap] as const,
+  );
+  await page.waitForTimeout(ms);
+  return tabFrames(page);
+}
+
+/** The first frame at which something that should only come up went down. */
+function wentDown(
+  frames: TabFrame[],
+  of: (f: TabFrame) => number | null,
+): TabFrame | undefined {
+  let top = 0;
+  for (const f of frames) {
+    const v = of(f);
+    if (v === null) {
+      top = 0;
+      continue;
+    }
+    if (v < top - 0.05) return f;
+    top = Math.max(top, v);
+  }
+  return undefined;
+}
+
+/**
+ * A tab change the way T07 A and the motion system §8 describe it: the old
+ * tab fades out before anything of the new one is drawn, the new one only
+ * comes up, no skeleton before a wait has lasted 300ms, and it all rests.
+ */
+function expectCalm(frames: TabFrame[], label: string) {
+  expect(frames.length, `${label}: nothing was drawn`).toBeGreaterThan(10);
+  const show = (f?: TabFrame) => JSON.stringify(f);
+  const tabDown = wentDown(frames, (f) => f.tab);
+  expect(tabDown, `${label}: the tab came up, went off ${show(tabDown)}`).toBe(
+    undefined,
+  );
+  const listDown = wentDown(frames, (f) => f.content);
+  expect(
+    listDown,
+    `${label}: its trips came up, went off ${show(listDown)}`,
+  ).toBe(undefined);
+  const both = frames.find((f) => f.leaving > 0.5 && (f.tab ?? 0) > 0.05);
+  expect(both, `${label}: both tabs drawn at once ${show(both)}`).toBe(
+    undefined,
+  );
+  const early = frames.find((f) => f.t < 300 && f.skeleton > 0.05);
+  expect(early, `${label}: a skeleton before 300ms ${show(early)}`).toBe(
+    undefined,
+  );
+  const last = frames.at(-1)!;
+  expect([last.tab, last.content, last.leaving], label).toEqual([1, 1, 0]);
+}
+
 const openDays = (page: Page) =>
   page
     .getByRole("group", { name: "The next two weeks" })
@@ -142,6 +344,81 @@ export function defineBookingMotion() {
       expect(into!.delay).toBe(100);
       expect(into!.duration).toBe(150);
     });
+
+    /*
+      What the test above cannot see: it reads the keyframes each call was
+      given, and on 7 Oct 2026 every one of them was exactly what the code
+      meant, and every arrival still played backwards (`arriveFrom`). The
+      owner saw the next tab's trips come up, go off and come back. These
+      read what is DRAWN, frame by frame.
+    */
+    test("a tab's trips only ever come up: never drawn, taken away and drawn again", async ({
+      page,
+    }) => {
+      await signIn(page);
+      await page.goto("/trips");
+      const tabs = page.getByRole("tablist", { name: "Which trips" });
+      await expect(tabs).toHaveAttribute("data-tab-fill", "on");
+      await page.waitForLoadState("networkidle");
+
+      // Opened for the first time, then opened again from the cache.
+      expectCalm(await tabChange(page, /^past/i), "Past, first time");
+      expectCalm(await tabChange(page, /^upcoming/i), "Upcoming, again");
+      expectCalm(await tabChange(page, /^cancelled/i), "Cancelled, first time");
+      expectCalm(await tabChange(page, /^past/i), "Past, again");
+    });
+
+    test("a tab slow to answer shows nothing for 300ms, then its skeleton, held 300ms", async ({
+      page,
+    }) => {
+      await slowTrips(page, 900);
+      await signIn(page);
+      await page.goto("/trips");
+      const tabs = page.getByRole("tablist", { name: "Which trips" });
+      await expect(tabs).toHaveAttribute("data-tab-fill", "on");
+      await expect(
+        page.getByRole("main").getByRole("listitem").first(),
+      ).toBeVisible({
+        timeout: 10_000,
+      });
+
+      const frames = await tabChange(page, /^past/i, 2000);
+      expectCalm(frames, "Past, slow");
+      const shown = frames.find((f) => f.skeleton > 0.05);
+      expect(shown, "a 900ms wait never showed its skeleton").toBeTruthy();
+      const gone = frames.find((f) => f.t > shown!.t && f.skeleton === 0);
+      expect(gone, "the skeleton was never replaced").toBeTruthy();
+      // Once shown it stays: a skeleton that blinks is the flash itself.
+      expect(gone!.t - shown!.t).toBeGreaterThanOrEqual(200);
+    });
+
+    test("a tab left as it arrives fades from where it had got to, never whole", async ({
+      page,
+    }) => {
+      await signIn(page);
+      await page.goto("/trips");
+      const tabs = page.getByRole("tablist", { name: "Which trips" });
+      await expect(tabs).toHaveAttribute("data-tab-fill", "on");
+      await page.waitForLoadState("networkidle");
+
+      // Past is still coming up when Cancelled is pressed.
+      const { frames, presses } = await twoQuickTabs(
+        page,
+        ["past", "cancelled"],
+        120,
+      );
+      expect(presses).toHaveLength(2);
+      const second = presses[1];
+      const after = frames
+        .filter((f) => f.t >= second.t)
+        .map((f) => ({ ...f, t: f.t - second.t }));
+      const flash = after.find((f) => f.leaving > second.drawn + 0.05);
+      expect(
+        flash,
+        `Past was drawn at ${second.drawn} and left brighter: ${JSON.stringify(flash)}`,
+      ).toBe(undefined);
+      expectCalm(after, "Cancelled, pressed as Past arrived");
+    });
   });
 
   test.describe("choosing a day and a time (T09 A)", () => {
@@ -162,7 +439,7 @@ export function defineBookingMotion() {
         (p) => p.cls.includes("day-window") && !p.cls.includes("copy"),
       );
       expect(appeared, "the chosen day was not drawn").toBeTruthy();
-      expect(appeared!.keyframes).toEqual([{ opacity: 0 }]);
+      expect(appeared!.keyframes).toEqual([{ opacity: 0, offset: 0 }]);
       // The day's times rise in one after another.
       await expect
         .poll(
