@@ -10,6 +10,7 @@ import { useFragmentToken } from "@/lib/booking/use-fragment-token";
 import { formatMoney } from "@/lib/format/money";
 import { formatAge } from "@/lib/format/time";
 import { clockOffsetMs } from "@/lib/booking/clock";
+import { isDeadToken } from "@/lib/api/errors";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { CancelSheet } from "./cancel-sheet";
 import { BookingQuestions } from "./booking-questions";
@@ -77,7 +78,7 @@ export function BookingScreen() {
   const token = useFragmentToken();
   const mounted = useHasMounted();
 
-  const { data, error, isPending, isError, gaveUp, snapshot, refetch } =
+  const { data, error, isPending, isLoadingError, gaveUp, snapshot, refetch } =
     useBookingStatus(token);
 
   /*
@@ -132,7 +133,7 @@ export function BookingScreen() {
 
   // Nothing from the network, but we kept the last known payload. Show it,
   // clearly stamped. Never present a saved booking as a live one.
-  if (isError && snapshot) {
+  if (isLoadingError && snapshot) {
     return (
       <Shell hero={pictureOf(snapshot.status)}>
         <div
@@ -147,10 +148,16 @@ export function BookingScreen() {
     );
   }
 
-  // A dead link — expired, or replaced by a newer one — is answered with the
+  // A dead link (expired, or replaced by a newer one) is answered with the
   // way to a fresh link, not a retry that can never work. `tokenBearing` is
   // what turns the 401 into that offer.
-  if (isError) {
+  //
+  // Only a read that never came back, or a link the server has finished
+  // with, takes the screen. The status polls, and one poll dropped on a
+  // ferry used to swap the booking a traveller was reading for an error
+  // page; the booking now stays, and the next poll brings it up to date
+  // (6 Oct 2026).
+  if (isLoadingError || isDeadToken(error)) {
     return (
       <Shell>
         <ErrorState error={error} onRetry={() => void refetch()} tokenBearing />

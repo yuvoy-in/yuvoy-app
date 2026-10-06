@@ -85,7 +85,8 @@ const eslintConfig = defineConfig([
             showing (6 Oct 2026). Banned outright, so the choice is made by
             name every time.
           */
-          selector: "MemberExpression[property.name='isError']",
+          selector:
+            "MemberExpression[property.name='isError'], ObjectPattern > Property[key.name='isError']",
           message:
             "isError is also true when a refetch fails with data on screen, so branching on it swaps that data for an error. Use isLoadingError for an error in place of content, isRefetchError for a note beside data that stays, isFetchNextPageError for a page that did not arrive, or error for a mutation.",
         },

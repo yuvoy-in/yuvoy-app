@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, waitFor } from "@testing-library/react";
+import { act, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "../../../mocks/server";
@@ -115,6 +115,38 @@ describe("with saved experiences", () => {
       name: new RegExp(first.title, "i"),
     });
     expect(link).toHaveAttribute("href", `/e/${first.slug}`);
+  });
+
+  it("does not call a saved listing gone because a refresh failed", async () => {
+    /*
+      The tile says "no longer on Yuvoy" and offers Remove for a listing that
+      never came back. It used to say so for any failed read, a refresh of a
+      tile already drawn included, so one dropped connection offered to
+      delete somebody's saves (6 Oct 2026).
+    */
+    idb.store.set(KEY, [entry(first.id, first.slug)]);
+    const { client } = renderWithQuery(<SavedScreen />);
+    await screen.findByRole("link", { name: new RegExp(first.title, "i") });
+
+    server.use(
+      http.get(`${BASE}/experiences/:slug`, () =>
+        HttpResponse.json(
+          { error: { code: "bad_request", message: "no" } },
+          { status: 400 },
+        ),
+      ),
+    );
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["getExperience"] });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(
+      screen.getByRole("link", { name: new RegExp(first.title, "i") }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("This experience is no longer on Yuvoy."),
+    ).toBeNull();
   });
 
   it("says the saves are on this device, and how to keep them", async () => {

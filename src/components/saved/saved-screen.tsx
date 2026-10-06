@@ -408,10 +408,10 @@ function DeviceTile({
   onRemove,
 }: {
   entry: SavedEntry & { slug: string };
-  result: { data?: Experience; isPending: boolean; isError: boolean };
+  result: { data?: Experience; isPending: boolean };
   onRemove: (entry: SavedEntry) => void;
 }) {
-  const { data, isPending, isError } = result;
+  const { data, isPending } = result;
 
   if (isPending) {
     return (
@@ -426,7 +426,12 @@ function DeviceTile({
     left to do with it is stop holding it. The title is not known, so the tile
     says what it can and offers the one action that helps.
   */
-  if (isError || !data) {
+  /*
+    Only a listing that never came back. A refresh that fails keeps the tile
+    it drew: a dropped connection used to call a saved listing "no longer on
+    Yuvoy" and offer to remove it (6 Oct 2026).
+  */
+  if (!data) {
     return (
       <li className="border-paper-line rounded-tile flex aspect-[4/5] flex-col justify-between border border-dashed p-3">
         <p className="text-forest/70 text-xs">

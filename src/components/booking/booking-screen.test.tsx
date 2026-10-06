@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { screen, waitFor, within, cleanup } from "@testing-library/react";
+import { act, screen, waitFor, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { BookingScreen } from "./booking-screen";
@@ -135,6 +135,65 @@ describe("BookingScreen", () => {
       screen.getByText(/07:00 on Saturday, 22 August/),
     ).toBeInTheDocument();
     expect(screen.getByText("₹9,000")).toBeInTheDocument();
+  });
+
+  it("keeps the booking on screen when one poll does not come back", async () => {
+    /*
+      The status polls. One poll dropped on a ferry used to swap the booking
+      a traveller was reading for an error page, the page the token now
+      lives on included (6 Oct 2026). The next poll brings it up to date.
+    */
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ final: false })),
+      ),
+    );
+    const { client } = renderWithQuery(<BookingScreen />);
+    expect(await screen.findByText("You are going")).toBeInTheDocument();
+
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          { error: { code: "bad_request", message: "no" } },
+          { status: 400 },
+        ),
+      ),
+    );
+    await act(async () => {
+      await client.refetchQueries();
+      // React Query tells the screen on the next task, not in this one.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(screen.getByText("You are going")).toBeInTheDocument();
+    expect(screen.getByText("YV-4K2M9P7Q")).toBeInTheDocument();
+  });
+
+  it("gives the screen to a link the server has finished with, even mid-visit", async () => {
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(statusBody({ final: false })),
+      ),
+    );
+    const { client } = renderWithQuery(<BookingScreen />);
+    expect(await screen.findByText("You are going")).toBeInTheDocument();
+
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          {
+            error: { code: "token_expired", message: "This link has expired." },
+          },
+          { status: 401 },
+        ),
+      ),
+    );
+    await act(async () => {
+      await client.refetchQueries();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(screen.queryByText("You are going")).toBeNull();
   });
 
   it("NEVER renders verifying as a failure", async () => {
