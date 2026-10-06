@@ -68,6 +68,16 @@ export function useBookingStatus(token: string | null) {
     staleTime: 0,
     gcTime: Infinity,
     retry: false,
+    /*
+      Asked whatever the browser believes about the connection, because the
+      saved copy below is shown only once a read has FAILED. In the default
+      mode a read started after the phone went offline does not fail, it
+      waits: so a traveller who lost signal on the ferry and then opened
+      their booking from Trips watched a spinner until the signal came back,
+      with the copy they needed already on the device (production readiness,
+      6 Oct 2026). An offline read rejects at once, so this costs nothing.
+    */
+    networkMode: "always",
   });
 
   // Give up loudly rather than quietly spinning.
