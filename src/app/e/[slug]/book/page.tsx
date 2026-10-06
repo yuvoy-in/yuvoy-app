@@ -4,6 +4,7 @@ import { BookScreen } from "@/components/checkout/book-screen";
 import { CheckoutSkeleton } from "@/components/checkout/checkout-skeleton";
 import { gatedRoute } from "@/components/auth/gated-route";
 import { privateRobotsMeta } from "@/lib/site/indexing";
+import { preconnectApi } from "@/lib/site/preconnect";
 
 /**
  * T6/T7 — checkout, as a route.
@@ -46,16 +47,20 @@ export default async function BookPage({
     searchParams,
     back: { href: `/e/${slug}`, label: "the listing" },
     stageLabel: "Checkout",
-    content: () => (
+    content: () => {
+      // Availability and the hold are read and written from the browser.
+      preconnectApi();
       /*
         `useSearchParams` needs a boundary above it. The fallback is the same
         skeleton the screen shows while its own queries resolve, so a slow
         navigation and a slow fetch look like one continuous state rather than
         two different loading screens.
       */
-      <Suspense fallback={<CheckoutSkeleton slug={slug} />}>
-        <BookScreen slug={slug} />
-      </Suspense>
-    ),
+      return (
+        <Suspense fallback={<CheckoutSkeleton slug={slug} />}>
+          <BookScreen slug={slug} />
+        </Suspense>
+      );
+    },
   });
 }

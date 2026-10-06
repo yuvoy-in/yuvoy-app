@@ -45,6 +45,31 @@ describe("reading", () => {
     expect(screen.getByText(/bring cash/i)).toBeInTheDocument();
   });
 
+  it("asks nothing of the account when signed out", async () => {
+    /*
+      `GET /me` answers a signed-out phone with a refusal it already knows,
+      a round trip on an island connection for nothing.
+    */
+    let asked = 0;
+    let answered = false;
+    server.use(
+      http.get("/api/v1/me", () => {
+        asked += 1;
+        return HttpResponse.json(null, { status: 401 });
+      }),
+      http.get("*/api/session", () => {
+        answered = true;
+        return HttpResponse.json({ signedIn: false });
+      }),
+    );
+
+    renderWithQuery(<HelpCenter />);
+    // Once the session has said signed out, nothing is waiting to ask.
+    await waitFor(() => expect(answered).toBe(true));
+    await screen.findByRole("heading", { name: "Booking" });
+    expect(asked).toBe(0);
+  });
+
   it("works with no session, because a signed-out traveller still needs help", async () => {
     server.use(
       http.get("/api/v1/me", () => HttpResponse.json(null, { status: 401 })),

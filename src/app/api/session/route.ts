@@ -1,11 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { sameOriginOnly } from "@/lib/auth/same-origin";
 import {
   readSessionCookie,
+  readSessionToEnd,
+  signOutOwed,
   writeSessionCookie,
   clearSessionCookie,
   touchSessionCookie,
 } from "@/lib/auth/session-cookie";
-import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
+import {
+  callUpstream,
+  sessionExpiryOf,
+  unreachable,
+  type UpstreamResult,
+} from "@/lib/auth/upstream";
 
 /**
  * The session's whole life: sign in, ask, sign out (yuvoy-app#57).
@@ -35,7 +43,7 @@ export const dynamic = "force-dynamic";
  * different field for each; re-encoding the envelope here would mean the
  * form's copy is only as good as this route's translation of it.
  */
-export async function POST(request: Request) {
+async function signIn(request: Request) {
   let input: { phone?: unknown; code?: unknown };
   try {
     input = await request.json();
@@ -60,12 +68,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const answer = await callUpstream({
-    method: "POST",
-    path: "/me/sign-in/verify",
-    body: { phone, code },
-    from: request,
-  });
+  let answer: UpstreamResult;
+  try {
+    answer = await callUpstream({
+      method: "POST",
+      path: "/me/sign-in/verify",
+      body: { phone, code },
+      from: request,
+    });
+  } catch (cause) {
+    return unreachable({
+      where: "[session] POST /me/sign-in/verify",
+      cause,
+      request,
+      message: "Signing in did not complete. Try again in a moment.",
+    });
+  }
 
   if (answer.status < 200 || answer.status >= 300) {
     return passthrough(answer);
@@ -98,6 +116,15 @@ export async function POST(request: Request) {
     );
   }
 
+  /*
+    Signing in on a phone that signed out with no signal: the session that
+    sign-out was for is still live at the API, and the cookie about to be
+    written is the last trace of it, so the API is told it ended.
+  */
+  if (await signOutOwed()) {
+    const ended = await readSessionToEnd();
+    if (ended && ended !== token) tellTheApi(request, ended);
+  }
   await writeSessionCookie(
     request,
     token,
@@ -118,16 +145,41 @@ export async function POST(request: Request) {
  * can be revoked from another device. A `401` clears the cookie so the next
  * load takes the fast path above rather than asking again forever.
  */
-export async function GET(request: Request) {
+async function check(request: Request) {
+  /*
+    A sign-out made with no signal is finished by the first check that
+    reaches this server, before the cookie it was for is believed. See
+    `lib/auth/sign-out-owed.ts`.
+  */
+  if (await signOutOwed()) {
+    await endSession(request);
+    return NextResponse.json({ signedIn: false });
+  }
+
   const token = await readSessionCookie();
   if (!token) return NextResponse.json({ signedIn: false });
 
-  const answer = await callUpstream({
-    method: "GET",
-    path: "/me",
-    token,
-    from: request,
-  });
+  let answer: UpstreamResult;
+  try {
+    answer = await callUpstream({
+      method: "GET",
+      path: "/me",
+      token,
+      from: request,
+    });
+  } catch (cause) {
+    /*
+      Signed in, for the reason the next branch gives: an API that did not
+      answer has not ended anybody's session.
+    */
+    if (!request.signal.aborted) {
+      console.error(
+        "[session] GET /me did not answer; still signed in.",
+        cause,
+      );
+    }
+    return NextResponse.json({ signedIn: true });
+  }
 
   if (answer.status === 401) {
     await clearSessionCookie(request);
@@ -152,15 +204,40 @@ export async function GET(request: Request) {
 /**
  * Sign out.
  *
- * Tells the API first, then forgets locally, and never lets the API's answer
- * decide whether the device forgets. `DELETE /me/session` answers 204 whatever
- * the token was, so a failure here means the network rather than the session.
- * A traveller who taps sign out on a jetty with no signal must still be signed
- * out on the phone in front of them.
+ * Forgets on this device at once, tells the API straight after, and never lets
+ * the API's answer decide whether the device forgets. `DELETE /me/session`
+ * answers 204 whatever the token was, so a failure there means the network
+ * rather than the session. A traveller who taps sign out on a jetty with no
+ * signal must still be signed out on the phone in front of them.
+ *
+ * The API is told in `after`, once this answer has gone. The cleared cookie in
+ * this answer is what signs the phone out, and it used to wait on the API: a
+ * slow or silent API held it, and a browser that gave up first never received
+ * it, so the phone stayed signed in (production readiness, 6 Oct 2026). The
+ * token is read before the cookie is cleared, so the API is still told which
+ * session ended.
  */
-export async function DELETE(request: Request) {
-  const token = await readSessionCookie();
-  if (token) {
+async function signOut(request: Request) {
+  await endSession(request);
+  return new NextResponse(null, { status: 204 });
+}
+
+/**
+ * Ends this browser's session: the cookie, and any sign-out owed, are cleared
+ * in this answer, and the API is told once it has gone.
+ *
+ * The token is read whatever is owed: a sign-out the server never heard is
+ * still a session the API should be told about.
+ */
+async function endSession(request: Request): Promise<void> {
+  const token = await readSessionToEnd();
+  if (token) tellTheApi(request, token);
+  await clearSessionCookie(request);
+}
+
+/** `DELETE /me/session`, after the answer has gone. */
+function tellTheApi(request: Request, token: string): void {
+  after(async () => {
     try {
       await callUpstream({
         method: "DELETE",
@@ -168,13 +245,23 @@ export async function DELETE(request: Request) {
         token,
         from: request,
       });
-    } catch {
-      // Deliberately ignored. See above.
+    } catch (cause) {
+      /*
+        Logged, and otherwise ignored, as it always was: the session expires
+        on its own, and the only copy of the token has left this phone.
+      */
+      console.error("[session] DELETE /me/session did not answer.", cause);
     }
-  }
-  await clearSessionCookie(request);
-  return new NextResponse(null, { status: 204 });
+  });
 }
+
+/*
+  Only this app's own pages may sign in, check or sign out, and no answer is
+  cached anywhere. See lib/auth/same-origin for the login forgery this closes.
+*/
+export const POST = sameOriginOnly(signIn);
+export const GET = sameOriginOnly(check);
+export const DELETE = sameOriginOnly(signOut);
 
 /** The API's answer, as it came, so a form's own error copy still works. */
 function passthrough(answer: {

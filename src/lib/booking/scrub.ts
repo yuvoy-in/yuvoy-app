@@ -17,12 +17,20 @@
  *      by the Referrer-Policy header in next.config.ts, plus no third-party
  *      assets on the booking route.
  *
+ * Two more travel in the PATH, where no fragment rule reaches them: an
+ * invitation (`/i/{token}`, which lets whoever holds it join the trip) and a
+ * shared trip (`/trip/{token}`). Those segments are redacted as well
+ * (production readiness, 6 Oct 2026).
+ *
  * This module is the single implementation, so a new analytics tool is one
  * call site rather than a new leak.
  */
 
 /** The fragment parameter the status token travels in. */
 export const TOKEN_PARAM = "t";
+
+/** `/i/{token}` and `/trip/{token}`: the routes whose path segment is a token. */
+const PATH_TOKEN = /(\/(?:i|trip)\/)[^/?#\s]+/g;
 
 /**
  * Removes the token from any URL-ish string.
@@ -33,14 +41,15 @@ export const TOKEN_PARAM = "t";
  */
 export function scrubUrl(input: string): string {
   if (typeof input !== "string" || input === "") return input;
+  const url = input.replace(PATH_TOKEN, "$1[redacted]");
 
-  const hashAt = input.indexOf("#");
-  if (hashAt === -1) return input;
+  const hashAt = url.indexOf("#");
+  if (hashAt === -1) return url;
 
-  const fragment = input.slice(hashAt + 1);
-  if (!containsToken(fragment)) return input;
+  const fragment = url.slice(hashAt + 1);
+  if (!containsToken(fragment)) return url;
 
-  return `${input.slice(0, hashAt)}#${TOKEN_PARAM}=[redacted]`;
+  return `${url.slice(0, hashAt)}#${TOKEN_PARAM}=[redacted]`;
 }
 
 function containsToken(fragment: string): boolean {

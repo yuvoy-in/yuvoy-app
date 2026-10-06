@@ -173,6 +173,25 @@ function toRegExp(pattern: string): RegExp {
 const COMPILED = PROXIED_PATHS.map((p) => ({ ...p, re: toRegExp(p.pattern) }));
 
 /**
+ * The upstream path for the proxy's URL segments, or `null` for one that
+ * must not be forwarded.
+ *
+ * Each segment is encoded again before it joins the path. Next decodes the
+ * URL once, so `%252e%252e` arrives here as `%2e%2e`: no literal `..` for
+ * `allowedProxyPath` to refuse, one `[^/]+` for a placeholder to accept, and,
+ * to the URL parser that builds the upstream call, a dot segment. It resolved
+ * `/me/saved/%2e%2e` to `/me/` (production readiness, 6 Oct 2026). Encoded,
+ * it is `%252e%252e`: a name the API does not have.
+ *
+ * A segment that is itself `.` or `..` cannot be made safe that way, because
+ * dots are not escaped, so it is refused.
+ */
+export function proxyPathOf(segments: readonly string[]): string | null {
+  if (segments.some((s) => s === "." || s === "..")) return null;
+  return `/${segments.map(encodeURIComponent).join("/")}`;
+}
+
+/**
  * The contract pattern this method and path are allowed under, or `null`.
  *
  * Returns the PATTERN rather than a boolean so a caller can log or branch on

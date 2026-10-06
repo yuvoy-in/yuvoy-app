@@ -1,14 +1,22 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
-import { act } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { renderWithQuery } from "@/test/render";
 import { qk } from "@/lib/query/policy";
-import { useTravellerSession } from "./use-traveller";
+import {
+  sessionQuery,
+  useTravellerSession,
+  useVerifySignInCode,
+} from "./use-traveller";
 import {
   rememberBooking,
   listBookings,
   saveSnapshot,
 } from "@/lib/booking/token-store";
 import type { components } from "@/lib/api/schema.gen";
+import { http, HttpResponse } from "msw";
+import { server } from "../../../mocks/server";
+import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
+import { SIGN_OUT_OWED_COOKIE } from "./sign-out-owed";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
 
@@ -109,6 +117,26 @@ describe("signing out", () => {
     ).toBeUndefined();
   });
 
+  it("forgets each invitation opened, not only the list", async () => {
+    /*
+      The list went and each trip opened from it stayed, so Back on a shared
+      phone drew the previous number's invitation from the cache (production
+      readiness, 6 Oct 2026).
+    */
+    let signOut!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <Harness onReady={(fn) => (signOut = fn)} />,
+    );
+    client.setQueryDefaults(["getInvitedTrip"], { gcTime: Infinity });
+    client.setQueryData(qk.invitedTrip("inv_1"), { id: "inv_1" });
+
+    await act(async () => {
+      await signOut();
+    });
+
+    expect(client.getQueryData(qk.invitedTrip("inv_1"))).toBeUndefined();
+  });
+
   it("clears the device even when the sign-out request fails", async () => {
     /*
       The route is told first and its answer is deliberately ignored, because a
@@ -135,5 +163,75 @@ describe("signing out", () => {
     expect(await listBookings()).toEqual([]);
     vi.unstubAllGlobals();
     vi.stubGlobal("indexedDB", {});
+  });
+});
+
+/*
+  Only the server can clear the HttpOnly cookie, and a sign-out tapped with no
+  signal never reaches it. The next session read found the cookie and signed
+  the previous person back in (production readiness, 6 Oct 2026).
+
+  Through the route's stand-in, which honours the cookie the sign-out leaves
+  as the route does. The route's own half is in `app/api/session/route.test.ts`
+  and the real cookie in `e2e/session-cookie.spec.ts`.
+*/
+describe("a sign-out the server never heard", () => {
+  /** The mock API's sign-in code (`mocks/booking-handlers.ts`). */
+  const SIGN_IN_CODE = "123456";
+
+  /** No signal: nothing for the session leaves the phone. */
+  function offline() {
+    server.use(http.all("*/api/session", () => HttpResponse.error()));
+  }
+
+  /** Signed in, as the phone last heard it, with the signal then lost. */
+  async function signedInThenOffline() {
+    __signInAppRouteMock();
+    let signOut!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <Harness onReady={(fn) => (signOut = fn)} />,
+    );
+    await waitFor(() =>
+      expect(client.getQueryData(qk.session())).toEqual({ signedIn: true }),
+    );
+    offline();
+    return { signOut: () => signOut() };
+  }
+
+  it("stays done: the next session check ends it rather than signing back in", async () => {
+    const { signOut } = await signedInThenOffline();
+    await act(async () => {
+      await signOut();
+    });
+    expect(document.cookie).toContain(`${SIGN_OUT_OWED_COOKIE}=1`);
+
+    // The signal is back, and the session cookie is still on the phone.
+    server.resetHandlers();
+    expect(await sessionQuery.queryFn({})).toEqual({ signedIn: false });
+    expect(document.cookie).not.toContain(SIGN_OUT_OWED_COOKIE);
+    expect(await sessionQuery.queryFn({})).toEqual({ signedIn: false });
+  });
+
+  it("is cleared by signing in, so the new session stands", async () => {
+    const { signOut } = await signedInThenOffline();
+    type Verify = (input: { phone: string; code: string }) => Promise<unknown>;
+    let verify!: Verify;
+    function SignIn({ onReady }: { onReady: (fn: Verify) => void }) {
+      const { mutateAsync } = useVerifySignInCode();
+      onReady(mutateAsync);
+      return null;
+    }
+    renderWithQuery(<SignIn onReady={(fn) => (verify = fn)} />);
+    await act(async () => {
+      await signOut();
+    });
+    expect(document.cookie).toContain(`${SIGN_OUT_OWED_COOKIE}=1`);
+
+    server.resetHandlers();
+    await act(async () => {
+      await verify({ phone: "+919000000001", code: SIGN_IN_CODE });
+    });
+    expect(document.cookie).not.toContain(SIGN_OUT_OWED_COOKIE);
+    expect(await sessionQuery.queryFn({})).toEqual({ signedIn: true });
   });
 });

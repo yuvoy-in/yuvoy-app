@@ -68,6 +68,7 @@ const BACK = { href: "/", label: "the feed", followTrail: true };
 export function OperatorScreen({
   slug,
   initial,
+  readAt,
 }: {
   slug: string;
   /**
@@ -76,8 +77,14 @@ export function OperatorScreen({
    * once JavaScript runs is not indexable content.
    */
   initial?: OperatorProfile;
+  /**
+   * When the route read `initial`, as epoch milliseconds. The route is cached,
+   * so the seed can be minutes old; with its age known the profile is read
+   * again on mount rather than trusted for another five minutes.
+   */
+  readAt?: number;
 }) {
-  const operator = useOperator(slug, initial);
+  const operator = useOperator(slug, initial, readAt);
   const reels = useOperatorReels(
     slug,
     operator.data?.reels ?? null,

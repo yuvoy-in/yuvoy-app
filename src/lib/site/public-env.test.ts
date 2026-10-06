@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   SECRET_PLACEHOLDER,
+  assertNoMocksInProduction,
   assertNoSecretPublicVars,
   secretPublicVars,
 } from "./public-env";
@@ -65,6 +66,34 @@ describe("assertNoSecretPublicVars", () => {
   });
 });
 
+describe("assertNoMocksInProduction", () => {
+  it("lets a mocked build through anywhere but production", () => {
+    for (const VERCEL_ENV of [undefined, "preview", "development"]) {
+      expect(() =>
+        assertNoMocksInProduction({
+          VERCEL_ENV,
+          NEXT_PUBLIC_API_MOCKING: "enabled",
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it("lets production through with the real API", () => {
+    expect(() =>
+      assertNoMocksInProduction({ VERCEL_ENV: "production" }),
+    ).not.toThrow();
+  });
+
+  it("stops a production build that would answer from fixtures", () => {
+    expect(() =>
+      assertNoMocksInProduction({
+        VERCEL_ENV: "production",
+        NEXT_PUBLIC_API_MOCKING: "enabled",
+      }),
+    ).toThrow(/remove it from Production/);
+  });
+});
+
 describe("next.config.ts", () => {
   async function loadConfig() {
     vi.resetModules();
@@ -78,6 +107,12 @@ describe("next.config.ts", () => {
 
   it("loads in an ordinary environment", async () => {
     await expect(loadConfig()).resolves.toHaveProperty("default");
+  });
+
+  it("refuses to load for a production deployment with mocking on", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_API_MOCKING", "enabled");
+    await expect(loadConfig()).rejects.toThrow(/^NEXT_PUBLIC_API_MOCKING is/);
   });
 
   it("refuses to load when a public variable arrived as a Secret", async () => {

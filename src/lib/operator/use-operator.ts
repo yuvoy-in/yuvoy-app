@@ -34,6 +34,14 @@ export function useOperator(
    * needs JavaScript to exist is the one thing it must not be.
    */
   initial?: OperatorProfile,
+  /**
+   * When the server read `initial`, as epoch milliseconds. The route is
+   * cached for five minutes and served stale while it refreshes, so the seed
+   * is not "now". Dated, React Query reads it again on mount once it is older
+   * than `staleTime`; undated, it counted as fresh from the moment it
+   * mounted, however old the cached page was.
+   */
+  readAt?: number,
 ) {
   return useQuery({
     queryKey: qk.operator(slug),
@@ -45,7 +53,7 @@ export function useOperator(
       if (error) throw error;
       return data;
     },
-    ...(initial ? { initialData: initial } : {}),
+    ...(initial ? { initialData: initial, initialDataUpdatedAt: readAt } : {}),
     ...CACHE.getExperience,
   });
 }

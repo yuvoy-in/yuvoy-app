@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { OWED, SIGN_OUT_OWED_COOKIE } from "./sign-out-owed";
 
 /**
  * The traveller's session, in a cookie this app's own server sets.
@@ -77,10 +78,46 @@ export function maxAgeFrom(expiresAt: string | null | undefined): number {
   return Math.min(seconds, SESSION_MAX_AGE);
 }
 
-/** The session token, or `null`. Server-side only: script cannot read it. */
+/**
+ * The session token, or `null`. Server-side only: script cannot read it.
+ *
+ * A sign-out this browser still owes counts as no session at all, so nothing
+ * on this server acts for the person who signed out: not the session check,
+ * not the proxy, not the invite gate (`sign-out-owed.ts`).
+ */
 export async function readSessionCookie(): Promise<string | null> {
   const jar = await cookies();
+  if (owes(jar)) return null;
   return jar.get(SESSION_COOKIE)?.value ?? null;
+}
+
+/** Whether this browser signed out with no signal, and the server is yet to finish it. */
+export async function signOutOwed(): Promise<boolean> {
+  return owes(await cookies());
+}
+
+function owes(jar: Awaited<ReturnType<typeof cookies>>): boolean {
+  return jar.get(SIGN_OUT_OWED_COOKIE)?.value === OWED;
+}
+
+/**
+ * The session token, owed or not. Only for ending that session: the API is
+ * told which one ended, and nothing acts on it.
+ */
+export async function readSessionToEnd(): Promise<string | null> {
+  return (await cookies()).get(SESSION_COOKIE)?.value ?? null;
+}
+
+/** A sign-out owed is settled once the session it was for has gone. */
+async function settleSignOut(request: Request): Promise<void> {
+  const jar = await cookies();
+  if (!owes(jar)) return;
+  jar.set(SIGN_OUT_OWED_COOKIE, "", {
+    secure: isSecureRequest(request),
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
 }
 
 export async function writeSessionCookie(
@@ -96,6 +133,8 @@ export async function writeSessionCookie(
     path: "/",
     maxAge: maxAgeFrom(expiresAt),
   });
+  // A new session replaces the one a sign-out was owed for.
+  await settleSignOut(request);
 }
 
 /**
@@ -121,7 +160,7 @@ export async function touchSessionCookie(
 }
 
 /**
- * Removes the cookie.
+ * Removes the cookie, and any sign-out owed with it.
  *
  * Written as an empty value with `maxAge: 0` rather than `jar.delete`, because
  * the attributes have to match the ones it was set with for a browser to
@@ -136,4 +175,5 @@ export async function clearSessionCookie(request: Request): Promise<void> {
     path: "/",
     maxAge: 0,
   });
+  await settleSignOut(request);
 }

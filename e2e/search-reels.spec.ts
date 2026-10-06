@@ -419,25 +419,46 @@ test.describe("the default state", () => {
       shorter than the tiles that replaced them, so every row below moved
       down as the grid landed (stability audit, 6 Oct 2026). Measured where
       it shows: the top of the second row, before and after.
+
+      The first page now comes with the HTML (production readiness, 6 Oct
+      2026), so the wait a traveller sees is the route's fallback while the
+      server asks. `slow-reels` holds that read inside the server's budget,
+      and `commit` hands the page over as the fallback streams, rather than
+      once the whole document has arrived.
     */
-    await page.addInitScript(() => {
-      const fetchOf = window.fetch.bind(window);
-      window.fetch = async (input, init) => {
-        const url =
-          typeof input === "string"
-            ? input
-            : input instanceof Request
-              ? input.url
-              : String(input);
-        if (/\/reels\?/.test(url))
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-        return fetchOf(input, init);
-      };
+    const asked: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.endsWith("/reels")) asked.push(url.search);
     });
-    await page.goto("/search");
-    await expect(
-      page.getByRole("heading", { level: 1, name: "What is on" }),
-    ).toBeVisible();
+    await page.goto("/search?__scenario=slow-reels", { waitUntil: "commit" });
+    const skeleton = page.locator(".skeleton-breath > div");
+    await expect(skeleton.first()).toBeVisible();
+    // The screen's own title is there with it: as copy, since the fallback
+    // must not add a second <h1> to the document (`SearchHeading`).
+    await expect(page.getByText("What is on").first()).toBeVisible();
+    const before = (await skeleton.nth(2).boundingBox())!.y;
+
+    const tiles = page
+      .getByRole("list", { name: "Search results" })
+      .getByRole("listitem");
+    await expect(tiles.first()).toBeVisible({ timeout: 6000 });
+    const after = (await tiles.nth(2).boundingBox())!.y;
+    expect(Math.abs(after - before)).toBeLessThan(3);
+    // The browser did not ask again for the page the server brought.
+    expect(asked).toEqual([]);
+  });
+
+  test("keeps those rows when the server could not wait for the first page", async ({
+    page,
+  }) => {
+    /*
+      Past its budget the server sends the page without its first tiles, and
+      the browser asks for them: the wait moves to the screen's own skeleton,
+      which must hold the same rows. `stalled-reels` keeps every read of the
+      grid waiting past that budget.
+    */
+    await page.goto("/search?__scenario=stalled-reels");
     const skeleton = page.locator(
       '[data-motion-key="loading"] .skeleton-breath > div',
     );
@@ -447,7 +468,7 @@ test.describe("the default state", () => {
     const tiles = page
       .getByRole("list", { name: "Search results" })
       .getByRole("listitem");
-    await expect(tiles.first()).toBeVisible({ timeout: 6000 });
+    await expect(tiles.first()).toBeVisible({ timeout: 8000 });
     const after = (await tiles.nth(2).boundingBox())!.y;
     expect(Math.abs(after - before)).toBeLessThan(3);
   });

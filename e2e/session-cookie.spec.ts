@@ -223,6 +223,38 @@ test("signing out clears the cookie and the next load shows the form", async ({
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
 
+test("a sign-out with no signal stays done once the signal is back", async ({
+  page,
+  context,
+}) => {
+  /*
+    Only the server can clear the cookie, and a sign-out with no signal never
+    reached it: the next load found the cookie and signed the previous person
+    back in, trips and all (production readiness, 6 Oct 2026).
+  */
+  await signIn(page);
+
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Sign out on this device" }).click();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  // The server never heard it: the session cookie is still in the jar.
+  expect((await sessionCookie(page))?.value).toBeTruthy();
+
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign out on this device" }),
+  ).toHaveCount(0);
+
+  // Finished by that load: neither cookie is left.
+  const cookies = await context.cookies();
+  for (const name of ["yv_session", "yv_signed_out"]) {
+    const left = cookies.find((c) => c.name === name);
+    expect(left === undefined || left.value === "", name).toBe(true);
+  }
+});
+
 test("a revoked session shows the way back in, not an error", async ({
   page,
 }) => {

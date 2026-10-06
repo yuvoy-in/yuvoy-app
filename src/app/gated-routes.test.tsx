@@ -62,7 +62,7 @@ vi.mock("@/components/checkout/book-screen", () => ({
   BookScreen: () => <p>CHECKOUT CONTENT</p>,
 }));
 
-/** Counts the feed's server-side prefetch. */
+/** Counts the server-side first pages: the feed's and the search grid's. */
 function watchReels() {
   const seen = { calls: 0 };
   server.use(
@@ -145,7 +145,7 @@ describe("with the switch off", () => {
       expect(page).not.toContain("data-invite-gate");
     }
     expect(decided.asked).toEqual([]);
-    expect(reels.calls).toBe(1);
+    expect(reels.calls).toBe(2);
   });
 
   it("does not so much as read the query on a static page", async () => {
@@ -175,7 +175,7 @@ describe("with the switch on", () => {
       expect(page, route).toContain("Yuvoy is by invitation for now");
       expect(page, route).not.toMatch(CONTENT);
     }
-    // The feed's first page is not even asked for, for somebody who will not see it.
+    // Neither first page is even asked for, for somebody who will not see it.
     expect(reels.calls).toBe(0);
   });
 
@@ -203,7 +203,7 @@ describe("with the switch on", () => {
       expect(out.result, access).toContain("SEARCH RESULT CONTENT");
       expect(out.saved, access).toContain("SAVED CONTENT");
       expect(out.book, access).toContain("CHECKOUT CONTENT");
-      expect(reels.calls, access).toBe(1);
+      expect(reels.calls, access).toBe(2);
     }
   });
 

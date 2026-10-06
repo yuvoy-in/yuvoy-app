@@ -37,18 +37,24 @@ async function refuseReservations(page: Page) {
   await page.addInitScript(() => {
     const fetchOf = window.fetch.bind(window);
     window.fetch = async (input, init) => {
-      if (
-        input instanceof Request &&
-        input.method === "POST" &&
-        /\/reservations$/.test(input.url)
-      ) {
-        const refused = new Request(input, {
+      // Either shape: the client hands fetch a URL and an init.
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      const method =
+        init?.method ?? (input instanceof Request ? input.method : "GET");
+      if (method.toUpperCase() === "POST" && /\/reservations$/.test(url)) {
+        const request = new Request(input, init);
+        const refused = new Request(request, {
           headers: new Headers([
-            ...input.headers.entries(),
+            ...request.headers.entries(),
             ["x-yuvoy-scenario", "booking-disabled"],
           ]),
         });
-        return fetchOf(refused, init);
+        return fetchOf(refused);
       }
       return fetchOf(input, init);
     };

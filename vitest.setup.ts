@@ -40,6 +40,14 @@ afterEach(async () => {
   */
   const { resetSavedSession } = await import("./src/lib/feed/account-saved");
   resetSavedSession();
+  /*
+    Cookies script wrote, which jsdom keeps for the whole file: a sign-out one
+    test owed would otherwise sign the next test's traveller out.
+  */
+  for (const pair of document.cookie.split("; ")) {
+    const name = pair.split("=")[0];
+    if (name) document.cookie = `${name}=; Path=/; Max-Age=0`;
+  }
 });
 afterAll(() => server.close());
 

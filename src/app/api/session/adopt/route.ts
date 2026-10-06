@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { writeSessionCookie } from "@/lib/auth/session-cookie";
-import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
+import { sameOriginOnly } from "@/lib/auth/same-origin";
+import { signOutOwed, writeSessionCookie } from "@/lib/auth/session-cookie";
+import {
+  callUpstream,
+  sessionExpiryOf,
+  type UpstreamResult,
+} from "@/lib/auth/upstream";
 
 /**
  * Moves a traveller who was already signed in, once (yuvoy-app#57 item 8).
@@ -32,7 +37,7 @@ import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+async function adopt(request: Request) {
   let input: { sessionToken?: unknown };
   try {
     input = await request.json();
@@ -51,14 +56,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ adopted: false }, { status: 400 });
   }
 
-  const answer = await callUpstream({
-    method: "GET",
-    path: "/me",
-    token,
-    from: request,
-  });
+  /*
+    Somebody signed out on this phone, with no signal, after the record was
+    written. Adopting it would sign them back in; the caller deletes it
+    either way (`lib/auth/sign-out-owed.ts`).
+  */
+  if (await signOutOwed()) return NextResponse.json({ adopted: false });
 
-  if (answer.status < 200 || answer.status >= 300) {
+  let answer: UpstreamResult | null = null;
+  try {
+    answer = await callUpstream({
+      method: "GET",
+      path: "/me",
+      token,
+      from: request,
+    });
+  } catch (cause) {
+    if (!request.signal.aborted) {
+      console.error("[adopt] GET /me did not answer; not adopted.", cause);
+    }
+  }
+
+  if (!answer || answer.status < 200 || answer.status >= 300) {
     /*
       200 with `adopted: false`, not the API's status.
 
@@ -73,3 +92,10 @@ export async function POST(request: Request) {
   await writeSessionCookie(request, token, sessionExpiryOf(answer.body));
   return NextResponse.json({ adopted: true });
 }
+
+/*
+  Only this app's own pages may hand a token over, and only as declared JSON.
+  This route sets the session cookie from a string it is sent, which made it
+  the easiest login forgery of all. See lib/auth/same-origin.
+*/
+export const POST = sameOriginOnly(adopt);
