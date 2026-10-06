@@ -2,19 +2,33 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   isSecureRequest,
   maxAgeFrom,
+  readSessionCookie,
+  readSessionToEnd,
+  signOutOwed,
   SESSION_MAX_AGE,
   SESSION_COOKIE,
 } from "./session-cookie";
+import { OWED, SIGN_OUT_OWED_COOKIE } from "./sign-out-owed";
 
 /**
- * The two decisions the session cookie makes on its own (yuvoy-app#57).
+ * The decisions the session cookie makes on its own (yuvoy-app#57).
  *
- * `readSessionCookie` and the writers are not here: they call `next/headers`,
- * which needs a request scope that only a running server has. What they do
- * with the cookie jar is asserted end to end in `e2e/session-cookie.spec.ts`,
- * against the real server. What is testable in isolation is the arithmetic and
- * the protocol decision, and both have a way of being quietly wrong.
+ * The writers are not here: they call `next/headers`, which needs a request
+ * scope that only a running server has. What they do with the cookie jar is
+ * asserted end to end in `e2e/session-cookie.spec.ts`, against the real
+ * server. What is testable in isolation is the arithmetic, the protocol
+ * decision and what the readers make of a jar, and each has a way of being
+ * quietly wrong.
  */
+
+/** The request's cookies, as `next/headers` hands them to the readers. */
+const jar = vi.hoisted(() => new Map<string, string>());
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      jar.has(name) ? { name, value: jar.get(name)! } : undefined,
+  }),
+}));
 
 afterEach(() => vi.useRealTimers());
 
@@ -105,6 +119,38 @@ describe("how long the cookie lives", () => {
 
   it("falls back on a value it cannot read", () => {
     expect(maxAgeFrom("not a date")).toBe(SESSION_MAX_AGE);
+  });
+});
+
+describe("a sign-out still owed", () => {
+  /*
+    `yv_signed_out` (`sign-out-owed.ts`): while it is owed, nothing on this
+    server acts for the person who signed out (production readiness,
+    6 Oct 2026).
+  */
+  afterEach(() => jar.clear());
+
+  it("counts no session while it is owed, and still names the one to end", async () => {
+    jar.set(SESSION_COOKIE, "sess_919000000000");
+    jar.set(SIGN_OUT_OWED_COOKIE, OWED);
+
+    expect(await signOutOwed()).toBe(true);
+    expect(await readSessionCookie()).toBeNull();
+    expect(await readSessionToEnd()).toBe("sess_919000000000");
+  });
+
+  it("is not owed by a cleared one that is still reported, empty", async () => {
+    /*
+      The server clears it with an empty value and `Max-Age=0`, and an empty
+      one can still be reported: by a browser that keeps it, or by the jar
+      later in the same request. Counting it by its name alone would sign out,
+      on every request, the person who has just signed in.
+    */
+    jar.set(SESSION_COOKIE, "sess_919000000000");
+    jar.set(SIGN_OUT_OWED_COOKIE, "");
+
+    expect(await signOutOwed()).toBe(false);
+    expect(await readSessionCookie()).toBe("sess_919000000000");
   });
 });
 
