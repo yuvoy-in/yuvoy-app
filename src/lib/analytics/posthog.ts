@@ -1,5 +1,5 @@
 import type { Reporter } from "@/lib/observability/report";
-import { scrubUrl } from "@/lib/booking/scrub";
+import { scrubDeep } from "@/lib/booking/scrub";
 
 /**
  * PostHog, as an adapter of the reporting seam.
@@ -26,14 +26,27 @@ export async function createPostHogReporter(
     capture_pageview: false,
     autocapture: false,
     persistence: "memory",
-    sanitize_properties: (properties) => {
-      const clean: Record<string, unknown> = { ...properties };
-      for (const k of ["$current_url", "$referrer", "$pathname", "url"]) {
-        if (typeof clean[k] === "string")
-          clean[k] = scrubUrl(clean[k] as string);
-      }
-      return clean;
-    },
+    /*
+      The SDK writes `location.href` into fields this module never sees:
+      heatmap data, replay and web vitals, each switched on from PostHog's
+      side rather than here. This strips the fragment, where the status token
+      travels, from every one of them (production readiness, 6 Oct 2026).
+    */
+    disable_capture_url_hashes: true,
+    /*
+      And nothing the project's settings switch on records a page by itself.
+      A replay carries the page's text, names and meeting points included,
+      and heatmaps key every tap by the address, `/i/{token}` included.
+      Everything this app sends goes through `captureEvent`.
+    */
+    disable_session_recording: true,
+    capture_heatmaps: false,
+    /*
+      Every property, not a list of four: `$session_entry_url` and
+      `$initial_current_url` ride on every event of a visit that began on an
+      invitation.
+    */
+    sanitize_properties: (properties) => scrubDeep(properties),
   });
 
   return {

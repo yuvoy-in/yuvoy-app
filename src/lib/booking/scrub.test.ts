@@ -30,6 +30,28 @@ describe("scrubUrl", () => {
     );
   });
 
+  it("redacts the token an invitation or a shared trip carries in its path", () => {
+    expect(scrubUrl("https://app.yuvoy.in/i/inv_tok_9f2?from=wa")).toBe(
+      "https://app.yuvoy.in/i/[redacted]?from=wa",
+    );
+    expect(scrubUrl("/trip/shr_tok_41#top")).toBe("/trip/[redacted]#top");
+    // Both at once: a shared trip opened from a booking link.
+    expect(scrubUrl("/trip/shr_tok_41#t=abc")).toBe(
+      "/trip/[redacted]#t=[redacted]",
+    );
+  });
+
+  it("leaves the paths that carry no token alone", () => {
+    for (const path of [
+      "/trips",
+      "/trips/invited/inv_1",
+      "/e/try-dive",
+      "/search?q=dive",
+    ]) {
+      expect(scrubUrl(path)).toBe(path);
+    }
+  });
+
   it("handles empty and non-string input without throwing", () => {
     expect(scrubUrl("")).toBe("");
     // @ts-expect-error — deliberately wrong type; loggers pass anything.
