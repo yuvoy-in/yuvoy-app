@@ -17,6 +17,8 @@ import { SearchScreen } from "./search-screen";
 import { server } from "../../../mocks/server";
 import { delay, http, HttpResponse } from "msw";
 import { REELS } from "../../../mocks/fixtures";
+import { reelFilterKey } from "@/lib/search/filters";
+import type { ReelsPage } from "@/lib/feed/reels";
 import { marketToday, marketDaysFrom } from "@/lib/booking/availability-window";
 import { dateLabel } from "@/lib/search/labels";
 
@@ -1102,5 +1104,115 @@ describe("waiting for an answer (T11 A)", () => {
     await waitFor(() => expect(searching()).toBeNull(), { timeout: 3000 });
     expect(performance.now() - shown).toBeGreaterThanOrEqual(290);
     expect(tiles()).toHaveLength(2);
+  });
+});
+
+/**
+ * The first page the server sent with the HTML (production readiness,
+ * 6 Oct 2026). The grid used to be fetched only once the page had hydrated,
+ * which made its first tile the slowest first paint in the app.
+ */
+describe("the first page the server sent", () => {
+  const served = (title: string): ReelsPage =>
+    ({
+      items: [
+        {
+          media: {
+            id: `m_${title}`,
+            kind: "video",
+            posterUrl: "data:image/svg+xml;utf8,%3Csvg%2F%3E",
+            aspectRatio: "9:16",
+          },
+          experience: {
+            id: `exp_${title}`,
+            slug: `slug-${title}`,
+            title,
+            marketKey: "andaman",
+            destinationKey: "andaman/havelock",
+            category: "adventure",
+            bookingMode: "allotment",
+            durationMinutes: 120,
+            operator: {
+              id: "o1",
+              slug: "o1",
+              name: "Operator",
+              verified: true,
+            },
+          },
+        },
+      ],
+      complete: true,
+    }) as ReelsPage;
+
+  function countReads() {
+    const seen = { calls: 0 };
+    server.use(
+      http.get(`${BASE}/reels`, () => {
+        seen.calls += 1;
+        return HttpResponse.json({ items: [], complete: true });
+      }),
+    );
+    return seen;
+  }
+
+  it("is on screen at once, and not asked for again", async () => {
+    navigateTo("/search?q=dive");
+    const reads = countReads();
+
+    renderWithQuery(
+      <SearchScreen
+        initial={{
+          page: served("Served"),
+          fetchedAt: Date.now(),
+          key: reelFilterKey({ q: "dive" }),
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: /Served/ })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 60));
+    expect(reads.calls).toBe(0);
+  });
+
+  it("is never shown for a search it was not fetched for", async () => {
+    navigateTo("/search?q=kayak");
+    const reads = countReads();
+
+    renderWithQuery(
+      <SearchScreen
+        initial={{
+          page: served("Served"),
+          fetchedAt: Date.now(),
+          key: reelFilterKey({ q: "dive" }),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(reads.calls).toBe(1));
+    expect(screen.queryByRole("link", { name: /Served/ })).toBeNull();
+  });
+
+  it("is let go once the search changes, so it cannot come back later", async () => {
+    navigateTo("/search?q=dive");
+    const reads = countReads();
+    const user = userEvent.setup();
+    const initial = {
+      page: served("Served"),
+      fetchedAt: Date.now(),
+      key: reelFilterKey({ q: "dive" }),
+    };
+
+    const { client } = renderWithQuery(<SearchScreen initial={initial} />);
+    const box = screen.getByRole("searchbox", { name: "Search experiences" });
+    await user.type(box, "s");
+    await waitFor(() => expect(params().get("q")).toBe("dives"));
+    await waitFor(() => expect(reads.calls).toBeGreaterThan(0));
+
+    // Back to the word it was fetched for, after its cache entry has gone.
+    client.removeQueries();
+    await user.type(box, "{Backspace}");
+    await waitFor(() => expect(params().get("q")).toBe("dive"));
+    await waitFor(() => expect(reads.calls).toBeGreaterThan(1));
+    expect(screen.queryByRole("link", { name: /Served/ })).toBeNull();
   });
 });

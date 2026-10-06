@@ -17,6 +17,12 @@ import { gatedRoute } from "@/components/auth/gated-route";
 import { pageMetadata } from "@/lib/site/metadata";
 import { gatedRobots } from "@/lib/site/indexing";
 import { preconnectApi } from "@/lib/site/preconnect";
+import { firstReelsPage } from "@/lib/feed/first-page";
+import {
+  filtersFromParams,
+  reelFilterKey,
+  reelQuery,
+} from "@/lib/search/filters";
 
 export const metadata: Metadata = {
   ...pageMetadata({
@@ -40,15 +46,21 @@ export const metadata: Metadata = {
 };
 
 /**
- * T4 — date-first discovery.
+ * T4: date-first discovery.
  *
- * No server prefetch, and that is the fix rather than a regression. The
- * default state used to be "the unfiltered results", fetched on the server for
- * the LCP's sake — but the contract says an empty `q` returns nothing, so
- * against the real API that prefetch was an empty list, and the mock that
- * answered "everything" was the only reason it looked like a screen. The
- * default state is now a prompt, which paints instantly and costs no request;
- * the first result card is the LCP only once somebody has asked for one.
+ * ## The first page of results comes with the HTML
+ *
+ * Fetched here for the filters in the address, and handed to the screen as its
+ * first page (production readiness, 6 Oct 2026). The grid used to be fetched
+ * only once the page had hydrated, so its first tile, the LCP, waited for the
+ * whole bundle and then a round trip from the island: 4.2s on a throttled
+ * profile against production, the slowest first paint in the app.
+ *
+ * An earlier server prefetch was removed for a reason that no longer holds:
+ * it ran `/experiences` with an empty `q`, which the contract answers with
+ * nothing. Opening Search has since become the unfiltered reel grid
+ * (yuvoy-app#37 item 9), and `GET /reels` with no filters is the rotation the
+ * feed shows, so the server's page is the same one the browser would ask for.
  *
  * ## It is dynamic for the CLOCK, not for the data, and it stays that way
  *
@@ -76,10 +88,33 @@ export default async function SearchPage({
   return gatedRoute({
     purpose: "search",
     searchParams,
-    content: () => {
-      // The results and the filter vocabulary are both read from the browser.
+    content: async () => {
+      // The vocabulary and every later page are read from the browser.
       preconnectApi();
-      return <SearchScreen />;
+      const query = await searchParams;
+      const filters = filtersFromParams(asSearchParams(query));
+      const raw = query.__scenario;
+      const first = await firstReelsPage({
+        screen: "search",
+        filters: reelQuery(filters),
+        scenario: typeof raw === "string" ? raw : undefined,
+      });
+      return (
+        <SearchScreen initial={{ ...first, key: reelFilterKey(filters) }} />
+      );
     },
   });
+}
+
+/** The page's query, as the `URLSearchParams` the screen reads its filters from. */
+function asSearchParams(
+  query: Record<string, string | string[] | undefined>,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [name, value] of Object.entries(query)) {
+    for (const one of Array.isArray(value) ? value : [value]) {
+      if (one !== undefined) params.append(name, one);
+    }
+  }
+  return params;
 }

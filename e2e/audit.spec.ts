@@ -427,12 +427,13 @@ test.describe("the rendered audit", () => {
       mid-range profile, because the LCP element is a card's headline and
       nothing existed until the bundle downloaded and hydrated.
 
-      `getFirstPage()` swallows every failure and returns null on purpose — a
-      feed that cannot be prefetched still renders, because failing the page
-      would turn a slow API into a broken one. The cost of that kindness is
-      that the failure is **completely silent**: the page is a 200, every
-      heading and canonical and structured-data check above passes, and the
-      only symptom is a number in a lab report nobody is running.
+      `firstReelsPage()` gives up on every failure and returns null on
+      purpose: a feed that cannot be prefetched still renders, because
+      failing the page would turn a slow API into a broken one. The cost of
+      that kindness is that the failure is **silent on the page**: it is a
+      200, every heading and canonical and structured-data check above
+      passes, and the only symptom is a number in a lab report nobody is
+      running.
 
       So this asserts the one thing those checks cannot see: that the server
       resolved the feed to SOMETHING. Cards, or the honest empty state, or an
@@ -474,6 +475,33 @@ test.describe("the rendered audit", () => {
         "prefetch returned null and the feed is being fetched by the browser " +
         "instead. Check the API is reachable from the deployment at request " +
         "time — this is invisible to every other check in this file.",
+    ).toBe(true);
+  });
+
+  test("Search resolves its first page on the SERVER too", async ({
+    request,
+  }) => {
+    /*
+      The same decision, measured on Search (production readiness, 6 Oct
+      2026): its grid was fetched only once the page had hydrated, so its
+      first tile, the LCP, was the slowest first paint in the app at 4.2s on
+      the same throttled profile. The server now sends the first page with
+      the HTML, and gives up on it just as quietly when the API cannot
+      answer in time.
+    */
+    const res = await request.get("/search");
+    expect(res.status(), "Search must serve").toBe(200);
+    const html = await res.text();
+    const resolved =
+      html.includes('aria-label="Search results"') ||
+      html.includes("No matches") ||
+      html.includes('data-invite-gate="page"');
+    expect(
+      resolved,
+      "Search served its loading skeleton, which means the server-side " +
+        "prefetch returned null and the grid is being fetched by the browser " +
+        "instead. Check the API is reachable from the deployment at request " +
+        "time.",
     ).toBe(true);
   });
 

@@ -46,7 +46,8 @@ describe("the feed's first page", () => {
         return HttpResponse.json({ items: [], complete: true });
       }),
     );
-    const { default: FeedPage, FIRST_PAGE_TIMEOUT_MS } = await import("./page");
+    const { default: FeedPage } = await import("./page");
+    const { FIRST_PAGE_TIMEOUT_MS } = await import("@/lib/feed/first-page");
 
     const html = renderToString(
       <QueryClientProvider client={new QueryClient()}>
