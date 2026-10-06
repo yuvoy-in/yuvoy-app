@@ -11,6 +11,7 @@ import {
   CALENDAR_WINDOW_DAYS,
 } from "@/lib/booking/availability-window";
 import { clockOffsetMs } from "@/lib/booking/clock";
+import { useServerClock } from "@/lib/booking/use-server-clock";
 import { fetchAvailability } from "@/lib/booking/availability-query";
 import { paymentLine } from "@/lib/booking/listing-lines";
 import {
@@ -176,15 +177,7 @@ export function BookScreen({ slug }: { slug: string }) {
     the read itself; coming back to the tab reads the seats again
     (`CACHE.getAvailability`).
   */
-  const [ticked, setTicked] = useState(0);
-  useEffect(() => {
-    const id = setInterval(
-      () => setTicked(Date.now() + clockOffsetMs()),
-      30_000,
-    );
-    return () => clearInterval(id);
-  }, []);
-  const now = Math.max(availability.dataUpdatedAt + clockOffsetMs(), ticked);
+  const now = useServerClock(availability.dataUpdatedAt + clockOffsetMs());
   const days = useMemo(
     () => daysFromSlots(availability.data?.slots, now),
     [availability.data, now],

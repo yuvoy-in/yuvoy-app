@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "@/components/ui/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
-import { clockOffsetMs } from "@/lib/booking/clock";
+import { useServerClock } from "@/lib/booking/use-server-clock";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { formatMoney } from "@/lib/format/money";
 import { untilPhrase } from "@/lib/trips/next-up";
@@ -38,18 +37,10 @@ type BookingStatus = components["schemas"]["BookingStatus"];
  */
 export function NextUpPass({ trip, now }: { trip: ServerTrip; now: number }) {
   /*
-    The countdown, kept current while the screen is open. Read on an interval
-    rather than during render, which would be an impure read the compiler
-    refuses; the first value is the list's own server-clock instant.
+    The countdown, kept current while the screen is open; the first value is
+    the list's own server-clock instant.
   */
-  const [clock, setClock] = useState(now);
-  useEffect(() => {
-    const id = setInterval(
-      () => setClock(Date.now() + clockOffsetMs()),
-      30_000,
-    );
-    return () => clearInterval(id);
-  }, []);
+  const clock = useServerClock(now);
 
   const status = useQuery({
     queryKey: qk.bookingStatus(trip.statusToken),

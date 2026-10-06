@@ -10,6 +10,7 @@ import { useFragmentToken } from "@/lib/booking/use-fragment-token";
 import { formatMoney } from "@/lib/format/money";
 import { formatAge } from "@/lib/format/time";
 import { clockOffsetMs } from "@/lib/booking/clock";
+import { useServerClock } from "@/lib/booking/use-server-clock";
 import { isDeadToken } from "@/lib/api/errors";
 import { ErrorState, LoadingState, Skeleton } from "@/components/states";
 import { CancelSheet } from "./cancel-sheet";
@@ -78,25 +79,6 @@ export function BookingScreen() {
   const token = useFragmentToken();
   const mounted = useHasMounted();
 
-  const { data, error, isPending, isLoadingError, gaveUp, snapshot, refetch } =
-    useBookingStatus(token);
-
-  /*
-    Arrived at from the checkout that made this booking, this moment (T10 A):
-    read for the token as soon as there is one, then forgotten, so a reload,
-    a poll or a shared link opens the page as it is. Derived during render
-    (the token can appear a render after the page does), never replayed.
-  */
-  const [arrival, setArrival] = useState(() => ({
-    token,
-    fresh: arrivalPending(token),
-  }));
-  if (arrival.token !== token)
-    setArrival({ token, fresh: arrivalPending(token) });
-  useEffect(() => {
-    if (arrival.fresh) forgetArrival(arrival.token);
-  }, [arrival]);
-
   // Before hydration the fragment is genuinely unknown, so render the loading
   // shape rather than "we need your link" and then flipping to the booking.
   if (!mounted)
@@ -123,6 +105,31 @@ export function BookingScreen() {
       </Shell>
     );
   }
+
+  /*
+    One booking per mount. A link pasted into the same tab is another
+    booking, and everything kept for the last one went with it: when its
+    polling began and whether it had given up, so a second booking could
+    hand over to a person at once, and the copy saved on the device, so a
+    second booking that failed to load offline showed the first (stability
+    audit, 6 Oct 2026). Keyed, it starts as a page opened on that link.
+  */
+  return <BookingFor key={token} token={token} />;
+}
+
+function BookingFor({ token }: { token: string }) {
+  const { data, error, isPending, isLoadingError, gaveUp, snapshot, refetch } =
+    useBookingStatus(token);
+
+  /*
+    Arrived at from the checkout that made this booking, this moment (T10 A):
+    read once for this token, then forgotten, so a reload, a poll or a shared
+    link opens the page as it is. Never replayed.
+  */
+  const [arrived] = useState(() => arrivalPending(token));
+  useEffect(() => {
+    if (arrived) forgetArrival(token);
+  }, [arrived, token]);
 
   if (isPending)
     return (
@@ -172,7 +179,7 @@ export function BookingScreen() {
         live={!gaveUp}
         token={token}
         onChanged={() => void refetch()}
-        arrived={arrival.fresh}
+        arrived={arrived}
       />
       {/*
         Only a payment that has not settled is handed to a person
@@ -260,10 +267,13 @@ function StatusBody({
   const [cancelling, setCancelling] = useState(false);
 
   /*
-    Read ONCE, outside the render path, and against the SERVER's clock.
+    The SERVER's clock, from the moment the page was drawn, and kept current
+    while it stays open.
 
-    Reading it during render is impure and the React compiler refuses it, and
-    "is this trip still ahead" does not need re-evaluating between frames.
+    Never read during render: that is impure and the React compiler refuses
+    it. It used to be read once, so a page left open overnight said
+    "Tomorrow, 07:00" on the morning itself, and a trip that had left still
+    offered Share and "I need to cancel" (stability audit, 6 Oct 2026).
 
     `clockOffsetMs()` is the half that was missing (yuvoy-app#69). `upcoming`
     below gates Share and "I need to cancel", so a phone running fast HID the
@@ -272,7 +282,8 @@ function StatusBody({
     recorded from the `Date` header on every response, so it costs nothing to
     read and this file already uses it for the hold countdown.
   */
-  const [now] = useState(() => Date.now() + clockOffsetMs());
+  const [opened] = useState(() => Date.now() + clockOffsetMs());
+  const now = useServerClock(opened);
 
   // Confirmed and still ahead of us: sharing and cancelling both make sense.
   // A trip that has already left can do neither.

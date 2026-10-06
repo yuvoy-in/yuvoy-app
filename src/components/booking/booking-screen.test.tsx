@@ -7,6 +7,8 @@ import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 import { registerPaymentAdapter } from "@/lib/booking/payment-handoff";
 import { tripWhen } from "./trip-copy";
+import { mockHeaders, mockNow } from "../../../mocks/fixtures";
+import { POLL_CEILING_MS } from "@/lib/booking/poll";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -58,6 +60,40 @@ describe("the trip page's head", () => {
     expect(heading).toHaveTextContent(tripWhen(slot, Date.now())!);
     // The state's own words lead the line under it.
     expect(screen.getByText(/^You are going\. /)).toBeInTheDocument();
+  });
+
+  it("keeps the day current while the page stays open", async () => {
+    /*
+      The clock was read once, so a page left open overnight said "Tomorrow,
+      07:00" on the morning itself (stability audit, 6 Oct 2026). 23:58 in
+      the islands by the SERVER's clock, which the mocks' `Date` header sets
+      apart from this device's; a trip at 07:00; and three minutes pass with
+      nothing read again.
+    */
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    try {
+      const skew = mockNow() - Date.now();
+      vi.setSystemTime(Date.parse("2026-09-21T18:28:00Z") - skew);
+      const slot = {
+        startsAt: "2026-09-22T01:30:00Z",
+        timezone: "Asia/Kolkata",
+      };
+      server.use(
+        http.get(`${BASE}/bookings/status`, () =>
+          HttpResponse.json(statusBody({ slot, final: false }), {
+            headers: mockHeaders("req_clock"),
+          }),
+        ),
+      );
+      renderWithQuery(<BookingScreen />);
+
+      const heading = await screen.findByRole("heading", { level: 1 });
+      expect(heading).toHaveTextContent(/^Tomorrow, 07:00/);
+      act(() => vi.advanceTimersByTime(3 * 60_000));
+      expect(heading).toHaveTextContent(/^Today, 07:00/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps its words for a trip that has already left", async () => {
@@ -615,6 +651,45 @@ describe("PayButton — both contract answers", () => {
     expect(screen.getByText(/Nothing has been charged/)).toBeInTheDocument();
     // Still not an error — the hold is real and the clock is honest.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------- a second link, same tab */
+
+describe("a second booking link in the same tab", () => {
+  it("starts afresh, not where the last booking's polling left off", async () => {
+    /*
+      The page follows a link pasted into the same tab, and kept the last
+      booking's polling: one that had waited out the ceiling handed the next
+      booking to a person on sight (stability audit, 6 Oct 2026).
+    */
+    const asked: string[] = [];
+    server.use(
+      http.get(`${BASE}/bookings/status`, ({ request }) => {
+        asked.push(request.headers.get("authorization") ?? "");
+        return HttpResponse.json(
+          statusBody({ state: "verifying", final: false }),
+        );
+      }),
+    );
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderWithQuery(<BookingScreen />);
+      await screen.findByRole("heading", { level: 1 });
+      await act(() => vi.advanceTimersByTimeAsync(POLL_CEILING_MS + 1_000));
+      expect(
+        await screen.findByText("This is taking longer than it should"),
+      ).toBeInTheDocument();
+
+      act(() => setHash("#t=tok_second"));
+      await waitFor(() => expect(asked).toContain("Bearer tok_second"));
+      await screen.findByRole("heading", { level: 1 });
+      expect(
+        screen.queryByText("This is taking longer than it should"),
+      ).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
