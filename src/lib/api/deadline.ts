@@ -22,6 +22,20 @@
  * read is retried as one, instead of the failure surfacing later as a JSON
  * parse error that nothing retries. Every answer this is used for is a few
  * kilobytes, so holding it whole costs nothing.
+ *
+ * ## `fetch` is never handed a `Request` together with a signal
+ *
+ * On the server that pairing loses the abort. Next 16.3's patched `fetch`
+ * folds the init into a new `Request` and then copies THAT into a second one,
+ * keeping only the second (`next/dist/server/lib/patch-fetch.js`). The first,
+ * and the controller the signal is relayed through, can be garbage-collected
+ * mid-request, and after a collection the abort never reaches the socket. In
+ * a plain Node experiment a fetch aborted at one second ran its full four;
+ * in the suite, Search's 3s budget let a render wait 4.5s for an answer
+ * (production readiness, 6 Oct 2026). A URL with its init keeps the signal in
+ * the init, which `fetch` follows directly, so that is all this ever passes.
+ * A side effect: Next does not memoise a read that carries a signal, so a
+ * read two parts of a render share is shared with React's `cache`.
  */
 
 /** What a request that went quiet is aborted with. */
@@ -68,10 +82,8 @@ export async function fetchWithin(
 
   rearm();
   try {
-    const response = await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
+    const [url, sent] = await asUrlAndInit(input, init);
+    const response = await fetch(url, { ...sent, signal: controller.signal });
     rearm();
     return await readWhole(response, rearm);
   } catch (cause) {
@@ -87,6 +99,37 @@ export async function fetchWithin(
     clearTimeout(timer);
     caller?.removeEventListener("abort", cancel);
   }
+}
+
+/**
+ * `input` as a URL, and an init that says everything else the `Request` did.
+ * See "`fetch` is never handed a `Request` together with a signal" above.
+ */
+async function asUrlAndInit(
+  input: RequestInfo | URL,
+  init: RequestInit,
+): Promise<[string | URL, RequestInit]> {
+  if (typeof input === "string" || input instanceof URL) return [input, init];
+  // Next's own options (`revalidate`, `tags`) ride on the request object.
+  const { next } = input as { next?: RequestInit["next"] };
+  return [
+    input.url,
+    {
+      method: input.method,
+      headers: input.headers,
+      body: input.body ? await input.arrayBuffer() : undefined,
+      cache: input.cache,
+      credentials: input.credentials,
+      integrity: input.integrity,
+      keepalive: input.keepalive,
+      mode: input.mode,
+      redirect: input.redirect,
+      referrer: input.referrer,
+      referrerPolicy: input.referrerPolicy,
+      ...(next === undefined ? {} : { next }),
+      ...init,
+    },
+  ];
 }
 
 /** The whole body, with `progress` told of every chunk as it lands. */

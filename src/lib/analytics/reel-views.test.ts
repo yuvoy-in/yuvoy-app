@@ -468,8 +468,9 @@ describe("sending", () => {
     const requests: Request[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: Request) => {
-        requests.push(input);
+      // As the network sees it: `fetch` reads its two arguments as one Request.
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push(new Request(input, init));
         return response();
       }),
     );

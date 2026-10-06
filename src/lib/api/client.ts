@@ -101,24 +101,6 @@ const SERVER_READ_STALL_MS = 6_000;
 export const WRITE_STALL_MS = 30_000;
 
 /**
- * Marks a retried read made on the server, so that it reaches the API.
- *
- * Next memoises every GET a server render makes, keyed on its method, URL and
- * headers, and keeps the PROMISE, failures included
- * (`next/dist/server/lib/dedupe-fetch.js`). A retry identical to the attempt
- * it replaced was answered from that memo with the same failure, after the
- * backoff, so a server render never retried anything: it only waited longer
- * to fail (production readiness, 6 Oct 2026). A header is the one part of the
- * key that can differ without changing what is asked, and first attempts carry
- * none, so the memo still folds a page's metadata read into its body's.
- *
- * Never sent from a browser. There is no memo there to defeat, and a custom
- * header is what makes a cross-origin read need a preflight, which the API
- * would refuse for a header it does not allow.
- */
-export const ATTEMPT_HEADER = "x-yuvoy-attempt";
-
-/**
  * Exponential backoff with full jitter. Jitter matters more than usual here:
  * a whole ferry of travellers regains signal at the same moment, and
  * un-jittered backoff turns that into a synchronised stampede.
@@ -274,16 +256,6 @@ async function awaitMocks(): Promise<void> {
   }
 }
 
-/** The request for attempt `n` (from 0) of `input`. See `ATTEMPT_HEADER`. */
-function attemptOf(input: Request, n: number, isGet: boolean): Request {
-  if (!isGet) return input;
-  const request = input.clone();
-  if (n > 0 && typeof window === "undefined") {
-    request.headers.set(ATTEMPT_HEADER, String(n + 1));
-  }
-  return request;
-}
-
 function retryingFetch(input: Request): Promise<Response> {
   const isGet = input.method === "GET";
   const stallMs = !isGet
@@ -296,11 +268,15 @@ function retryingFetch(input: Request): Promise<Response> {
     let res: Response;
     try {
       await awaitMocks();
-      res = await fetchWithin(
-        attemptOf(input, n, isGet),
-        { signal: input.signal },
-        stallMs,
-      );
+      /*
+        Every attempt reaches the API, on the server too. Next memoises the
+        GETs of a server render and keeps the promise, failures included, so
+        a retry identical to the attempt it replaced was answered from that
+        memo after the backoff: a server render never retried anything
+        (production readiness, 6 Oct 2026). A read whose init carries a
+        signal is not memoised, and `fetchWithin` always gives it one.
+      */
+      res = await fetchWithin(input, { signal: input.signal }, stallMs);
     } catch (cause) {
       /*
         A read the caller cancelled is not a network fault. It used to be

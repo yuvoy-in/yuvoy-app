@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { http, HttpResponse, delay } from "msw";
-import { createApiClient, ATTEMPT_HEADER } from "./client";
+import { createApiClient } from "./client";
 import { NetworkError } from "./errors";
 import { server } from "../../../mocks/server";
 
@@ -196,14 +196,22 @@ describe("a request that goes quiet", () => {
 });
 
 /**
- * Next's per-render memo, reduced to what matters here: a GET identical to
- * one already made in this render is answered from the first one's promise,
- * failure and all. The key is the one `next/dist/server/lib/dedupe-fetch.js`
- * builds, method and headers, per URL.
+ * Next 16.3's patched `fetch`, reduced to what matters here
+ * (`next/dist/server/lib/patch-fetch.js` and `dedupe-fetch.js`): a GET is
+ * answered from the promise of an identical one made earlier in the render,
+ * failure and all, unless its init carries a signal; and a Request handed over
+ * with an init is first folded into one Request, so its signal no longer does.
  */
-function memoisedLikeNext(real: typeof fetch): typeof fetch {
+type Call = { input: unknown; init?: RequestInit };
+function nextLikeFetch(real: typeof fetch, calls: Call[] = []): typeof fetch {
   const seen = new Map<string, Promise<Response>>();
   return (input, init) => {
+    calls.push({ input, init });
+    if (input instanceof Request && init) {
+      input = new Request(input, init);
+      init = undefined;
+    }
+    if (init?.signal) return real(input, init);
     const request = new Request(input, init);
     const key = JSON.stringify([
       request.url,
@@ -219,47 +227,68 @@ function memoisedLikeNext(real: typeof fetch): typeof fetch {
   };
 }
 
-describe("a retried read on the server", () => {
+describe("a request made on the server", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("reaches the API, rather than the memo of the attempt that failed", async () => {
+  it("hands fetch a URL with its own signal, never a Request", async () => {
+    /*
+      Given a Request and a signal, Next folds them into new Requests and
+      keeps only the last, so the controller the abort is relayed through can
+      be collected mid-request and the deadline never reaches the socket.
+      See `fetchWithin`.
+    */
     vi.stubGlobal("window", undefined);
-    vi.stubGlobal("fetch", memoisedLikeNext(globalThis.fetch));
-    const attempts: (string | null)[] = [];
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", nextLikeFetch(globalThis.fetch, calls));
     server.use(
-      http.get(`${BASE}/reels`, ({ request }) => {
-        attempts.push(request.headers.get(ATTEMPT_HEADER));
-        if (attempts.length === 1) return HttpResponse.error();
-        return HttpResponse.json({
-          items: [],
-          nextCursor: null,
-          complete: true,
-        });
+      http.get(`${BASE}/reels`, () =>
+        HttpResponse.json({ items: [], complete: true }),
+      ),
+    );
+
+    await createApiClient().GET("/reels", { params: { query: { limit: 12 } } });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].input).toBe(`${BASE}/reels?limit=12`);
+    expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("keeps everything the request said, a write's body included", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("fetch", nextLikeFetch(globalThis.fetch));
+    let received: { type: string | null; body: unknown } | undefined;
+    server.use(
+      http.post(`${BASE}/reel-views`, async ({ request }) => {
+        received = {
+          type: request.headers.get("content-type"),
+          body: await request.json(),
+        };
+        return HttpResponse.json({ accepted: 0, droppedEvents: [] });
+      }),
+    );
+
+    await createApiClient().POST("/reel-views", { body: { events: [] } });
+    expect(received).toEqual({
+      type: "application/json",
+      body: { events: [] },
+    });
+  });
+
+  it("is retried at the API, not answered from the memo of the attempt that failed", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("fetch", nextLikeFetch(globalThis.fetch));
+    let asked = 0;
+    server.use(
+      http.get(`${BASE}/reels`, () => {
+        asked += 1;
+        if (asked === 1) return HttpResponse.error();
+        return HttpResponse.json({ items: [], complete: true });
       }),
     );
 
     const { response } = await createApiClient().GET("/reels");
     expect(response.status).toBe(200);
-    expect(attempts).toEqual([null, "2"]);
-  });
-
-  it("is never marked in a browser, where the header would need a preflight", async () => {
-    const attempts: (string | null)[] = [];
-    server.use(
-      http.get(`${BASE}/reels`, ({ request }) => {
-        attempts.push(request.headers.get(ATTEMPT_HEADER));
-        if (attempts.length === 1) return HttpResponse.error();
-        return HttpResponse.json({
-          items: [],
-          nextCursor: null,
-          complete: true,
-        });
-      }),
-    );
-
-    await createApiClient().GET("/reels");
-    expect(attempts).toEqual([null, null]);
+    expect(asked).toBe(2);
   });
 });

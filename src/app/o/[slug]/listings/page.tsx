@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
@@ -34,21 +35,25 @@ export function generateStaticParams(): { slug: string }[] {
   return [];
 }
 
-async function getOperator(slug: string): Promise<OperatorProfile | null> {
-  const api = createApiClient();
-  try {
-    const { data, error } = await api.GET("/operators/{slug}", {
-      params: { path: { slug } },
-    });
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    if (err instanceof YuvoyError && err.code === "not_found") return null;
-    // Anything else is a real failure: let it throw to error.tsx rather than
-    // rendering a 404 for what is actually an outage.
-    throw err;
-  }
-}
+// Read once per render though the metadata and the page both ask: a read
+// with a deadline is not memoised by Next, so React's `cache` shares it.
+const getOperator = cache(
+  async (slug: string): Promise<OperatorProfile | null> => {
+    const api = createApiClient();
+    try {
+      const { data, error } = await api.GET("/operators/{slug}", {
+        params: { path: { slug } },
+      });
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      if (err instanceof YuvoyError && err.code === "not_found") return null;
+      // Anything else is a real failure: let it throw to error.tsx rather than
+      // rendering a 404 for what is actually an outage.
+      throw err;
+    }
+  },
+);
 
 /**
  * The profile, with the moment it was read. The page is cached, so the seed

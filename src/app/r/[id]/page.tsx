@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
@@ -31,17 +32,20 @@ import type { Reel } from "@/lib/feed/reels";
  */
 export const dynamic = "force-dynamic";
 
-async function getReel(id: string, scenario?: string): Promise<Reel | null> {
-  try {
-    const api = createApiClient();
-    const { data, error } = await api.GET("/reels/{id}", {
-      params: { path: { id } },
-      headers: serverScenarioHeaders(scenario),
-    });
-    if (error) throw error;
-    return data ?? null;
-  } catch {
-    /*
+// Read once per render though the metadata and the page both ask: a read
+// with a deadline is not memoised by Next, so React's `cache` shares it.
+const getReel = cache(
+  async (id: string, scenario: string | undefined): Promise<Reel | null> => {
+    try {
+      const api = createApiClient();
+      const { data, error } = await api.GET("/reels/{id}", {
+        params: { path: { id } },
+        headers: serverScenarioHeaders(scenario),
+      });
+      if (error) throw error;
+      return data ?? null;
+    } catch {
+      /*
       Swallowed on purpose, and this is the one place in the app where that is
       right. Every reason this can fail — a 404, a 503 while the catalogue is
       down, a malformed id — ends at the same screen for the person holding the
@@ -49,17 +53,20 @@ async function getReel(id: string, scenario?: string): Promise<Reel | null> {
       exists but is not visible, which is what the contract's single 404 exists
       to avoid saying.
     */
-    return null;
-  }
-}
+      return null;
+    }
+  },
+);
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const reel = await getReel(id);
+  const reel = await getReel(id, scenarioOf(await searchParams));
 
   /*
     The title is the listing's, because that is the only honest name for a
@@ -88,14 +95,21 @@ export default async function ReelPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const query = await searchParams;
-  const raw = query.__scenario;
-  const scenario = typeof raw === "string" ? raw : undefined;
-
-  const reel = await getReel(id, scenario);
+  const reel = await getReel(id, scenarioOf(await searchParams));
   // Both halves are optional in the contract and a reel with neither is not a
   // reel. The feed drops such an item; a page about one has nothing to draw.
   if (!reel?.media || !reel.experience) notFound();
 
   return <ReelScreen reel={reel} />;
+}
+
+/**
+ * The page's own `?__scenario=`, honoured in a mocked build only. Read the same
+ * way by the metadata and the page, so the two ask `getReel` the same thing.
+ */
+function scenarioOf(
+  query: Record<string, string | string[] | undefined>,
+): string | undefined {
+  const raw = query.__scenario;
+  return typeof raw === "string" ? raw : undefined;
 }

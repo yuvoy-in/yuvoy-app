@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
@@ -29,21 +30,25 @@ export const revalidate = 300;
 // listing is reachable the moment it publishes instead of at the next deploy.
 export const dynamicParams = true;
 
-async function getExperience(slug: string): Promise<Experience | null> {
-  const api = createApiClient();
-  try {
-    const { data, error } = await api.GET("/experiences/{slug}", {
-      params: { path: { slug } },
-    });
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    if (err instanceof YuvoyError && err.code === "not_found") return null;
-    // Anything else is a real failure: let it throw to error.tsx rather than
-    // rendering a 404 for what is actually an outage.
-    throw err;
-  }
-}
+// Read once per render though the metadata and the page both ask: a read
+// with a deadline is not memoised by Next, so React's `cache` shares it.
+const getExperience = cache(
+  async (slug: string): Promise<Experience | null> => {
+    const api = createApiClient();
+    try {
+      const { data, error } = await api.GET("/experiences/{slug}", {
+        params: { path: { slug } },
+      });
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      if (err instanceof YuvoyError && err.code === "not_found") return null;
+      // Anything else is a real failure: let it throw to error.tsx rather than
+      // rendering a 404 for what is actually an outage.
+      throw err;
+    }
+  },
+);
 
 /**
  * The listing, with the moment it was read: checkout's cache is handed it

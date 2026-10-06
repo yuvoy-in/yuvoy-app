@@ -198,3 +198,43 @@ describe("fetchWithin", () => {
     expect(empty.body).toBeNull();
   });
 });
+
+describe("a Request", () => {
+  it("is handed to fetch as its URL and an init, with the deadline's own signal", async () => {
+    /*
+      Given a Request and a signal, Next 16.3 folds them into new Requests
+      and keeps only the last, so the abort can be lost to a garbage
+      collection mid-request. See "`fetch` is never handed a `Request`
+      together with a signal" in ./deadline.
+    */
+    const seen: { input: unknown; init?: RequestInit }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        seen.push({ input, init });
+        return Response.json({});
+      }),
+    );
+    const request = new Request(URL_, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer t",
+      },
+      body: JSON.stringify({ events: [] }),
+      cache: "no-store",
+    });
+
+    await fetchWithin(request, {}, 1_000);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].input).toBe(URL_);
+    const init = seen[0].init ?? {};
+    expect(init.method).toBe("POST");
+    expect(new Headers(init.headers).get("authorization")).toBe("Bearer t");
+    expect(new TextDecoder().decode(init.body as ArrayBuffer)).toBe(
+      JSON.stringify({ events: [] }),
+    );
+    expect(init.cache).toBe("no-store");
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+});
