@@ -18,6 +18,22 @@ type OperatorProfile = components["schemas"]["OperatorProfile"];
  */
 export const revalidate = 300;
 
+/*
+  Each business's list is rendered on its first visit, then served from the
+  cache for five minutes and refreshed in the background.
+
+  The empty list is load-bearing. Without `generateStaticParams` the
+  `revalidate` above did nothing: Next caches a dynamic segment only when its
+  page declares its params, so every visit was a fresh server render (a 1.0s
+  first byte, production readiness 6 Oct 2026). `scripts/check-prerender.mjs`
+  fails the build if it comes back.
+*/
+export const dynamicParams = true;
+
+export function generateStaticParams(): { slug: string }[] {
+  return [];
+}
+
 async function getOperator(slug: string): Promise<OperatorProfile | null> {
   const api = createApiClient();
   try {
@@ -32,6 +48,18 @@ async function getOperator(slug: string): Promise<OperatorProfile | null> {
     // rendering a 404 for what is actually an outage.
     throw err;
   }
+}
+
+/**
+ * The profile, with the moment it was read. The page is cached, so the seed
+ * can be older than the client's own freshness window, and the screen needs
+ * its age to know whether to read it again.
+ */
+async function readOperator(
+  slug: string,
+): Promise<{ operator: OperatorProfile; readAt: number } | null> {
+  const operator = await getOperator(slug);
+  return operator ? { operator, readAt: Date.now() } : null;
 }
 
 export async function generateMetadata({
@@ -62,8 +90,14 @@ export default async function OperatorListingsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const operator = await getOperator(slug);
-  if (!operator) notFound();
+  const read = await readOperator(slug);
+  if (!read) notFound();
 
-  return <OperatorListingsScreen slug={slug} initial={operator} />;
+  return (
+    <OperatorListingsScreen
+      slug={slug}
+      initial={read.operator}
+      readAt={read.readAt}
+    />
+  );
 }

@@ -20,8 +20,8 @@
  *
  * Runs after `next build`, inside `pnpm verify`.
  */
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { join, relative, dirname, sep } from "node:path";
 
 const MANIFEST = join(process.cwd(), ".next/prerender-manifest.json");
 
@@ -133,6 +133,57 @@ for (const route of Object.keys(ALLOWED)) {
         `      unless it was deliberate — remove it from ALLOWED if it was.`,
     );
   }
+}
+
+/**
+ * A `revalidate` that does nothing.
+ *
+ * `export const revalidate = 300` on a page under a dynamic segment reads as
+ * "cached for five minutes", and on its own it is not. Next caches (ISR) a
+ * dynamic segment only when its page also exports `generateStaticParams` (an
+ * empty list is enough) or `dynamic = "force-static"`. Without one, every
+ * request is a fresh server render and nothing in the source says so.
+ * `/o/[slug]` and its listings shipped like that: a 1.0s first byte on every
+ * visit, against 84ms for the cached `/e/[slug]` (production readiness,
+ * 6 Oct 2026).
+ *
+ * So every page that asks for revalidation is checked against the routes Next
+ * actually registered as revalidating.
+ */
+const APP_DIR = join(process.cwd(), "src/app");
+const revalidating = new Set(Object.keys(manifest.dynamicRoutes ?? {}));
+
+function pagesUnder(dir) {
+  const found = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...pagesUnder(path));
+    else if (/^page\.(tsx|ts|jsx|js)$/.test(entry.name)) found.push(path);
+  }
+  return found;
+}
+
+for (const file of pagesUnder(APP_DIR)) {
+  const asked = /export\s+const\s+revalidate\s*=\s*([^;\n]+)/
+    .exec(readFileSync(file, "utf8"))?.[1]
+    ?.trim();
+  // 0 means "render per request" and false means "never revalidate": neither
+  // is a promise of a cache that could silently be missing.
+  if (!asked || asked === "0" || asked === "false") continue;
+
+  const segments = relative(APP_DIR, dirname(file))
+    .split(sep)
+    .filter((s) => s && !s.startsWith("(") && !s.startsWith("@"));
+  if (!segments.some((s) => s.startsWith("["))) continue;
+
+  const route = `/${segments.join("/")}`;
+  if (revalidating.has(route)) continue;
+  problems.push(
+    `"${route}" exports revalidate = ${asked}, but Next renders it on every\n` +
+      `      request: a dynamic segment is only cached when its page also\n` +
+      `      exports generateStaticParams (returning [] is enough) or\n` +
+      `      dynamic = "force-static".`,
+  );
 }
 
 if (problems.length) {

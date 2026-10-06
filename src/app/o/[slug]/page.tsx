@@ -17,11 +17,27 @@ type OperatorProfile = components["schemas"]["OperatorProfile"];
  * screen itself is client-rendered, because the reel grid pages and the whole
  * profile is a live read.
  *
- * Not statically generated, unlike `/e/[slug]`. There is no catalog index of
+ * Not built ahead, unlike `/e/[slug]`. There is no catalog index of
  * operators to build from, and a business's listings and reel count change
  * more often than a listing's own copy does.
  */
 export const revalidate = 300;
+
+/*
+  Each business is rendered on its first visit, then served from the cache for
+  five minutes and refreshed in the background.
+
+  The empty list is load-bearing. Without `generateStaticParams` the
+  `revalidate` above did nothing: Next caches a dynamic segment only when its
+  page declares its params, so every visit was a fresh server render (a 1.0s
+  first byte, production readiness 6 Oct 2026). `scripts/check-prerender.mjs`
+  fails the build if it comes back.
+*/
+export const dynamicParams = true;
+
+export function generateStaticParams(): { slug: string }[] {
+  return [];
+}
 
 async function getOperator(slug: string): Promise<OperatorProfile | null> {
   const api = createApiClient();
@@ -37,6 +53,18 @@ async function getOperator(slug: string): Promise<OperatorProfile | null> {
     // rendering a 404 for what is actually an outage.
     throw err;
   }
+}
+
+/**
+ * The profile, with the moment it was read. The page is cached, so the seed
+ * can be older than the client's own freshness window, and the screen needs
+ * its age to know whether to read it again.
+ */
+async function readOperator(
+  slug: string,
+): Promise<{ operator: OperatorProfile; readAt: number } | null> {
+  const operator = await getOperator(slug);
+  return operator ? { operator, readAt: Date.now() } : null;
 }
 
 export async function generateMetadata({
@@ -68,8 +96,9 @@ export default async function OperatorPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const operator = await getOperator(slug);
-  if (!operator) notFound();
+  const read = await readOperator(slug);
+  if (!read) notFound();
+  const { operator, readAt } = read;
 
   return (
     <>
@@ -81,7 +110,7 @@ export default async function OperatorPage({
       />
       {/* Seeded with what this route already fetched: one request, and a
           body that is in the served HTML rather than only after hydration. */}
-      <OperatorScreen slug={slug} initial={operator} />
+      <OperatorScreen slug={slug} initial={operator} readAt={readAt} />
     </>
   );
 }

@@ -29,11 +29,18 @@ import { ListingCard } from "./listing-card";
 export function OperatorListingsScreen({
   slug,
   initial,
+  readAt,
 }: {
   slug: string;
   initial?: OperatorProfile;
+  /**
+   * When the route read `initial`, as epoch milliseconds. The route is cached,
+   * so the seed can be minutes old; with its age known the profile is read
+   * again on mount rather than trusted for another five minutes.
+   */
+  readAt?: number;
 }) {
-  const operator = useOperator(slug, initial);
+  const operator = useOperator(slug, initial, readAt);
   const back = { href: `/o/${slug}`, label: "the business" };
 
   if (operator.isPending) {
