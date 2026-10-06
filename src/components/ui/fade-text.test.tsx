@@ -33,6 +33,7 @@ beforeEach(() => {
       return {
         finished: new Promise(() => {}),
         cancel: () => {},
+        playState: "running",
       } as unknown as Animation;
     },
   });
@@ -96,11 +97,46 @@ describe("FadeText", () => {
     expect(out.options).toMatchObject({ duration: 100, easing: EASE.exit });
     const inn = played.find((p) => p.el !== copy)!;
     expect(inn.el.textContent).toBe("Thu 15 Oct · 11:30");
+    // From nothing, at the start: a lone keyframe without its offset is where
+    // the fade ENDS, which drew the new words, faded them out and drew them
+    // again (`arriveFrom`).
+    expect(inn.keyframes).toEqual([{ opacity: 0, offset: 0 }]);
     expect(inn.options).toMatchObject({
       duration: DURATION.quick,
       delay: 100,
       fill: "backwards",
     });
+  });
+
+  it("lets words changed part way through a fade leave from where they were", () => {
+    // A day tapped, then the next: the heading's words used to leave whole.
+    const { container, rerender } = render(<FadeText block>One</FadeText>);
+    rerender(<FadeText block>Two</FadeText>);
+    const words = () =>
+      Array.from(container.querySelectorAll<HTMLElement>("span")).find(
+        (s) => !s.closest('[aria-hidden="true"]') && s !== container.firstChild,
+      )!;
+    // Part of the way in, as an engine draws it.
+    words().style.opacity = "0.4";
+    played = [];
+    rerender(<FadeText block>Three</FadeText>);
+    const copy = Array.from(
+      container.querySelectorAll<HTMLElement>('[aria-hidden="true"]'),
+    ).find((c) => c.textContent === "Two")!;
+    const out = played.find((p) => p.el === copy)!;
+    expect(out.keyframes).toEqual([{ opacity: 0.4 }, { opacity: 0 }]);
+  });
+
+  it("carries a fade on from where it was under reduced motion", () => {
+    reduced = true;
+    const { container, rerender } = render(<FadeText>One</FadeText>);
+    rerender(<FadeText>Two</FadeText>);
+    expect(played[0].keyframes).toEqual([{ opacity: 0, offset: 0 }]);
+    container.querySelector<HTMLElement>("span > span")!.style.opacity = "0.5";
+    played = [];
+    rerender(<FadeText>Three</FadeText>);
+    // Not back to nothing: from where the last change's fade had got to.
+    expect(played[0].keyframes).toEqual([{ opacity: 0.5, offset: 0 }]);
   });
 
   it("keeps the leaving words in the face they were drawn in", () => {
@@ -143,7 +179,7 @@ describe("FadeText", () => {
     rerender(<FadeText>Two</FadeText>);
     expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
     expect(played).toHaveLength(1);
-    expect(played[0].keyframes).toEqual([{ opacity: 0 }]);
+    expect(played[0].keyframes).toEqual([{ opacity: 0, offset: 0 }]);
     expect(played[0].options).toMatchObject({
       duration: DURATION.reducedFade,
       easing: "linear",

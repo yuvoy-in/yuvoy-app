@@ -21,6 +21,8 @@ interface Played {
 
 let played: Played[] = [];
 let reduced = false;
+/** How far each element's arrival has got, as an engine would report it. */
+const progress = new Map<Element, number>();
 const saved = {
   animate: Object.getOwnPropertyDescriptor(HTMLElement.prototype, "animate"),
 };
@@ -33,6 +35,7 @@ function box(el: HTMLElement, i: number): number {
 beforeEach(() => {
   played = [];
   reduced = false;
+  progress.clear();
   Object.defineProperty(HTMLElement.prototype, "animate", {
     configurable: true,
     value(
@@ -53,7 +56,13 @@ beforeEach(() => {
           });
         },
       });
-      return { finished, cancel: () => {} } as unknown as Animation;
+      return {
+        finished,
+        cancel: () => {},
+        effect: {
+          getComputedTiming: () => ({ progress: progress.get(this) ?? null }),
+        },
+      } as unknown as Animation;
     },
   });
   for (const [name, i] of [
@@ -181,10 +190,10 @@ describe("useListMotion", () => {
     expect(played.map((p) => p.options.delay)).toEqual([
       0, 40, 80, 120, 160, 160,
     ]);
-    expect(played[0].keyframes[0]).toEqual({
-      opacity: 0,
-      transform: "translateY(8px)",
-    });
+    // Where the arrival STARTS: without the offset it is where it ends.
+    expect(played[0].keyframes).toEqual([
+      { opacity: 0, transform: "translateY(8px)", offset: 0 },
+    ]);
     expect(played[0].options).toMatchObject({
       duration: DURATION.quick,
       easing: EASE.interaction,
@@ -212,6 +221,74 @@ describe("useListMotion", () => {
     expect(copy.isConnected).toBe(false);
   });
 
+  it("fades what goes part way through its arrival from where it had got to", () => {
+    /*
+      Two Trips tabs tapped inside a quarter of a second: the first was still
+      fading in when it went, and its copy used to start whole, a flash
+      brighter than it had ever been drawn.
+    */
+    const { rerender, getByTestId } = render(<List items={[row("a", 0)]} />);
+    rerender(<List items={[row("a", 0), row("b", 100)]} />);
+    const b = getByTestId("list").querySelector('[data-motion-key="b"]')!;
+    expect(on("b")).toHaveLength(1);
+    progress.set(b, 0.4);
+    played = [];
+    rerender(<List items={[row("a", 0)]} />);
+    const copy = getByTestId("list").querySelector("[data-motion-ghost]")!;
+    const fade = played.find((p) => p.el === copy)!;
+    expect(fade.keyframes).toEqual([{ opacity: 0.4 }, { opacity: 0 }]);
+  });
+
+  it("fades what goes from its own opacity when it was drawn dimmed", () => {
+    // A full departure rests at 40%; it used to flash whole as it went.
+    const { rerender, getByTestId } = render(
+      <List items={[row("a", 0), row("b", 100)]} />,
+    );
+    getByTestId("list").querySelector<HTMLElement>(
+      '[data-motion-key="b"]',
+    )!.style.opacity = "0.4";
+    rerender(<List items={[row("a", 0)]} />);
+    const copy = getByTestId("list").querySelector("[data-motion-ghost]")!;
+    const fade = played.find((p) => p.el === copy)!;
+    expect(fade.keyframes).toEqual([{ opacity: 0.4 }, { opacity: 0 }]);
+  });
+
+  it("copies what was still arriving inside it as it was drawn", () => {
+    // A tab that goes just as its trips were fading in over its skeleton.
+    function Inner({ keys }: { keys: string[] }) {
+      const ref = useRef<HTMLUListElement | null>(null);
+      useListMotion(ref, keys.join("|"), { arrive: "fade" });
+      return (
+        <ul ref={ref} data-frame="" data-box="0 0 390 300">
+          {keys.map((k) => (
+            <li key={k} data-motion-key={k} data-box="0 0 390 100">
+              {k}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    function Tabs({ tab, keys }: { tab: string; keys: string[] }) {
+      const ref = useRef<HTMLDivElement | null>(null);
+      useListMotion(ref, tab, { arrive: "fade", through: true });
+      return (
+        <div ref={ref} data-frame="" data-testid="tabs">
+          <div key={tab} data-motion-key={tab} data-box="0 0 390 300">
+            <Inner keys={keys} />
+          </div>
+        </div>
+      );
+    }
+    const { rerender, getByTestId } = render(<Tabs tab="past" keys={[]} />);
+    rerender(<Tabs tab="past" keys={["trip"]} />);
+    const trip = getByTestId("tabs").querySelector('[data-motion-key="trip"]')!;
+    progress.set(trip, 0.5);
+    rerender(<Tabs tab="cancelled" keys={[]} />);
+    const copy = getByTestId("tabs").querySelector("[data-motion-ghost]")!;
+    expect(copy.querySelector("li")!.textContent).toBe("trip");
+    expect(copy.querySelector<HTMLElement>("li")!.style.opacity).toBe("0.5");
+  });
+
   it("slides what stayed from where it was, one step after what left", () => {
     const { rerender } = render(
       <List items={[row("a", 0), row("b", 100), row("c", 200)]} />,
@@ -234,7 +311,9 @@ describe("useListMotion", () => {
     const { rerender } = render(<List items={[row("b", 0)]} arrive="grow" />);
     rerender(<List items={[row("a", 0), row("b", 100)]} arrive="grow" />);
     const [a] = on("a");
-    expect(a.keyframes[0]).toEqual({ opacity: 0, transform: "scale(0.96)" });
+    expect(a.keyframes).toEqual([
+      { opacity: 0, transform: "scale(0.96)", offset: 0 },
+    ]);
     // b slid to make the room, so a waits one step for it.
     expect(a.options.delay).toBe(40);
     expect(on("b")[0].options.delay).toBe(0);
@@ -254,8 +333,8 @@ describe("useListMotion", () => {
     rerender(<List items={[row("b", 0), row("c", 100)]} />);
     expect(on("b")).toHaveLength(0);
     const [c] = on("c");
-    // One keyframe: it fades up to whatever the item rests at.
-    expect(c.keyframes).toEqual([{ opacity: 0 }]);
+    // One keyframe, at the start: it fades up to whatever the item rests at.
+    expect(c.keyframes).toEqual([{ opacity: 0, offset: 0 }]);
     expect(c.options).toMatchObject({
       duration: DURATION.reducedFade,
       easing: "linear",

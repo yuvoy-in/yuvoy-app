@@ -2,7 +2,14 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
-import { DURATION, EASE, prefersReducedMotion } from "@/lib/motion";
+import {
+  DURATION,
+  EASE,
+  arriveFrom,
+  opacityOf,
+  prefersReducedMotion,
+  stopAnimations,
+} from "@/lib/motion";
 
 /** The old words' fade: quick, accelerating away. */
 const OUT_MS = 100;
@@ -48,6 +55,8 @@ export function FadeText({
   const box = useRef<HTMLSpanElement | null>(null);
   const words = useRef<HTMLSpanElement | null>(null);
   const last = useRef({ children, wordsClassName });
+  /** The new words' fade while it plays: a change part way starts from it. */
+  const arriving = useRef<Animation | null>(null);
 
   useLayoutEffect(() => {
     const frame = box.current;
@@ -56,11 +65,20 @@ export function FadeText({
     last.current = { children, wordsClassName };
     if (!frame || !now || was.children === children || !fade) return;
     if (typeof now.animate !== "function") return;
+    /*
+      Where the words were drawn as they changed: whole, or part of the way
+      through the last change's fade. Words changed twice inside a quarter of
+      a second (a day tapped, then the next) used to leave from whole, a
+      flash brighter than they had been.
+    */
+    const drawnAt = opacityOf(now);
+    const midway = arriving.current?.playState === "running";
+    stopAnimations(now);
     if (prefersReducedMotion()) {
-      now.animate([{ opacity: 0 }], {
-        duration: DURATION.reducedFade,
-        easing: "linear",
-      });
+      arriving.current = now.animate(
+        arriveFrom({ opacity: midway ? drawnAt : 0 }),
+        { duration: DURATION.reducedFade, easing: "linear" },
+      );
       return;
     }
     const copy = document.createElement("span");
@@ -72,7 +90,7 @@ export function FadeText({
     copy.style.pointerEvents = "none";
     frame.appendChild(copy);
     copy
-      .animate([{ opacity: 1 }, { opacity: 0 }], {
+      .animate([{ opacity: drawnAt }, { opacity: 0 }], {
         duration: OUT_MS,
         easing: EASE.exit,
         fill: "forwards",
@@ -81,7 +99,7 @@ export function FadeText({
         () => copy.remove(),
         () => copy.remove(),
       );
-    now.animate([{ opacity: 0 }], {
+    arriving.current = now.animate(arriveFrom({ opacity: 0 }), {
       duration: DURATION.quick,
       delay: OUT_MS,
       easing: EASE.interaction,

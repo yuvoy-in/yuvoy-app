@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import {
   DURATION,
   EASE,
+  arriveFrom,
   prefersReducedMotion,
   stopAnimations,
 } from "@/lib/motion";
@@ -225,7 +226,7 @@ function DayStrip({
     if (loading || typeof win.animate !== "function") return;
     const reduced = prefersReducedMotion();
     if (!shown || reduced) {
-      win.animate([{ opacity: 0 }], {
+      win.animate(arriveFrom({ opacity: 0 }), {
         duration: reduced ? DURATION.reducedFade : DURATION.quick,
         easing: reduced ? "linear" : EASE.interaction,
       });

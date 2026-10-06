@@ -2,7 +2,14 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
-import { DURATION, EASE, prefersReducedMotion } from "@/lib/motion";
+import {
+  DURATION,
+  EASE,
+  opacityOf,
+  prefersReducedMotion,
+  stopAnimations,
+  translateYOf,
+} from "@/lib/motion";
 
 /**
  * A figure that changes, seen changing (the motion system §7: counts roll in
@@ -46,12 +53,28 @@ export function RollingNumber({
   );
 }
 
+/** Each figure's arrival while it plays: a change part way starts from it. */
+const rolling = new WeakMap<Element, Animation>();
+
 function roll(el: HTMLElement, from: string, direction: 1 | -1) {
+  /*
+    Where the figure was drawn as it changed: at rest, or part of the way
+    through the last roll. Changed twice inside 200ms (a party of three, then
+    four), it used to leave from rest: back down to its place and whole, a
+    jump and a flash in the middle of a roll.
+  */
+  const at = translateYOf(el);
+  const drawnAt = opacityOf(el);
+  const midway = rolling.get(el)?.playState === "running";
+  stopAnimations(el);
   if (prefersReducedMotion()) {
-    el.animate([{ opacity: 0 }, { opacity: 1 }], {
-      duration: DURATION.reducedFade,
-      easing: "linear",
-    });
+    rolling.set(
+      el,
+      el.animate([{ opacity: midway ? drawnAt : 0 }, { opacity: 1 }], {
+        duration: DURATION.reducedFade,
+        easing: "linear",
+      }),
+    );
     return;
   }
   const parent = el.parentElement;
@@ -77,7 +100,7 @@ function roll(el: HTMLElement, from: string, direction: 1 | -1) {
   copy
     .animate(
       [
-        { transform: "none", opacity: 1 },
+        { transform: `translateY(${at}px)`, opacity: drawnAt },
         { transform: `translateY(${-travel}px)`, opacity: 0 },
       ],
       {
@@ -90,7 +113,7 @@ function roll(el: HTMLElement, from: string, direction: 1 | -1) {
       () => copy.remove(),
       () => copy.remove(),
     );
-  el.animate(
+  const arrival = el.animate(
     [
       { transform: `translateY(${travel}px)`, opacity: 0 },
       { transform: "none", opacity: 1 },
@@ -101,4 +124,5 @@ function roll(el: HTMLElement, from: string, direction: 1 | -1) {
       fill: "backwards",
     },
   );
+  rolling.set(el, arrival);
 }

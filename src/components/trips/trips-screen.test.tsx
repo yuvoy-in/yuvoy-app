@@ -427,6 +427,138 @@ describe("the three tabs", () => {
   });
 });
 
+/**
+ * Waiting for a tab: the motion system §8 (approved 4 Oct 2026). Nothing for
+ * 300ms, then the skeleton, which once shown stays 300ms.
+ *
+ * Every tab used to draw its skeleton the moment it was first opened, so an
+ * answer inside 300ms flashed it on and straight off. jsdom draws nothing,
+ * so "drawn" here is the skeleton's blocks without `invisible`: the class is
+ * the whole difference between a wait that is held back and one that shows.
+ */
+describe("waiting for a tab", () => {
+  /** Each tab's own trip, answered after that tab's wait. */
+  const byTab = (wait: Partial<Record<string, number>>) =>
+    server.use(
+      http.get(`${BASE}/me/bookings`, async ({ request }) => {
+        const tab = new URL(request.url).searchParams.get("tab") ?? "";
+        sent.push(new URL(request.url).searchParams);
+        const ms = wait[tab];
+        if (ms) await delay(ms);
+        return HttpResponse.json({
+          nextCursor: null,
+          bookings: [
+            {
+              reference: `YV-${tab.toUpperCase()}`,
+              reservationId: `res_${tab}`,
+              experience: `The ${tab} trip`,
+              localDate: "2026-12-24",
+              localTime: "09:00",
+              state: "confirmed",
+              guests: 2,
+              statusToken: `tok_${tab}`,
+              price: { totalPaise: 900000, currency: "INR" },
+            },
+          ],
+        });
+      }),
+    );
+
+  const skeletonDrawn = () =>
+    Array.from(document.querySelectorAll(".skeleton")).some(
+      (s) =>
+        s.closest('[data-motion-key="loading"], [data-motion-key="waiting"]') &&
+        !s.closest(".invisible"),
+    );
+
+  /** Whether the skeleton was drawn at any moment from now on. */
+  function watchSkeleton() {
+    let drawn = skeletonDrawn();
+    const watcher = new MutationObserver(() => {
+      if (skeletonDrawn()) drawn = true;
+    });
+    watcher.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => {
+      watcher.disconnect();
+      return drawn;
+    };
+  }
+
+  const pause = (ms: number) =>
+    act(() => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
+  it("draws no skeleton for a tab that answers inside 300ms", async () => {
+    const user = userEvent.setup();
+    await signIn();
+    noInvites();
+    byTab({ past: 150 });
+    renderWithQuery(<TripsScreen />);
+    await screen.findByText("The upcoming trip");
+
+    const drawn = watchSkeleton();
+    await user.click(screen.getByRole("tab", { name: "Past" }));
+    // Waiting is still said, to a screen reader; it is only not drawn.
+    expect(
+      screen.getByRole("status", { name: "Loading your trips" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("The past trip")).toBeInTheDocument();
+    expect(drawn(), "the skeleton flashed for a quick answer").toBe(false);
+  });
+
+  it("draws it once the wait has lasted 300ms, and keeps it 300ms", async () => {
+    const user = userEvent.setup();
+    await signIn();
+    noInvites();
+    byTab({ past: 500 });
+    renderWithQuery(<TripsScreen />);
+    await screen.findByText("The upcoming trip");
+
+    await user.click(screen.getByRole("tab", { name: "Past" }));
+    await pause(200);
+    expect(skeletonDrawn()).toBe(false);
+
+    await waitFor(() => expect(skeletonDrawn()).toBe(true), { timeout: 1000 });
+    const shownAt = performance.now();
+    await screen.findByText("The past trip", {}, { timeout: 2000 });
+    // The answer came at 500ms; the skeleton, up since 300ms, held to 600ms.
+    expect(performance.now() - shownAt).toBeGreaterThanOrEqual(240);
+    expect(skeletonDrawn()).toBe(false);
+  });
+
+  it("starts every tab's wait afresh", async () => {
+    // A skeleton just drawn on one tab is not held over the next one's trips.
+    const user = userEvent.setup();
+    await signIn();
+    noInvites();
+    byTab({ past: 2000 });
+    renderWithQuery(<TripsScreen />);
+    await screen.findByText("The upcoming trip");
+
+    await user.click(screen.getByRole("tab", { name: "Past" }));
+    await waitFor(() => expect(skeletonDrawn()).toBe(true), { timeout: 1000 });
+    await user.click(screen.getByRole("tab", { name: "Upcoming" }));
+    expect(screen.getByText("The upcoming trip")).toBeInTheDocument();
+    expect(skeletonDrawn()).toBe(false);
+  });
+
+  it("keeps the skeleton Trips opened with, rather than blanking it", async () => {
+    // The screen drew it while the session was read: it must not go for
+    // 300ms and come back when the first tab's list mounts.
+    await signIn();
+    noInvites();
+    byTab({ upcoming: 800 });
+    renderWithQuery(<TripsScreen />);
+    await screen.findByRole("tablist", { name: "Which trips" });
+    expect(skeletonDrawn()).toBe(true);
+    expect(await screen.findByText("The upcoming trip")).toBeInTheDocument();
+  });
+});
+
 describe("paging", () => {
   it("offers Show more only while there is another page", async () => {
     await signIn();

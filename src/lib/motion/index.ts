@@ -33,6 +33,34 @@ export const DURATION = {
   reducedFade: 120,
 } as const;
 
+/**
+ * The keyframes of an arrival: from `start` to wherever the element rests.
+ *
+ * One keyframe, so the end is the element's own values whatever they are: a
+ * departure that is full rests at 40% opacity, and an arrival written to 1
+ * would land bright and then drop.
+ *
+ * ## The offset is the whole of it
+ *
+ * Web Animations reads a lone keyframe with no `offset` as the END of the
+ * animation (offset 1) and starts it from the element's own value. So
+ * `animate([{ opacity: 0 }])` does not fade an element in: it draws it
+ * whole, fades it OUT, and when the effect ends it is drawn whole again.
+ * With `fill: "backwards"` it is drawn whole through its delay as well.
+ * Measured on 7 Oct 2026 in Chromium 151 and WebKit 26.5: a second in, it was
+ * at 1.00 through the delay, 0.50 halfway and 0.01 at the end, then 1.00.
+ *
+ * Every arrival in this app was written that way from the motion system's
+ * release (5 Oct 2026) until this helper. The owner saw it on the Trips tabs:
+ * the next tab's trips came up, went off, and came back. Pinned at offset 0,
+ * the keyframe is where the arrival starts and the element's own style is
+ * where it ends. `keyframes.guard.test.ts` fails a lone keyframe written any
+ * other way.
+ */
+export function arriveFrom(start: Keyframe): Keyframe[] {
+  return [{ ...start, offset: 0 }];
+}
+
 const QUERY = "(prefers-reduced-motion: reduce)";
 
 /**
