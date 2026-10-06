@@ -1886,8 +1886,18 @@
 @utility reel-sheet-dep-seats {
   @apply text-paper/70 truncate text-right text-sm;
 }
+/*
+  A departure still to come, the height of the row it stands for: the row's
+  own 48px and its hairline, with the breathing bar inside. Bars of 32px with
+  8px margins made three rows 128px against the 147px of three real ones, so
+  everything under them dropped as the departures landed (stability audit,
+  6 Oct 2026).
+*/
 @utility reel-sheet-dep-skeleton {
-  @apply skeleton rounded-tile text-paper my-2 block h-8;
+  @apply border-paper/14 flex min-h-12 items-center border-b;
+}
+@utility reel-sheet-dep-skeleton-bar {
+  @apply skeleton rounded-tile text-paper block h-8 w-full;
 }
 @utility reel-sheet-deps-note {
   @apply text-paper/70 py-2 text-sm;

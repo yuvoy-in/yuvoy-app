@@ -235,6 +235,48 @@ test.describe("the reel keeps the screen", () => {
     await expect(panel).not.toBeVisible();
   });
 
+  test("the departures hold the height of the rows they stand for", async ({
+    page,
+  }) => {
+    /*
+      The wait was three 32px bars with margins, 128px, against the 147px of
+      three real rows, so everything under them dropped as the departures
+      landed (stability audit, 6 Oct 2026). The read is held long enough to
+      measure the wait itself.
+    */
+    await page.addInitScript(() => {
+      const fetchOf = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof Request
+              ? input.url
+              : String(input);
+        if (/\/availability\?/.test(url))
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        return fetchOf(input, init);
+      };
+    });
+    await page.reload();
+    const card = page.locator('article[aria-posinset="1"]');
+    await card.getByRole("button", { name: /Aug|No dates/ }).click();
+
+    const comingUp = card
+      .getByRole("group", { name: /^Details, / })
+      .getByRole("region", { name: "Coming up" });
+    await expect(
+      comingUp.getByRole("status", { name: "Loading departures" }),
+    ).toBeVisible();
+    const waiting = (await comingUp.boundingBox())!.height;
+
+    const rows = comingUp.getByRole("link");
+    await expect(rows.first()).toBeVisible({ timeout: 6000 });
+    await expect(rows).toHaveCount(3);
+    const landed = (await comingUp.boundingBox())!.height;
+    expect(Math.abs(landed - waiting)).toBeLessThan(1);
+  });
+
   test("a departure in the panel opens checkout on it", async ({ page }) => {
     /*
       The redesign's point (traveller A): from a reel to a chosen departure in
