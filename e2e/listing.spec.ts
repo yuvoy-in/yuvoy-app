@@ -44,6 +44,33 @@ test.describe("the gallery", () => {
     await expect(lightbox).toBeHidden();
   });
 
+  test("the page behind holds still while the view is open", async ({
+    page,
+  }) => {
+    /*
+      A wheel or a drag over the photograph scrolled the listing under it, so
+      closing the view landed somewhere else on the page (stability audit,
+      6 Oct 2026). The page's own scroller is shut while the view is open,
+      and opened again when it closes.
+    */
+    await page.goto(REQUEST);
+    const rootOverflow = () =>
+      page.evaluate(() => getComputedStyle(document.documentElement).overflowY);
+    expect(await rootOverflow()).not.toBe("hidden");
+
+    await page
+      .getByRole("group", { name: /Photographs and clips of/ })
+      .getByRole("button", { name: /^Open 1 of/ })
+      .click();
+    const lightbox = page.getByRole("dialog", { name: /1 of/ });
+    await expect(lightbox).toBeVisible();
+    expect(await rootOverflow()).toBe("hidden");
+
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toBeHidden();
+    expect(await rootOverflow()).not.toBe("hidden");
+  });
+
   test("the full-screen view is accessible", async ({ page }) => {
     await page.goto(REQUEST);
     await page

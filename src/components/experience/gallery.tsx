@@ -601,7 +601,14 @@ function Lightbox({
       className="app-lightbox bg-abyss"
     >
       <div className="relative flex h-full w-full items-center justify-center">
+        {/*
+          Keyed by the photograph, so the next one is a new picture rather
+          than a new address for the old one: the old frame stayed on screen
+          under the new counter until the next had loaded, "3 of 5" over
+          photograph 2 with no cue (stability audit, 6 Oct 2026).
+        */}
         <Image
+          key={at}
           src={media.posterUrl}
           alt={media.alt ?? title}
           fill

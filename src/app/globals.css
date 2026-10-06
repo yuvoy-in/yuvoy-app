@@ -2156,11 +2156,16 @@
  * records for the feed.
  */
 @layer components {
+  /*
+    `100%`, not `100vw`: the viewport unit counts a desktop's classic
+    scrollbar, so the view ran under it, and everything placed from its right
+    edge (Close, Next) sat a scrollbar's width too far right, against it.
+  */
   dialog.app-lightbox {
     position: fixed;
     inset: 0;
     margin: 0;
-    width: 100vw;
+    width: 100%;
     max-width: none;
     height: 100dvh;
     max-height: none;
@@ -2174,6 +2179,16 @@
 
   dialog.app-lightbox[open] {
     animation: sheet-tint 200ms var(--ease-interaction);
+  }
+
+  /*
+    The page behind holds still. A wheel or a drag over the photograph used
+    to scroll the listing under it, so closing the view landed somewhere else
+    on the page (stability audit, 6 Oct 2026). The view covers the whole
+    screen, so the scrollbar leaving with it moves nothing anybody can see.
+  */
+  html:has(dialog.app-lightbox[open]) {
+    overflow: hidden;
   }
 }
 
