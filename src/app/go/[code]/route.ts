@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { filtersToParams } from "@/lib/search/filters";
+import { safeNextPath } from "@/lib/site/next-path";
 
 /**
  * T1: arrival from a printed QR code.
@@ -89,7 +90,14 @@ export async function GET(
       carries no destination, so case 3 already covers it without a second
       branch that could disagree.
     */
-    if (data?.target) target = data.target;
+    /*
+      Only ever a path on this site. The target is whatever was typed into a
+      scan code's record, and an absolute or protocol-relative URL there would
+      make every printed QR code an open redirect off yuvoy (production
+      readiness, 6 Oct 2026). Anything that is not a safe in-app path falls
+      back to the feed, like a code that carries no target at all.
+    */
+    if (data?.target) target = safeNextPath(data.target) ?? "/";
     const destination = data?.destinationKey?.trim();
     if (destination && target === "/") {
       target = `/search?${filtersToParams({ destinationKey: destination })}`;
