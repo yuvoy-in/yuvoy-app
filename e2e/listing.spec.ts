@@ -348,8 +348,10 @@ test.describe("the price panel holds still while the open days are read", () => 
       await expect(pay).toBeVisible();
       const before = (await pay.boundingBox())!.y;
 
+      // Read in the panel the payment line sits in: the bar names the day too.
+      const panel = pay.locator("..");
       await expect(
-        page.getByText(
+        panel.getByText(
           outcome === "answered"
             ? /^Next open:/
             : /^The open days did not load\./,
