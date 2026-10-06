@@ -5,7 +5,12 @@ import {
   touchSessionCookie,
 } from "@/lib/auth/session-cookie";
 import { allowedProxyPath, proxyPathOf } from "@/lib/auth/proxied-paths";
-import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
+import {
+  callUpstream,
+  sessionExpiryOf,
+  unreachable,
+  type UpstreamResult,
+} from "@/lib/auth/upstream";
 import { sameOriginOnly } from "@/lib/auth/same-origin";
 
 /**
@@ -87,15 +92,20 @@ async function proxy(
     }
   }
 
-  const answer = await callUpstream({
-    method,
-    path,
-    search: new URL(request.url).search,
-    token,
-    body,
-    from: request,
-    signal: request.signal,
-  });
+  let answer: UpstreamResult;
+  try {
+    answer = await callUpstream({
+      method,
+      path,
+      search: new URL(request.url).search,
+      token,
+      body,
+      from: request,
+      signal: request.signal,
+    });
+  } catch (cause) {
+    return unreachable({ where: `[proxy] ${method} ${path}`, cause, request });
+  }
 
   if (answer.status === 401) {
     await clearSessionCookie(request);

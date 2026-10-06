@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { sameOriginOnly } from "@/lib/auth/same-origin";
 import {
   readSessionCookie,
@@ -6,7 +6,12 @@ import {
   clearSessionCookie,
   touchSessionCookie,
 } from "@/lib/auth/session-cookie";
-import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
+import {
+  callUpstream,
+  sessionExpiryOf,
+  unreachable,
+  type UpstreamResult,
+} from "@/lib/auth/upstream";
 
 /**
  * The session's whole life: sign in, ask, sign out (yuvoy-app#57).
@@ -61,12 +66,22 @@ async function signIn(request: Request) {
     );
   }
 
-  const answer = await callUpstream({
-    method: "POST",
-    path: "/me/sign-in/verify",
-    body: { phone, code },
-    from: request,
-  });
+  let answer: UpstreamResult;
+  try {
+    answer = await callUpstream({
+      method: "POST",
+      path: "/me/sign-in/verify",
+      body: { phone, code },
+      from: request,
+    });
+  } catch (cause) {
+    return unreachable({
+      where: "[session] POST /me/sign-in/verify",
+      cause,
+      request,
+      message: "Signing in did not complete. Try again in a moment.",
+    });
+  }
 
   if (answer.status < 200 || answer.status >= 300) {
     return passthrough(answer);
@@ -123,12 +138,27 @@ async function check(request: Request) {
   const token = await readSessionCookie();
   if (!token) return NextResponse.json({ signedIn: false });
 
-  const answer = await callUpstream({
-    method: "GET",
-    path: "/me",
-    token,
-    from: request,
-  });
+  let answer: UpstreamResult;
+  try {
+    answer = await callUpstream({
+      method: "GET",
+      path: "/me",
+      token,
+      from: request,
+    });
+  } catch (cause) {
+    /*
+      Signed in, for the reason the next branch gives: an API that did not
+      answer has not ended anybody's session.
+    */
+    if (!request.signal.aborted) {
+      console.error(
+        "[session] GET /me did not answer; still signed in.",
+        cause,
+      );
+    }
+    return NextResponse.json({ signedIn: true });
+  }
 
   if (answer.status === 401) {
     await clearSessionCookie(request);
@@ -153,25 +183,38 @@ async function check(request: Request) {
 /**
  * Sign out.
  *
- * Tells the API first, then forgets locally, and never lets the API's answer
- * decide whether the device forgets. `DELETE /me/session` answers 204 whatever
- * the token was, so a failure here means the network rather than the session.
- * A traveller who taps sign out on a jetty with no signal must still be signed
- * out on the phone in front of them.
+ * Forgets on this device at once, tells the API straight after, and never lets
+ * the API's answer decide whether the device forgets. `DELETE /me/session`
+ * answers 204 whatever the token was, so a failure there means the network
+ * rather than the session. A traveller who taps sign out on a jetty with no
+ * signal must still be signed out on the phone in front of them.
+ *
+ * The API is told in `after`, once this answer has gone. The cleared cookie in
+ * this answer is what signs the phone out, and it used to wait on the API: a
+ * slow or silent API held it, and a browser that gave up first never received
+ * it, so the phone stayed signed in (production readiness, 6 Oct 2026). The
+ * token is read before the cookie is cleared, so the API is still told which
+ * session ended.
  */
 async function signOut(request: Request) {
   const token = await readSessionCookie();
   if (token) {
-    try {
-      await callUpstream({
-        method: "DELETE",
-        path: "/me/session",
-        token,
-        from: request,
-      });
-    } catch {
-      // Deliberately ignored. See above.
-    }
+    after(async () => {
+      try {
+        await callUpstream({
+          method: "DELETE",
+          path: "/me/session",
+          token,
+          from: request,
+        });
+      } catch (cause) {
+        /*
+          Logged, and otherwise ignored, as it always was: the session expires
+          on its own, and the only copy of the token has left this phone.
+        */
+        console.error("[session] DELETE /me/session did not answer.", cause);
+      }
+    });
   }
   await clearSessionCookie(request);
   return new NextResponse(null, { status: 204 });

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { callUpstream, FORWARDED_REQUEST_HEADERS } from "./upstream";
+import {
+  callUpstream,
+  FORWARDED_REQUEST_HEADERS,
+  unreachable,
+} from "./upstream";
+import { StalledError } from "@/lib/api/deadline";
 
 /**
  * What the proxy sends upstream, and what it refuses to (yuvoy-app#75).
@@ -223,5 +228,104 @@ describe("the scenario switch, for a call a page makes", () => {
       }),
     });
     expect(sentHeaders()["x-yuvoy-scenario"]).toBe("session-expired");
+  });
+});
+
+/**
+ * An API that has gone quiet (production readiness, 6 Oct 2026). The proxy
+ * had no deadline, so a stalled call held the function until the platform's
+ * own limit, and the throw escaped as a bare 500.
+ */
+describe("an API that does not answer", () => {
+  /** A `fetch` that never answers, and rejects once its signal aborts. */
+  function never() {
+    return (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted) reject(signal.reason);
+        else signal?.addEventListener("abort", () => reject(signal.reason));
+      });
+  }
+
+  afterEach(() => vi.useRealTimers());
+
+  it("is given up on after eight seconds of silence on a read", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(never());
+    const read = callUpstream({ method: "GET", path: "/me", token: "s" }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+
+    await vi.advanceTimersByTimeAsync(7_999);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await read).toBeInstanceOf(StalledError);
+  });
+
+  it("is waited on longer for a write, whose outcome giving up cannot know", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(never());
+    let settled = false;
+    const write = callUpstream({
+      method: "POST",
+      path: "/reservations",
+      body: { slotId: "slot_1" },
+    }).then(
+      () => null,
+      (e: unknown) => {
+        settled = true;
+        return e;
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(24_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await write).toBeInstanceOf(StalledError);
+  });
+});
+
+describe("unreachable", () => {
+  it("answers a stall as a 504 and a failed connection as a 502, in the envelope", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const stalled = unreachable({
+      where: "[proxy] GET /me",
+      cause: new StalledError(8_000),
+    });
+    expect(stalled.status).toBe(504);
+    expect(await stalled.json()).toEqual({
+      error: {
+        code: "internal_error",
+        message: "We could not reach Yuvoy just now. Try again in a moment.",
+      },
+    });
+
+    const refused = unreachable({
+      where: "[proxy] GET /me",
+      cause: new TypeError("fetch failed"),
+    });
+    expect(refused.status).toBe(502);
+  });
+
+  it("logs the cause, but not for a browser that went away first", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const cause = new StalledError(8_000);
+    unreachable({ where: "[proxy] GET /me", cause });
+    expect(log).toHaveBeenCalledWith(
+      "[proxy] GET /me: the API did not answer.",
+      cause,
+    );
+
+    log.mockClear();
+    const gone = new AbortController();
+    gone.abort();
+    unreachable({
+      where: "[proxy] GET /me",
+      cause,
+      request: new Request("https://app.yuvoy.in/api/v1/me", {
+        signal: gone.signal,
+      }),
+    });
+    expect(log).not.toHaveBeenCalled();
   });
 });

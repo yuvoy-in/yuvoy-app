@@ -8,7 +8,13 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { api, createProxyClient } from "@/lib/api/client";
+import {
+  api,
+  createProxyClient,
+  BROWSER_READ_STALL_MS,
+  WRITE_STALL_MS,
+} from "@/lib/api/client";
+import { fetchWithin } from "@/lib/api/deadline";
 import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
@@ -84,10 +90,11 @@ function forgetSaved(qc: QueryClient): void {
 }
 
 async function readSession(signal?: AbortSignal): Promise<SessionAnswer> {
-  const response = await fetch("/api/session", {
-    signal,
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetchWithin(
+    "/api/session",
+    { signal, headers: { Accept: "application/json" } },
+    BROWSER_READ_STALL_MS,
+  );
   if (!response.ok) return { signedIn: false };
   const body = (await response.json()) as Partial<SessionAnswer>;
   return { signedIn: Boolean(body?.signedIn) };
@@ -182,7 +189,16 @@ export function useTravellerSession() {
    */
   const signOut = useCallback(async () => {
     try {
-      await fetch("/api/session", { method: "DELETE" });
+      /*
+        A read's deadline, though this is a write: the route answers at once
+        and tells the API afterwards, so twelve seconds of nothing is a dead
+        connection, and the phone is signed out locally all the same.
+      */
+      await fetchWithin(
+        "/api/session",
+        { method: "DELETE" },
+        BROWSER_READ_STALL_MS,
+      );
     } catch {
       // Deliberately ignored. See above.
     }
@@ -240,14 +256,18 @@ export function useVerifySignInCode() {
   return useMutation({
     retry: false,
     mutationFn: async (input: { phone: string; code: string }) => {
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: input.phone.trim(),
-          code: input.code.trim(),
-        }),
-      });
+      const response = await fetchWithin(
+        "/api/session",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: input.phone.trim(),
+            code: input.code.trim(),
+          }),
+        },
+        WRITE_STALL_MS,
+      );
 
       if (!response.ok) throw await asYuvoyError(response);
       return (await response.json()) as { signedIn: boolean };

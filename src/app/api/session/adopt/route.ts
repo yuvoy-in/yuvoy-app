@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { sameOriginOnly } from "@/lib/auth/same-origin";
 import { writeSessionCookie } from "@/lib/auth/session-cookie";
-import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
+import {
+  callUpstream,
+  sessionExpiryOf,
+  type UpstreamResult,
+} from "@/lib/auth/upstream";
 
 /**
  * Moves a traveller who was already signed in, once (yuvoy-app#57 item 8).
@@ -52,14 +56,21 @@ async function adopt(request: Request) {
     return NextResponse.json({ adopted: false }, { status: 400 });
   }
 
-  const answer = await callUpstream({
-    method: "GET",
-    path: "/me",
-    token,
-    from: request,
-  });
+  let answer: UpstreamResult | null = null;
+  try {
+    answer = await callUpstream({
+      method: "GET",
+      path: "/me",
+      token,
+      from: request,
+    });
+  } catch (cause) {
+    if (!request.signal.aborted) {
+      console.error("[adopt] GET /me did not answer; not adopted.", cause);
+    }
+  }
 
-  if (answer.status < 200 || answer.status >= 300) {
+  if (!answer || answer.status < 200 || answer.status >= 300) {
     /*
       200 with `adopted: false`, not the API's status.
 

@@ -128,6 +128,27 @@ for (const f of files) {
   }
 }
 
+/* ------------------------------------- 3b. every request has a deadline -- */
+
+/*
+  Nothing that called the network had a deadline (production readiness,
+  6 Oct 2026): a read on a dead connection waited for the phone to notice, a
+  write spun forever, and a server render waited five minutes. Every request
+  now goes through `fetchWithin` (lib/api/deadline), directly or through the
+  API client, and a bare `fetch(` anywhere else is how the next one would
+  arrive without one. Tests are exempt, and so is the one call that
+  implements the deadline.
+*/
+for (const f of files) {
+  if (/\.test\.tsx?$/.test(f)) continue;
+  if (rel(f) === join("src", "lib", "api", "deadline.ts")) continue;
+  if (/(^|[^\w.$])fetch\(/m.test(code(f))) {
+    problems.push(
+      `${rel(f)}: calls fetch() directly; use fetchWithin (lib/api/deadline) so it has a deadline`,
+    );
+  }
+}
+
 /* -------------------------------------------- 4. screens have states ----- */
 
 // Any component that runs a query must render loading AND error.

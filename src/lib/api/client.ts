@@ -6,13 +6,14 @@ import {
   isErrorEnvelope,
   type ErrorCode,
 } from "./errors";
+import { fetchWithin } from "./deadline";
 import { recordServerDate } from "@/lib/booking/clock";
 import { dedash } from "@/lib/format/dedash";
 
 /**
  * The one place `fetch` is called.
  *
- * Three behaviours are non-negotiable, and each exists because of a specific
+ * Four behaviours are non-negotiable, and each exists because of a specific
  * way this app can lose somebody money on a 0.5 Mbps island connection:
  *
  *   1. Throws a typed `YuvoyError` carrying code / details / requestId, so
@@ -22,6 +23,8 @@ import { dedash } from "@/lib/format/dedash";
  *      is, so nothing else may be replayed automatically.
  *   3. Never logs a URL fragment. The booking status token lives in one, and
  *      this API logs request URIs.
+ *   4. Gives up on a connection that has gone quiet, instead of waiting on it
+ *      for as long as the platform will. See ./deadline.
  */
 
 const DEFAULT_BASE_URL = "http://localhost:8099/v1";
@@ -75,6 +78,45 @@ const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
 ]);
 
 const MAX_GET_ATTEMPTS = 3;
+
+/*
+  How long a request may go quiet before it is given up on. It is silence that
+  is timed, not the whole transfer: see `fetchWithin` in ./deadline.
+
+  A read in the browser gets twelve seconds. A whole answer here is a few
+  kilobytes, so on any link that is still alive the gaps are well under a
+  second; twelve seconds of nothing is a connection that has died, and the
+  read is tried again on a fresh one.
+
+  A read on the server gets six. A server render runs beside the API, in the
+  same region, where an answer takes tens of milliseconds, and six seconds of
+  nothing is an API that is not going to answer this render.
+
+  A write gets thirty and is still never retried. Giving up on one says nothing
+  about whether it happened, so it waits far longer before saying so; until
+  this, a write on a dead connection spun forever.
+*/
+export const BROWSER_READ_STALL_MS = 12_000;
+const SERVER_READ_STALL_MS = 6_000;
+export const WRITE_STALL_MS = 30_000;
+
+/**
+ * Marks a retried read made on the server, so that it reaches the API.
+ *
+ * Next memoises every GET a server render makes, keyed on its method, URL and
+ * headers, and keeps the PROMISE, failures included
+ * (`next/dist/server/lib/dedupe-fetch.js`). A retry identical to the attempt
+ * it replaced was answered from that memo with the same failure, after the
+ * backoff, so a server render never retried anything: it only waited longer
+ * to fail (production readiness, 6 Oct 2026). A header is the one part of the
+ * key that can differ without changing what is asked, and first attempts carry
+ * none, so the memo still folds a page's metadata read into its body's.
+ *
+ * Never sent from a browser. There is no memo there to defeat, and a custom
+ * header is what makes a cross-origin read need a preflight, which the API
+ * would refuse for a header it does not allow.
+ */
+export const ATTEMPT_HEADER = "x-yuvoy-attempt";
 
 /**
  * Exponential backoff with full jitter. Jitter matters more than usual here:
@@ -232,14 +274,33 @@ async function awaitMocks(): Promise<void> {
   }
 }
 
+/** The request for attempt `n` (from 0) of `input`. See `ATTEMPT_HEADER`. */
+function attemptOf(input: Request, n: number, isGet: boolean): Request {
+  if (!isGet) return input;
+  const request = input.clone();
+  if (n > 0 && typeof window === "undefined") {
+    request.headers.set(ATTEMPT_HEADER, String(n + 1));
+  }
+  return request;
+}
+
 function retryingFetch(input: Request): Promise<Response> {
   const isGet = input.method === "GET";
+  const stallMs = !isGet
+    ? WRITE_STALL_MS
+    : typeof window === "undefined"
+      ? SERVER_READ_STALL_MS
+      : BROWSER_READ_STALL_MS;
 
   const attempt = async (n: number): Promise<Response> => {
     let res: Response;
     try {
       await awaitMocks();
-      res = await fetch(isGet ? input.clone() : input);
+      res = await fetchWithin(
+        attemptOf(input, n, isGet),
+        { signal: input.signal },
+        stallMs,
+      );
     } catch (cause) {
       /*
         A read the caller cancelled is not a network fault. It used to be
