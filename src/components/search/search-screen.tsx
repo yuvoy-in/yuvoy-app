@@ -1,14 +1,8 @@
 "use client";
 
-import {
-  useDeferredValue,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import Link from "@/components/ui/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Field } from "@/components/ui/field";
 import { Screen } from "@/components/chrome/screen";
@@ -93,46 +87,79 @@ import { useListMotion } from "@/lib/motion/use-list-motion";
  * rises in tile by tile.
  */
 export function SearchScreen() {
-  const router = useRouter();
   const params = useSearchParams();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const filters = filtersFromParams(params);
+  const addressWord = filters.q ?? "";
 
   /*
-    The text box is local and the URL follows it, rather than the other way
-    round: a controlled input driven by a router push loses a keystroke to
-    every navigation on a mid-range Android.
-
-    `useDeferredValue` keeps typing responsive without a debounce timer, and
-    the URL is written from the DEFERRED value — so the address settles when
-    the typing does, and the history stack does not get an entry per letter.
+    The text box is local and the address follows it, rather than the other
+    way round: a controlled input driven by the router loses a keystroke to
+    every navigation on a mid-range Android. Seeded from the address, which is
+    how `/go/<code>` hands over a `?place=` (yuvoy-app#27) and how Back
+    restores a search.
   */
-  const [q, setQ] = useState(filters.q ?? "");
-  const deferredQ = useDeferredValue(q);
+  const [q, setQ] = useState(addressWord);
 
   /*
-    Seeded from the URL once. `/go/<code>` sends a traveller here with
-    `?place=…` when a printed card names one (yuvoy-app#27), and a back
-    navigation restores whatever the address said.
+    THE ADDRESS IS WRITTEN IN PLACE, NEVER NAVIGATED TO (6 Oct 2026).
+
+    It was `router.replace`, and this route is dynamic (it reads the clock),
+    so every keystroke and every filter was a navigation: a request for the
+    whole page, answered before the grid could even ask for its reels (seven
+    of them for the word "dive"). Offline, a failed one became a full page
+    load into the offline page. And while one was out, the effect that sent
+    it sent it again on every render, so a tab tapped in that window could be
+    cancelled by the screen it was leaving.
+
+    `history.replaceState` is the documented way to change the query without
+    a navigation: Next folds it into `useSearchParams` with no request
+    (node_modules/next/dist/docs, "Native History API"). Replace, not push:
+    typing is one search being refined, and a Back that walks a word
+    backwards letter by letter is a trap. Written from the event that made
+    the change, never from an effect that could fire later, and only when it
+    is a change. `e2e/address.spec.ts` counts the page requests.
+
+    Inside a transition of this screen's own, because that is how it knows
+    when its write has landed: Next applies the new address in the same
+    transition, so `writing` stays true until `useSearchParams` says what was
+    written.
   */
-  useEffect(() => {
-    const term = deferredQ.trim();
-    if ((filters.q ?? "") === term) return;
-    const next = filtersToParams({ ...filters, q: term || undefined });
-    // `replace`, not `push`: typing is one search being refined, not a
-    // sequence of them, and a back button that walks a word backwards letter
-    // by letter is a trap.
-    router.replace(next.size ? `/search?${next}` : "/search", {
-      scroll: false,
+  const [writing, startWriting] = useTransition();
+  const [written, setWritten] = useState(addressWord);
+  const write = (next: ReelFilters) => {
+    const query = filtersToParams(next).toString();
+    const href = query ? `/search?${query}` : "/search";
+    setWritten(next.q?.trim() ?? "");
+    const { pathname, search } = window.location;
+    if (`${pathname}${search}` === href) return;
+    startWriting(() => {
+      window.history.replaceState(null, "", href);
     });
-  }, [deferredQ, filters, router]);
+  };
+
+  /*
+    AND THE ADDRESS STILL WINS WHEN IT CHANGES FROM OUTSIDE.
+
+    The Search tab on this screen, or Back from one search to another, changes
+    the address while this screen stays mounted. The box used to keep its own
+    word and write it straight back, so the tab cleared the filters and not
+    the word: neither a reset nor a no-op.
+
+    So once nothing this screen wrote is still on its way, an address that
+    says something other than what it wrote came from outside, and the box
+    takes it. Not while a write is landing: the address is a render behind
+    the typing then, and taking "div" from it while the box says "dive" would
+    eat the letter just typed.
+  */
+  if (!writing && addressWord !== written) {
+    setWritten(addressWord);
+    setQ(addressWord);
+  }
 
   const apply = (next: ReelFilters) => {
-    const params = filtersToParams({ ...next, q: q.trim() || undefined });
-    router.replace(params.size ? `/search?${params}` : "/search", {
-      scroll: false,
-    });
+    write({ ...next, q: q.trim() || undefined });
   };
 
   const search = useSearchReels(filters, { keepPrevious: true });
@@ -203,7 +230,10 @@ export function SearchScreen() {
           shape="pill"
           leading={<SearchIcon className="size-5" />}
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            write({ ...filters, q: e.target.value.trim() || undefined });
+          }}
           placeholder="Diving, boats, Havelock…"
         />
         <Button

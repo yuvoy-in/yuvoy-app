@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
 import {
@@ -49,11 +49,19 @@ type Slot = components["schemas"]["Slot"];
  *
  * ## The URL keeps the choices, and `replace` is why
  *
- * `?date=&slot=&guests=` is written with `router.replace`, not `push`. A
- * `push` would put every tap of a calendar square in the history, so Back
- * would walk a traveller through their own deliberation instead of returning
- * to the listing. The issue asks for both: choices survive a refresh, and
- * "Back returns to the listing page".
+ * `?date=&slot=&guests=` is written in place with `history.replaceState`,
+ * not pushed. A push would put every tap of a calendar square in the history,
+ * so Back would walk a traveller through their own deliberation instead of
+ * returning to the listing. The issue asks for both: choices survive a
+ * refresh, and "Back returns to the listing page".
+ *
+ * Not `router.replace`, which it was until 6 Oct 2026: this route is dynamic,
+ * so every day, time and party size was a navigation, a request for the whole
+ * page (four of them to choose one departure). On a dropped connection a
+ * failed one became a full page load into the offline page, and the name,
+ * number and answers typed into the form went with it. `replaceState` is the
+ * documented way to change the query without a navigation; Next folds it into
+ * `useSearchParams` with no request. `e2e/address.spec.ts` counts them.
  *
  * An old `?slot=&guests=` link still opens with that departure chosen, which
  * is what makes every bookmark and every link in the wild from before this
@@ -66,7 +74,6 @@ type Slot = components["schemas"]["Slot"];
  * is the one place that distinction costs money.
  */
 export function BookScreen({ slug }: { slug: string }) {
-  const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   /*
@@ -237,8 +244,13 @@ export function BookScreen({ slug }: { slug: string }) {
   }
 
   /*
-    The URL follows the choices. `replace`, so Back leaves the page rather than
-    walking back through a traveller's own deliberation.
+    The URL follows the choices, in place (see above), so Back leaves the page
+    rather than walking back through a traveller's own deliberation.
+
+    Compared with the address bar itself, which changes the moment it is
+    written (the router's copy changes a render later), and whose `search` is
+    empty rather than a bare `?`. Comparing `pathname?params` with a target
+    that had no query sent a navigation on every open with nothing chosen.
 
     It writes `effectiveSlotId`, not `slotId`, and the difference is a real
     one: a day with a single open departure selects it without the traveller
@@ -253,10 +265,11 @@ export function BookScreen({ slug }: { slug: string }) {
     if (guests > 1) next.set("guests", String(guests));
     const query = next.toString();
     const target = query ? `${pathname}?${query}` : pathname;
-    if (`${pathname}?${params.toString()}` !== target) {
-      router.replace(target, { scroll: false });
+    const { pathname: path, search } = window.location;
+    if (`${path}${search}` !== target) {
+      window.history.replaceState(null, "", target);
     }
-  }, [date, effectiveSlotId, guests, pathname, params, router]);
+  }, [date, effectiveSlotId, guests, pathname]);
 
   if (experience.isPending) {
     return (

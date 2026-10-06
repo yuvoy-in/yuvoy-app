@@ -77,6 +77,8 @@ afterEach(() => {
   cleanup();
   nav.replaced = [];
   nav.search = "";
+  // The screen writes its choices into the real address bar (jsdom's).
+  window.history.replaceState(null, "", "/");
 });
 
 describe("opening with nothing chosen", () => {
@@ -228,22 +230,30 @@ describe("choosing", () => {
     ).toBeDisabled();
   });
 
-  it("keeps the choices in the URL, and replaces rather than pushes", async () => {
+  it("keeps the choices in the URL, written in place rather than pushed", async () => {
     /*
       A `push` would put every tap of a calendar square in the history, so Back
       would walk a traveller through their own deliberation instead of
       returning to the listing.
+
+      And not through the router: this route is dynamic, so a router write is
+      a request for the whole page on every tap, and on a dropped connection a
+      full page load that loses the form (`e2e/address.spec.ts` counts them).
     */
     server.use(availability([slot()]));
+    const entries = window.history.length;
     const user = userEvent.setup();
     renderWithQuery(<BookScreen slug="try-dive-nemo-reef" />);
 
     await user.click(await screen.findByRole("button", { name: /Sun 20 Sep/ }));
 
     await waitFor(() =>
-      expect(nav.replaced.at(-1)).toContain("date=2026-09-20"),
+      expect(window.location.search).toContain("date=2026-09-20"),
     );
-    expect(nav.replaced.at(-1)).toContain("slot=sl_20_0700");
+    expect(window.location.pathname).toBe("/e/try-dive-nemo-reef/book");
+    expect(window.location.search).toContain("slot=sl_20_0700");
+    expect(window.history.length).toBe(entries);
+    expect(nav.replaced).toEqual([]);
   });
 });
 
