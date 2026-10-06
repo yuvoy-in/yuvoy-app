@@ -217,14 +217,12 @@ describe("loading boundaries", () => {
     above. Every boundary has to actually draw one of the two chassis.
   */
   it("draw a real chassis rather than an empty element", () => {
-    // In code, not in a comment; `CheckoutRouteSkeleton` is checkout's own
-    // SheetSkeleton, its Back read from the route.
+    // In code, not in a comment: a skeleton drawn, the generic sheet or a
+    // screen's own first paint (`CheckoutRouteSkeleton`, `SearchRouteSkeleton`).
     const empty = FILES.filter((f) => /\/loading\.tsx$/.test(f))
       .filter(
         (f) =>
-          !/<(SheetSkeleton|CheckoutRouteSkeleton)\b/.test(
-            stripComments(readFileSync(f, "utf8")),
-          ),
+          !/<[A-Z]\w*Skeleton\b/.test(stripComments(readFileSync(f, "utf8"))),
       )
       .map(rel);
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, useTransition } from "react";
-import Link from "@/components/ui/link";
 import { useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Field } from "@/components/ui/field";
@@ -13,6 +12,7 @@ import { RollingNumber } from "@/components/ui/rolling-number";
 import { SheetPresence } from "@/components/ui/sheet";
 import { FilterSheet, GroupPricedNote } from "./filter-sheet";
 import { ActiveFilters } from "./active-filters";
+import { GuideDoor, SearchHeading, SearchSkeleton } from "./search-parts";
 import { playableReels } from "@/lib/feed/reels";
 import {
   filtersFromParams,
@@ -188,6 +188,12 @@ export function SearchScreen() {
   const stale = search.isPlaceholderData;
   const waiting = useDelayedFlag(
     search.isPending || (stale && search.isFetching),
+    /*
+      Opened with nothing to show, the route's fallback was already drawing
+      this skeleton: it stays, rather than blanking for 300ms and fading in
+      again (stability audit, 6 Oct 2026).
+    */
+    { initial: search.isPending },
   );
   const view: ResultsView =
     waiting || search.isPending
@@ -217,9 +223,7 @@ export function SearchScreen() {
 
   return (
     <Screen>
-      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
-        What is on
-      </h1>
+      <SearchHeading />
 
       <div className="mt-5 flex items-center gap-3">
         <Field
@@ -290,20 +294,7 @@ export function SearchScreen() {
           where it is the next thing such a person needs; once they are
           searching it would be a line in the way.
         */}
-        {showGuide ? (
-          <p
-            data-motion-key="guide"
-            className="text-forest/70 text-body mt-4 text-pretty"
-          >
-            Not sure where to start?{" "}
-            <Link
-              href="/guides"
-              className="text-forest tap-target font-bold underline underline-offset-4"
-            >
-              Read a guide
-            </Link>
-          </p>
-        ) : null}
+        {showGuide ? <GuideDoor /> : null}
 
         <div
           ref={results}
@@ -324,7 +315,7 @@ export function SearchScreen() {
               data-motion-arrive="self"
             >
               <LoadingState label="Searching">
-                {waiting ? <SearchSkeleton /> : null}
+                {waiting ? <SearchSkeleton arrive={touched} /> : null}
               </LoadingState>
             </div>
           ) : /*
@@ -469,28 +460,5 @@ function FilterCount({ count, arrive }: { count: number; arrive: boolean }) {
     >
       <RollingNumber value={count} />
     </span>
-  );
-}
-
-/**
- * The shape of the answer that is coming (T11 A): `ReelGrid`'s own tiles,
- * two across at 4:5 with two lines of words, where the old skeleton was
- * three narrow 9:16 columns and the screen changed shape twice. It breathes
- * as ONE layer, rather than each shape on its own, and fades in when the
- * wait has lasted long enough to show it.
- */
-function SearchSkeleton() {
-  return (
-    <div className="motion-fade-in" aria-hidden="true">
-      <div className="skeleton-breath grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i}>
-            <div className="bg-forest/8 rounded-tile aspect-[4/5]" />
-            <div className="bg-forest/8 mt-3 h-3 w-[85%] rounded-full" />
-            <div className="bg-forest/8 mt-2 h-3 w-[55%] rounded-full" />
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }

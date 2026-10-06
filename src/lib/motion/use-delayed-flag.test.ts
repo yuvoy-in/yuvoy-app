@@ -75,4 +75,20 @@ describe("useDelayedFlag", () => {
     const { result } = flag(true);
     expect(result.current).toBe(false);
   });
+
+  it("starts shown for a wait that was already on screen, and gives way at once", () => {
+    /*
+      The Search tab's route fallback draws the grid's skeleton; the screen
+      that replaces it used to hold its own back 300ms, so the skeleton
+      blanked and faded in again (6 Oct 2026).
+    */
+    const { result, rerender } = renderHook(
+      ({ active }) => useDelayedFlag(active, { initial: true }),
+      { initialProps: { active: true } },
+    );
+    expect(result.current).toBe(true);
+    rerender({ active: false });
+    wait(0);
+    expect(result.current).toBe(false);
+  });
 });

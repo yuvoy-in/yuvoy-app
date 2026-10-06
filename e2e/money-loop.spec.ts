@@ -202,13 +202,16 @@ test("a listing with no cancellation terms says so, and offers no dead button", 
     something that was never on the page, and nothing on `app.yuvoy.in` could
     be booked, by anybody, from launch until 9 Sep 2026.
 
-    The header carries the scenario because it survives the client-side
-    navigation into `/book` — a `?__scenario=` on the first URL does not.
+    Opened at checkout itself, which reads the listing in the browser, with
+    the scenario on that read. The listing page is static and is built once,
+    without it; since 6 Oct 2026 it hands checkout the listing it was built
+    with, which in the real app is the same answer the API gives checkout,
+    and here would be the one WITH terms.
   */
   await page.setExtraHTTPHeaders({
     "x-yuvoy-scenario": "no-cancellation-policy",
   });
-  await page.goto("/e/mangrove-kayak-at-dawn");
+  await page.goto("/e/mangrove-kayak-at-dawn/book");
   await page.waitForLoadState("networkidle");
 
   await chooseDeparture(page);
