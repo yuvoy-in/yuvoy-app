@@ -132,7 +132,13 @@ export interface OpenDay {
 
 export type OpenDays =
   | { state: "pending" }
-  | { state: "error" }
+  | {
+      state: "error";
+      /** Ask again: only a read that failed can answer differently. */
+      retry?: () => void;
+      /** The read is being asked again. */
+      retrying?: boolean;
+    }
   | { state: "none" }
   | {
       state: "open";
@@ -200,7 +206,13 @@ export function useOpenDays(slug: string, enabled: boolean): OpenDays {
   const availability = useListingAvailability(slug, enabled);
 
   if (availability.isPending) return { state: "pending" };
-  if (availability.isLoadingError) return { state: "error" };
+  if (availability.isLoadingError) {
+    return {
+      state: "error",
+      retry: () => void availability.refetch(),
+      retrying: availability.isFetching,
+    };
+  }
 
   // The server's clock, as above.
   const now = availability.dataUpdatedAt + clockOffsetMs();

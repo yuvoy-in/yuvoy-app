@@ -279,6 +279,61 @@ test.describe("how it is paid for", () => {
   }
 });
 
+test.describe("the price panel holds still while the open days are read", () => {
+  /*
+    The open days land after the page is on screen, and the panel used to
+    change height when they did: two bars, then one line, two, or nothing on a
+    failure, with the payment line and everything under it moving each time
+    (stability audit, 6 Oct 2026). Measured where it shows.
+  */
+  for (const outcome of ["answered", "failed"] as const) {
+    test(`the lines under it stay put when the read is ${outcome}`, async ({
+      page,
+    }) => {
+      await page.addInitScript((fail) => {
+        const fetchOf = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof Request
+                ? input.url
+                : String(input);
+          if (/\/availability\?/.test(url)) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            if (fail) {
+              return new Response(
+                JSON.stringify({
+                  error: { code: "not_found", message: "Not found." },
+                }),
+                {
+                  status: 404,
+                  headers: { "content-type": "application/json" },
+                },
+              );
+            }
+          }
+          return fetchOf(input, init);
+        };
+      }, outcome === "failed");
+      await page.goto(INSTANT);
+      const pay = page.getByText("Pay at the counter on the day").first();
+      await expect(pay).toBeVisible();
+      const before = (await pay.boundingBox())!.y;
+
+      await expect(
+        page.getByText(
+          outcome === "answered"
+            ? /^Next open:/
+            : /^The open days did not load\./,
+        ),
+      ).toBeVisible({ timeout: 6000 });
+      const after = (await pay.boundingBox())!.y;
+      expect(Math.abs(after - before)).toBeLessThan(1);
+    });
+  }
+});
+
 test.describe("choosing a departure on checkout", () => {
   test("picks a day and a time, and keeps both in the URL", async ({
     page,
