@@ -32,8 +32,16 @@ import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
 import { FadeText } from "@/components/ui/fade-text";
+import { cn } from "@/lib/cn";
 
 type Slot = components["schemas"]["Slot"];
+
+/** The heading until a departure is chosen, in the display cut. */
+const QUESTION = "When would you like to go?";
+const QUESTION_VOICE =
+  "font-display tracking-display leading-display text-balance";
+/** The chosen day and hour, on the board. */
+const BOARD_VOICE = "font-board leading-tight tabular-nums";
 
 /**
  * Checkout: day, time, party and details, on one page (yuvoy-app#62).
@@ -222,26 +230,40 @@ export function BookScreen({ slug }: { slug: string }) {
   const slot: Slot | null =
     chosenDay?.slots.find((s) => s.id === effectiveSlotId) ?? null;
 
+  // The heading reads the choice: the day and the hour once a departure is
+  // chosen, the question until then.
+  const chosenCivil = date ? civilFromDate(date) : null;
+  const heading =
+    chosenCivil && slot
+      ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
+      : null;
+
   /*
     What appears because of a choice made HERE arrives (T09 A, approved
     4 Oct 2026): the day's times when a day is tapped, the rest of checkout
-    and its foot when a departure is. A screen opened with them already
-    chosen (a link that names the day and the time) arrives whole. Derived
-    during render from the last values seen, not set in an effect.
+    and its foot when a departure is, and the heading's words fade through.
+    A screen opened with them already chosen (a link that names the day, or
+    the day and the time) arrives whole, the heading included. Derived during
+    render from the last values seen, not set in an effect.
   */
   const timesFor = chosenDay ? date : null;
   const formFor = slot?.id ?? null;
   // Only a change made once the dates were on screen is a choice made here;
   // what appears as they load (a link naming the day) is simply there.
   const ready = !availability.isPending;
-  const [seen, setSeen] = useState({ timesFor, formFor, ready });
-  const [arriving, setArriving] = useState({ times: false, form: false });
+  const [seen, setSeen] = useState({ timesFor, formFor, heading, ready });
+  const [arriving, setArriving] = useState({
+    times: false,
+    form: false,
+    heading: false,
+  });
   if (
     seen.timesFor !== timesFor ||
     seen.formFor !== formFor ||
+    seen.heading !== heading ||
     seen.ready !== ready
   ) {
-    setSeen({ timesFor, formFor, ready });
+    setSeen({ timesFor, formFor, heading, ready });
     setArriving({
       times:
         seen.timesFor !== timesFor
@@ -251,6 +273,7 @@ export function BookScreen({ slug }: { slug: string }) {
         seen.formFor !== formFor
           ? seen.ready && seen.formFor === null && formFor !== null
           : arriving.form,
+      heading: seen.heading !== heading ? seen.ready : arriving.heading,
     });
   }
 
@@ -296,7 +319,6 @@ export function BookScreen({ slug }: { slug: string }) {
     );
   }
 
-  const chosenCivil = date ? civilFromDate(date) : null;
   /*
     The listing's picture over the top of checkout (the approved redesign,
     3 Oct 2026), with the title on it, so the eyebrow can say where they are.
@@ -321,23 +343,36 @@ export function BookScreen({ slug }: { slug: string }) {
           <span className="voice-host">{experience.data.title}</span>
         )}
       </p>
-      <h1 className="mt-3 text-3xl">
+      <h1 className="mt-3 grid text-3xl">
         {/*
-          It reads the choice, so it fades through as the choice changes: the
-          question in the display cut, the chosen day and hour on the board.
+          It reads the choice, so it fades through as a choice made here
+          changes it: the question in the display cut, the chosen day and hour
+          on the board.
+
+          The two voices are not one height. The question is one display line
+          from 375px up and two below, the answer one board line, so swapping
+          them moved the calendar under the finger: 5px, or 27px at 360px
+          (stability audit, 6 Oct 2026). The heading holds the taller of the
+          two at every width, the voice not shown laid in the same cell,
+          unseen and unread.
         */}
         <FadeText
           block
-          wordsClassName={
-            chosenCivil && slot
-              ? "font-board leading-tight tabular-nums"
-              : "font-display tracking-display leading-display text-balance"
-          }
+          fade={arriving.heading}
+          className="col-start-1 row-start-1"
+          wordsClassName={heading ? BOARD_VOICE : QUESTION_VOICE}
         >
-          {chosenCivil && slot
-            ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
-            : "When would you like to go?"}
+          {heading ?? QUESTION}
         </FadeText>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "invisible col-start-1 row-start-1",
+            heading ? QUESTION_VOICE : BOARD_VOICE,
+          )}
+        >
+          {heading ? QUESTION : " "}
+        </span>
       </h1>
       {/*
         Said before a day is chosen, not discovered at the pay step

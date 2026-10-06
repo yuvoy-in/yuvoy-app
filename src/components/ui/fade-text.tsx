@@ -19,6 +19,11 @@ const OUT_MS = 100;
  * reader finds is only ever the current one, and a live region around this
  * still announces the new words once.
  *
+ * `fade={false}` draws a change as simply as the first drawing: for words
+ * that resolve as a screen opens rather than change because of something
+ * done on it, which nobody saw changing (checkout's heading, as the departure
+ * a link names lands with the dates).
+ *
  * `block` for a heading or a line of its own; inline otherwise.
  *
  * `wordsClassName` is for a line whose voice changes with its words: a
@@ -30,11 +35,13 @@ const OUT_MS = 100;
 export function FadeText({
   children,
   block = false,
+  fade = true,
   className,
   wordsClassName,
 }: {
   children: string;
   block?: boolean;
+  fade?: boolean;
   className?: string;
   wordsClassName?: string;
 }) {
@@ -47,7 +54,7 @@ export function FadeText({
     const now = words.current;
     const was = last.current;
     last.current = { children, wordsClassName };
-    if (!frame || !now || was.children === children) return;
+    if (!frame || !now || was.children === children || !fade) return;
     if (typeof now.animate !== "function") return;
     if (prefersReducedMotion()) {
       now.animate([{ opacity: 0 }], {
@@ -80,7 +87,7 @@ export function FadeText({
       easing: EASE.interaction,
       fill: "backwards",
     });
-  }, [children, wordsClassName]);
+  }, [children, wordsClassName, fade]);
 
   return (
     <span

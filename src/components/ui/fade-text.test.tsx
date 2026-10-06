@@ -62,6 +62,27 @@ describe("FadeText", () => {
     expect(played).toHaveLength(0);
   });
 
+  it("draws a change nobody saw happen as simply as the first", () => {
+    // Words that resolve as a screen opens (checkout's heading, once the
+    // departure a link names lands with the dates) were not seen changing.
+    const { container, rerender } = render(
+      <FadeText block fade={false}>
+        When would you like to go?
+      </FadeText>,
+    );
+    rerender(
+      <FadeText block fade={false}>
+        Thu 15 Oct · 07:00
+      </FadeText>,
+    );
+    expect(container.textContent).toBe("Thu 15 Oct · 07:00");
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(played).toHaveLength(0);
+    // A change seen happening after it still fades through.
+    rerender(<FadeText block>Thu 15 Oct · 11:30</FadeText>);
+    expect(played).toHaveLength(2);
+  });
+
   it("fades the old words out, then the new ones in", () => {
     const { container, rerender } = render(
       <FadeText block>Thu 15 Oct · 07:00</FadeText>,
