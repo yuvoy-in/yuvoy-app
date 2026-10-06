@@ -177,7 +177,8 @@ export function TripsScreen() {
     that is the tab whose rows are loaded, and the one opened on the morning.
 
     The server's clock, the way `invitedToday` above reads it: the instant the
-    list resolved plus the measured offset.
+    list resolved plus the measured offset. The cards read it too, for a held
+    trip's pay-by words (yuvoy-app#156).
   */
   const serverNow = server.dataUpdatedAt + clockOffsetMs();
   const nextUp =
@@ -282,7 +283,7 @@ export function TripsScreen() {
                 <ul className="mt-6 space-y-3">
                   {listed.map((trip) => (
                     <li key={trip.reference || trip.reservationId}>
-                      <TripCard trip={trip} />
+                      <TripCard trip={trip} now={serverNow} />
                     </li>
                   ))}
                   {invitedForTab.map((trip) => (

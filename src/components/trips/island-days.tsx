@@ -217,7 +217,12 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
                         <span aria-hidden="true">·</span>{" "}
                         <span className="voice-host">{trip.experience}</span>
                       </Link>
-                      {trip.state === "pending_request" ? (
+                      {/*
+                        A chip only where the trip is not booked yet: asked
+                        for, or held and still to pay for (yuvoy-app#156).
+                      */}
+                      {trip.state === "pending_request" ||
+                      trip.state === "holding" ? (
                         <StateChip state={trip.state} />
                       ) : null}
                     </li>
