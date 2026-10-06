@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sameOriginOnly } from "@/lib/auth/same-origin";
-import { writeSessionCookie } from "@/lib/auth/session-cookie";
+import { signOutOwed, writeSessionCookie } from "@/lib/auth/session-cookie";
 import {
   callUpstream,
   sessionExpiryOf,
@@ -55,6 +55,13 @@ async function adopt(request: Request) {
   if (!token || token.length > 512) {
     return NextResponse.json({ adopted: false }, { status: 400 });
   }
+
+  /*
+    Somebody signed out on this phone, with no signal, after the record was
+    written. Adopting it would sign them back in; the caller deletes it
+    either way (`lib/auth/sign-out-owed.ts`).
+  */
+  if (await signOutOwed()) return NextResponse.json({ adopted: false });
 
   let answer: UpstreamResult | null = null;
   try {

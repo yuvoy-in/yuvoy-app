@@ -17,11 +17,16 @@ const TOKEN = "sess_919000003210";
 
 const jar = vi.hoisted(() => ({
   token: null as string | null,
+  /** A sign-out this browser made with no signal (`sign-out-owed.ts`). */
+  owed: false,
   cleared: 0,
   written: 0,
 }));
 vi.mock("@/lib/auth/session-cookie", () => ({
-  readSessionCookie: async () => jar.token,
+  // As the real one: no session while a sign-out is owed.
+  readSessionCookie: async () => (jar.owed ? null : jar.token),
+  readSessionToEnd: async () => jar.token,
+  signOutOwed: async () => jar.owed,
   clearSessionCookie: async () => {
     jar.cleared += 1;
   },
@@ -62,6 +67,7 @@ function own(method: string, body?: unknown): Request {
 
 beforeEach(() => {
   jar.token = TOKEN;
+  jar.owed = false;
   jar.cleared = 0;
   jar.written = 0;
   later.tasks = [];
@@ -136,5 +142,65 @@ describe("asking whether this phone is signed in, when the API cannot answer", (
     const answer = await GET(own("GET"));
     expect(await answer.json()).toEqual({ signedIn: true });
     expect(jar.cleared).toBe(0);
+  });
+});
+
+/*
+  A sign-out tapped with no signal left the session cookie behind, and this
+  check found it and signed the previous person back in (production
+  readiness, 6 Oct 2026). The browser now leaves word in a cookie of its own.
+*/
+describe("a sign-out the server never heard", () => {
+  it("is finished by the next check, which does not believe the session", async () => {
+    let asked = 0;
+    let ended: string | null = null;
+    server.use(
+      http.get(`${BASE}/me`, () => {
+        asked += 1;
+        return HttpResponse.json({});
+      }),
+      http.delete(`${BASE}/me/session`, ({ request }) => {
+        ended = request.headers.get("authorization");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    jar.owed = true;
+
+    const answer = await GET(own("GET"));
+    expect(await answer.json()).toEqual({ signedIn: false });
+    expect(asked).toBe(0);
+    expect(jar.cleared).toBe(1);
+
+    // And the API is told which session ended, once the answer has gone.
+    expect(later.tasks).toHaveLength(1);
+    await later.tasks[0]();
+    expect(ended).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("ends the old session when somebody signs in over it", async () => {
+    let ended: string | null = null;
+    server.use(
+      http.delete(`${BASE}/me/session`, ({ request }) => {
+        ended = request.headers.get("authorization");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    jar.owed = true;
+
+    const answer = await POST(
+      own("POST", { phone: "+919000001111", code: "123456" }),
+    );
+    expect(await answer.json()).toEqual({ signedIn: true });
+    expect(jar.written).toBe(1);
+    await later.tasks[0]();
+    expect(ended).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it("asks nothing extra of a sign-in with nothing owed", async () => {
+    const answer = await POST(
+      own("POST", { phone: "+919000001111", code: "123456" }),
+    );
+    expect(await answer.json()).toEqual({ signedIn: true });
+    expect(later.tasks).toHaveLength(0);
   });
 });

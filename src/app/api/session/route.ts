@@ -2,6 +2,8 @@ import { NextResponse, after } from "next/server";
 import { sameOriginOnly } from "@/lib/auth/same-origin";
 import {
   readSessionCookie,
+  readSessionToEnd,
+  signOutOwed,
   writeSessionCookie,
   clearSessionCookie,
   touchSessionCookie,
@@ -114,6 +116,15 @@ async function signIn(request: Request) {
     );
   }
 
+  /*
+    Signing in on a phone that signed out with no signal: the session that
+    sign-out was for is still live at the API, and the cookie about to be
+    written is the last trace of it, so the API is told it ended.
+  */
+  if (await signOutOwed()) {
+    const ended = await readSessionToEnd();
+    if (ended && ended !== token) tellTheApi(request, ended);
+  }
   await writeSessionCookie(
     request,
     token,
@@ -135,6 +146,16 @@ async function signIn(request: Request) {
  * load takes the fast path above rather than asking again forever.
  */
 async function check(request: Request) {
+  /*
+    A sign-out made with no signal is finished by the first check that
+    reaches this server, before the cookie it was for is believed. See
+    `lib/auth/sign-out-owed.ts`.
+  */
+  if (await signOutOwed()) {
+    await endSession(request);
+    return NextResponse.json({ signedIn: false });
+  }
+
   const token = await readSessionCookie();
   if (!token) return NextResponse.json({ signedIn: false });
 
@@ -197,27 +218,41 @@ async function check(request: Request) {
  * session ended.
  */
 async function signOut(request: Request) {
-  const token = await readSessionCookie();
-  if (token) {
-    after(async () => {
-      try {
-        await callUpstream({
-          method: "DELETE",
-          path: "/me/session",
-          token,
-          from: request,
-        });
-      } catch (cause) {
-        /*
-          Logged, and otherwise ignored, as it always was: the session expires
-          on its own, and the only copy of the token has left this phone.
-        */
-        console.error("[session] DELETE /me/session did not answer.", cause);
-      }
-    });
-  }
-  await clearSessionCookie(request);
+  await endSession(request);
   return new NextResponse(null, { status: 204 });
+}
+
+/**
+ * Ends this browser's session: the cookie, and any sign-out owed, are cleared
+ * in this answer, and the API is told once it has gone.
+ *
+ * The token is read whatever is owed: a sign-out the server never heard is
+ * still a session the API should be told about.
+ */
+async function endSession(request: Request): Promise<void> {
+  const token = await readSessionToEnd();
+  if (token) tellTheApi(request, token);
+  await clearSessionCookie(request);
+}
+
+/** `DELETE /me/session`, after the answer has gone. */
+function tellTheApi(request: Request, token: string): void {
+  after(async () => {
+    try {
+      await callUpstream({
+        method: "DELETE",
+        path: "/me/session",
+        token,
+        from: request,
+      });
+    } catch (cause) {
+      /*
+        Logged, and otherwise ignored, as it always was: the session expires
+        on its own, and the only copy of the token has left this phone.
+      */
+      console.error("[session] DELETE /me/session did not answer.", cause);
+    }
+  });
 }
 
 /*

@@ -20,6 +20,7 @@ import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
 import { resetSavedSession } from "@/lib/feed/account-saved";
+import { oweSignOut } from "./sign-out-owed";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -149,6 +150,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    // And each one opened: the invitation was the previous number's.
+    qc.removeQueries({ queryKey: ["getInvitedTrip"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -186,8 +189,17 @@ export function useTravellerSession() {
    * the durable copy, so if only one of the two can be cleared it has to be
    * that one; a cleared cache over a full store comes straight back on reload,
    * which is precisely the state the owner saw.
+   *
+   * ## With no signal it stays done
+   *
+   * Only the server can clear the cookie, so the sign-out is written down
+   * first, in a cookie every request carries: nothing on the server acts for
+   * the old session while it is set, and the next session check ends it
+   * (`sign-out-owed.ts`). Before, that check found the session cookie and
+   * signed the previous person back in.
    */
   const signOut = useCallback(async () => {
+    oweSignOut();
     try {
       /*
         A read's deadline, though this is a write: the route answers at once
@@ -200,7 +212,7 @@ export function useTravellerSession() {
         BROWSER_READ_STALL_MS,
       );
     } catch {
-      // Deliberately ignored. See above.
+      // Deliberately ignored: the next session check finishes it.
     }
     /*
       Resolves even when IndexedDB is missing or refuses, in step with the rest
@@ -210,6 +222,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    qc.removeQueries({ queryKey: ["getInvitedTrip"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
