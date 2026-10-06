@@ -258,18 +258,35 @@ export function MessageThread({
   */
   const mark = markRead.mutate;
   const markedUpTo = markRead.variables ?? null;
+  /*
+    A mark that failed is asked again on the next poll. It used to count as
+    done, since its `variables` are still the newest id, so "2 new" and the
+    dot on Trips stayed until somebody wrote again (stability audit,
+    6 Oct 2026). Not at once either: on a dead link that is a request per
+    render. A poll that landed after the failed ask is the cue.
+  */
+  const markFailedBeforePoll =
+    markRead.error !== null && thread.dataUpdatedAt > markRead.submittedAt;
 
   useEffect(() => {
     if (!page || !newest) return;
     if (page.unreadCount === 0) return;
     // Already marked this one. The server refuses to move a marker back, so a
     // repeat would be harmless, but it would also be a request saying nothing.
-    if (markedUpTo === newest.id) return;
+    if (markedUpTo === newest.id && !markFailedBeforePoll) return;
     // "Mark only what was on screen." Both halves: the panel is in view AND
     // the tab is in front. See `onScreen` for why one of them is not enough.
     if (!onScreen || !tabVisible) return;
     mark(newest.id);
-  }, [page, newest, markedUpTo, mark, onScreen, tabVisible]);
+  }, [
+    page,
+    newest,
+    markedUpTo,
+    markFailedBeforePoll,
+    mark,
+    onScreen,
+    tabVisible,
+  ]);
 
   /*
     The badge reads the RECEIPT while the mark still covers the newest message

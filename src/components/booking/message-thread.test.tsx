@@ -524,6 +524,50 @@ describe("MessageThread", () => {
     }
   });
 
+  it("asks again on the next poll when a mark did not land", async () => {
+    /*
+      A failed mark counted as done, so "2 new" stayed over messages the
+      traveller had read until somebody wrote again (stability audit,
+      6 Oct 2026). Not at once, which on a dead link is a request per render:
+      on the next poll.
+    */
+    let marks = 0;
+    serveThread({ unreadCount: 2 });
+    server.use(
+      http.post(`${BASE}/bookings/messages/read`, () => {
+        marks += 1;
+        if (marks === 1) {
+          return HttpResponse.json(
+            { error: { code: "service_unavailable", message: "Later." } },
+            { status: 503 },
+          );
+        }
+        return HttpResponse.json({ unreadCount: 0 });
+      }),
+    );
+
+    const stop = observeAsOnScreen();
+    try {
+      const { client } = renderWithQuery(
+        <MessageThread token="t" bookingState="confirmed" />,
+      );
+      await screen.findByText("Bring a towel, the wind is up.");
+      await waitFor(() => expect(marks).toBe(1));
+      await new Promise((r) => setTimeout(r, 60));
+      expect(marks).toBe(1);
+      expect(screen.getByText("2 new")).toBeInTheDocument();
+
+      // The next poll.
+      await client.refetchQueries({ queryKey: ["getBookingMessages", "t"] });
+      await waitFor(() => expect(marks).toBe(2));
+      await waitFor(() =>
+        expect(screen.queryByText("2 new")).not.toBeInTheDocument(),
+      );
+    } finally {
+      stop();
+    }
+  });
+
   /*
     A FAILING THREAD MUST NOT SHOUT ABOUT THE LINK.
 
