@@ -14,8 +14,8 @@ import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { Panel } from "@/components/ui/panel";
-import { LoadingState, Skeleton } from "@/components/states";
 import { CalendarIcon } from "@/components/ui/icons";
+import { INVITE_STAGE_LABEL, InviteSkeleton } from "./invite-skeleton";
 
 /** The two states where a place can still be taken. */
 const OPEN = ["pending", "confirmed"];
@@ -47,16 +47,8 @@ export function InviteLanding({ token }: { token: string }) {
   const preview = useInvitePreview(token);
   const accept = useAcceptInviteLink();
 
-  if (preview.isPending || signedIn === undefined) {
-    return (
-      <Screen>
-        <LoadingState label="Loading this invitation">
-          <Skeleton className="h-10 w-2/3" />
-          <Skeleton className="mt-4 h-28 w-full" />
-        </LoadingState>
-      </Screen>
-    );
-  }
+  // The route's fallback draws the same, so it is one shape throughout.
+  if (preview.isPending || signedIn === undefined) return <InviteSkeleton />;
 
   if (preview.isLoadingError) {
     const gone =
@@ -68,7 +60,7 @@ export function InviteLanding({ token }: { token: string }) {
       one sentence, and it points at the person who sent it rather than at us.
     */
     return (
-      <Screen>
+      <Screen stageLabel={INVITE_STAGE_LABEL}>
         <h1 className="font-display tracking-display leading-display text-3xl text-balance">
           {gone
             ? "This invitation does not work"
@@ -111,7 +103,7 @@ export function InviteLanding({ token }: { token: string }) {
     accept.error instanceof YuvoyError && accept.error.status === 401;
 
   return (
-    <Screen stageLabel="You are invited">
+    <Screen stageLabel={INVITE_STAGE_LABEL}>
       <p className="eyebrow text-terra-deep">You are invited</p>
 
       <h1 className="voice-host leading-display mt-2 text-3xl text-balance">
