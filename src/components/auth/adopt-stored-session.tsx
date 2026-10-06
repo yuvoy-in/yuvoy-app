@@ -33,64 +33,66 @@ import {
 export function AdoptStoredSession() {
   const qc = useQueryClient();
   /*
-    React StrictMode double-invokes effects in development, and this one posts
-    a credential, so it is worth not doing twice. A ref flips in the same tick
-    where a state flag would not.
+    The one adoption for this page, kept where React StrictMode's second run
+    finds it. StrictMode runs an effect, cleans it up and runs it again in
+    development, and the guard here used to be a "ran" flag: the first run
+    was cancelled before it posted and the second found the flag set, so in
+    development the adoption never happened at all and could not be
+    exercised (stability audit, 6 Oct 2026). Now the work belongs to the
+    page, not to one run of the effect: it starts once, and whichever run is
+    still mounted when it answers hears the answer.
 
-    Belt and braces rather than load-bearing, and said plainly because a test
-    was written for it and then deleted: adopting twice is harmless. Both posts
-    carry the same token, the server verifies it and sets the same cookie, and
-    the `cancelled` flag below already discards the first run's result. No test
-    here could be made to fail with this guard removed, and a test that cannot
-    fail is worse than none.
+    A ref, not module state: a ref survives StrictMode's remount, and a
+    module-level promise would also outlive the page in every test.
   */
-  const ran = useRef(false);
+  const adoption = useRef<Promise<boolean> | null>(null);
 
   useEffect(() => {
-    if (ran.current) return;
-    ran.current = true;
-
     let cancelled = false;
-
-    void (async () => {
-      const sessionToken = await storedSessionToken();
-      if (!sessionToken || cancelled) return;
-
-      let adopted = false;
-      try {
-        const response = await fetch("/api/session/adopt", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionToken }),
-        });
-        if (response.ok) {
-          const body = (await response.json()) as { adopted?: boolean };
-          adopted = Boolean(body?.adopted);
-        }
-      } catch {
-        /*
-          The network, not the session. Leave the record in place so the next
-          load tries again, and do not report anything: the traveller is
-          looking at a feed, not at a migration.
-        */
-        return;
-      }
-
-      await forgetStoredSession();
-      if (cancelled) return;
-
+    adoption.current ??= adopt();
+    void adoption.current.then((adopted) => {
       /*
-        Only when something changed. `useTravellerSession` has almost certainly
-        already answered "signed out" by now, and that answer is stale the
-        moment a cookie is set.
+        Only when something changed. `useTravellerSession` has almost
+        certainly already answered "signed out" by now, and that answer is
+        stale the moment a cookie is set.
       */
-      if (adopted) await qc.invalidateQueries({ queryKey: qk.session() });
-    })();
-
+      if (adopted && !cancelled) {
+        void qc.invalidateQueries({ queryKey: qk.session() });
+      }
+    });
     return () => {
       cancelled = true;
     };
   }, [qc]);
 
   return null;
+}
+
+/** Hands a stored token over, once. True when the server set a cookie. */
+async function adopt(): Promise<boolean> {
+  const sessionToken = await storedSessionToken();
+  if (!sessionToken) return false;
+
+  let adopted = false;
+  try {
+    const response = await fetch("/api/session/adopt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionToken }),
+    });
+    if (response.ok) {
+      const body = (await response.json()) as { adopted?: boolean };
+      adopted = Boolean(body?.adopted);
+    }
+  } catch {
+    /*
+      The network, not the session. Leave the record in place so the next
+      load tries again, and do not report anything: the traveller is looking
+      at a feed, not at a migration.
+    */
+    return false;
+  }
+
+  await forgetStoredSession();
+  return adopted;
 }
