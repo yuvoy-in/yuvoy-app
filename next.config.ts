@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 import { marketingRedirects } from "./src/lib/site/marketing-redirects";
 import { cspHeaders } from "./src/lib/site/csp";
-import { assertNoSecretPublicVars } from "./src/lib/site/public-env";
+import {
+  assertNoMocksInProduction,
+  assertNoSecretPublicVars,
+} from "./src/lib/site/public-env";
 import { swVersion } from "./src/lib/site/sw-version";
 
 /*
@@ -10,6 +13,8 @@ import { swVersion } from "./src/lib/site/sw-version";
   and name it instead. See src/lib/site/public-env.ts.
 */
 assertNoSecretPublicVars();
+// And fixtures must never answer on the real domain. Same file.
+assertNoMocksInProduction();
 
 /**
  * The app is a different security surface from the marketing site: it holds a
