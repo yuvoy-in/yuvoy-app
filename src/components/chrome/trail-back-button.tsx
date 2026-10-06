@@ -37,8 +37,9 @@ export function TrailBackButton({
       label={origin.label}
       over={over}
       // Pressing it is a step back, so the trail takes this screen off rather
-      // than adding the one it returns to (see `route-trail`).
-      onNavigate={markStepBack}
+      // than adding the one it returns to (see `route-trail`). No argument:
+      // `landedOn` is the browser's traversal, and Next passes an event.
+      onNavigate={() => markStepBack()}
     />
   );
 }

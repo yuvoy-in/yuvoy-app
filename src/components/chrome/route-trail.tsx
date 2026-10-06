@@ -9,9 +9,9 @@ import { markStepBack, recordVisit } from "@/lib/site/route-trail";
  * nothing. See `route-trail` for what the trail is and why it is not history.
  *
  * The query is part of a visit, so a step back to search keeps the search: the
- * search screen writes its query with `router.replace`, which changes no
- * pathname, so the pathname alone would remember a search that has since been
- * edited.
+ * search screen writes its query in place with `history.replaceState` (which
+ * Next carries into `useSearchParams`), and that changes no pathname, so the
+ * pathname alone would remember a search that has since been edited.
  */
 function Recorder() {
   const pathname = usePathname();

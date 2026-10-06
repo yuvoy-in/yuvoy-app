@@ -1,4 +1,5 @@
 import { IconLink } from "@/components/ui/icon-button";
+import type { LinkProps } from "@/components/ui/link";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 
 /**
@@ -28,8 +29,12 @@ export function BackButton({
   /**
    * Called when pressing it navigates this tab (Next's `onNavigate`), so a
    * modifier-click that opens a new tab is not mistaken for a step back here.
+   *
+   * Next's own signature, event and all. It was `() => void`, which let a
+   * function taking a path be passed straight in and handed the event as
+   * that path (stability audit, 6 Oct 2026).
    */
-  onNavigate?: () => void;
+  onNavigate?: LinkProps["onNavigate"];
 }) {
   return (
     <IconLink
