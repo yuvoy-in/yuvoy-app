@@ -79,10 +79,15 @@ export type Plan =
   /** The last day has gone. */
   | { state: "over" };
 
-/** Booked, booked in cash, or asked for: what a traveller has on that day. */
+/**
+ * Booked, booked in cash, held to pay for, or asked for: what a traveller has
+ * on that day. `holding` is an accepted request waiting on payment
+ * (yuvoy-app#156): the operator said yes, so it is on the day.
+ */
 const ON_THE_DAY = new Set([
   "confirmed",
   "paid_pending_ops",
+  "holding",
   "pending_request",
 ]);
 

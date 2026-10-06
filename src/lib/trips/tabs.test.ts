@@ -83,6 +83,48 @@ describe("what a trip card says about money", () => {
     ).toBe("Waiting for the operator");
   });
 
+  describe("an accepted request still to be paid for (yuvoy-app#156)", () => {
+    // 08:30Z on Monday 21 Sep is 14:00 in the Andamans.
+    const NOW = Date.parse("2026-09-21T08:30:00Z");
+    const held = (holdExpiresAt?: string) => ({
+      state: "holding",
+      price: inr(900000),
+      holdExpiresAt,
+      timezone: "Asia/Kolkata",
+    });
+
+    it("says when to pay by, with the day, and never Paid", () => {
+      /*
+        A held row has no `payment`, so it used to fall through to the last
+        rule and read "Paid ₹9,000" on seats nobody had paid for.
+      */
+      const line = tripPriceLine(held("2026-09-22T02:30:00Z"), NOW);
+      expect(line).toBe("Seats held. Pay ₹9,000 by 08:00 on Tue 22 Sep");
+      expect(line).not.toContain("Paid");
+    });
+
+    it("says today, in the trip's market, when the hold ends today", () => {
+      expect(tripPriceLine(held("2026-09-21T12:00:00Z"), NOW)).toBe(
+        "Seats held. Pay ₹9,000 by 17:30 today",
+      );
+    });
+
+    it("still asks for payment when there is no deadline to show", () => {
+      expect(tripPriceLine(held(), NOW)).toBe(
+        "Seats held. Pay ₹9,000 to confirm",
+      );
+      expect(
+        tripPriceLine({ state: "holding", timezone: "Asia/Kolkata" }, NOW),
+      ).toBe("Seats held. Pay to confirm");
+    });
+
+    it("does not ask for payment on a hold that has run out", () => {
+      expect(tripPriceLine(held("2026-09-21T08:00:00Z"), NOW)).toBe(
+        "The hold ran out",
+      );
+    });
+  });
+
   it("asks for the cash BEFORE it says paid", () => {
     /*
       The live defect this ordering exists to prevent. `GET /bookings/status`
