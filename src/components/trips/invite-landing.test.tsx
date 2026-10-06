@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { renderWithQuery } from "@/test/render";
+import RouteLoading from "@/app/i/[token]/loading";
 import { InviteLanding } from "./invite-landing";
 import { server } from "../../../mocks/server";
 import {
@@ -91,6 +92,32 @@ describe("signed out", () => {
   });
 });
 
+describe("while it is read", () => {
+  it("is the route's own first paint, caption and all", () => {
+    /*
+      It was three shapes: the generic sheet, then a smaller skeleton of
+      another shape, then the page, whose caption arrived last (stability
+      audit, 6 Oct 2026). The route's fallback and the screen's wait are one
+      drawing now, with the caption from the first frame.
+    */
+    server.use(
+      http.get(`${BASE}/invites/:token`, async () => {
+        await delay("infinite");
+      }),
+    );
+    const screenWait = renderWithQuery(<InviteLanding token="tok_invite" />);
+    expect(
+      screen.getByRole("status", { name: "Loading this invitation" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("You are invited")).toBeInTheDocument();
+    const waiting = screenWait.container.innerHTML;
+    cleanup();
+
+    const route = renderWithQuery(<RouteLoading />);
+    expect(route.container.innerHTML).toBe(waiting);
+  });
+});
+
 describe("a link that does not work", () => {
   it("points at the person who sent it, not at us", async () => {
     /*
@@ -115,6 +142,8 @@ describe("a link that does not work", () => {
       screen.getByText("Ask the person who invited you to send it again."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    // The screen's caption stays, as it stayed in the wait before this.
+    expect(screen.getByText("You are invited")).toBeInTheDocument();
   });
 
   it("offers a retry when the failure is ours", async () => {

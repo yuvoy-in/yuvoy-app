@@ -68,20 +68,34 @@ export function SearchReelScreen({ mediaId }: { mediaId: string }) {
 
   const backHref = `/search?${filtersToParams(filters)}`;
   const back = <BackButton href={backHref} label="the results" />;
+  /*
+    Not `lg:hidden`. Above `lg` the rail replaces the tab bar and carries the
+    mark, but it carries no way BACK, and the tab bar is suppressed on a
+    focused route, so hiding this would make the screen a desktop dead end.
+    The same mistake `/o/{slug}/r/{id}` made first.
+
+    Drawn while the results are walked for the reel and when they fail to
+    load, as well as over the clips: both used to have no way back at all.
+  */
+  const chrome = (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start px-4 pt-4 pb-20">
+      <span className="pointer-events-auto">{back}</span>
+    </div>
+  );
 
   if (search.isPending || (index === -1 && search.hasNextPage)) {
     return (
-      <LoadingState label="Loading this reel">
-        <ReelFrame>
+      <ReelFrame chrome={chrome}>
+        <LoadingState label="Loading this reel">
           <Skeleton className="absolute inset-0 rounded-none" />
-        </ReelFrame>
-      </LoadingState>
+        </LoadingState>
+      </ReelFrame>
     );
   }
 
   if (search.isLoadingError) {
     return (
-      <ReelFrame className={REEL_WELL_CENTRED}>
+      <ReelFrame className={REEL_WELL_CENTRED} chrome={chrome}>
         <ErrorState
           error={search.error}
           onRetry={() => void search.refetch()}
@@ -122,17 +136,7 @@ export function SearchReelScreen({ mediaId }: { mediaId: string }) {
         isFetchNextPageError={search.isFetchNextPageError}
         fetchNextPage={() => void search.fetchNextPage()}
         emptyTailNote="That is everything matching this search."
-        chrome={
-          /*
-            Not `lg:hidden`. Above `lg` the rail replaces the tab bar and
-            carries the mark, but it carries no way BACK — and the tab bar is
-            suppressed on a focused route, so hiding this would make the screen
-            a desktop dead end. The same mistake `/o/{slug}/r/{id}` made first.
-          */
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start px-4 pt-4 pb-20">
-            <span className="pointer-events-auto">{back}</span>
-          </div>
-        }
+        chrome={chrome}
       />
     </>
   );

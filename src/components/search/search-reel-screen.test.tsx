@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor, cleanup, within } from "@testing-library/react";
+import { http, HttpResponse, delay } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { SearchReelScreen } from "./search-reel-screen";
+import { server } from "../../../mocks/server";
+
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 const nav = vi.hoisted(() => ({ search: "q=dive" }));
 vi.mock("next/navigation", () => ({
@@ -87,5 +91,41 @@ describe("a search result, playing", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getByRole("link", { name: /^Back to/ })).toBeTruthy();
+  });
+});
+
+describe("before the reel is in hand", () => {
+  /*
+    The tab bar is hidden on this screen, and the wait and the failure drew
+    the well alone: a slow walk of the results, or a failed one, left no way
+    out but the browser's (stability audit, 6 Oct 2026).
+  */
+  it("offers the way back while it looks", () => {
+    server.use(
+      http.get(`${BASE}/reels`, async () => {
+        await delay("infinite");
+      }),
+    );
+    renderWithQuery(<SearchReelScreen mediaId="med_dive" />);
+    const status = screen.getByRole("status", { name: "Loading this reel" });
+    const back = screen.getByRole("link", { name: "Back to the results" });
+    expect(back).toHaveAttribute("href", "/search?q=dive");
+    expect(within(status).queryByRole("link")).toBeNull();
+  });
+
+  it("offers the way back when the results fail", async () => {
+    server.use(
+      http.get(`${BASE}/reels`, () =>
+        HttpResponse.json(
+          { error: { code: "not_found", message: "Not found." } },
+          { status: 404 },
+        ),
+      ),
+    );
+    renderWithQuery(<SearchReelScreen mediaId="med_dive" />);
+    await screen.findByRole("alert");
+    expect(
+      screen.getByRole("link", { name: "Back to the results" }),
+    ).toHaveAttribute("href", "/search?q=dive");
   });
 });

@@ -137,4 +137,30 @@ describe("the screen-change classes", () => {
       /::view-transition-new\(root\)\s*\{\s*animation: none;/,
     );
   });
+
+  /*
+    The bar is captured during every typed change, or a screen paints over it
+    (globals.css, "the tab bar holds its place"). The selector names the types
+    one by one, so a type added to MOTION and not to it would bring the blink
+    back on exactly that change.
+  */
+  it("holds the tab bar in place through every type of change", () => {
+    const held =
+      /:root:active-view-transition-type\(([^)]*)\)\s*\{([\s\S]*?)\n\}/.exec(
+        css,
+      );
+    expect(held, "the bar is not held through a change").not.toBeNull();
+    const listed = held![1].split(",").map((type) => type.trim());
+    expect(new Set(listed)).toEqual(new Set(Object.values(MOTION)));
+    // Captured and drawn where it stands, with a well that takes the taps.
+    expect(held![2]).toMatch(
+      /&\s*\[data-tabbar\]\s*\{\s*view-transition-name: tab-bar;/,
+    );
+    expect(held![2]).toMatch(
+      /&\s*\[data-tabbar-well\]\s*\{\s*pointer-events: auto;/,
+    );
+    expect(css).toMatch(
+      /::view-transition-old\(tab-bar\)\s*\{\s*display: none;/,
+    );
+  });
 });

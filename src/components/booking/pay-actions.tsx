@@ -158,7 +158,7 @@ export function PayButton({
   const booked = cash.data;
   const busy = order.isPending || handoff === "opening";
   // The question asked on arrival failed: no answer, so no way to pay shown.
-  const unanswered = options.isError;
+  const unanswered = options.isLoadingError;
   const refusal = unanswered ? options.error : order.error;
   const error = refusal ?? cash.error;
   const failure = error ? describeError(error) : null;

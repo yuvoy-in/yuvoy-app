@@ -1205,35 +1205,41 @@ describe("measured contrast", () => {
 
     it("keeps the wordmark legible over the same frame", () => {
       /*
-        The mark occupies 22%-48% of the top scrim: 24px to 52px of the
-        masthead's 108px block. The next test is what keeps that true.
+        The mark occupies 17%-43% of the top scrim: 18px to 46px of the
+        masthead's 108px block, centred in the 64px row every tab root's header
+        has. Login's pill hangs from 10px to 54px, down to 50%. The next test
+        is what keeps that true.
 
-        The band moved TWICE and only the second move was deliberate. On 14 Sep
-        `LoginButton` joined the masthead at `size="md"`, which made the row 44px
-        instead of the mark's own 28px and pushed the block to 140px without
-        anybody updating the arithmetic here. Then the tail came down from 80px
-        to 48px when the owner asked for less shade. 108px is both of those
-        accounted for.
+        The band moved THREE times. On 14 Sep `LoginButton` joined the masthead
+        at `size="md"`, which made the row 44px instead of the mark's own 28px
+        and pushed the block to 140px without anybody updating the arithmetic
+        here. Then the tail came down from 80px to 48px when the owner asked
+        for less shade. Then (6 Oct) the row became the screen header's 64px,
+        so a tab change from the feed stops moving the mark and Login, and the
+        tail gave back 4px: still 108px, and everything in it sits higher, in
+        darker ramp, than it did.
 
         The floor here is 3:1, not 4.5: the mark is a GRAPHIC and so is the edge
-        of the Login pill beside it. The lower end is checked against 3 for that
-        reason, and the upper against 7 because the top of the band is where the
-        ramp is darkest and there is no excuse for it being tight there.
+        of the Login pill beside it. The lower ends are checked against 3 for
+        that reason (the pill's foot was never checked before, and sat lower),
+        and the top against 7 because the top of the band is where the ramp is
+        darkest and there is no excuse for it being tight there.
       */
       const ramp = stops("feed-scrim-top");
-      expect(paperOverScrim(alphaAt(ramp, 22))).toBeGreaterThanOrEqual(7);
-      expect(paperOverScrim(alphaAt(ramp, 48))).toBeGreaterThanOrEqual(3);
+      expect(paperOverScrim(alphaAt(ramp, 17))).toBeGreaterThanOrEqual(7);
+      expect(paperOverScrim(alphaAt(ramp, 43))).toBeGreaterThanOrEqual(3);
+      expect(paperOverScrim(alphaAt(ramp, 50))).toBeGreaterThanOrEqual(3);
     });
 
     it("pins the masthead's height to the gradient measured against it", () => {
       /*
         The one above is a claim about a POSITION in a gradient, and the
-        position is decided by the block's own box: 16px above the row, a 44px
-        row (`LoginButton` at `size="md"` is the tallest thing in it), and 48px
-        of tail. 108px, and `feed-scrim-top`'s stops are percentages of exactly
-        that. Change any of the three without changing
-        the stops and the mark slides into a lighter band with every contrast
-        test still passing, which is the quietest possible way to break this.
+        position is decided by the block's own box: the 64px row (the screen
+        header's, with `LoginButton` at `size="md"` the tallest thing in it)
+        and 44px of tail. 108px, and `feed-scrim-top`'s stops are percentages
+        of exactly that. Change either without changing the stops and the mark
+        slides into a lighter band with every contrast test still passing,
+        which is the quietest possible way to break this.
 
         All three are pinned here, on the ONE component both reel surfaces use
         (yuvoy-app#36 — the feed and a shared reel had each begun to carry
@@ -1252,8 +1258,14 @@ describe("measured contrast", () => {
         masthead,
         "the masthead no longer wears its own scrim",
       ).not.toBeNull();
-      expect(masthead![0]).toContain("pt-4");
-      expect(masthead![0]).toContain("pb-12");
+      expect(masthead![0]).toContain("pb-11");
+      expect(masthead![0], "the tail is the only padding").not.toMatch(
+        /\bp[ty]-/,
+      );
+      // The row: the screen header's height and inset, centred.
+      expect(strip).toMatch(
+        /className="feed-scrim-top[^"]*">\s*<div className="flex h-16 items-center justify-between gap-3 px-4">/,
+      );
 
       const marks = [...strip.matchAll(/<Wordmark ([^/]*)\/>/g)];
       expect(marks.length, "no Wordmark in the masthead").toBeGreaterThan(0);

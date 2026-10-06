@@ -7,9 +7,9 @@ import {
   beforeEach,
   afterEach,
 } from "vitest";
-import { screen, cleanup, waitFor, within } from "@testing-library/react";
+import { act, screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { TripsScreen } from "./trips-screen";
 import { server } from "../../../mocks/server";
@@ -26,9 +26,19 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
   against a screen with nothing on it. Same stub `token-store.idb.test.ts`
   uses.
 */
-const idb = vi.hoisted(() => ({ store: new Map<string, unknown>() }));
+const idb = vi.hoisted(() => ({
+  store: new Map<string, unknown>(),
+  /** Every key read, in order. */
+  reads: [] as string[],
+  /** Keys whose read never answers, for a test of the wait itself. */
+  hang: new Set<string>(),
+}));
 vi.mock("idb-keyval", () => ({
-  get: async (k: string) => idb.store.get(k),
+  get: async (k: string) => {
+    idb.reads.push(k);
+    if (idb.hang.has(k)) return new Promise(() => {});
+    return idb.store.get(k);
+  },
   set: async (k: string, v: unknown) => void idb.store.set(k, v),
   del: async (k: string) => void idb.store.delete(k),
   keys: async () => [...idb.store.keys()],
@@ -43,6 +53,8 @@ vi.mock("next/navigation", () => ({
 beforeAll(() => vi.stubGlobal("indexedDB", {}));
 beforeEach(() => {
   idb.store.clear();
+  idb.reads.length = 0;
+  idb.hang.clear();
   sent.length = 0;
 });
 afterEach(cleanup);
@@ -67,14 +79,18 @@ const sent: URLSearchParams[] = [];
  * "which query was actually sent" is the thing worth asserting.
  */
 function serverBookings(
-  rows: Partial<Record<string, unknown>>[],
+  rows:
+    | Partial<Record<string, unknown>>[]
+    | ((read: number) => Partial<Record<string, unknown>>[]),
   answer: { nextCursor?: string | null } = {},
 ): ReturnType<typeof http.get> {
+  let reads = 0;
   return http.get(`${BASE}/me/bookings`, ({ request }) => {
     sent.push(new URL(request.url).searchParams);
+    reads += 1;
     return HttpResponse.json({
       nextCursor: answer.nextCursor ?? null,
-      bookings: rows.map((r) => ({
+      bookings: (typeof rows === "function" ? rows(reads) : rows).map((r) => ({
         reference: "YV-SERVER11",
         reservationId: "res_server",
         experience: "Snorkel trip to Elephant Beach",
@@ -196,6 +212,41 @@ describe("signed out", () => {
     await screen.findByText("Sign in to see your trips");
     expect(document.body.textContent).not.toMatch(/without signal/i);
     expect(document.body.textContent).not.toMatch(/on this device/i);
+  });
+});
+
+describe("while the session is read", () => {
+  /*
+    Held open: the session route never answers, so the screen stays on its
+    first frame for as long as the test looks at it.
+  */
+  const holdSession = () =>
+    server.use(
+      http.get("*/api/session", async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
+
+  it("draws the heading it will have either way", async () => {
+    // It arrived with the answer, and pushed the blocks under it down.
+    holdSession();
+    renderWithQuery(<TripsScreen />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Your trips" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Loading your trips" }),
+    ).toBeInTheDocument();
+  });
+
+  it("asks the phone for the stay alongside it, not after it", async () => {
+    holdSession();
+    renderWithQuery(<TripsScreen />);
+    await waitFor(() => expect(idb.reads).toContain("yuvoy:stay:v1"));
+    expect(
+      screen.getByRole("status", { name: "Loading your trips" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -688,6 +739,35 @@ describe("the next up pass", () => {
   const inHours = (h: number) =>
     new Date(Date.now() + h * 3_600_000).toISOString();
 
+  /** The next-up trip's own status: the landmark and the operator's note. */
+  const passStatus = () => ({
+    reservationId: "res_next",
+    state: "confirmed",
+    final: false,
+    guests: 2,
+    experience: {
+      slug: "try-dive-nemo-reef",
+      title: "Try-dive at Nemo Reef",
+      operator: "Sample Dive Operator",
+      operatorSlug: "sample-dive-operator",
+      heroImageUrl: null,
+    },
+    slot: { startsAt: inHours(3), timezone: "Asia/Kolkata" },
+    price: { totalPaise: 900000, currency: "INR" },
+    review: { reviewed: false, canReview: false },
+    meetingPoint: {
+      text: "Jetty 2, Havelock",
+      landmark: "The blue kiosk",
+    },
+    operatorUpdates: [
+      {
+        kind: "relay",
+        detail: "Meet at jetty 2, not 1",
+        sentAt: new Date().toISOString(),
+      },
+    ],
+  });
+
   it("draws the trip leaving within the day whole, above the list, and once", async () => {
     signIn();
     noInvites();
@@ -713,33 +793,7 @@ describe("the next up pass", () => {
       ]),
       // The one trip's own status, for the landmark and the operator's note.
       http.get(`${BASE}/bookings/status`, () =>
-        HttpResponse.json({
-          reservationId: "res_next",
-          state: "confirmed",
-          final: false,
-          guests: 2,
-          experience: {
-            slug: "try-dive-nemo-reef",
-            title: "Try-dive at Nemo Reef",
-            operator: "Sample Dive Operator",
-            operatorSlug: "sample-dive-operator",
-            heroImageUrl: null,
-          },
-          slot: { startsAt: inHours(3), timezone: "Asia/Kolkata" },
-          price: { totalPaise: 900000, currency: "INR" },
-          review: { reviewed: false, canReview: false },
-          meetingPoint: {
-            text: "Jetty 2, Havelock",
-            landmark: "The blue kiosk",
-          },
-          operatorUpdates: [
-            {
-              kind: "relay",
-              detail: "Meet at jetty 2, not 1",
-              sentAt: new Date().toISOString(),
-            },
-          ],
-        }),
+        HttpResponse.json(passStatus()),
       ),
     );
     renderWithQuery(<TripsScreen />);
@@ -764,6 +818,45 @@ describe("the next up pass", () => {
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(1);
     expect(items[0]).toHaveTextContent("Snorkel trip to Elephant Beach");
+  });
+
+  it("keeps the landmark while the pass asks again under a new token", async () => {
+    /*
+      `/me/bookings` mints a fresh status token for every row on every read,
+      and the pass asks for its trip's status by token. So each refresh of the
+      list was a new, empty query here, and the landmark and the operator's
+      note blinked out for a round trip (6 Oct 2026).
+    */
+    signIn();
+    noInvites();
+    let statuses = 0;
+    server.use(
+      serverBookings((read) => [
+        {
+          reference: "YV-NEXTUP01",
+          reservationId: "res_next",
+          experience: "Try-dive at Nemo Reef",
+          statusToken: `tok_next_${read}`,
+          startsAt: inHours(3),
+        },
+      ]),
+      http.get(`${BASE}/bookings/status`, async () => {
+        statuses += 1;
+        if (statuses > 1) await delay(400);
+        return HttpResponse.json(passStatus());
+      }),
+    );
+    const { client } = renderWithQuery(<TripsScreen />);
+    const pass = (await screen.findByText("Next up")).closest("section")!;
+    expect(await within(pass).findByText("The blue kiosk")).toBeInTheDocument();
+
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["listMyBookings"] });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(statuses).toBe(2);
+    // Asked again, and still drawn while the answer is on its way.
+    expect(within(pass).getByText("The blue kiosk")).toBeInTheDocument();
   });
 
   it("draws no pass for a trip more than a day away", async () => {
@@ -860,6 +953,55 @@ describe("your island days", () => {
         )
       ).length,
     ).toBe(2);
+  });
+
+  it("lays out the stay's own days while the bookings on them are read", async () => {
+    /*
+      The days are the stay's, known before any booking is. Two fixed bars
+      stood in for all of them, and a week's stay grew by five rows when the
+      bookings landed (stability audit, 6 Oct 2026).
+    */
+    const [today, , third] = days(3);
+    idb.store.set(STAY_KEY, { from: today, to: third });
+    signIn();
+    noInvites();
+    server.use(
+      http.get(`${BASE}/me/bookings`, async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
+    renderWithQuery(<TripsScreen />);
+
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    const rows = await within(plan).findAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]).getByText("Today")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Tomorrow")).toBeInTheDocument();
+    rows.forEach((row) =>
+      expect(row.querySelector(".skeleton")).not.toBeNull(),
+    );
+    expect(within(plan).queryByText(/Nothing booked/)).toBeNull();
+  });
+
+  it("is a panel from the first frame while the phone reads the days", async () => {
+    // It drew nothing, then arrived above the list and pushed it down.
+    idb.hang.add(STAY_KEY);
+    signIn();
+    noInvites();
+    server.use(serverBookings([]));
+    renderWithQuery(<TripsScreen />);
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    expect(
+      within(plan).getByRole("status", { name: "Reading your days" }),
+    ).toBeInTheDocument();
+    expect(
+      within(plan).queryByRole("button", { name: "Set your days" }),
+    ).toBeNull();
   });
 
   it("says when the days are over, and lets them go", async () => {

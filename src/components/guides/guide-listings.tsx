@@ -29,7 +29,7 @@ export function GuideListings({ filter }: { filter: GuideListingsFilter }) {
   const {
     data: listings,
     isPending,
-    isError,
+    isLoadingError,
   } = useQuery({
     queryKey: qk.guideListings(filter.category, filter.activityType),
     queryFn: ({ signal }) => guideListings(filter, signal),
@@ -37,7 +37,7 @@ export function GuideListings({ filter }: { filter: GuideListingsFilter }) {
   });
 
   // Loading, failed, or nothing on sale: no foot at all. See above.
-  if (isPending || isError || listings.length === 0) return null;
+  if (isPending || isLoadingError || listings.length === 0) return null;
 
   return (
     <section

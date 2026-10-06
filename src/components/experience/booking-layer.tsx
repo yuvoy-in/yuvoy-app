@@ -1,6 +1,8 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { qk } from "@/lib/query/policy";
 import { StickyBar } from "@/components/ui/sticky-bar";
 import { Button, ButtonArrow, ButtonLink } from "@/components/ui/button";
 import { Skeleton } from "@/components/states";
@@ -66,6 +68,7 @@ export function BookingLayer({
   bookable,
   before,
   after,
+  readAt,
 }: {
   experience: Experience;
   /**
@@ -83,7 +86,31 @@ export function BookingLayer({
   bookable: boolean;
   before?: ReactNode;
   after?: ReactNode;
+  /**
+   * When the server read this listing, for the listing page itself. Absent
+   * in a preview, which drew it from the cache in the first place.
+   */
+  readAt?: number;
 }) {
+  /*
+    THE LISTING HANDS CHECKOUT WHAT IT ALREADY READ (6 Oct 2026).
+
+    Checkout reads the listing through `qk.experience(slug)`, and arriving
+    from this page it always started cold: the page renders on the server, so
+    the cache had nothing, and checkout drew its own skeleton for a round
+    trip after the route's. Put in the cache with the time the server read
+    it, so React Query knows its age and refreshes it behind the screen once
+    it is older than `CACHE.getExperience` allows, and never over a read that
+    is newer.
+  */
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (readAt === undefined) return;
+    const key = qk.experience(experience.slug);
+    if ((queryClient.getQueryState(key)?.dataUpdatedAt ?? 0) >= readAt) return;
+    queryClient.setQueryData(key, experience, { updatedAt: readAt });
+  }, [experience, readAt, queryClient]);
+
   // Not read by a listing preview until it is shown (T02 C).
   const live = useListingLive();
   const next = useNextOpenDay(experience.slug, bookable && live);

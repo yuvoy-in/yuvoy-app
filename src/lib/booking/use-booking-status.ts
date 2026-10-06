@@ -117,7 +117,7 @@ export function useBookingStatus(token: string | null) {
     first one found on the device was, for a while, somebody's other trip.
   */
   useEffect(() => {
-    if (query.data || !query.isError) return;
+    if (!query.isLoadingError) return;
     if (!(query.error instanceof NetworkError) || !token) return;
     let cancelled = false;
     void (async () => {
@@ -128,14 +128,14 @@ export function useBookingStatus(token: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [query.data, query.isError, query.error, token]);
+  }, [query.isLoadingError, query.error, token]);
 
   // A link the server has finished with is flagged on the device, so the
   // Trips tab can say so and offer a new one instead of a dead tap.
   useEffect(() => {
-    if (!query.isError || !token) return;
+    if (!query.error || !token) return;
     if (isDeadToken(query.error)) void markTokenDead(token);
-  }, [query.isError, query.error, token]);
+  }, [query.error, token]);
 
   return {
     ...query,

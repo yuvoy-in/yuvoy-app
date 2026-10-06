@@ -268,13 +268,26 @@ export function defineBookingMotion() {
             requestAnimationFrame(() => requestAnimationFrame(done)),
           ),
       );
-      const entrances = (await played(page)).filter(
+      const all = await played(page);
+      const entrances = all.filter(
         (p) =>
           p.cls.includes("day-window") ||
           p.keyframes[0]?.transform === "translateY(100%)" ||
           p.keyframes[0]?.transform === "translateY(8px)",
       );
       expect(entrances, "the page arrived in pieces").toEqual([]);
+      /*
+        Nor does the heading fade through to the time the link names: that
+        resolves as the dates land, and words that change as a screen opens
+        were not seen changing. They faded until 6 Oct 2026, when an
+        accessibility check caught them mid-fade (stability audit).
+      */
+      const heading = all.filter(
+        (p) =>
+          p.text === "When would you like to go?" ||
+          / · \d{2}:\d{2}$/.test(p.text),
+      );
+      expect(heading, "the heading faded in as the page opened").toEqual([]);
     });
   });
 

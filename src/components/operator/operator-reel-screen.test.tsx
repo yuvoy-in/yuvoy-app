@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { OperatorReelScreen } from "./operator-reel-screen";
 import { server } from "../../../mocks/server";
@@ -154,5 +154,43 @@ describe("a business's reel, playing in place", () => {
       expect(screen.getAllByRole("article").length).toBe(theirs.length),
     );
     expect(screen.queryByText(/not here any more/)).toBeNull();
+  });
+});
+
+describe("before the reel is in hand", () => {
+  /*
+    The tab bar is hidden on this screen, and the wait and a failed read of
+    the business drew the well alone, with no way back to the grid
+    (stability audit, 6 Oct 2026).
+  */
+  it("offers the way back while the business is read", () => {
+    server.use(
+      http.get(`${BASE}/operators/:slug`, async () => {
+        await delay("infinite");
+      }),
+    );
+    renderWithQuery(<OperatorReelScreen slug={SLUG} mediaId="med_dive" />);
+    expect(
+      screen.getByRole("status", { name: "Loading this reel" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Back to their reels" }),
+    ).toHaveAttribute("href", `/o/${SLUG}`);
+  });
+
+  it("offers the way back when the business fails to load", async () => {
+    server.use(
+      http.get(`${BASE}/operators/:slug`, () =>
+        HttpResponse.json(
+          { error: { code: "not_found", message: "Not found." } },
+          { status: 404 },
+        ),
+      ),
+    );
+    renderWithQuery(<OperatorReelScreen slug={SLUG} mediaId="med_dive" />);
+    await screen.findByRole("alert");
+    expect(
+      screen.getByRole("link", { name: "Back to their reels" }),
+    ).toHaveAttribute("href", `/o/${SLUG}`);
   });
 });

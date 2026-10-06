@@ -107,6 +107,12 @@ const stripComments = (src: string) =>
 const canNotFound = (file: string) =>
   /\bnotFound\(\)/.test(stripComments(readFileSync(file, "utf8")));
 
+/** A page that redirects and draws nothing: no JSX anywhere in it. */
+const onlyRedirects = (file: string) => {
+  const code = stripComments(readFileSync(file, "utf8"));
+  return /\bredirect\(/.test(code) && !/<[A-Za-z]/.test(code);
+};
+
 /**
  * Routes that must NOT stream, and why each one is on the list.
  *
@@ -187,13 +193,37 @@ describe("loading boundaries", () => {
   });
 
   /*
+    The same mechanism, for a redirect. A boundary streams the shell before
+    the page runs, so a page that only redirects can no longer answer 307:
+    Next writes a meta refresh into the fallback instead. `/go/[code]` did
+    that until 6 Oct 2026: a grey sheet on a jetty, then a full reload of the
+    document. A redirect-only route belongs in a route handler, with no
+    boundary at all.
+  */
+  it("never sit above a page that only redirects", () => {
+    const streamed = PAGES.filter(onlyRedirects)
+      .map((page) => {
+        const b = boundaryFor(page);
+        return b ? `${routeOf(page)} would stream via ${rel(b)}` : null;
+      })
+      .filter(Boolean);
+
+    expect(streamed).toEqual([]);
+  });
+
+  /*
     A fallback that renders nothing is worse than no fallback: it blanks the
     screen instead of holding the old one, and it still satisfies the check
     above. Every boundary has to actually draw one of the two chassis.
   */
   it("draw a real chassis rather than an empty element", () => {
+    // In code, not in a comment: a skeleton drawn, the generic sheet or a
+    // screen's own first paint (`CheckoutRouteSkeleton`, `SearchRouteSkeleton`).
     const empty = FILES.filter((f) => /\/loading\.tsx$/.test(f))
-      .filter((f) => !/SheetSkeleton/.test(readFileSync(f, "utf8")))
+      .filter(
+        (f) =>
+          !/<[A-Z]\w*Skeleton\b/.test(stripComments(readFileSync(f, "utf8"))),
+      )
       .map(rel);
 
     expect(empty).toEqual([]);

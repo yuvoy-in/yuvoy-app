@@ -14,7 +14,8 @@ describe("analytics consent", () => {
     // The failure mode that matters: defaulting to granted would load a
     // tracker for somebody who was never asked.
     expect(readConsent()).toBe("unset");
-    expect(consentServerSnapshot()).toBe("unset");
+    // Not "unset": the server cannot know, and must not draw the banner.
+    expect(consentServerSnapshot()).toBe("unknown");
   });
 
   it("treats an unreadable store as undecided, not as consent", () => {

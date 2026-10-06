@@ -8,6 +8,7 @@ import {
   subscribeConsent,
   consentSnapshot,
   consentServerSnapshot,
+  type ConsentRead,
   setConsent,
 } from "@/lib/analytics/consent";
 import { installReporter, consoleReporter } from "@/lib/observability/report";
@@ -37,7 +38,7 @@ export function ConsentBanner() {
     and the React compiler rejects it — the same lesson as the booking screen's
     URL fragment.
   */
-  const consent = useSyncExternalStore(
+  const consent = useSyncExternalStore<ConsentRead>(
     subscribeConsent,
     consentSnapshot,
     consentServerSnapshot,
@@ -57,7 +58,7 @@ export function ConsentBanner() {
     if (key && consent === "granted") void enable(key, host);
   }, [key, host, consent]);
 
-  // Nothing to consent to, already decided, or still hydrating on the server.
+  // Nothing to consent to, already decided, or not yet in a browser.
   if (!key || consent !== "unset") return null;
 
   return (

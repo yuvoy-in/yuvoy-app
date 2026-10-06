@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, screen, within, cleanup, waitFor } from "@testing-library/react";
+import {
+  act,
+  screen,
+  within,
+  cleanup,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { Feed } from "./feed";
@@ -343,5 +350,47 @@ describe("the details panel and focus", () => {
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(document.activeElement).toBe(line));
     expect(line).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("a card with no clip", () => {
+  /*
+    The operator's logo sat over the title with no size of its own until it
+    arrived, so the centred title jumped when it did, and a logo that failed
+    showed its alt text in the middle of the reel (stability audit,
+    6 Oct 2026).
+  */
+  const plate = (logoUrl: string) => {
+    const experience = {
+      ...EXPERIENCES[0],
+      operator: { ...EXPERIENCES[0].operator, logoUrl },
+    };
+    renderWithQuery(
+      <ExperienceCard
+        experience={experience}
+        index={0}
+        total={1}
+        active
+        mounted={false}
+        muted
+        autoplayAllowed={false}
+      />,
+    );
+    return experience.operator.name;
+  };
+
+  it("holds the logo's full height before it has loaded", () => {
+    const name = plate("https://img.example/logo.png");
+    const logo = screen.getByRole("img", { name });
+    expect(logo.parentElement!.className).toContain("h-20");
+  });
+
+  it("leaves the box empty, not the alt text, when the logo fails", () => {
+    const name = plate("https://img.example/missing.png");
+    const logo = screen.getByRole("img", { name });
+    const box = logo.parentElement!;
+    fireEvent.error(logo);
+    expect(screen.queryByRole("img", { name })).toBeNull();
+    expect(box).toBeInTheDocument();
   });
 });

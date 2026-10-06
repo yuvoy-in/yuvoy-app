@@ -106,7 +106,7 @@ export function InvitedTripScreen({ id }: { id: string }) {
     );
   }
 
-  if (trip.isError) {
+  if (trip.isLoadingError) {
     return (
       <Screen back={BACK}>
         <ErrorState error={trip.error} onRetry={() => void trip.refetch()} />

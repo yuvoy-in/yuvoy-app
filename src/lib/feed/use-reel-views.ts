@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   consentServerSnapshot,
+  type ConsentRead,
   consentSnapshot,
   subscribeConsent,
 } from "@/lib/analytics/consent";
@@ -51,7 +52,7 @@ const visibleOnServer = () => true;
 export function useReelViews(
   active: { reelId?: string; experienceId?: string } | null,
 ): ReelWatch {
-  const consent = useSyncExternalStore(
+  const consent = useSyncExternalStore<ConsentRead>(
     subscribeConsent,
     consentSnapshot,
     consentServerSnapshot,

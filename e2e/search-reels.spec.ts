@@ -409,4 +409,46 @@ test.describe("the default state", () => {
       page.getByRole("link", { name: "Browse the feed" }),
     ).toHaveCount(0);
   });
+
+  test("paints as the screen from the first frame, rows the grid's own height", async ({
+    page,
+  }) => {
+    /*
+      The route's fallback was the generic sheet (no title, no field), then
+      the screen drew 300ms of nothing, then a skeleton whose rows were
+      shorter than the tiles that replaced them, so every row below moved
+      down as the grid landed (stability audit, 6 Oct 2026). Measured where
+      it shows: the top of the second row, before and after.
+    */
+    await page.addInitScript(() => {
+      const fetchOf = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof Request
+              ? input.url
+              : String(input);
+        if (/\/reels\?/.test(url))
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        return fetchOf(input, init);
+      };
+    });
+    await page.goto("/search");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "What is on" }),
+    ).toBeVisible();
+    const skeleton = page.locator(
+      '[data-motion-key="loading"] .skeleton-breath > div',
+    );
+    await expect(skeleton.first()).toBeVisible();
+    const before = (await skeleton.nth(2).boundingBox())!.y;
+
+    const tiles = page
+      .getByRole("list", { name: "Search results" })
+      .getByRole("listitem");
+    await expect(tiles.first()).toBeVisible({ timeout: 6000 });
+    const after = (await tiles.nth(2).boundingBox())!.y;
+    expect(Math.abs(after - before)).toBeLessThan(3);
+  });
 });

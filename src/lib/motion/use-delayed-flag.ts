@@ -20,16 +20,24 @@ export const SHOW_MINIMUM_MS = 300;
  * Every change happens in a timer, never in the effect itself: the flag is
  * a reading of elapsed time, and an effect setting state on its own run is
  * a cascading render.
+ *
+ * `initial` starts it shown, for a wait that was already on screen before
+ * this component was: the route's own fallback drew the same placeholder, so
+ * holding it back 300ms would blank it and then draw it again. Read once, on
+ * mount. Counted as shown long ago, so the answer replaces it the moment it
+ * lands.
  */
 export function useDelayedFlag(
   active: boolean,
   {
     delay = SHOW_DELAY_MS,
     minimum = SHOW_MINIMUM_MS,
-  }: { delay?: number; minimum?: number } = {},
+    initial = false,
+  }: { delay?: number; minimum?: number; initial?: boolean } = {},
 ): boolean {
-  const [shown, setShown] = useState(false);
-  const shownAt = useRef(0);
+  const [shown, setShown] = useState(initial);
+  // Shown "long ago" when it starts shown, whatever the page's clock says.
+  const shownAt = useRef(initial ? -Infinity : 0);
 
   useEffect(() => {
     if (active && !shown) {

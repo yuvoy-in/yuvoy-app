@@ -103,15 +103,15 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <LoadingState label="Loading experiences">
-          <ReelFrame>
+        <ReelFrame chrome={<ReelMasthead />}>
+          <LoadingState label="Loading experiences">
             <Skeleton className="absolute inset-0 rounded-none" />
             <div className="tabbar-clearance absolute inset-x-0 bottom-0 space-y-3 px-5">
               <Skeleton className="h-9 w-4/5 rounded-full" />
               <Skeleton className="h-3 w-40 rounded-full" />
             </div>
-          </ReelFrame>
-        </LoadingState>
+          </LoadingState>
+        </ReelFrame>
       </>
     );
   }
@@ -121,7 +121,7 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <ReelFrame className={REEL_WELL_CENTRED}>
+        <ReelFrame className={REEL_WELL_CENTRED} chrome={<ReelMasthead />}>
           <ErrorState
             error={error}
             onRetry={() => void refetch()}
@@ -137,7 +137,7 @@ export function Feed({
     return (
       <>
         <FeedHeading />
-        <ReelFrame className={REEL_WELL_CENTRED}>
+        <ReelFrame className={REEL_WELL_CENTRED} chrome={<ReelMasthead />}>
           <EmptyState
             tone="dark"
             title="Nothing bookable here yet"

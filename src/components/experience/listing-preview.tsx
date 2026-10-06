@@ -27,7 +27,7 @@ export function ListingPreview({
   slug: string;
   shown: boolean;
 }) {
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isLoadingError, isRefetchError } = useQuery({
     queryKey: qk.experience(slug),
     queryFn: async ({ signal }) => {
       const { data, error } = await api.GET("/experiences/{slug}", {
@@ -51,7 +51,7 @@ export function ListingPreview({
     preview in a finger's hands never empties; it is just not offered again
     until it reads.
   */
-  const ready = !isPending && !isError;
+  const ready = !isPending && !isLoadingError && !isRefetchError;
   useLayoutEffect(() => {
     setPeekContentReady(ready);
     return () => setPeekContentReady(false);

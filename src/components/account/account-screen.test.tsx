@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { AccountScreen } from "./account-screen";
 import { server } from "../../../mocks/server";
@@ -334,6 +334,45 @@ describe("where signing in lands", () => {
  * everything it might have shown lived somewhere else. It reads `GET /me`,
  * which is the one endpoint that knows the traveller rather than the booking.
  */
+describe("before it knows which screen it is", () => {
+  /*
+    Two waits: the device's session, then, signed in, the account. They were
+    two different skeletons, and only the first had the policy links, so a
+    signed-in visit went shape, other shape without the links, then the screen
+    with them (stability audit, 6 Oct 2026).
+  */
+  const shapeOf = (status: HTMLElement) =>
+    Array.from(status.querySelectorAll(".skeleton")).map(
+      (bar) => bar.className,
+    );
+
+  it("draws both waits as one shape, with the policy links in both", async () => {
+    // The session route proves the cookie against `GET /me` first; the
+    // account's own read of it is the one held open.
+    let reads = 0;
+    server.use(
+      http.get(`${BASE}/me`, async () => {
+        reads += 1;
+        if (reads === 1) return undefined;
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
+    __signInAppRouteMock();
+    renderWithQuery(<AccountScreen />);
+
+    const device = screen.getByRole("status", { name: "Checking this device" });
+    const first = shapeOf(device);
+    expect(screen.getByRole("link", { name: "Privacy" })).toBeInTheDocument();
+
+    const account = await screen.findByRole("status", {
+      name: "Loading your account",
+    });
+    expect(shapeOf(account)).toEqual(first);
+    expect(screen.getByRole("link", { name: "Privacy" })).toBeInTheDocument();
+  });
+});
+
 describe("the account", () => {
   const signedIn = () => {
     __signInAppRouteMock();

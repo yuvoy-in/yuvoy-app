@@ -1,9 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { BookScreen } from "@/components/checkout/book-screen";
-import { PicturePlaceholder } from "@/components/chrome/picture-strip";
-import { LoadingState, Skeleton } from "@/components/states";
-import { Screen } from "@/components/chrome/screen";
+import { CheckoutSkeleton } from "@/components/checkout/checkout-skeleton";
 import { gatedRoute } from "@/components/auth/gated-route";
 import { privateRobotsMeta } from "@/lib/site/indexing";
 
@@ -60,21 +58,4 @@ export default async function BookPage({
       </Suspense>
     ),
   });
-}
-
-function CheckoutSkeleton({ slug }: { slug: string }) {
-  return (
-    <Screen
-      back={{ href: `/e/${slug}`, label: "the dates" }}
-      stageLabel="Checkout"
-      hero={<PicturePlaceholder />}
-    >
-      <LoadingState label="Loading checkout">
-        <div className="space-y-4">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-48 w-full" />
-        </div>
-      </LoadingState>
-    </Screen>
-  );
 }

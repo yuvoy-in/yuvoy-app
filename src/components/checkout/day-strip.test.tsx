@@ -122,6 +122,13 @@ describe("the day strip", () => {
   it("offers no other view until the dates have arrived", () => {
     chooser([], { state: "pending" });
     expect(screen.queryByRole("button", { name: "More dates" })).toBeNull();
+    /*
+      But it holds its place, unseen and out of reach: drawn only once the
+      dates landed, it pushed the calendar down 10px.
+    */
+    const held = screen.getByText("More dates").closest("button");
+    expect(held).toBeDisabled();
+    expect(held).toHaveClass("invisible");
   });
 
   it("says the dates did not load, with a way to try again", () => {

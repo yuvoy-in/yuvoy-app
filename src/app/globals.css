@@ -1417,8 +1417,68 @@
 }
 
 ::view-transition-group(.vt-bar-out),
-::view-transition-group(.vt-bar-in) {
+::view-transition-group(.vt-bar-in),
+::view-transition-group(tab-bar) {
   z-index: 3;
+}
+
+/*
+  The tab bar holds its place through a screen change it stays for.
+
+  The screens are drawn by the transition, in a layer above the whole page,
+  and the bar is not a screen: left alone it is part of the page under that
+  layer, so the sheet leaving and the sheet arriving both paint straight over
+  it, and it blinked out for the length of every tab change. So while a typed
+  change runs (an untyped one moves nothing that could cover it) the bar is
+  captured too and drawn where it stands, above the screens, with nothing
+  animating it. Its live image is the one shown, so the glide (T04 B) plays
+  on it. When the bar itself leaves or returns, React names it for the step
+  (BAR_MOTION) and that inline name wins over this one.
+
+  Two things follow from capturing it, and both are answered here:
+
+  - Hit-testing skips a captured element until the change ends, so a tab
+    tapped mid-change would land on the page behind the bar. The well under
+    the bar (`TabBar`) takes pointer events for exactly those frames and
+    hands the tap to the destination over it.
+  - A captured element is a backdrop root, so the frosted pill over a reel
+    cannot see the picture while the change runs. It is drawn solid for those
+    frames, the bar every paper screen has: a tint over a crossfade between
+    paper and picture would put the inactive glyphs under 3:1 (see
+    `tabbar-on-media`), and would flash pale as the paper left.
+*/
+:root:active-view-transition-type(
+  deeper,
+  back,
+  sideways,
+  reel-open,
+  reel-back,
+  picture,
+  picture-back
+) {
+  & [data-tabbar] {
+    view-transition-name: tab-bar;
+  }
+
+  & [data-tabbar] .tabbar-on-media {
+    background-color: var(--color-forest);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  & [data-tabbar-well] {
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+::view-transition-group(tab-bar),
+::view-transition-new(tab-bar) {
+  animation: none;
+}
+
+::view-transition-old(tab-bar) {
+  display: none;
 }
 
 /*
@@ -1446,7 +1506,9 @@
 
 /*
   Reduced motion (S01 A): nothing travels. Every part crossfades in 120ms and
-  the picture lands where it is going at once. The root stays as it is.
+  the picture lands where it is going at once. The root stays as it is, and so
+  does a bar holding its place: its old image is not drawn, so a fade in
+  would be the bar blinking out and back.
 */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*) {
@@ -1465,7 +1527,9 @@
     animation: vt-fade-in 120ms linear both !important;
   }
 
-  ::view-transition-new(root) {
+  ::view-transition-new(root),
+  ::view-transition-old(tab-bar),
+  ::view-transition-new(tab-bar) {
     animation: none !important;
   }
 }
@@ -1822,8 +1886,18 @@
 @utility reel-sheet-dep-seats {
   @apply text-paper/70 truncate text-right text-sm;
 }
+/*
+  A departure still to come, the height of the row it stands for: the row's
+  own 48px and its hairline, with the breathing bar inside. Bars of 32px with
+  8px margins made three rows 128px against the 147px of three real ones, so
+  everything under them dropped as the departures landed (stability audit,
+  6 Oct 2026).
+*/
 @utility reel-sheet-dep-skeleton {
-  @apply skeleton rounded-tile text-paper my-2 block h-8;
+  @apply border-paper/14 flex min-h-12 items-center border-b;
+}
+@utility reel-sheet-dep-skeleton-bar {
+  @apply skeleton rounded-tile text-paper block h-8 w-full;
 }
 @utility reel-sheet-deps-note {
   @apply text-paper/70 py-2 text-sm;
@@ -2082,11 +2156,16 @@
  * records for the feed.
  */
 @layer components {
+  /*
+    `100%`, not `100vw`: the viewport unit counts a desktop's classic
+    scrollbar, so the view ran under it, and everything placed from its right
+    edge (Close, Next) sat a scrollbar's width too far right, against it.
+  */
   dialog.app-lightbox {
     position: fixed;
     inset: 0;
     margin: 0;
-    width: 100vw;
+    width: 100%;
     max-width: none;
     height: 100dvh;
     max-height: none;
@@ -2100,6 +2179,16 @@
 
   dialog.app-lightbox[open] {
     animation: sheet-tint 200ms var(--ease-interaction);
+  }
+
+  /*
+    The page behind holds still. A wheel or a drag over the photograph used
+    to scroll the listing under it, so closing the view landed somewhere else
+    on the page (stability audit, 6 Oct 2026). The view covers the whole
+    screen, so the scrollbar leaving with it moves nothing anybody can see.
+  */
+  html:has(dialog.app-lightbox[open]) {
+    overflow: hidden;
   }
 }
 
