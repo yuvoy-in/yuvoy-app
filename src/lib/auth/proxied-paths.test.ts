@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { allowedProxyPath, PROXIED_PATHS } from "./proxied-paths";
+import { allowedProxyPath, proxyPathOf, PROXIED_PATHS } from "./proxied-paths";
 
 /**
  * The allowlist in front of the credentialed proxy (yuvoy-app#57).
@@ -243,5 +243,43 @@ describe("the list itself", () => {
         `${method} ${pattern} declares an EMPTY security list`,
       ).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * The path the proxy builds from Next's segments (production readiness,
+ * 6 Oct 2026). Next decodes the URL once, so a double-encoded dot segment
+ * reached the upstream URL parser as a single-encoded one, which it resolves.
+ */
+describe("the path the proxy forwards to", () => {
+  it("would have climbed a level on a single-encoded dot segment", () => {
+    // The defect, as the upstream call's URL parser saw it.
+    expect(new URL("https://api.yuvoy.in/v1/me/saved/%2e%2e").pathname).toBe(
+      "/v1/me/",
+    );
+  });
+
+  it("keeps a double-encoded dot segment a name rather than a step up", () => {
+    // What Next hands the route for /api/v1/me/saved/%252e%252e.
+    const path = proxyPathOf(["me", "saved", "%2e%2e"]);
+    expect(path).toBe("/me/saved/%252e%252e");
+    expect(new URL(`https://api.yuvoy.in/v1${path}`).pathname).toBe(
+      "/v1/me/saved/%252e%252e",
+    );
+  });
+
+  it("refuses a segment that is a dot segment on its own", () => {
+    expect(proxyPathOf(["me", "."])).toBeNull();
+    expect(proxyPathOf(["me", ".."])).toBeNull();
+  });
+
+  it("leaves every path the app actually sends exactly as it was", () => {
+    expect(
+      proxyPathOf(["me", "saved", "4e359184-5f5d-4694-976e-48e2051abf7b"]),
+    ).toBe("/me/saved/4e359184-5f5d-4694-976e-48e2051abf7b");
+    expect(proxyPathOf(["me", "bookings"])).toBe("/me/bookings");
+    expect(proxyPathOf(["invites", "inv_7Hq-x_2", "accept"])).toBe(
+      "/invites/inv_7Hq-x_2/accept",
+    );
   });
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sameOriginOnly } from "@/lib/auth/same-origin";
 import {
   readSessionCookie,
   writeSessionCookie,
@@ -35,7 +36,7 @@ export const dynamic = "force-dynamic";
  * different field for each; re-encoding the envelope here would mean the
  * form's copy is only as good as this route's translation of it.
  */
-export async function POST(request: Request) {
+async function signIn(request: Request) {
   let input: { phone?: unknown; code?: unknown };
   try {
     input = await request.json();
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
  * can be revoked from another device. A `401` clears the cookie so the next
  * load takes the fast path above rather than asking again forever.
  */
-export async function GET(request: Request) {
+async function check(request: Request) {
   const token = await readSessionCookie();
   if (!token) return NextResponse.json({ signedIn: false });
 
@@ -158,7 +159,7 @@ export async function GET(request: Request) {
  * A traveller who taps sign out on a jetty with no signal must still be signed
  * out on the phone in front of them.
  */
-export async function DELETE(request: Request) {
+async function signOut(request: Request) {
   const token = await readSessionCookie();
   if (token) {
     try {
@@ -175,6 +176,14 @@ export async function DELETE(request: Request) {
   await clearSessionCookie(request);
   return new NextResponse(null, { status: 204 });
 }
+
+/*
+  Only this app's own pages may sign in, check or sign out, and no answer is
+  cached anywhere. See lib/auth/same-origin for the login forgery this closes.
+*/
+export const POST = sameOriginOnly(signIn);
+export const GET = sameOriginOnly(check);
+export const DELETE = sameOriginOnly(signOut);
 
 /** The API's answer, as it came, so a form's own error copy still works. */
 function passthrough(answer: {

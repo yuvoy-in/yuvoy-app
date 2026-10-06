@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sameOriginOnly } from "@/lib/auth/same-origin";
 import { writeSessionCookie } from "@/lib/auth/session-cookie";
 import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
 
@@ -32,7 +33,7 @@ import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+async function adopt(request: Request) {
   let input: { sessionToken?: unknown };
   try {
     input = await request.json();
@@ -73,3 +74,10 @@ export async function POST(request: Request) {
   await writeSessionCookie(request, token, sessionExpiryOf(answer.body));
   return NextResponse.json({ adopted: true });
 }
+
+/*
+  Only this app's own pages may hand a token over, and only as declared JSON.
+  This route sets the session cookie from a string it is sent, which made it
+  the easiest login forgery of all. See lib/auth/same-origin.
+*/
+export const POST = sameOriginOnly(adopt);

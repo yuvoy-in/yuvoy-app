@@ -4,8 +4,9 @@ import {
   clearSessionCookie,
   touchSessionCookie,
 } from "@/lib/auth/session-cookie";
-import { allowedProxyPath } from "@/lib/auth/proxied-paths";
+import { allowedProxyPath, proxyPathOf } from "@/lib/auth/proxied-paths";
 import { callUpstream, sessionExpiryOf } from "@/lib/auth/upstream";
+import { sameOriginOnly } from "@/lib/auth/same-origin";
 
 /**
  * The traveller's authenticated calls, made by this app's own server
@@ -51,10 +52,10 @@ async function proxy(
   context: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
   const { path: segments } = await context.params;
-  const path = `/${(segments ?? []).join("/")}`;
+  const path = proxyPathOf(segments ?? []);
   const method = request.method.toUpperCase();
 
-  if (!allowedProxyPath(method, path)) {
+  if (path === null || !allowedProxyPath(method, path)) {
     return NextResponse.json(
       { error: { code: "not_found", message: "No such route." } },
       { status: 404 },
@@ -140,7 +141,12 @@ async function proxy(
   return new NextResponse(answer.text, { status: answer.status, headers });
 }
 
-export const GET = proxy;
-export const POST = proxy;
-export const PATCH = proxy;
-export const DELETE = proxy;
+/*
+  Only this app's own pages may call through, a body must be declared JSON,
+  and no answer is cached: they are the traveller's own data. See
+  lib/auth/same-origin.
+*/
+export const GET = sameOriginOnly(proxy);
+export const POST = sameOriginOnly(proxy);
+export const PATCH = sameOriginOnly(proxy);
+export const DELETE = sameOriginOnly(proxy);
