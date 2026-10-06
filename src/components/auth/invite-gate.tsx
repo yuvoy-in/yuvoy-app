@@ -22,6 +22,7 @@ import {
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { useMyAccount } from "@/lib/auth/use-my-account";
 import { useHasMounted } from "@/lib/react/use-has-mounted";
+import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydration";
 import {
   INVITE_CODE_EXAMPLE,
   formatInviteCode,
@@ -417,6 +418,13 @@ export function InviteCodeForm({
    * second POST is a second throttled attempt.
    */
   const submitting = useRef(false);
+  /*
+    Typed before the page hydrated. The server draws this for a number not
+    yet let in, and on a slow link a code typed then was on screen and sent
+    as nothing (the stability pass, 6 Oct 2026).
+  */
+  const box = useRef<HTMLInputElement>(null);
+  useChangedBeforeHydration(box, ([field]) => setValue(field.value));
 
   async function submit() {
     if (submitting.current) return;
@@ -482,6 +490,7 @@ export function InviteCodeForm({
       {(form) => (
         <>
           <Field
+            ref={box}
             form={form}
             label="Invite code"
             value={value}

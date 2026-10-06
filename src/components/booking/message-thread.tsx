@@ -19,6 +19,7 @@ import {
   describeSendRefusal,
 } from "@/lib/booking/messages";
 import type { components } from "@/lib/api/schema.gen";
+import { Textarea } from "@/components/ui/textarea";
 
 type BookingMessage = components["schemas"]["BookingMessage"];
 type BookingMessageThread = components["schemas"]["BookingMessageThread"];
@@ -423,7 +424,7 @@ export function MessageThread({
                 <label htmlFor="message-text" className="sr-only">
                   Write to the operator
                 </label>
-                <textarea
+                <Textarea
                   id="message-text"
                   rows={3}
                   value={draft}

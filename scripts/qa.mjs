@@ -1677,6 +1677,145 @@ for (const f of files) {
   }
 }
 
+/* ---- 20. a field changed before the page hydrated reaches its state ---- */
+
+/**
+ * A form the server draws is on screen for seconds before its script on a
+ * slow link, and React keeps what was typed or picked in that time without
+ * telling the component, whose state still holds what the server drew. Trip
+ * recovery showed a whole number and asked for a code for "+91", and a word
+ * in the search box searched nothing (the stability pass, 6 Oct 2026).
+ * `useChangedBeforeHydration` (src/lib/react) hands those changes over.
+ *
+ * So a field whose changes feed state (an `onChange`, on an input, a select,
+ * a textarea or a `Field`) sits in a component that calls it, or in one the
+ * server never draws: opened by a tap, or drawn once data has loaded in the
+ * browser. Those are listed with the reason, so a new one is a decision
+ * rather than an accident, and a listed one that starts calling it comes off
+ * the list. `PhoneField` calls it for whoever uses it.
+ *
+ * A textarea is worse off: React writes the server's text back over what was
+ * typed into it as it hydrates, before any of this can look. Every textarea
+ * is the `Textarea` in src/components/ui, which keeps what was typed; a bare
+ * one is refused.
+ */
+{
+  const DRAWN_AFTER_A_TAP = new Map([
+    [
+      "src/components/account/edit-profile-sheet.tsx",
+      "a sheet, opened by Edit",
+    ],
+    [
+      "src/components/account/first-sign-in.tsx",
+      "drawn once the account has loaded in the browser",
+    ],
+    [
+      "src/components/auth/contact-fields.tsx",
+      "inside checkout, drawn once its departures have loaded",
+    ],
+    [
+      "src/components/auth/sign-in-form.tsx",
+      "the code step, after the number is sent",
+    ],
+    [
+      "src/components/booking/message-thread.tsx",
+      "drawn once the booking has loaded in the browser",
+    ],
+    [
+      "src/components/booking/review-form.tsx",
+      "drawn once the booking has loaded in the browser",
+    ],
+    [
+      "src/components/checkout/checkout-form.tsx",
+      "drawn once the departures have loaded in the browser",
+    ],
+    [
+      "src/components/checkout/question-fields.tsx",
+      "inside checkout and a booking, both drawn in the browser",
+    ],
+    [
+      "src/components/checkout/screening-fields.tsx",
+      "inside checkout, drawn in the browser",
+    ],
+    ["src/components/support/message-sheet.tsx", "a sheet, opened by a tap"],
+    ["src/components/trips/date-filter.tsx", "a sheet, opened by Dates"],
+    [
+      "src/components/trips/island-days.tsx",
+      "a sheet, opened by a tap on the stay",
+    ],
+    [
+      "src/components/trips/recover-screen.tsx",
+      "the code step, after the number is sent",
+    ],
+  ]);
+
+  /**
+   * The open tag starting at `<`, brace-aware: a prop routinely holds a bare
+   * `>` (every arrow function does), which a `[^>]*` pattern stops at.
+   */
+  const openTag = (src, from) => {
+    let depth = 0;
+    for (let i = from; i < src.length; i++) {
+      const c = src[i];
+      if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === '"' || c === "'" || c === "`") {
+        const quote = c;
+        i++;
+        while (i < src.length && src[i] !== quote) {
+          if (src[i] === "\\") i++;
+          i++;
+        }
+      } else if (c === ">" && depth === 0) {
+        return src.slice(from, i + 1);
+      }
+    }
+    return src.slice(from);
+  };
+
+  for (const f of files) {
+    if (!f.endsWith(".tsx") || /\.test\.tsx$/.test(f)) continue;
+    const s = code(f);
+    const r = rel(f);
+    if (r !== "src/components/ui/textarea.tsx" && /<textarea\b/.test(s)) {
+      problems.push(
+        `${r}: a bare <textarea>. React writes the server's text back over ` +
+          `what was typed into one before the page hydrated. Use Textarea ` +
+          `from src/components/ui/textarea.tsx.`,
+      );
+    }
+    const fields = [...s.matchAll(/<(input|textarea|Textarea|select|Field)\b/g)]
+      .map((m) => openTag(s, m.index))
+      .filter((tag) => /\sonChange=/.test(tag))
+      .filter((tag) => !/\stype="(hidden|file)"/.test(tag));
+    if (fields.length === 0) continue;
+    const hands = /\buseChangedBeforeHydration\(/.test(s);
+    if (hands && DRAWN_AFTER_A_TAP.has(r)) {
+      problems.push(
+        `${r}: calls useChangedBeforeHydration and is still listed as drawn ` +
+          `after a tap. Take it off DRAWN_AFTER_A_TAP.`,
+      );
+    } else if (!hands && !DRAWN_AFTER_A_TAP.has(r)) {
+      const named = fields
+        .map((tag) =>
+          /\s(?:label|id|aria-label)=(?:"([^"]+)"|\{([^}]+)\})/.exec(tag),
+        )
+        .map((m) => (m ? (m[1] ?? m[2]) : "a field"));
+      problems.push(
+        `${r}: ${named.join(", ")} feed state, and a change made before the ` +
+          `page hydrated would be kept on screen and lost to the state. Call ` +
+          `useChangedBeforeHydration, or, if the server never draws it, add ` +
+          `it to DRAWN_AFTER_A_TAP with why.`,
+      );
+    }
+  }
+  for (const r of DRAWN_AFTER_A_TAP.keys()) {
+    if (!existsSync(join(ROOT, r))) {
+      problems.push(`qa.mjs: DRAWN_AFTER_A_TAP lists ${r}, which is gone`);
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

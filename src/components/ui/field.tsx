@@ -1,6 +1,11 @@
 "use client";
 
-import { useId, type InputHTMLAttributes, type ReactNode } from "react";
+import {
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -37,6 +42,8 @@ export function Field({
   suffix?: ReactNode;
   leading?: ReactNode;
   shape?: "control" | "pill";
+  /** The input itself, for a screen that reads it as the page hydrates. */
+  ref?: Ref<HTMLInputElement>;
 } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;

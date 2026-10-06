@@ -24,6 +24,7 @@ import { useSearchReels, useVocabulary } from "@/lib/search/use-search-reels";
 import { DURATION, EASE, prefersReducedMotion } from "@/lib/motion";
 import { useDelayedFlag } from "@/lib/motion/use-delayed-flag";
 import { useListMotion } from "@/lib/motion/use-list-motion";
+import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydration";
 
 /**
  * The Search tab — a search bar, one Filters button, and results as reels.
@@ -221,6 +222,19 @@ export function SearchScreen() {
   );
   useListMotion(results, view, { arrive: "fade" });
 
+  function searchFor(word: string) {
+    setQ(word);
+    write({ ...filters, q: word.trim() || undefined });
+  }
+
+  /*
+    Typed before the page hydrated: on a slow link the box is there for
+    seconds before its script, and the word on screen searched nothing (the
+    stability pass, 6 Oct 2026). Searched now, as a keystroke would.
+  */
+  const box = useRef<HTMLInputElement>(null);
+  useChangedBeforeHydration(box, ([field]) => searchFor(field.value));
+
   return (
     <Screen>
       <SearchHeading />
@@ -233,11 +247,9 @@ export function SearchScreen() {
           type="search"
           shape="pill"
           leading={<SearchIcon className="size-5" />}
+          ref={box}
           value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            write({ ...filters, q: e.target.value.trim() || undefined });
-          }}
+          onChange={(e) => searchFor(e.target.value)}
           placeholder="Diving, boats, Havelock…"
         />
         <Button

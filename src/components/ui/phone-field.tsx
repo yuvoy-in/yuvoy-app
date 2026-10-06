@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, type InputHTMLAttributes } from "react";
+import { useId, useRef, type InputHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
+import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydration";
 
 /**
  * A phone number, with the country code beside it rather than inside it.
@@ -98,8 +99,22 @@ export function PhoneField({
   const emit = (nextCode: string, nextNational: string) =>
     onChange(nextNational ? `${nextCode}${nextNational}` : "");
 
+  /*
+    A number typed, or a country picked, before the page hydrated. On a slow
+    link the field is there for seconds before its script, and the number on
+    screen was not the number sent: recovery asked for a code for "+91" (the
+    stability pass, 6 Oct 2026). Both halves are read together, as one
+    number.
+  */
+  const box = useRef<HTMLDivElement>(null);
+  useChangedBeforeHydration(box, () => {
+    const select = box.current?.querySelector("select");
+    const tel = box.current?.querySelector<HTMLInputElement>("input[type=tel]");
+    if (select && tel) emit(select.value, digits(tel.value));
+  });
+
   return (
-    <div className={className}>
+    <div ref={box} className={className}>
       <label htmlFor={id} className="label text-forest/75">
         {label}
       </label>
