@@ -75,8 +75,13 @@ function HeroTile({ src, alt }: { src?: string | null; alt: string }) {
   );
 }
 
-export function TripCard({ trip }: { trip: ServerTrip }) {
-  const price = tripPriceLine(trip);
+export function TripCard({ trip, now }: { trip: ServerTrip; now: number }) {
+  /*
+    `now` is the screen's server clock, read when the list resolved, and a
+    held trip's pay-by words are read against it rather than the device clock
+    (yuvoy-app#156): the same reading the Next up pass gets.
+  */
+  const price = tripPriceLine(trip, now);
   /*
     Read as optional whatever the contract says: see `unreadLine`. An older
     API sends no count, and the card then says what it said before.
