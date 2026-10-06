@@ -107,9 +107,10 @@ describe("ExperienceDetail", () => {
     );
     expect(screen.getByText("Operator")).toBeInTheDocument();
     expect(screen.queryByText("Who runs this")).toBeNull();
+    // Once: a square copy stood beside the round one from 13 Sep 2026.
     expect(
-      document.querySelector('img[src*="imagedelivery.net"]'),
-    ).not.toBeNull();
+      document.querySelectorAll('img[src*="imagedelivery.net"]'),
+    ).toHaveLength(1);
   });
 
   it("draws no operator mark when they have not set one", () => {

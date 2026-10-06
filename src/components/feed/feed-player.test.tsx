@@ -478,7 +478,7 @@ describe("the reel player, on its first frame (T12 A)", () => {
     }
   });
 
-  it("says so again at once when a clip it already knows is slow stalls", async () => {
+  it("says so again at once when a clip it already knows is slow stops to buffer", async () => {
     vi.useFakeTimers();
     try {
       const { container } = player();
@@ -493,7 +493,7 @@ describe("the reel player, on its first frame (T12 A)", () => {
       });
       expect(ring()).not.toBeInTheDocument();
       act(() => {
-        video.dispatchEvent(new Event("stalled"));
+        video.dispatchEvent(new Event("waiting"));
       });
       // Named, and seen: over the picture it already has.
       expect(ring()).toHaveAttribute("data-shown", "true");
@@ -546,5 +546,146 @@ describe("the reel player, on its first frame (T12 A)", () => {
       again.dispatchEvent(new Event("loadeddata"));
     });
     expect(again).toHaveClass("opacity-100");
+  });
+
+  it("does not call a quiet network a stop: stalled with a full buffer plays on", async () => {
+    /*
+      `stalled` fires when the network has been quiet for about three
+      seconds, which is normal once the buffer is full. It used to be read as
+      stopped, and drew "Loading video" over a clip that was playing.
+    */
+    vi.useFakeTimers();
+    try {
+      const { container } = player();
+      const video = container.querySelector("video")!;
+      await act(async () => {});
+      act(() => {
+        video.dispatchEvent(new Event("loadeddata"));
+        video.dispatchEvent(new Event("playing"));
+      });
+      act(() => {
+        video.dispatchEvent(new Event("stalled"));
+      });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(ring()).not.toBeInTheDocument();
+      expect(playControl()).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives its media back when it leaves the preload budget", async () => {
+    const { container, rerender } = player();
+    await act(async () => {});
+    const video = container.querySelector("video")!;
+    expect(video.getAttribute("src")).toBe(CLIP.hlsUrl);
+    const load = vi.spyOn(video, "load");
+
+    rerender(element({ mounted: false }));
+
+    // Not left holding a source and its buffers until garbage collection.
+    expect(video.getAttribute("src")).toBeNull();
+    expect(load).toHaveBeenCalled();
+  });
+
+  it("tries a failed clip again when it comes back into the budget", async () => {
+    const { container, rerender } = player();
+    await act(async () => {});
+    act(() => {
+      container.querySelector("video")!.dispatchEvent(new Event("error"));
+    });
+    expect(container.querySelector("video")).toBeNull();
+
+    // Scrolled past, and back: one dropped segment is not a dead clip.
+    rerender(element({ mounted: false }));
+    rerender(element({ mounted: true }));
+    await act(async () => {});
+    expect(container.querySelector("video")?.getAttribute("src")).toBe(
+      CLIP.hlsUrl,
+    );
+  });
+});
+
+describe("the reel player, when play() is turned down", () => {
+  const play = HTMLMediaElement.prototype.play;
+  const native = Object.getOwnPropertyDescriptor(
+    HTMLMediaElement.prototype,
+    "canPlayType",
+  );
+  // The native path, as on every iPhone: the source attaches and play() runs.
+  beforeAll(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, "canPlayType", {
+      configurable: true,
+      writable: true,
+      value: (type: string) =>
+        type === "application/vnd.apple.mpegurl" ? "maybe" : "",
+    });
+  });
+  afterAll(() => {
+    if (native)
+      Object.defineProperty(HTMLMediaElement.prototype, "canPlayType", native);
+  });
+  afterEach(() => {
+    HTMLMediaElement.prototype.play = play;
+  });
+  const rejectWith = (name: string) => {
+    HTMLMediaElement.prototype.play = vi
+      .fn()
+      .mockRejectedValue(new DOMException("no", name));
+  };
+
+  it("draws the play control when the browser refused it", async () => {
+    rejectWith("NotAllowedError");
+    render(<FeedPlayer media={CLIP} active mounted muted autoplayAllowed />);
+    await act(async () => {});
+    expect(playControl()).toBeInTheDocument();
+  });
+
+  it("draws nothing when the start was only interrupted", async () => {
+    /*
+      Leaving a card pauses it, and a pause rejects a play() still pending
+      with an AbortError. That is not a refusal, and recording it drew the
+      play control over a clip that was only starting when the traveller
+      flicked back to it.
+    */
+    rejectWith("AbortError");
+    render(<FeedPlayer media={CLIP} active mounted muted autoplayAllowed />);
+    await act(async () => {});
+    expect(playControl()).not.toBeInTheDocument();
+  });
+});
+
+describe("the reel player's poster", () => {
+  const poster = (container: HTMLElement) => container.querySelector("img")!;
+
+  it("asks first for the card in view", () => {
+    const { container } = render(
+      <FeedPlayer media={CLIP} active mounted muted autoplayAllowed />,
+    );
+    expect(poster(container)).toHaveAttribute("loading", "eager");
+    expect(poster(container)).toHaveAttribute("fetchpriority", "high");
+  });
+
+  it("loads now for a card one swipe away, which nothing else can fill", () => {
+    const { container } = render(
+      <FeedPlayer media={CLIP} active={false} mounted muted autoplayAllowed />,
+    );
+    expect(poster(container)).toHaveAttribute("loading", "eager");
+    expect(poster(container)).toHaveAttribute("fetchpriority", "auto");
+  });
+
+  it("waits for a card beyond the preload budget", () => {
+    const { container } = render(
+      <FeedPlayer
+        media={CLIP}
+        active={false}
+        mounted={false}
+        muted
+        autoplayAllowed
+      />,
+    );
+    expect(poster(container)).toHaveAttribute("loading", "lazy");
   });
 });

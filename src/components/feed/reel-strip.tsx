@@ -62,6 +62,9 @@ export const REEL_WELL =
 export const REEL_WELL_CENTRED =
   "flex items-center justify-center pb-17 lg:pb-0";
 
+/** How much of a card is on screen before it is the one playing. */
+const ACTIVE_RATIO = 0.6;
+
 /** The well, for the states that do not scroll. */
 export function ReelFrame({
   children,
@@ -366,14 +369,21 @@ export function ReelStrip({
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
+          /*
+            The ratio, not `isIntersecting`. The spec sets `isIntersecting`
+            for ANY overlap, so the entry that reports a card crossing back
+            under 0.6 on its way out says true, and a batch that held it made
+            the leaving card the active one. Chromium and WebKit happen to
+            report false there; the ratio means the same in every engine.
+          */
+          if (entry.intersectionRatio < ACTIVE_RATIO) continue;
           const index = Number(
             (entry.target as HTMLElement).dataset.feedIndex ?? "-1",
           );
           if (index >= 0) setActiveIndex(index);
         }
       },
-      { threshold: 0.6, root: scroller },
+      { threshold: ACTIVE_RATIO, root: scroller },
     );
 
     for (const card of scroller.querySelectorAll("[data-feed-index]")) {

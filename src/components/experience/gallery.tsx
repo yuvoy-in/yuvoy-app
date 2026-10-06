@@ -147,7 +147,9 @@ export function Gallery({
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
+          // The ratio, for the reason the feed's strip gives: `isIntersecting`
+          // is true for a frame on its way out in any engine that keeps the spec.
+          if (entry.intersectionRatio < 0.6) continue;
           const index = Number(
             (entry.target as HTMLElement).dataset.frame ?? "-1",
           );
@@ -211,6 +213,7 @@ export function Gallery({
                     index={i}
                     count={items.length}
                     current={i === active}
+                    near={Math.abs(i - active) <= 1}
                     onScreen={onScreen}
                   />
                 ) : (
@@ -230,13 +233,16 @@ export function Gallery({
                       className="object-cover"
                       /*
                       Only the frame it opens on is on the LCP path (the
-                      first, unless a saved card handed over another). The
-                      rest are one swipe away and eagerly loading six
-                      full-bleed images on a 0.5 Mbps island link is the
-                      page's whole budget.
+                      first, unless a saved card handed over another), so it
+                      asks first. The frames either side of the one in view
+                      load now, because native lazy loading measures the
+                      viewport rather than this strip and fetched a frame
+                      only as it slid in (6 Oct 2026). The rest wait:
+                      eagerly loading six full-bleed images on a 0.5 Mbps
+                      island link is the page's whole budget.
                     */
-                      priority={i === opening}
-                      loading={i === opening ? undefined : "lazy"}
+                      loading={Math.abs(i - active) <= 1 ? "eager" : "lazy"}
+                      fetchPriority={i === opening ? "high" : "auto"}
                       unoptimized={media.posterUrl.startsWith("data:")}
                     />
                     {media.kind === "video" ? <ClipBadge /> : null}
@@ -403,12 +409,15 @@ function ClipFrame({
   index,
   count,
   current,
+  near,
   onScreen,
 }: {
   media: Media;
   index: number;
   count: number;
   current: boolean;
+  /** One swipe from the frame in view: its poster loads now. */
+  near: boolean;
   onScreen: boolean;
 }) {
   const [playable, setPlayable] = useState(false);
@@ -430,6 +439,7 @@ function ClipFrame({
         media={media}
         active={current && onScreen}
         mounted={current}
+        near={near}
         muted={muted}
         autoplayAllowed={autoplayAllowed}
         onPlayableChange={setPlayable}

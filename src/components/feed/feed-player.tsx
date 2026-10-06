@@ -88,6 +88,7 @@ export function FeedPlayer({
   hidden,
   watch,
   sizes = "(min-width: 1024px) 480px, 100vw",
+  near,
   className,
 }: {
   media: Media;
@@ -121,6 +122,12 @@ export function FeedPlayer({
    * would be upscaled there.
    */
   sizes?: string;
+  /**
+   * One swipe from the frame in view, so its poster loads now. Defaults to
+   * `mounted`: on the feed the preload budget is exactly that. A gallery
+   * mounts only the clip in view and says which frames are near itself.
+   */
+  near?: boolean;
   className?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -181,6 +188,15 @@ export function FeedPlayer({
   };
 
   const src = media.hlsUrl;
+
+  /*
+    A failure is about this attempt, not this clip for good. One dropped
+    segment on a ferry used to leave a card a poster for the rest of the
+    session (6 Oct 2026). Once the card is out of the preload budget its
+    element is gone anyway, so the next time it comes back it tries again.
+    Reset during render, for the reason `rejectedFor` gives.
+  */
+  if (failed && !mounted) setFailed(false);
 
   /** There is a clip here, and it has not failed. Nothing about starting it. */
   const hasClip = Boolean(src) && mounted && !failed;
@@ -329,6 +345,25 @@ export function FeedPlayer({
       cancelled = true;
       video.removeEventListener("error", onNativeError);
       hls?.destroy();
+      /*
+        Let go of the media, not only the listener. On the native path (all
+        of iOS, Safari and now Chromium) an element that leaves the preload
+        budget kept its source and its buffers until garbage collection, so
+        a long session held a decoder per card it had passed. Emptying the
+        source and loading nothing is how a media element is told to release
+        them.
+
+        And it is not playable any more: the element that comes back is a new
+        one with nothing attached, and `play()` on it before the source is
+        attached was refused, which drew a play control on a clip that was
+        about to start by itself.
+      */
+      if (nativeHls) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
+      setPlayable(false);
     };
   }, [src, canPlay]);
 
@@ -362,14 +397,21 @@ export function FeedPlayer({
       const forAttempt = asked ? "asked" : "auto";
       void video.play().then(
         () => setRejectedFor(null),
-        () => {
+        (error: unknown) => {
           /*
-            Refused by the browser is a normal outcome, not an error — but it
+            Refused by the browser is a normal outcome, not an error, but it
             IS the moment there is something for a traveller to do, and the
             only moment. Recording it here is what lets the control stay away
             while a clip is merely still buffering (#78).
+
+            And only a refusal: `NotAllowedError`, the autoplay policy saying
+            no. Leaving the card pauses it, which rejects a `play()` still
+            pending with an `AbortError`; recording that drew the play control
+            over a clip that was only starting when the traveller flicked back
+            to it (6 Oct 2026).
           */
-          setRejectedFor(forAttempt);
+          if ((error as { name?: unknown } | null)?.name === "NotAllowedError")
+            setRejectedFor(forAttempt);
         },
       );
     } else {
@@ -389,15 +431,23 @@ export function FeedPlayer({
     if (!video) return;
     const on = () => setPlaying(true);
     const off = () => setPlaying(false);
+    /*
+      `waiting` is the clip stopping for data; `stalled` is not a stop at all.
+      It fires when the network has been quiet for about three seconds, which
+      is normal with a full buffer, and reading it as stopped drew "Loading
+      video" over a clip that was playing on Safari. A real rebuffer mid-clip,
+      meanwhile, froze the picture with no ring, because nothing listened for
+      `waiting` (6 Oct 2026).
+    */
     video.addEventListener("playing", on);
     video.addEventListener("pause", off);
     video.addEventListener("ended", off);
-    video.addEventListener("stalled", off);
+    video.addEventListener("waiting", off);
     return () => {
       video.removeEventListener("playing", on);
       video.removeEventListener("pause", off);
       video.removeEventListener("ended", off);
-      video.removeEventListener("stalled", off);
+      video.removeEventListener("waiting", off);
     };
   }, [canPlay]);
 
@@ -484,8 +534,18 @@ export function FeedPlayer({
         fill
         sizes={sizes}
         className="object-cover"
-        // The first card is the LCP element; the rest are below the fold.
-        priority={active}
+        /*
+          The card in view is the LCP element and asks for its poster first.
+          A card one swipe away is filled by nothing but its poster as it
+          slides in (its clip stays invisible until it is the active card and
+          has a frame), and native lazy loading measures the viewport, not
+          the reel scroller it sits in: `lazy` fetched a neighbour's poster
+          only as it arrived, so a swipe showed flat abyss and then the
+          poster popping in (6 Oct 2026). Eager across the preload budget,
+          lazy beyond it. `priority` is Next 16's deprecated spelling.
+        */
+        loading={(near ?? mounted) ? "eager" : "lazy"}
+        fetchPriority={active ? "high" : "auto"}
         unoptimized={media.posterUrl.startsWith("data:")}
       />
 
