@@ -308,6 +308,62 @@ describe("when the calendar is out of date", () => {
     ).toBeInTheDocument();
   });
 
+  it("reads the dates again once per refusal, not in a loop", async () => {
+    /*
+      The refusal used to be reported from an effect that watched the
+      callback, and this screen hands down a new callback on every render.
+      The refetch it started re-rendered the screen, which ran the effect,
+      which refetched: availability read back to back for as long as the form
+      stood refused, on a phone, on the traveller's data.
+    */
+    nav.search = "date=2026-09-20&slot=sl_20_0700";
+    let reads = 0;
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () => {
+        reads += 1;
+        return HttpResponse.json({
+          slots: [slot()],
+          bookable: true,
+          availabilityAsOf: "2026-09-14T04:00:00Z",
+          marketTimezone: "Asia/Kolkata",
+          staleSlotsSuppressed: 0,
+        });
+      }),
+      http.post(`${BASE}/reservations`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "capacity_unavailable",
+              message: "Those seats went while you were deciding.",
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookScreen slug="mangrove-kayak-at-dawn" />);
+
+    await user.type(await screen.findByLabelText(/Your name/i), "Asha Menon");
+    await user.type(screen.getByLabelText(/WhatsApp number/i), "9000000000");
+    await user.click(screen.getByRole("checkbox", { name: /called off/i }));
+    const before = reads;
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+
+    expect(
+      await screen.findByText("Those seats went while you were deciding."),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(reads).toBe(before + 1));
+    // A loop shows within a few round trips of the mock; give it many.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(reads).toBe(before + 1);
+
+    // And a second refusal is a second read, not none.
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+    await waitFor(() => expect(reads).toBe(before + 2));
+  });
+
   it("books at the new price after a moved price, with a fresh key", async () => {
     /*
       yuvoy-api#193 asked for the changed-price checkout path to be confirmed
