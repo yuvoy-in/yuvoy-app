@@ -49,6 +49,13 @@ export function TabBar() {
     A tap on the well, which only a screen change lets through: hand it to the
     destination drawn over that point. A modified click is left alone; it
     cannot be replayed as one.
+
+    Mid-glide two destinations can both hold the point. The one opening has
+    its new width at once, while the one closing still slides out of its old
+    place (a transform, which its box includes). The finger is on the glyph
+    it can see there, so the destination whose middle is nearest wins, never
+    whichever comes first in the row: Trips tapped while Search opened used
+    to open Search (stability audit, 6 Oct 2026).
   */
   const tapThrough = (event: MouseEvent<HTMLDivElement>) => {
     const bar = nav.current;
@@ -61,12 +68,20 @@ export function TabBar() {
     )
       return;
     const { clientX: x, clientY: y } = event;
-    Array.from(bar.querySelectorAll<HTMLAnchorElement>("a[href]"))
-      .find((link) => {
-        const box = link.getBoundingClientRect();
-        return x >= box.left && x < box.right && y >= box.top && y < box.bottom;
-      })
-      ?.click();
+    let under: HTMLAnchorElement | null = null;
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const link of bar.querySelectorAll<HTMLAnchorElement>("a[href]")) {
+      const box = link.getBoundingClientRect();
+      if (x < box.left || x >= box.right || y < box.top || y >= box.bottom) {
+        continue;
+      }
+      const off = Math.abs(x - (box.left + box.width / 2));
+      if (off < nearest) {
+        nearest = off;
+        under = link;
+      }
+    }
+    under?.click();
   };
 
   return (
