@@ -513,6 +513,25 @@ describe("the card", () => {
     expect(screen.queryByText(/Paid /)).toBeNull();
   });
 
+  it("asks for payment by the hold's deadline on an accepted request, and never says paid", async () => {
+    /*
+      yuvoy-app#156. The operator said yes and the seats are held until it is
+      paid for: no reference and no payment, and falling through to the last
+      rule read "Paid ₹9,000" on seats nobody had paid for. The deadline is
+      in the market's own day, 12:00Z being 17:30 in the Andamans.
+    */
+    await card({
+      state: "holding",
+      reference: "",
+      holdExpiresAt: "2099-12-24T12:00:00Z",
+    });
+    expect(
+      await screen.findByText("Seats held. Pay ₹9,000 by 17:30 on Thu 24 Dec"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Holding")).toBeInTheDocument();
+    expect(screen.queryByText(/Paid /)).toBeNull();
+  });
+
   it("counts the party, with the singular for one", async () => {
     await card({ guests: 1 });
     expect(await screen.findByText("1 person")).toBeInTheDocument();

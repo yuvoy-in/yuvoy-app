@@ -76,6 +76,23 @@ describe("planDays", () => {
     expect(plan.days[2].trips.map((t) => t.reservationId)).toEqual(["asked"]);
   });
 
+  it("puts a held trip still to be paid for on its day (yuvoy-app#156)", () => {
+    /*
+      The operator accepted it and the seats are held, so it is on the day,
+      the same as a booked one.
+    */
+    const plan = planDays(
+      stay,
+      [trip({ reservationId: "held", reference: "", state: "holding" })],
+      "2026-10-15",
+    );
+    expect(
+      plan.state === "over"
+        ? []
+        : plan.days.flatMap((d) => d.trips.map((t) => t.reservationId)),
+    ).toEqual(["held"]);
+  });
+
   it("leaves out the days already gone", () => {
     const plan = planDays(stay, [], "2026-10-17");
     expect(plan.state === "over" ? [] : plan.days.map((d) => d.date)).toEqual([
