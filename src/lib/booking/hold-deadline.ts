@@ -79,12 +79,29 @@ export function holdDisplay(
     return { kind: "countdown", msLeft };
   }
 
+  return { kind: "deadline", msLeft, when: deadlineWords(deadline, today) };
+}
+
+/** "17:30 today" or "08:00 on Tue 22 Sep", in the market's own day. */
+function deadlineWords(deadline: Civil, today: Civil): string {
   const time = clockTime(deadline);
-  return {
-    kind: "deadline",
-    msLeft,
-    when: isToday
-      ? `${time} today`
-      : `${time} on ${weekdayName(deadline)} ${dayMonth(deadline)}`,
-  };
+  return sameDay(deadline, today)
+    ? `${time} today`
+    : `${time} on ${weekdayName(deadline)} ${dayMonth(deadline)}`;
+}
+
+/**
+ * The deadline as words only, for a surface that does not tick: the trip card
+ * on Trips (yuvoy-app#156). The same words the booking page draws after "Pay
+ * by", so the card and the page cannot disagree about one hold. `null` for an
+ * instant or a zone it cannot read.
+ */
+export function holdDeadlineWords(
+  expiresAt: string,
+  timeZone: string,
+  nowMs: number,
+): string | null {
+  const deadline = civilInZone(expiresAt, timeZone);
+  const today = civilInZone(new Date(nowMs).toISOString(), timeZone);
+  return deadline && today ? deadlineWords(deadline, today) : null;
 }

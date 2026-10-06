@@ -1,5 +1,7 @@
 import { formatMoney } from "@/lib/format/money";
 import { marketToday } from "@/lib/booking/availability-window";
+import { clockOffsetMs } from "@/lib/booking/clock";
+import { holdDeadlineWords } from "@/lib/booking/hold-deadline";
 import type { components, operations } from "@/lib/api/schema.gen";
 
 export type InvitedTrip = components["schemas"]["InvitedTrip"];
@@ -17,8 +19,19 @@ export type InvitedTrip = components["schemas"]["InvitedTrip"];
  * screen used to merge in. There is one source now, so there is nothing to
  * merge and the type belongs beside the tab rules that place it.
  */
-export type ServerTrip =
+type ListedTrip =
   operations["listMyBookings"]["responses"][200]["content"]["application/json"]["bookings"][number];
+
+/*
+  Plus `holding` and `holdExpiresAt`, which yuvoy-api#279 adds to this row (an
+  accepted request, waiting on payment) and the pinned contract does not have
+  yet. Both are additions, so this stays true once the contract is re-pinned,
+  and can then be deleted back to `ListedTrip`.
+*/
+export type ServerTrip = Omit<ListedTrip, "state"> & {
+  state: ListedTrip["state"] | "holding";
+  holdExpiresAt?: string;
+};
 
 /**
  * Which tab a trip belongs in, and what its price line says (yuvoy-app#38).
@@ -98,6 +111,8 @@ export interface PricedTrip {
   price?: { totalPaise: number; currency: string };
   payment?: { method: string; collected: boolean; amountPaise: number };
   refund?: { amountPaise: number; state: string };
+  holdExpiresAt?: string | null;
+  timezone?: string;
 }
 
 /**
@@ -109,6 +124,11 @@ export interface PricedTrip {
  *   1. **A waiting request says nothing about money**, because none has changed
  *      hands and none is owed until the operator answers. A price here would be
  *      a claim about a booking that does not exist.
+ *      **An accepted request still to be paid for (`holding`) says when to pay
+ *      by**, never "Paid": it has no `payment`, and falling through to the
+ *      last rule read "Paid ₹9,000" on seats nobody had paid for
+ *      (yuvoy-app#156). The deadline is in the words the booking page uses,
+ *      and the ways to pay are on that page, which asks the API which are open.
  *   2. **Cash not yet collected comes before "Paid"**, because the API reports
  *      such a booking as `confirmed`. Reading `state` alone is exactly how
  *      app.yuvoy.in came to show "Paid ₹9,000" to travellers who had handed
@@ -120,7 +140,10 @@ export interface PricedTrip {
  *      nothing to tell them and a paid line beside "Cancelled" reads as a loss.
  *   5. Otherwise the trip is paid for, and says so.
  */
-export function tripPriceLine(trip: PricedTrip): string | null {
+export function tripPriceLine(
+  trip: PricedTrip,
+  now: number = Date.now() + clockOffsetMs(),
+): string | null {
   /*
     `null` for anything that is not a number, which becomes "no line" rather
     than a line reading "₹NaN".
@@ -137,6 +160,20 @@ export function tripPriceLine(trip: PricedTrip): string | null {
       : null;
 
   if (trip.state === "pending_request") return "Waiting for the operator";
+
+  if (trip.state === "holding") {
+    const expiresAt = trip.holdExpiresAt ?? "";
+    const ends = Date.parse(expiresAt);
+    if (Number.isFinite(ends) && ends <= now) return "The hold ran out";
+    const by = holdDeadlineWords(
+      expiresAt,
+      trip.timezone ?? "Asia/Kolkata",
+      now,
+    );
+    const amount = money(trip.price?.totalPaise);
+    const pay = amount ? `Pay ${amount}` : "Pay";
+    return by ? `Seats held. ${pay} by ${by}` : `Seats held. ${pay} to confirm`;
+  }
 
   if (trip.payment?.method === "cash" && trip.payment.collected !== true) {
     /*
