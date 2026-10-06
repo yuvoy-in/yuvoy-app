@@ -55,7 +55,13 @@ export async function POST(request: Request) {
   }
 
   const token = typeof input.token === "string" ? input.token.trim() : "";
-  if (!token) {
+  /*
+    The same ceiling as /api/session/adopt, and for the same reason: there is
+    no format to check an opaque token against, but nothing real is longer, and
+    an unbounded one is a multi-megabyte Authorization header forwarded to the
+    API on the word of anybody who can post here.
+  */
+  if (!token || token.length > 512) {
     return NextResponse.json(
       {
         error: { code: "invalid_input", message: "A booking token is needed." },
