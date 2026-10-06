@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { CACHE, qk } from "@/lib/query/policy";
-import { REELS_PAGE_SIZE } from "@/lib/feed/reels";
+import { REELS_PAGE_SIZE, type ReelsPage } from "@/lib/feed/reels";
 import {
   fetchVisitPage,
   nextVisitCursor,
@@ -89,6 +89,7 @@ export function useSearchReels(
   filters: ReelFilters,
   {
     keepPrevious = false,
+    initial,
   }: {
     /**
      * Keep the last answer on screen while the next filter set loads (T11 A,
@@ -97,6 +98,13 @@ export function useSearchReels(
      * for it; the reel strip, which never changes its filters, does not.
      */
     keepPrevious?: boolean;
+    /**
+     * The first page for THESE filters, fetched by the server render, and when
+     * it came back. Passed as `initialData` rather than fetched again, exactly
+     * as the feed's is (`useReels`): it is what puts the first tiles in the
+     * HTML. The caller must only pass it for the filters it was fetched under.
+     */
+    initial?: { page: ReelsPage; fetchedAt: number };
   } = {},
 ) {
   return useInfiniteQuery({
@@ -145,6 +153,17 @@ export function useSearchReels(
     */
     getNextPageParam: (lastPage, allPages) =>
       nextVisitCursor(lastPage, allPages),
+    ...(initial
+      ? {
+          initialData: {
+            pages: [initial.page as VisitPage],
+            pageParams: [undefined],
+          },
+          // Without it the seed counts as infinitely stale and is fetched
+          // again on hydration, undoing the point of the server fetching it.
+          initialDataUpdatedAt: initial.fetchedAt,
+        }
+      : {}),
     /*
       One visit, never refetched in the background. A grid that reshuffled
       every thirty seconds sent a traveller back from a played reel to a

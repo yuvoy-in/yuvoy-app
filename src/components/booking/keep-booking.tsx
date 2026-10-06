@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useHasMounted } from "@/lib/react/use-has-mounted";
-import { createApiClient } from "@/lib/api/client";
+import { createApiClient, BROWSER_READ_STALL_MS } from "@/lib/api/client";
+import { fetchWithin } from "@/lib/api/deadline";
 import { civilInZone, weekdayDayMonth } from "@/lib/format/date";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -142,11 +143,15 @@ export function KeepBooking({
       it, and a URL is in the address bar, in history, in a referrer and in any
       screenshot of the browser.
     */
-    const response = await fetch("/api/booking-pass", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
+    const response = await fetchWithin(
+      "/api/booking-pass",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      },
+      BROWSER_READ_STALL_MS,
+    );
     if (!response.ok) throw new Error(`pass ${response.status}`);
     const blob = await response.blob();
     return new File([blob], filename, { type: "image/png" });

@@ -6,6 +6,7 @@ import { OperatorScreen } from "./operator-screen";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
 import { operatorProfileFor } from "../../../mocks/fixtures";
+import { qk } from "@/lib/query/policy";
 
 /*
   `LoginButton` sits in every logo header (yuvoy-app#56) and reads both of
@@ -306,3 +307,54 @@ function expectNoStory() {
   expect(screen.queryByText("Find them at")).toBeNull();
   expect(screen.queryByText("Languages")).toBeNull();
 }
+
+/**
+ * The profile the cached page seeds (production readiness, 6 Oct 2026).
+ *
+ * `/o/[slug]` is served from the cache for five minutes and stale while it
+ * refreshes, so the profile in its HTML can be far older than this screen's
+ * own freshness window. Dated with when the server read it, an old seed is
+ * read again on mount; a fresh one is trusted, which is the request the
+ * seeding exists to save.
+ */
+describe("a profile seeded by the cached page", () => {
+  function countReads() {
+    const reads = { count: 0 };
+    server.use(
+      http.get(`${BASE}/operators/${SLUG}`, () => {
+        reads.count += 1;
+        return HttpResponse.json(operatorProfileFor(SLUG));
+      }),
+    );
+    return reads;
+  }
+
+  it("reads an old seed again as soon as it mounts", async () => {
+    const reads = countReads();
+    renderWithQuery(
+      <OperatorScreen
+        slug={SLUG}
+        initial={operatorProfileFor(SLUG)}
+        readAt={Date.now() - 60 * 60_000}
+      />,
+    );
+    await vi.waitFor(() => expect(reads.count).toBe(1));
+  });
+
+  it("trusts a seed the server has just read", async () => {
+    const reads = countReads();
+    const { client } = renderWithQuery(
+      <OperatorScreen
+        slug={SLUG}
+        initial={operatorProfileFor(SLUG)}
+        readAt={Date.now()}
+      />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: /Sample Boat Operator/ }),
+    ).toBeInTheDocument();
+    // A stale seed starts its read on mount, so idle here means none began.
+    expect(client.getQueryState(qk.operator(SLUG))?.fetchStatus).toBe("idle");
+    expect(reads.count).toBe(0);
+  });
+});

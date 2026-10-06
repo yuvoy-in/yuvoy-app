@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { NextResponse } from "next/server";
-import { callUpstream } from "@/lib/auth/upstream";
+import { callUpstream, type UpstreamResult } from "@/lib/auth/upstream";
 import { civilInZone, weekdayDayMonth, clockTime } from "@/lib/format/date";
 import { formatMoney } from "@/lib/format/money";
 import type { components } from "@/lib/api/schema.gen";
@@ -55,7 +55,13 @@ export async function POST(request: Request) {
   }
 
   const token = typeof input.token === "string" ? input.token.trim() : "";
-  if (!token) {
+  /*
+    The same ceiling as /api/session/adopt, and for the same reason: there is
+    no format to check an opaque token against, but nothing real is longer, and
+    an unbounded one is a multi-megabyte Authorization header forwarded to the
+    API on the word of anybody who can post here.
+  */
+  if (!token || token.length > 512) {
     return NextResponse.json(
       {
         error: { code: "invalid_input", message: "A booking token is needed." },
@@ -64,12 +70,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const upstream = await callUpstream({
-    method: "GET",
-    path: "/bookings/status",
-    token,
-    from: request,
-  });
+  let upstream: UpstreamResult | null = null;
+  try {
+    upstream = await callUpstream({
+      method: "GET",
+      path: "/bookings/status",
+      token,
+      from: request,
+    });
+  } catch (cause) {
+    if (!request.signal.aborted) {
+      console.error(
+        "[booking-pass] GET /bookings/status did not answer.",
+        cause,
+      );
+    }
+  }
 
   /*
     A dead or unknown token is a 404, not a 401, and the two are collapsed on
@@ -77,7 +93,7 @@ export async function POST(request: Request) {
     distinguishing "that token expired" from "no such booking" would confirm
     that a particular token was once real.
   */
-  if (upstream.status === 401 || upstream.status === 404) {
+  if (upstream?.status === 401 || upstream?.status === 404) {
     return NextResponse.json(
       {
         error: {
@@ -88,7 +104,7 @@ export async function POST(request: Request) {
       { status: 404 },
     );
   }
-  if (upstream.status !== 200 || !upstream.body) {
+  if (!upstream || upstream.status !== 200 || !upstream.body) {
     return NextResponse.json(
       {
         error: {

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
@@ -7,6 +8,17 @@ import { pageMetadata } from "@/lib/site/metadata";
 import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
+
+// Read once per render though the metadata and the page both ask: a read
+// with a deadline is not memoised by Next, so React's `cache` shares it.
+const getTrip = cache(async (token: string) => {
+  const api = createApiClient();
+  const { data, error } = await api.GET("/trips/{token}", {
+    params: { path: { token } },
+  });
+  if (error) throw error;
+  return data;
+});
 
 /**
  * The trip's own name in the tab, not the word "trip" — yuvoy-app#16.
@@ -33,11 +45,8 @@ export async function generateMetadata({
   };
   try {
     const { token } = await params;
-    const api = createApiClient();
-    const { data, error } = await api.GET("/trips/{token}", {
-      params: { path: { token } },
-    });
-    if (error || !data?.experience) return base;
+    const data = await getTrip(token);
+    if (!data?.experience) return base;
 
     /*
       Real Open Graph, not the homepage's — this is the one page in the app
@@ -87,12 +96,7 @@ export default async function SharedTripPage({
 
   let trip;
   try {
-    const api = createApiClient();
-    const { data, error } = await api.GET("/trips/{token}", {
-      params: { path: { token } },
-    });
-    if (error) throw error;
-    trip = data;
+    trip = await getTrip(token);
   } catch (err) {
     if (err instanceof YuvoyError && err.code === "not_found") notFound();
     throw err;

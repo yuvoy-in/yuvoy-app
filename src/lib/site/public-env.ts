@@ -48,3 +48,27 @@ export function assertNoSecretPublicVars(env: Env = process.env): void {
       `each one and add it again as type Config, then redeploy.`,
   );
 }
+
+/**
+ * Mocked API answers, refused on a production deployment (production
+ * readiness, 6 Oct 2026).
+ *
+ * `NEXT_PUBLIC_API_MOCKING=enabled` is how the e2e suite and local review run
+ * against fixtures: a worker answers every API call. Set by mistake on the
+ * production environment it would ship exactly that to the real domain,
+ * fixture listings and a checkout that books nothing, with every screen
+ * looking healthy. Nothing else stops it.
+ *
+ * Keyed on `VERCEL_ENV`, which Vercel sets to "production" only for a
+ * production deployment; local builds and the e2e build never see it.
+ */
+export function assertNoMocksInProduction(env: Env = process.env): void {
+  if (env.VERCEL_ENV !== "production") return;
+  if (env.NEXT_PUBLIC_API_MOCKING !== "enabled") return;
+  throw new Error(
+    `NEXT_PUBLIC_API_MOCKING is "enabled" on a production deployment, so ` +
+      `every API call would be answered by fixtures. In the Vercel project, ` +
+      `open Settings, then Environment Variables, remove it from Production, ` +
+      `then redeploy.`,
+  );
+}

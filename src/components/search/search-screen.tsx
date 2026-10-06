@@ -13,10 +13,11 @@ import { SheetPresence } from "@/components/ui/sheet";
 import { FilterSheet, GroupPricedNote } from "./filter-sheet";
 import { ActiveFilters } from "./active-filters";
 import { GuideDoor, SearchHeading, SearchSkeleton } from "./search-parts";
-import { playableReels } from "@/lib/feed/reels";
+import { playableReels, type ReelsPage } from "@/lib/feed/reels";
 import {
   filtersFromParams,
   filtersToParams,
+  reelFilterKey,
   type ReelFilters,
 } from "@/lib/search/filters";
 import { activeFilterCount, withoutFilters } from "@/lib/search/labels";
@@ -87,11 +88,36 @@ import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydrat
  * that is coming, breathing; once shown it stays 300ms, and the answer then
  * rises in tile by tile.
  */
-export function SearchScreen() {
+export function SearchScreen({
+  initial,
+}: {
+  /**
+   * The first page the server fetched for the address it rendered, and the
+   * filter key it was fetched under (production readiness, 6 Oct 2026).
+   */
+  initial?: { page: ReelsPage | null; fetchedAt: number; key: string };
+} = {}) {
   const params = useSearchParams();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const filters = filtersFromParams(params);
+  const filterKey = reelFilterKey(filters);
+
+  /*
+    THE SERVER'S FIRST PAGE, FOR THE SEARCH IT WAS FETCHED FOR AND NO OTHER.
+
+    The grid was fetched only once the page had hydrated, so on a phone the
+    first tile waited for the whole bundle and then a round trip from the
+    island: the slowest first paint in the app (LCP 4.2s on a throttled
+    profile against production). The server now sends the first page with
+    the HTML.
+
+    Held until the filters first change, then dropped for good. Matched by
+    key, it can only ever seed the search it answers, and dropped, it cannot
+    seed that search again half an hour later from a visit long gone.
+  */
+  const [seed, setSeed] = useState(initial?.page ? initial : undefined);
+  if (seed && seed.key !== filterKey) setSeed(undefined);
   const addressWord = filters.q ?? "";
 
   /*
@@ -163,7 +189,13 @@ export function SearchScreen() {
     write({ ...next, q: q.trim() || undefined });
   };
 
-  const search = useSearchReels(filters, { keepPrevious: true });
+  const search = useSearchReels(filters, {
+    keepPrevious: true,
+    initial:
+      seed?.page && seed.key === filterKey
+        ? { page: seed.page, fetchedAt: seed.fetchedAt }
+        : undefined,
+  });
   const vocabulary = useVocabulary();
   const items = playableReels(search.data?.pages);
 

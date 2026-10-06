@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { MessageThread } from "./message-thread";
@@ -219,6 +219,39 @@ describe("MessageThread", () => {
     await waitFor(() => expect(sent).toEqual({ text: "See you at the jetty" }));
   });
 
+  it("sends once, however quickly the form is sent twice", async () => {
+    let posts = 0;
+    serveThread();
+    server.use(
+      http.post(`${BASE}/bookings/messages`, async () => {
+        posts += 1;
+        await delay(50);
+        return HttpResponse.json(
+          { ...fromMe, id: "msg_0003" },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<MessageThread token="t" bookingState="confirmed" />);
+    await screen.findByText("Bring a towel, the wind is up.");
+    await user.type(
+      screen.getByLabelText("Write to the operator"),
+      "See you at the jetty",
+    );
+
+    // Two Enters, or a tap and an Enter, before the form has drawn "Sending".
+    const form = screen.getByRole("button", { name: "Send" }).closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Write to the operator")).toHaveValue(""),
+    );
+    expect(posts).toBe(1);
+  });
+
   /*
     THE REFUSAL THAT MUST NOT READ AS OUR BUG - yuvoy-app#47 §2.
 
@@ -352,6 +385,107 @@ describe("MessageThread", () => {
     const items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("The first thing we ever said.");
     expect(call).toBeGreaterThan(1);
+  });
+
+  it("offers nothing more once the start of the conversation is drawn", async () => {
+    /*
+      The last page answers `complete` with no cursor, and that used to fall
+      back to the first page's cursor: the button came back and asked for the
+      page already on screen (production readiness, 6 Oct 2026).
+    */
+    server.use(
+      http.get(`${BASE}/bookings/messages`, ({ request }) =>
+        new URL(request.url).searchParams.get("cursor") === "cur_1"
+          ? HttpResponse.json(
+              thread({
+                messages: [{ ...fromThem, id: "msg_0000", text: "Hello." }],
+                complete: true,
+                nextCursor: undefined,
+              }),
+            )
+          : HttpResponse.json(thread({ complete: false, nextCursor: "cur_1" })),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<MessageThread token="t" bookingState="confirmed" />);
+    await screen.findByText("Bring a towel, the wind is up.");
+    await user.click(
+      screen.getByRole("button", { name: /see earlier messages/i }),
+    );
+
+    expect(await screen.findByText("Hello.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /see earlier messages/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps every message drawn when a new one moves the first page on", async () => {
+    /*
+      The first page is the newest few, so a new message moves it on by one
+      and the one it lets go of is in no earlier page. With earlier pages
+      loaded, every new message took one older one off the screen
+      (production readiness, 6 Oct 2026).
+    */
+    const start: BookingMessage = {
+      ...fromThem,
+      id: "msg_0000",
+      text: "The first thing we ever said.",
+      sentAt: "2026-08-20T09:00:00Z",
+    };
+    const reply: BookingMessage = {
+      ...fromThem,
+      id: "msg_0003",
+      text: "Great, see you there.",
+      sentAt: "2026-08-21T10:25:00Z",
+    };
+    let moved = false;
+    server.use(
+      http.get(`${BASE}/bookings/messages`, ({ request }) => {
+        if (new URL(request.url).searchParams.get("cursor") === "cur_1") {
+          return HttpResponse.json(
+            thread({
+              messages: [start],
+              complete: true,
+              nextCursor: undefined,
+            }),
+          );
+        }
+        return HttpResponse.json(
+          thread({
+            messages: moved ? [fromMe, reply] : [fromThem, fromMe],
+            complete: false,
+            nextCursor: moved ? "cur_2" : "cur_1",
+          }),
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    const { client } = renderWithQuery(
+      <MessageThread token="t" bookingState="confirmed" />,
+    );
+    await screen.findByText("Bring a towel, the wind is up.");
+    await user.click(
+      screen.getByRole("button", { name: /see earlier messages/i }),
+    );
+    await screen.findByText("The first thing we ever said.");
+
+    // The business writes, and the next poll's first page has moved on.
+    moved = true;
+    await client.refetchQueries({ queryKey: ["getBookingMessages", "t"] });
+
+    expect(
+      await screen.findByText("Great, see you there."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("listitem").map((item) => item.textContent),
+    ).toEqual([
+      expect.stringContaining("The first thing we ever said."),
+      expect.stringContaining("Bring a towel, the wind is up."),
+      expect.stringContaining("Will do, see you at seven."),
+      expect.stringContaining("Great, see you there."),
+    ]);
   });
 
   it("offers nothing to load when the conversation begins on this page", async () => {

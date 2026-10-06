@@ -1,4 +1,5 @@
 import { http, HttpResponse, passthrough } from "msw";
+import { OWED, SIGN_OUT_OWED_COOKIE } from "../src/lib/auth/sign-out-owed";
 
 /**
  * Mocks for THIS APP'S OWN route handlers, not for the API (yuvoy-app#57).
@@ -58,6 +59,37 @@ export function __signInAppRouteMock(token = "sess_919000000000"): void {
   sessionToken = token;
 }
 
+/**
+ * A sign-out the route never heard, as the route sees it: a real cookie under
+ * jsdom, because script writes it (`src/lib/auth/sign-out-owed.ts`). The
+ * route counts no session while it is set, and clears it with the session.
+ */
+function signOutOwed(): boolean {
+  return document.cookie
+    .split("; ")
+    .some((c) => c === `${SIGN_OUT_OWED_COOKIE}=${OWED}`);
+}
+
+function settleSignOut(): void {
+  document.cookie = `${SIGN_OUT_OWED_COOKIE}=; Path=/; Max-Age=0`;
+}
+
+/** The route's `endSession`: the API is told, the session and any sign-out owed go. */
+async function endSession(): Promise<void> {
+  if (sessionToken) {
+    try {
+      await fetch(`${API_BASE}/me/session`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
+    } catch {
+      // The route ignores this too: the device forgets either way.
+    }
+  }
+  sessionToken = null;
+  settleSignOut();
+}
+
 /** Anything under the app's own origin. jsdom serves tests from localhost. */
 const appRoute = (path: string) => `*${path}`;
 
@@ -65,6 +97,11 @@ export const appRouteHandlers = [
   /* ------------------------------------------------------------- session */
 
   http.get(appRoute("/api/session"), async () => {
+    // The route finishes a sign-out owed before it believes the session.
+    if (signOutOwed()) {
+      await endSession();
+      return HttpResponse.json({ signedIn: false });
+    }
     if (!sessionToken) return HttpResponse.json({ signedIn: false });
 
     // The route proves the cookie against `GET /me` rather than trusting it.
@@ -114,22 +151,13 @@ export const appRouteHandlers = [
     }
 
     sessionToken = session.sessionToken;
+    settleSignOut();
     // Never the token. That is the invariant the whole change rests on.
     return HttpResponse.json({ signedIn: true });
   }),
 
   http.delete(appRoute("/api/session"), async () => {
-    if (sessionToken) {
-      try {
-        await fetch(`${API_BASE}/me/session`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${sessionToken}` },
-        });
-      } catch {
-        // The route ignores this too: the device forgets either way.
-      }
-    }
-    sessionToken = null;
+    await endSession();
     return new HttpResponse(null, { status: 204 });
   }),
 
@@ -138,6 +166,7 @@ export const appRouteHandlers = [
     const candidate = body?.sessionToken;
     if (!candidate)
       return HttpResponse.json({ adopted: false }, { status: 400 });
+    if (signOutOwed()) return HttpResponse.json({ adopted: false });
 
     const check = await fetch(`${API_BASE}/me`, {
       headers: { Authorization: `Bearer ${candidate}` },
@@ -168,7 +197,7 @@ export const appRouteHandlers = [
     */
     if (url.origin === API_BASE.replace(/\/v1$/, "")) return passthrough();
 
-    if (!sessionToken) {
+    if (!sessionToken || signOutOwed()) {
       return HttpResponse.json(
         { error: { code: "unauthorized", message: "Sign in first." } },
         { status: 401 },

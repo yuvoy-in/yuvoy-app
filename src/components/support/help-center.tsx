@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { createProxyClient } from "@/lib/api/client";
+import { useTravellerSession } from "@/lib/auth/use-traveller";
+import { useMyAccount } from "@/lib/auth/use-my-account";
 import { FAQ, searchFaq } from "@/lib/support/faq";
 import { Screen } from "@/components/chrome/screen";
 import { Panel } from "@/components/ui/panel";
@@ -56,18 +56,14 @@ export function HelpCenter() {
     Account is read for the support number only, and its absence is not an
     error: this page is useful signed out, and every answer on it is static.
     A failure here costs the WhatsApp button and nothing else.
+
+    The one account read every screen shares, and only when signed in. Help
+    used to ask `GET /me` itself, so a signed-out visit paid for a refused
+    request, and a signed-in one for a second read of what Account had
+    already read (production readiness, 6 Oct 2026).
   */
-  const me = useQuery({
-    queryKey: ["me", "support"],
-    queryFn: async ({ signal }) => {
-      const client = createProxyClient();
-      const { data, error } = await client.GET("/me", { signal });
-      if (error) throw error;
-      return data;
-    },
-    retry: false,
-    staleTime: 5 * 60_000,
-  });
+  const { signedIn } = useTravellerSession();
+  const me = useMyAccount(signedIn);
 
   /*
     An ERROR here is indistinguishable from "no number is configured", and both

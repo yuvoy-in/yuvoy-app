@@ -98,7 +98,7 @@ export function BookingQuestions({
       }
       return latest;
     },
-    onSuccess: (saved) => {
+    onSuccess: async (saved) => {
       if (!saved) return;
       /*
         The action's own result, not a refetch.
@@ -109,7 +109,13 @@ export function BookingQuestions({
         It also has to be written rather than merely rendered locally: this
         booking may be `final`, in which case the poller has stopped and a
         refetch is the ONLY thing that would ever update the cache again.
+
+        A status read already on its way is called off first. It left before
+        the save, so it carries the answers from before, and landing after
+        this write it put them back once the drafts had cleared: the save
+        looked lost (production readiness, 6 Oct 2026).
       */
+      await qc.cancelQueries({ queryKey: qk.bookingStatus(token) });
       qc.setQueryData(qk.bookingStatus(token), (prev?: BookingStatus) =>
         prev ? { ...prev, questions: saved } : prev,
       );

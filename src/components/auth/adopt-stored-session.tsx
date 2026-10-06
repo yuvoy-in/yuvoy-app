@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/lib/query/policy";
+import { BROWSER_READ_STALL_MS } from "@/lib/api/client";
+import { fetchWithin } from "@/lib/api/deadline";
 import {
   storedSessionToken,
   forgetStoredSession,
@@ -75,11 +77,15 @@ async function adopt(): Promise<boolean> {
 
   let adopted = false;
   try {
-    const response = await fetch("/api/session/adopt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionToken }),
-    });
+    const response = await fetchWithin(
+      "/api/session/adopt",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionToken }),
+      },
+      BROWSER_READ_STALL_MS,
+    );
     if (response.ok) {
       const body = (await response.json()) as { adopted?: boolean };
       adopted = Boolean(body?.adopted);

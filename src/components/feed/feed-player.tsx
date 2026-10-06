@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { preconnect } from "react-dom";
 import type { components } from "@/lib/api/schema.gen";
 import type { ReelWatch } from "@/lib/feed/use-reel-views";
 import { cn } from "@/lib/cn";
+import { originOf } from "@/lib/site/preconnect";
 
 type Media = components["schemas"]["Media"];
 
@@ -200,6 +202,16 @@ export function FeedPlayer({
 
   /** There is a clip here, and it has not failed. Nothing about starting it. */
   const hasClip = Boolean(src) && mounted && !failed;
+  /*
+    The media host's connection, warmed from the first render (the server's
+    included) so it is open by the time the manifest is asked for. On the live
+    feed the first request to it took about 550ms longer than the next one on
+    the same connection (production readiness, 6 Oct 2026). No crossOrigin:
+    native HLS loads as no-cors media, which uses the credentialed pool. React
+    sends one hint per origin however many cards ask.
+  */
+  const mediaOrigin = hasClip ? originOf(src) : null;
+  if (mediaOrigin) preconnect(mediaOrigin);
   /*
     A clip drawn again (back inside the preload budget) is a new element with
     no frame yet, and earns its fade again; the old one's frame said nothing

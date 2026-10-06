@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
+import { qk } from "@/lib/query/policy";
 import { BookingQuestions } from "./booking-questions";
 import { server } from "../../../mocks/server";
 import { http, HttpResponse } from "msw";
@@ -143,6 +144,49 @@ describe("BookingQuestions", () => {
       }),
     );
     expect(await screen.findByText(/Saved\./)).toBeInTheDocument();
+  });
+
+  it("keeps what was saved when a status read already on its way lands after it", async () => {
+    const savedHotel = { ...hotel, answered: true, answer: "Sea View" };
+    server.use(
+      http.post(`${BASE}/bookings/answers`, () =>
+        HttpResponse.json({ questions: [dived, savedHotel] }),
+      ),
+    );
+    const user = userEvent.setup();
+    const { client } = renderWithQuery(
+      <BookingQuestions token="t" questions={[dived, hotel]} answersOpen />,
+    );
+    const key = qk.bookingStatus("t");
+    client.setQueryDefaults(key, { gcTime: Infinity });
+    client.setQueryData(key, { questions: [dived, hotel] });
+
+    // The status poll, sent before the save and answered after it.
+    let land!: (status: { questions: PartyQuestion[] }) => void;
+    const poll = client
+      .fetchQuery({
+        queryKey: key,
+        queryFn: () =>
+          new Promise<{ questions: PartyQuestion[] }>((resolve) => {
+            land = resolve;
+          }),
+      })
+      .catch(() => null);
+
+    await user.type(
+      screen.getByLabelText(
+        "Which hotel should we collect you from? (optional)",
+      ),
+      "Sea View",
+    );
+    await user.click(screen.getByRole("button", { name: /save answers/i }));
+    expect(await screen.findByText(/Saved\./)).toBeInTheDocument();
+
+    land({ questions: [dived, hotel] });
+    await poll;
+    expect(
+      client.getQueryData<{ questions: PartyQuestion[] }>(key)?.questions,
+    ).toEqual([dived, savedHotel]);
   });
 
   /*

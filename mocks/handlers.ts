@@ -95,7 +95,17 @@ export type Scenario =
     otherwise, and it is the one tail state that has no test unless something
     can produce it on demand.
   */
-  | "feed-stopped";
+  | "feed-stopped"
+  /*
+    `GET /reels` alone, answering late: inside the 3s a server render waits
+    for its first page (`FIRST_PAGE_TIMEOUT_MS`), and past it. Inside, the
+    route's fallback is what a traveller watches while the server asks; past
+    it, the page arrives without its first tiles and the screen draws its own
+    wait while the browser asks. `slow` reaches neither on purpose: its 3s is
+    the budget itself, so which side won would be a race.
+  */
+  | "slow-reels"
+  | "stalled-reels";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -451,6 +461,8 @@ export const handlers = [
     }
 
     const scenario = scenarioOf(request);
+    if (scenario === "slow-reels") await delay(1500);
+    if (scenario === "stalled-reels") await delay(4500);
     const unfiltered =
       scenario === "empty"
         ? []

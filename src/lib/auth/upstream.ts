@@ -1,4 +1,6 @@
+import { NextResponse } from "next/server";
 import { apiBaseUrl } from "@/lib/api/client";
+import { fetchWithin, StalledError } from "@/lib/api/deadline";
 
 /**
  * One call to the traveller API, made by this app's own server.
@@ -47,6 +49,16 @@ const SCENARIO_HEADER = "x-yuvoy-scenario";
  * arrive the same silent way.
  */
 export const FORWARDED_REQUEST_HEADERS = ["Idempotency-Key"] as const;
+
+/*
+  How long this server waits on an API that has gone quiet (see
+  lib/api/deadline): eight seconds for a read, twenty-five for a write. Each is
+  under the browser's own deadline for the same call (twelve and thirty, in
+  lib/api/client), so this server gives up first and answers with what
+  happened, rather than the browser giving up on this server.
+*/
+const READ_STALL_MS = 8_000;
+const WRITE_STALL_MS = 25_000;
 
 export interface UpstreamResult {
   status: number;
@@ -120,7 +132,7 @@ export async function callUpstream(options: {
     if (scenario) headers[SCENARIO_HEADER] = scenario;
   }
 
-  const response = await fetch(
+  const response = await fetchWithin(
     `${apiBaseUrl()}${options.path}${options.search ?? ""}`,
     {
       method: options.method,
@@ -131,6 +143,7 @@ export async function callUpstream(options: {
       cache: "no-store",
       signal: options.signal,
     },
+    options.method.toUpperCase() === "GET" ? READ_STALL_MS : WRITE_STALL_MS,
   );
 
   const text = await response.text();
@@ -160,6 +173,43 @@ export async function callUpstream(options: {
     idempotentReplay: response.headers.get("Idempotent-Replay") === "true",
     apiDate: response.headers.get("date"),
   };
+}
+
+/**
+ * This server's own answer when `callUpstream` threw: the API went quiet, or
+ * could not be reached at all.
+ *
+ * In the API's envelope, so a screen reads it the way it reads any other
+ * failure, and with the status that says what happened: 504 when the API went
+ * quiet, 502 when it could not be reached. A route that let the throw escape
+ * answered a bare 500, which the sign-in form showed as "The server answered
+ * 500." Both statuses are ones the browser's client retries a read on.
+ *
+ * Logged, because the function log is the only place the cause is visible.
+ * Not when the browser went away first, which is the traveller leaving rather
+ * than the API failing.
+ */
+export function unreachable(options: {
+  /** Names the route and the call in the log, e.g. "[proxy] GET /me". */
+  where: string;
+  cause: unknown;
+  request?: Request;
+  message?: string;
+}): NextResponse {
+  if (!options.request?.signal.aborted) {
+    console.error(`${options.where}: the API did not answer.`, options.cause);
+  }
+  return NextResponse.json(
+    {
+      error: {
+        code: "internal_error",
+        message:
+          options.message ??
+          "We could not reach Yuvoy just now. Try again in a moment.",
+      },
+    },
+    { status: options.cause instanceof StalledError ? 504 : 502 },
+  );
 }
 
 /** `session.expiresAt` off a `GET /me` answer, if it is there. */

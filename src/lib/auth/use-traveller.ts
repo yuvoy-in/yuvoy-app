@@ -8,12 +8,19 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { api, createProxyClient } from "@/lib/api/client";
+import {
+  api,
+  createProxyClient,
+  BROWSER_READ_STALL_MS,
+  WRITE_STALL_MS,
+} from "@/lib/api/client";
+import { fetchWithin } from "@/lib/api/deadline";
 import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
 import { resetSavedSession } from "@/lib/feed/account-saved";
+import { oweSignOut } from "./sign-out-owed";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -84,10 +91,11 @@ function forgetSaved(qc: QueryClient): void {
 }
 
 async function readSession(signal?: AbortSignal): Promise<SessionAnswer> {
-  const response = await fetch("/api/session", {
-    signal,
-    headers: { Accept: "application/json" },
-  });
+  const response = await fetchWithin(
+    "/api/session",
+    { signal, headers: { Accept: "application/json" } },
+    BROWSER_READ_STALL_MS,
+  );
   if (!response.ok) return { signedIn: false };
   const body = (await response.json()) as Partial<SessionAnswer>;
   return { signedIn: Boolean(body?.signedIn) };
@@ -142,6 +150,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    // And each one opened: the invitation was the previous number's.
+    qc.removeQueries({ queryKey: ["getInvitedTrip"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -179,12 +189,30 @@ export function useTravellerSession() {
    * the durable copy, so if only one of the two can be cleared it has to be
    * that one; a cleared cache over a full store comes straight back on reload,
    * which is precisely the state the owner saw.
+   *
+   * ## With no signal it stays done
+   *
+   * Only the server can clear the cookie, so the sign-out is written down
+   * first, in a cookie every request carries: nothing on the server acts for
+   * the old session while it is set, and the next session check ends it
+   * (`sign-out-owed.ts`). Before, that check found the session cookie and
+   * signed the previous person back in.
    */
   const signOut = useCallback(async () => {
+    oweSignOut();
     try {
-      await fetch("/api/session", { method: "DELETE" });
+      /*
+        A read's deadline, though this is a write: the route answers at once
+        and tells the API afterwards, so twelve seconds of nothing is a dead
+        connection, and the phone is signed out locally all the same.
+      */
+      await fetchWithin(
+        "/api/session",
+        { method: "DELETE" },
+        BROWSER_READ_STALL_MS,
+      );
     } catch {
-      // Deliberately ignored. See above.
+      // Deliberately ignored: the next session check finishes it.
     }
     /*
       Resolves even when IndexedDB is missing or refuses, in step with the rest
@@ -194,6 +222,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listMyBookings"] });
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
+    qc.removeQueries({ queryKey: ["getInvitedTrip"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
@@ -240,14 +269,18 @@ export function useVerifySignInCode() {
   return useMutation({
     retry: false,
     mutationFn: async (input: { phone: string; code: string }) => {
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: input.phone.trim(),
-          code: input.code.trim(),
-        }),
-      });
+      const response = await fetchWithin(
+        "/api/session",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: input.phone.trim(),
+            code: input.code.trim(),
+          }),
+        },
+        WRITE_STALL_MS,
+      );
 
       if (!response.ok) throw await asYuvoyError(response);
       return (await response.json()) as { signedIn: boolean };

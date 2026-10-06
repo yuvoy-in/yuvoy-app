@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { http, HttpResponse, delay } from "msw";
 import { createApiClient } from "./client";
 import { NetworkError } from "./errors";
@@ -79,6 +79,214 @@ describe("a read the caller cancels", () => {
         });
       }),
     );
+    const { response } = await createApiClient().GET("/reels");
+    expect(response.status).toBe(200);
+    expect(asked).toBe(2);
+  });
+});
+
+/**
+ * What a request declares about its body (production readiness, 6 Oct 2026).
+ *
+ * A `Content-Type` on a read with no body makes every GET to the API a
+ * non-simple cross-origin request, so the browser sent an OPTIONS preflight
+ * first and waited for it. The API sends no `Access-Control-Max-Age`, so the
+ * answer was forgotten after five seconds and paid again on the next read:
+ * one extra round trip in front of every search, every page of the feed and
+ * every listing read, on the connections that can least afford one.
+ */
+describe("the headers a request carries", () => {
+  it("sends a read with no Content-Type, so the browser does not preflight it", async () => {
+    let seen: string | null | undefined;
+    server.use(
+      http.get(`${BASE}/reels`, ({ request }) => {
+        seen = request.headers.get("content-type");
+        return HttpResponse.json({
+          items: [],
+          nextCursor: null,
+          complete: true,
+        });
+      }),
+    );
+    await createApiClient().GET("/reels");
+    expect(seen).toBeNull();
+  });
+
+  it("still declares JSON on a write that carries a body", async () => {
+    let seen: string | null | undefined;
+    server.use(
+      http.post(`${BASE}/reel-views`, ({ request }) => {
+        seen = request.headers.get("content-type");
+        return HttpResponse.json({ accepted: 1, droppedEvents: [] });
+      }),
+    );
+    await createApiClient().POST("/reel-views", {
+      body: {
+        events: [
+          {
+            eventId: "8d3f1c2a-1b2c-4d5e-8f90-123456789abc",
+            reelId: "9260750c-7296-47bd-b020-96c12bb634c8",
+            watchedMs: 1200,
+            completed: false,
+            viewedAt: "2026-10-06T10:00:00Z",
+          },
+        ],
+      },
+    });
+    expect(seen).toBe("application/json");
+  });
+});
+
+/**
+ * A request on a connection that has gone quiet (production readiness,
+ * 6 Oct 2026). Nothing had a deadline: a read waited for the phone to notice
+ * the connection was gone, and a write spun forever.
+ */
+describe("a request that goes quiet", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("gives up on a silent read and asks again on a fresh connection", async () => {
+    vi.useFakeTimers();
+    let asked = 0;
+    server.use(
+      http.get(`${BASE}/reels`, async () => {
+        asked += 1;
+        if (asked === 1) await delay("infinite");
+        return HttpResponse.json({
+          items: [],
+          nextCursor: null,
+          complete: true,
+        });
+      }),
+    );
+    const read = createApiClient().GET("/reels");
+
+    await vi.advanceTimersByTimeAsync(11_999);
+    expect(asked).toBe(1);
+    await vi.advanceTimersByTimeAsync(1 + 4_000);
+
+    const { response } = await read;
+    expect(response.status).toBe(200);
+    expect(asked).toBe(2);
+  });
+
+  it("ends a silent write as a NetworkError, and never sends it twice", async () => {
+    vi.useFakeTimers();
+    let asked = 0;
+    server.use(
+      http.post(`${BASE}/reel-views`, async () => {
+        asked += 1;
+        await delay("infinite");
+        return HttpResponse.json({ accepted: 0, droppedEvents: [] });
+      }),
+    );
+    const write = createApiClient()
+      .POST("/reel-views", { body: { events: [] } })
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await write).toBeInstanceOf(NetworkError);
+    expect(asked).toBe(1);
+  });
+});
+
+/**
+ * Next 16.3's patched `fetch`, reduced to what matters here
+ * (`next/dist/server/lib/patch-fetch.js` and `dedupe-fetch.js`): a GET is
+ * answered from the promise of an identical one made earlier in the render,
+ * failure and all, unless its init carries a signal; and a Request handed over
+ * with an init is first folded into one Request, so its signal no longer does.
+ */
+type Call = { input: unknown; init?: RequestInit };
+function nextLikeFetch(real: typeof fetch, calls: Call[] = []): typeof fetch {
+  const seen = new Map<string, Promise<Response>>();
+  return (input, init) => {
+    calls.push({ input, init });
+    if (input instanceof Request && init) {
+      input = new Request(input, init);
+      init = undefined;
+    }
+    if (init?.signal) return real(input, init);
+    const request = new Request(input, init);
+    const key = JSON.stringify([
+      request.url,
+      request.method,
+      [...request.headers.entries()],
+    ]);
+    let answer = seen.get(key);
+    if (!answer) {
+      answer = real(request);
+      seen.set(key, answer);
+    }
+    return answer.then((response) => response.clone());
+  };
+}
+
+describe("a request made on the server", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("hands fetch a URL with its own signal, never a Request", async () => {
+    /*
+      Given a Request and a signal, Next folds them into new Requests and
+      keeps only the last, so the controller the abort is relayed through can
+      be collected mid-request and the deadline never reaches the socket.
+      See `fetchWithin`.
+    */
+    vi.stubGlobal("window", undefined);
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", nextLikeFetch(globalThis.fetch, calls));
+    server.use(
+      http.get(`${BASE}/reels`, () =>
+        HttpResponse.json({ items: [], complete: true }),
+      ),
+    );
+
+    await createApiClient().GET("/reels", { params: { query: { limit: 12 } } });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].input).toBe(`${BASE}/reels?limit=12`);
+    expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("keeps everything the request said, a write's body included", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("fetch", nextLikeFetch(globalThis.fetch));
+    let received: { type: string | null; body: unknown } | undefined;
+    server.use(
+      http.post(`${BASE}/reel-views`, async ({ request }) => {
+        received = {
+          type: request.headers.get("content-type"),
+          body: await request.json(),
+        };
+        return HttpResponse.json({ accepted: 0, droppedEvents: [] });
+      }),
+    );
+
+    await createApiClient().POST("/reel-views", { body: { events: [] } });
+    expect(received).toEqual({
+      type: "application/json",
+      body: { events: [] },
+    });
+  });
+
+  it("is retried at the API, not answered from the memo of the attempt that failed", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("fetch", nextLikeFetch(globalThis.fetch));
+    let asked = 0;
+    server.use(
+      http.get(`${BASE}/reels`, () => {
+        asked += 1;
+        if (asked === 1) return HttpResponse.error();
+        return HttpResponse.json({ items: [], complete: true });
+      }),
+    );
+
     const { response } = await createApiClient().GET("/reels");
     expect(response.status).toBe(200);
     expect(asked).toBe(2);

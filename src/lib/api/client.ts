@@ -6,13 +6,14 @@ import {
   isErrorEnvelope,
   type ErrorCode,
 } from "./errors";
+import { fetchWithin } from "./deadline";
 import { recordServerDate } from "@/lib/booking/clock";
 import { dedash } from "@/lib/format/dedash";
 
 /**
  * The one place `fetch` is called.
  *
- * Three behaviours are non-negotiable, and each exists because of a specific
+ * Four behaviours are non-negotiable, and each exists because of a specific
  * way this app can lose somebody money on a 0.5 Mbps island connection:
  *
  *   1. Throws a typed `YuvoyError` carrying code / details / requestId, so
@@ -22,6 +23,8 @@ import { dedash } from "@/lib/format/dedash";
  *      is, so nothing else may be replayed automatically.
  *   3. Never logs a URL fragment. The booking status token lives in one, and
  *      this API logs request URIs.
+ *   4. Gives up on a connection that has gone quiet, instead of waiting on it
+ *      for as long as the platform will. See ./deadline.
  */
 
 const DEFAULT_BASE_URL = "http://localhost:8099/v1";
@@ -75,6 +78,27 @@ const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
 ]);
 
 const MAX_GET_ATTEMPTS = 3;
+
+/*
+  How long a request may go quiet before it is given up on. It is silence that
+  is timed, not the whole transfer: see `fetchWithin` in ./deadline.
+
+  A read in the browser gets twelve seconds. A whole answer here is a few
+  kilobytes, so on any link that is still alive the gaps are well under a
+  second; twelve seconds of nothing is a connection that has died, and the
+  read is tried again on a fresh one.
+
+  A read on the server gets six. A server render runs beside the API, in the
+  same region, where an answer takes tens of milliseconds, and six seconds of
+  nothing is an API that is not going to answer this render.
+
+  A write gets thirty and is still never retried. Giving up on one says nothing
+  about whether it happened, so it waits far longer before saying so; until
+  this, a write on a dead connection spun forever.
+*/
+export const BROWSER_READ_STALL_MS = 12_000;
+const SERVER_READ_STALL_MS = 6_000;
+export const WRITE_STALL_MS = 30_000;
 
 /**
  * Exponential backoff with full jitter. Jitter matters more than usual here:
@@ -234,12 +258,25 @@ async function awaitMocks(): Promise<void> {
 
 function retryingFetch(input: Request): Promise<Response> {
   const isGet = input.method === "GET";
+  const stallMs = !isGet
+    ? WRITE_STALL_MS
+    : typeof window === "undefined"
+      ? SERVER_READ_STALL_MS
+      : BROWSER_READ_STALL_MS;
 
   const attempt = async (n: number): Promise<Response> => {
     let res: Response;
     try {
       await awaitMocks();
-      res = await fetch(isGet ? input.clone() : input);
+      /*
+        Every attempt reaches the API, on the server too. Next memoises the
+        GETs of a server render and keeps the promise, failures included, so
+        a retry identical to the attempt it replaced was answered from that
+        memo after the backoff: a server render never retried anything
+        (production readiness, 6 Oct 2026). A read whose init carries a
+        signal is not memoised, and `fetchWithin` always gives it one.
+      */
+      res = await fetchWithin(input, { signal: input.signal }, stallMs);
     } catch (cause) {
       /*
         A read the caller cancelled is not a network fault. It used to be
@@ -320,10 +357,19 @@ export function serverScenarioHeaders(
 }
 
 export function createApiClient(options?: { baseUrl?: string }) {
+  /*
+    No default Content-Type. openapi-fetch writes `application/json` itself on
+    any request that carries a JSON body, and leaves a bodiless one bare.
+
+    A default here put it on every GET as well, which makes a cross-origin read
+    non-simple: the browser preflighted each one with an OPTIONS round trip,
+    and the API sends no Access-Control-Max-Age, so the answer was forgotten
+    after five seconds. That was one extra round trip in front of every search
+    and every page of the feed (production readiness, 6 Oct 2026).
+  */
   const client = createFetchClient<paths>({
     baseUrl: options?.baseUrl ?? apiBaseUrl(),
     fetch: retryingFetch as typeof fetch,
-    headers: { "Content-Type": "application/json" },
   });
 
   if (process.env.NEXT_PUBLIC_API_MOCKING === "enabled") {
