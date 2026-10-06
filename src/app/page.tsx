@@ -77,6 +77,19 @@ export const metadata: Metadata = pageMetadata({
   absoluteTitle: true,
 });
 
+/**
+ * How long the feed's server render waits for its first page before it renders
+ * without one (production readiness, 6 Oct 2026).
+ *
+ * Giving up here costs one round trip, never the feed: the browser asks for
+ * the same page the moment it is up, and shows its own loading state while it
+ * does. Waiting longer costs a blank screen on every visit while the API is
+ * having a bad minute, which is what an unbounded wait did. Three seconds is
+ * the invite gate's figure for the same trade (`ACCESS_TIMEOUT_MS`), and this
+ * hop is normally tens of milliseconds.
+ */
+export const FIRST_PAGE_TIMEOUT_MS = 3_000;
+
 interface Prefetched {
   page: ReelsPage | null;
   /** When this actually came back. Stamped here, inside the async work,
@@ -100,6 +113,7 @@ async function getFirstPage(scenario?: string): Promise<Prefetched> {
         untestable and then unbuilt.
       */
       headers: serverScenarioHeaders(scenario),
+      signal: AbortSignal.timeout(FIRST_PAGE_TIMEOUT_MS),
     });
     if (error) throw error;
     return { page: data, fetchedAt: Date.now() };
