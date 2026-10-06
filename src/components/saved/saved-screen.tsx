@@ -170,9 +170,10 @@ function AccountSaved() {
     The error screen only when there is nothing to show. TanStack keeps the
     last pages when a REFETCH fails and still reports `isError`, so testing
     the error alone replaced a list, or an empty list with its Undo bar, with
-    "Try again" whenever a background refresh missed.
+    "Try again" whenever a background refresh missed. `isLoadingError` is
+    that rule by name, and the one every screen now uses.
   */
-  if (list.isError && list.data === undefined) {
+  if (list.isLoadingError) {
     return (
       <Shell>
         {isSignedOutError(list.error) ? (

@@ -95,7 +95,7 @@ export function useNextOpenDay(slug: string, enabled: boolean): NextOpenDay {
   const availability = useListingAvailability(slug, enabled);
 
   if (availability.isPending) return { state: "pending" };
-  if (availability.isError) return { state: "error" };
+  if (availability.isLoadingError) return { state: "error" };
 
   /*
     The server's clock at the moment it answered, as checkout reads it: a phone
@@ -200,7 +200,7 @@ export function useOpenDays(slug: string, enabled: boolean): OpenDays {
   const availability = useListingAvailability(slug, enabled);
 
   if (availability.isPending) return { state: "pending" };
-  if (availability.isError) return { state: "error" };
+  if (availability.isLoadingError) return { state: "error" };
 
   // The server's clock, as above.
   const now = availability.dataUpdatedAt + clockOffsetMs();

@@ -488,7 +488,7 @@ export function InviteCodeForm({
             onChange={(e) => {
               setValue(e.target.value);
               setProblem(null);
-              if (redeem.isError) redeem.reset();
+              if (redeem.error) redeem.reset();
             }}
             onBlur={() => {
               // Shown the way codes are written, once it is one.

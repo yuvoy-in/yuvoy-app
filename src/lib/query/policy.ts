@@ -48,8 +48,17 @@ export const CACHE = {
    * NEVER trusted stale. The contract calls availability "the authority on
    * seats"; a cached count sells a seat that does not exist. Refetched on
    * focus, always.
+   *
+   * That last sentence was not true until 6 Oct 2026: the client's default
+   * is NOT to refetch on focus (`client.ts`), and `staleTime: 0` alone does
+   * not ask. A traveller who went to WhatsApp and came back to checkout saw
+   * the seats and open times from when they left.
    */
-  getAvailability: { staleTime: 0, gcTime: 60_000 },
+  getAvailability: {
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnWindowFocus: true,
+  },
 
   /** Polled, not cached. See the booking status poller. */
   getBookingStatus: { staleTime: 0, gcTime: Infinity },
@@ -205,24 +214,16 @@ export const qk = {
    * lose the accumulated grid on the first refetch.
    */
   operatorReels: (slug: string) => ["listOperatorReels", slug] as const,
-  availability: (slug: string, from?: string, to?: string) =>
-    ["getAvailability", slug, from ?? null, to ?? null] as const,
   /**
-   * Checkout's own availability entry, kept separate from the picker's on
-   * purpose.
-   *
-   * Not a cache optimisation — the opposite. Sharing the picker's entry would
+   * Checkout's calendar: the whole window in one read (`CALENDAR_WINDOW_DAYS`),
+   * and shared with nothing, on purpose. Sharing another screen's entry would
    * let React Query paint its cached seat count first and refetch behind it,
    * and "a seat count that was true when the previous screen rendered" is the
    * one thing checkout may not show. A distinct key means checkout always
    * starts from its own fetch.
-   *
-   * It used to be spelled `qk.availability(slug, "checkout", slotId)`, which
-   * smuggled the separation through the `from` and `to` parameters. This says
-   * what it means.
    */
-  availabilityForCheckout: (slug: string, slotId: string) =>
-    ["getAvailability", "checkout", slug, slotId] as const,
+  availability: (slug: string, from?: string, to?: string) =>
+    ["getAvailability", slug, from ?? null, to ?? null] as const,
   /**
    * The listing bar's "next open" read (yuvoy-app#111).
    *

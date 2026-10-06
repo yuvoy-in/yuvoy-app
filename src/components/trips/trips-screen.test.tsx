@@ -7,9 +7,9 @@ import {
   beforeEach,
   afterEach,
 } from "vitest";
-import { screen, cleanup, waitFor, within } from "@testing-library/react";
+import { act, screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { TripsScreen } from "./trips-screen";
 import { server } from "../../../mocks/server";
@@ -67,14 +67,18 @@ const sent: URLSearchParams[] = [];
  * "which query was actually sent" is the thing worth asserting.
  */
 function serverBookings(
-  rows: Partial<Record<string, unknown>>[],
+  rows:
+    | Partial<Record<string, unknown>>[]
+    | ((read: number) => Partial<Record<string, unknown>>[]),
   answer: { nextCursor?: string | null } = {},
 ): ReturnType<typeof http.get> {
+  let reads = 0;
   return http.get(`${BASE}/me/bookings`, ({ request }) => {
     sent.push(new URL(request.url).searchParams);
+    reads += 1;
     return HttpResponse.json({
       nextCursor: answer.nextCursor ?? null,
-      bookings: rows.map((r) => ({
+      bookings: (typeof rows === "function" ? rows(reads) : rows).map((r) => ({
         reference: "YV-SERVER11",
         reservationId: "res_server",
         experience: "Snorkel trip to Elephant Beach",
@@ -669,6 +673,35 @@ describe("the next up pass", () => {
   const inHours = (h: number) =>
     new Date(Date.now() + h * 3_600_000).toISOString();
 
+  /** The next-up trip's own status: the landmark and the operator's note. */
+  const passStatus = () => ({
+    reservationId: "res_next",
+    state: "confirmed",
+    final: false,
+    guests: 2,
+    experience: {
+      slug: "try-dive-nemo-reef",
+      title: "Try-dive at Nemo Reef",
+      operator: "Sample Dive Operator",
+      operatorSlug: "sample-dive-operator",
+      heroImageUrl: null,
+    },
+    slot: { startsAt: inHours(3), timezone: "Asia/Kolkata" },
+    price: { totalPaise: 900000, currency: "INR" },
+    review: { reviewed: false, canReview: false },
+    meetingPoint: {
+      text: "Jetty 2, Havelock",
+      landmark: "The blue kiosk",
+    },
+    operatorUpdates: [
+      {
+        kind: "relay",
+        detail: "Meet at jetty 2, not 1",
+        sentAt: new Date().toISOString(),
+      },
+    ],
+  });
+
   it("draws the trip leaving within the day whole, above the list, and once", async () => {
     signIn();
     noInvites();
@@ -694,33 +727,7 @@ describe("the next up pass", () => {
       ]),
       // The one trip's own status, for the landmark and the operator's note.
       http.get(`${BASE}/bookings/status`, () =>
-        HttpResponse.json({
-          reservationId: "res_next",
-          state: "confirmed",
-          final: false,
-          guests: 2,
-          experience: {
-            slug: "try-dive-nemo-reef",
-            title: "Try-dive at Nemo Reef",
-            operator: "Sample Dive Operator",
-            operatorSlug: "sample-dive-operator",
-            heroImageUrl: null,
-          },
-          slot: { startsAt: inHours(3), timezone: "Asia/Kolkata" },
-          price: { totalPaise: 900000, currency: "INR" },
-          review: { reviewed: false, canReview: false },
-          meetingPoint: {
-            text: "Jetty 2, Havelock",
-            landmark: "The blue kiosk",
-          },
-          operatorUpdates: [
-            {
-              kind: "relay",
-              detail: "Meet at jetty 2, not 1",
-              sentAt: new Date().toISOString(),
-            },
-          ],
-        }),
+        HttpResponse.json(passStatus()),
       ),
     );
     renderWithQuery(<TripsScreen />);
@@ -745,6 +752,45 @@ describe("the next up pass", () => {
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(1);
     expect(items[0]).toHaveTextContent("Snorkel trip to Elephant Beach");
+  });
+
+  it("keeps the landmark while the pass asks again under a new token", async () => {
+    /*
+      `/me/bookings` mints a fresh status token for every row on every read,
+      and the pass asks for its trip's status by token. So each refresh of the
+      list was a new, empty query here, and the landmark and the operator's
+      note blinked out for a round trip (6 Oct 2026).
+    */
+    signIn();
+    noInvites();
+    let statuses = 0;
+    server.use(
+      serverBookings((read) => [
+        {
+          reference: "YV-NEXTUP01",
+          reservationId: "res_next",
+          experience: "Try-dive at Nemo Reef",
+          statusToken: `tok_next_${read}`,
+          startsAt: inHours(3),
+        },
+      ]),
+      http.get(`${BASE}/bookings/status`, async () => {
+        statuses += 1;
+        if (statuses > 1) await delay(400);
+        return HttpResponse.json(passStatus());
+      }),
+    );
+    const { client } = renderWithQuery(<TripsScreen />);
+    const pass = (await screen.findByText("Next up")).closest("section")!;
+    expect(await within(pass).findByText("The blue kiosk")).toBeInTheDocument();
+
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["listMyBookings"] });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(statuses).toBe(2);
+    // Asked again, and still drawn while the answer is on its way.
+    expect(within(pass).getByText("The blue kiosk")).toBeInTheDocument();
   });
 
   it("draws no pass for a trip more than a day away", async () => {

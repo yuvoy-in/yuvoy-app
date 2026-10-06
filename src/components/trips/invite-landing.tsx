@@ -58,7 +58,7 @@ export function InviteLanding({ token }: { token: string }) {
     );
   }
 
-  if (preview.isError) {
+  if (preview.isLoadingError) {
     const gone =
       preview.error instanceof YuvoyError && preview.error.status === 404;
 

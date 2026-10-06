@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "@/components/ui/link";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
 import { clockOffsetMs } from "@/lib/booking/clock";
@@ -64,9 +64,22 @@ export function NextUpPass({ trip, now }: { trip: ServerTrip; now: number }) {
     },
     staleTime: 60_000,
     retry: false,
+    /*
+      `/me/bookings` mints a fresh status token for every row on every read,
+      so each refresh of the trips list is a new key here, and the meeting
+      point and the operator's update vanished for a round trip each time.
+      The last answer stands in while the new token is asked. Never another
+      trip's: the pass is keyed by its trip where it is drawn, so a different
+      trip is a different pass.
+    */
+    placeholderData: keepPreviousData,
   });
-  // The extras only; a status that is still arriving or failed adds nothing.
-  const extras = status.isPending || status.isError ? null : status.data;
+  /*
+    The extras only; a status that is still arriving or never came adds
+    nothing. One that failed to REFRESH keeps what it had: the meeting point
+    did not move because a poll dropped.
+  */
+  const extras = status.data ?? null;
   const landmark = extras?.meetingPoint?.landmark?.trim();
   const update = extras?.operatorUpdates?.[0];
   const updateAt = update?.sentAt

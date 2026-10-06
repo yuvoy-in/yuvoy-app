@@ -98,7 +98,7 @@ export function OperatorReelScreen({
     );
   }
 
-  if (operator.isError) {
+  if (operator.isLoadingError) {
     return (
       <ReelFrame className={REEL_WELL_CENTRED}>
         <ErrorState

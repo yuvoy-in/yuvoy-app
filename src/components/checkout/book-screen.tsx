@@ -166,7 +166,25 @@ export function BookScreen({ slug }: { slug: string }) {
       : marketToday();
   }, [asOf, availability.data?.marketTimezone]);
 
-  const now = availability.dataUpdatedAt + clockOffsetMs();
+  /*
+    AND IT KEEPS TIME WHILE THE SCREEN IS OPEN (6 Oct 2026).
+
+    `now` was only ever the instant the seats were read, so a traveller who
+    sat on checkout while a departure's cutoff passed was still offered it,
+    and learned otherwise at the end of the form. The server's clock, read
+    every 30 seconds the way the Next up pass reads it, and never earlier than
+    the read itself; coming back to the tab reads the seats again
+    (`CACHE.getAvailability`).
+  */
+  const [ticked, setTicked] = useState(0);
+  useEffect(() => {
+    const id = setInterval(
+      () => setTicked(Date.now() + clockOffsetMs()),
+      30_000,
+    );
+    return () => clearInterval(id);
+  }, []);
+  const now = Math.max(availability.dataUpdatedAt + clockOffsetMs(), ticked);
   const days = useMemo(
     () => daysFromSlots(availability.data?.slots, now),
     [availability.data, now],
@@ -284,7 +302,7 @@ export function BookScreen({ slug }: { slug: string }) {
     );
   }
 
-  if (experience.isError) {
+  if (experience.isLoadingError) {
     return (
       <Screen back={back} stageLabel="Checkout">
         <ErrorState
@@ -367,7 +385,7 @@ export function BookScreen({ slug }: { slug: string }) {
           state={
             availability.isPending
               ? "pending"
-              : availability.isError
+              : availability.isLoadingError
                 ? "error"
                 : "ready"
           }

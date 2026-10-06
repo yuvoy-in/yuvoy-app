@@ -146,7 +146,7 @@ export function CancelSheet({
 
       {quote.isPending ? (
         <Skeleton className="mt-4 h-16 w-full" />
-      ) : quote.isError ? (
+      ) : quote.isLoadingError ? (
         isDeadToken(quote.error) ? (
           <FailurePanel
             failure={describeError(quote.error, { tokenBearing: true })}

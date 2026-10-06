@@ -135,7 +135,7 @@ export function useSavedReels(): SavedReels {
   if (
     items.length === 0 &&
     listings.length > 0 &&
-    listings.every((l) => l.isError)
+    listings.every((l) => l.isLoadingError)
   ) {
     return {
       state: "error",

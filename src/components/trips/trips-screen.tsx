@@ -129,7 +129,7 @@ export function TripsScreen() {
 
   if (!signedIn) return <SignedOut />;
 
-  const sessionDead = server.isError && isDeadToken(server.error);
+  const sessionDead = isDeadToken(server.error);
 
   /*
     Every row across every page fetched so far. The API has already put each
@@ -217,17 +217,30 @@ export function TripsScreen() {
       */}
       <div ref={contents}>
         <div key={tab} data-motion-key={tab}>
-          {nextUp ? <NextUpPass trip={nextUp} now={serverNow} /> : null}
+          {nextUp ? (
+            <NextUpPass
+              key={nextUp.reference || nextUp.reservationId}
+              trip={nextUp}
+              now={serverNow}
+            />
+          ) : null}
           {tab === "upcoming" ? <IslandDays signedIn={signedIn} /> : null}
 
           {/*
             The server's failure is now the whole screen's failure, where it used to
             be a line over a list this device could still show. So it no longer
             promises that anything survived it: there is nothing left to survive.
+
+            Only a list that never loaded, though (`isLoadingError`). A refresh
+            or a "Show more" that fails keeps the trips already on screen, and
+            the page that did not arrive says so under the list; this panel
+            over the top of them said "We could not load your trips" about
+            trips it was showing. A dead session is the exception, loaded or
+            not: it will not come back by itself.
             A dead session says so plainly, because `retry: false` means it will not
             resolve itself.
           */}
-          {server.isError ? (
+          {sessionDead || server.isLoadingError ? (
             <Panel role="alert" className="mt-4 px-4 py-3">
               <p className="text-sm font-bold">
                 {sessionDead

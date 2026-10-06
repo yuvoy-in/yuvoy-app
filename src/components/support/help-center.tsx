@@ -156,7 +156,7 @@ export function HelpCenter() {
               reasoning `LoginButton` records for the same problem.
             */
             <div aria-hidden="true" className="h-11" />
-          ) : me.isError || !waHref ? null : (
+          ) : me.isLoadingError || !waHref ? null : (
             <>
               {/*
                 `rel="noopener"` because `target="_blank"` otherwise hands the

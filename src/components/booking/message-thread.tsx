@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
 import { describeError, FailurePanel, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
@@ -104,6 +109,15 @@ export function MessageThread({
     refetchOnReconnect: true,
     staleTime: 0,
     retry: false,
+    /*
+      A new state is a new key, and a new key used to start empty: the thread
+      and the composer turned into a skeleton for a round trip, and somebody
+      typing lost their keyboard the moment the booking was confirmed. The
+      conversation stays while the new answer is asked; `canWrite` follows it
+      a round trip later, and a send in between is refused by the API in its
+      own words, as any send to a closed thread is.
+    */
+    placeholderData: keepPreviousData,
   });
 
   const loadOlder = useMutation({
@@ -298,7 +312,7 @@ export function MessageThread({
 
         {thread.isPending ? (
           <Skeleton className="mt-4 h-24 w-full" />
-        ) : thread.isError ? (
+        ) : thread.isLoadingError ? (
           /*
             QUIET, AND NEVER THE DEAD-LINK PANEL.
 

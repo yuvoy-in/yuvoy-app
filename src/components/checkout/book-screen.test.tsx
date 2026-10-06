@@ -1,8 +1,11 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, cleanup, waitFor } from "@testing-library/react";
+import { focusManager, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
+import { makeQueryClient } from "@/lib/query/client";
+import { clockOffsetMs } from "@/lib/booking/clock";
 import { BookScreen } from "./book-screen";
 import { server } from "../../../mocks/server";
 
@@ -528,5 +531,111 @@ describe("dates that will not load", () => {
     expect(
       screen.getByRole("button", { name: "Try again" }),
     ).toBeInTheDocument();
+  });
+});
+
+/*
+  A read that fails BEHIND the screen is not a screen that failed. TanStack
+  keeps the data when a refetch fails and still reports `isError`, and this
+  screen tested `isError` alone: one dropped reconnect swapped checkout for
+  an error page, unmounting the form with the traveller's name in it, and
+  the calendar for "Dates did not load." over dates it had (6 Oct 2026).
+*/
+describe("a read that fails behind the screen", () => {
+  it("keeps the calendar, the form, and what was typed in it", async () => {
+    nav.search = "date=2026-09-20&slot=sl_20_0700";
+    server.use(availability([slot()]));
+    const user = userEvent.setup();
+    const { client } = renderWithQuery(
+      <BookScreen slug="mangrove-kayak-at-dawn" />,
+    );
+    await user.type(await screen.findByLabelText(/Your name/i), "Asha Menon");
+
+    // A reconnect reads both again, and both fail.
+    const refused = () =>
+      HttpResponse.json(
+        { error: { code: "bad_request", message: "no" } },
+        { status: 400 },
+      );
+    server.use(
+      http.get(`${BASE}/experiences/:slug`, refused),
+      http.get(`${BASE}/experiences/:slug/availability`, refused),
+    );
+    await act(async () => {
+      await client.refetchQueries();
+      // React Query tells the screen on the next task, not in this one.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(screen.getByLabelText(/Your name/i)).toHaveValue("Asha Menon");
+    expect(screen.getByRole("button", { name: "07:00" })).toBeInTheDocument();
+    expect(screen.queryByText("Dates did not load.")).toBeNull();
+  });
+});
+
+/*
+  The seats are "the authority on seats", so they are read again whenever
+  the traveller comes back to the page, and the clock that decides which
+  departures are still open keeps running while it is open. Before 6 Oct 2026
+  neither was true: `now` was the instant of the last read, and nothing read
+  again on focus, because the app's client does not by default.
+*/
+describe("seats and cutoffs that move while the page is open", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    act(() => focusManager.setFocused(undefined));
+  });
+
+  it("reads the seats again when the traveller comes back to the page", async () => {
+    let reads = 0;
+    server.use(
+      http.get(`${BASE}/experiences/:slug/availability`, () => {
+        reads += 1;
+        return HttpResponse.json({
+          slots: [slot()],
+          bookable: true,
+          availabilityAsOf: "2026-09-14T04:00:00Z",
+          marketTimezone: "Asia/Kolkata",
+          staleSlotsSuppressed: 0,
+        });
+      }),
+    );
+    // The app's own client, whose default is NOT to refetch on focus.
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <BookScreen slug="try-dive-nemo-reef" />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("button", { name: /Sun 20 Sep/ });
+    expect(reads).toBe(1);
+
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => expect(reads).toBe(2));
+  });
+
+  it("stops offering a departure once its cutoff passes, with no new read", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-09-19T23:58:00Z"));
+    nav.search = "date=2026-09-20&slot=sl_20_0700";
+    server.use(availability([slot()]));
+    renderWithQuery(<BookScreen slug="try-dive-nemo-reef" />);
+    expect(await screen.findByRole("button", { name: "07:00" })).toBeEnabled();
+
+    /*
+      Two minutes before the 07:00's cutoff (00:00Z on the 20th) by the
+      SERVER's clock, which the mocks' Date header sets apart from this
+      device's; then three minutes pass, and nothing is read again.
+    */
+    vi.setSystemTime(
+      Date.parse("2026-09-20T00:00:00Z") - clockOffsetMs() - 2 * 60_000,
+    );
+    act(() => vi.advanceTimersByTime(3 * 60_000));
+
+    expect(
+      screen.getByRole("button", { name: "07:00, closed" }),
+    ).toBeDisabled();
   });
 });

@@ -49,7 +49,7 @@ export function OperatorListingsScreen({
     );
   }
 
-  if (operator.isError) {
+  if (operator.isLoadingError) {
     return (
       <Screen back={back}>
         <ErrorState

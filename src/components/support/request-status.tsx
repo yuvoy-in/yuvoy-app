@@ -58,7 +58,7 @@ export function RequestStatus({
 
   const words = supportStatusWords(request.data?.status);
   const changed = requestDay(request.data?.updatedAt);
-  const failure = request.isError
+  const failure = request.error
     ? describeLookupFailure(request.error, token ? "token" : "session")
     : null;
   const canAsk = !failure || failure.canRetry;

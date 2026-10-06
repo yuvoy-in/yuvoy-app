@@ -170,7 +170,7 @@ export function useNextDepartures(
       ? { state: "open", departures }
       : { state: "none" };
   }
-  if (availability.isError) {
+  if (availability.isLoadingError) {
     return { state: "error", retry: () => void availability.refetch() };
   }
   return { state: "pending" };

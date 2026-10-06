@@ -74,6 +74,21 @@ const eslintConfig = defineConfig([
           message:
             "Do not use localStorage. Booking tokens live in IndexedDB via @/lib/booking/token-store; see plan §4.4.",
         },
+        {
+          /*
+            TanStack keeps a query's data when a background refetch fails, and
+            still reports `isError`. Twenty branches tested it alone, so one
+            dropped poll or reconnect swapped content already on screen for an
+            error: checkout unmounted the form with the typed name in it, a
+            conversation took its composer (and the keyboard) away mid-word,
+            and Trips said "We could not load your trips" over trips it was
+            showing (6 Oct 2026). Banned outright, so the choice is made by
+            name every time.
+          */
+          selector: "MemberExpression[property.name='isError']",
+          message:
+            "isError is also true when a refetch fails with data on screen, so branching on it swaps that data for an error. Use isLoadingError for an error in place of content, isRefetchError for a note beside data that stays, isFetchNextPageError for a page that did not arrive, or error for a mutation.",
+        },
       ],
       /*
         The motion system's two front doors (approved 4 Oct 2026). Every

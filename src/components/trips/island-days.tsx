@@ -134,7 +134,7 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
     );
   }
 
-  if (trips.isError) {
+  if (trips.isLoadingError) {
     return (
       <Panel className="mt-6">
         <section aria-labelledby="island-days">
