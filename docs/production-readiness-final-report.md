@@ -5,9 +5,11 @@
 The app's work is [yuvoy-app#161](https://github.com/yuvoy-in/yuvoy-app/pull/161). The portal's is
 [yuvoy-operator#152](https://github.com/yuvoy-in/yuvoy-operator/pull/152) and
 [yuvoy-operator#153](https://github.com/yuvoy-in/yuvoy-operator/pull/153). The API changes it needs are
-[yuvoy-api#282](https://github.com/yuvoy-in/yuvoy-api/issues/282). All of the frontend work is merged into `dev` and
-none of it is on `main`: production waits for the owner's "ship it". The same report sits in both
-repos.
+[yuvoy-api#282](https://github.com/yuvoy-in/yuvoy-api/issues/282). All of the frontend work is live on production
+since 6 October 2026, released on the owner's "ship it" in
+[yuvoy-app#162](https://github.com/yuvoy-in/yuvoy-app/pull/162) and
+[yuvoy-operator#154](https://github.com/yuvoy-in/yuvoy-operator/pull/154), and measured there
+afterwards (see Measurements). The same report sits in both repos.
 
 ## Executive summary
 
@@ -35,9 +37,13 @@ time was 40-55ms on every page measured. The time went elsewhere:
 Each fix is its own commit, guarded by a test that failed on the old code, or by a build or static
 check proven to fire.
 
-**Assessment:** both products are ready for production on the owner's "ship it". The largest open
-risk is operational, not code: production runs on Vercel's Hobby plan. The gain on production is
-not measured yet, and can only be after the release.
+**Assessment:** both products are ready for production, and both have been on it since 6 October.
+Measured there after the release, on the same throttled phone: a business's page paints in 1.4s
+instead of 2.7s, Search's largest paint is 3.1s instead of 4.2s, and the feed's first paint is 1.8s
+instead of 2.4s. Every function answers from Mumbai, the feed's first byte is 350ms instead of
+730ms, no API read is preflighted, and the first API read and video manifest find their connection
+already open. The largest open risk is operational, not code: production runs on Vercel's Hobby
+plan.
 
 ## Initial baseline
 
@@ -102,39 +108,40 @@ Both built clean with no warnings, the app in about 18s and the portal in about 
 P0 is a live production failure or a breach in progress, P1 a serious defect or exposure, P2 a real
 cost or a narrower risk, P3 polish. Nothing found was P0.
 
-| Severity | Product | Finding                                                                                                                     | Status      |
-| -------- | ------- | --------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| P1       | Both    | Functions in Washington: about 210ms per dynamic request and 205ms per server API read                                      | Fixed       |
-| P1       | Both    | No request had a deadline: a stalled API held a render for the platform's five minutes, and server retries never reached it | Fixed       |
-| P1       | Both    | Under Next's patched fetch an abort could be lost after a garbage collection, so a deadline could fail to end the request   | Fixed       |
-| P1       | App     | A stalled API was a blank feed for every visitor                                                                            | Fixed       |
-| P1       | App     | Search's first tile, its LCP, waited for hydration and a round trip: 4.2s                                                   | Fixed       |
-| P1       | App     | Login CSRF: another site could sign a visitor into the attacker's account                                                   | Fixed       |
-| P1       | App     | A sign-out with no signal signed the previous person back in on the next load, trips and all                                | Fixed       |
-| P1       | Portal  | Each boarding check-in and each decline rendered the whole screen twice, and the next tap queued behind the second render   | Fixed       |
-| P1       | Portal  | A refresh with no signal swapped the portal for the browser's offline page                                                  | Fixed       |
-| P1       | Both    | Production runs on Vercel Hobby: non-commercial terms, and an overage can pause every deployment                            | Open: owner |
-| P2       | App     | Business pages rendered on every request (1.0s first byte) though they asked to be cached                                   | Fixed       |
-| P2       | App     | A CORS preflight before every browser read to the API                                                                       | Fixed       |
-| P2       | App     | About 550ms of connection setup on the first API and video request                                                          | Fixed       |
-| P2       | App     | An encoded path (`%252e%252e`) walked out of the proxy's allowlist                                                          | Fixed       |
-| P2       | App     | A scan code's target could send every printed QR code to another site                                                       | Fixed       |
-| P2       | Both    | `NEXT_PUBLIC_API_MOCKING` set by mistake on production would ship fixtures, with every screen looking healthy               | Fixed       |
-| P2       | Both    | Nothing pinned the region, so losing the line would cost about 400ms a page with every test still green                     | Fixed       |
-| P2       | App     | PostHog's own settings could switch on capture that carries the booking and invitation tokens, past the scrubbing           | Fixed       |
-| P2       | App     | Signing out forgot the invitations list but not each invitation opened                                                      | Fixed       |
-| P2       | App     | A booking saved on the phone showed a spinner instead, once the phone had gone offline                                      | Fixed       |
-| P2       | App     | A double tap sent a message twice, and a new message pushed an older one off the screen                                     | Fixed       |
-| P2       | Portal  | An expired session on Verification read "we cannot tell you where you stand", with a reload that could never work           | Fixed       |
-| P2       | Portal  | The root layout waited for the session check before starting the chrome's four reads, under every signed-in screen          | Fixed       |
-| P2       | Portal  | Reads asked twice in one render (the manifest, `/me`, `/profile`)                                                           | Fixed       |
-| P2       | App     | Search makes 10-11 function invocations per view by prefetching its tiles                                                   | Open        |
-| P2       | App     | No error reporting from browsers in production                                                                              | Open: owner |
-| P2       | Both    | Per-IP limits on the API see Vercel's addresses, not the person's                                                           | Open: API   |
-| P3       | App     | The booking pass token was forwarded unbounded                                                                              | Fixed       |
-| P3       | App     | A saved answer was overwritten by an older status read landing after it                                                     | Fixed       |
-| P3       | App     | Help read `/me` itself, and when signed out too                                                                             | Fixed       |
-| P3       | Portal  | A comment said `OWNER` cannot be assigned; it can, since D31                                                                | Fixed       |
+| Severity | Product | Finding                                                                                                                                                                                  | Status      |
+| -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| P1       | Both    | Functions in Washington: about 210ms per dynamic request and 205ms per server API read                                                                                                   | Fixed       |
+| P1       | Both    | No request had a deadline: a stalled API held a render for the platform's five minutes, and server retries never reached it                                                              | Fixed       |
+| P1       | Both    | Under Next's patched fetch an abort could be lost after a garbage collection, so a deadline could fail to end the request                                                                | Fixed       |
+| P1       | App     | A stalled API was a blank feed for every visitor                                                                                                                                         | Fixed       |
+| P1       | App     | Search's first tile, its LCP, waited for hydration and a round trip: 4.2s                                                                                                                | Fixed       |
+| P1       | App     | Login CSRF: another site could sign a visitor into the attacker's account                                                                                                                | Fixed       |
+| P1       | App     | A sign-out with no signal signed the previous person back in on the next load, trips and all                                                                                             | Fixed       |
+| P1       | Portal  | Each boarding check-in and each decline rendered the whole screen twice, and the next tap queued behind the second render                                                                | Fixed       |
+| P1       | Portal  | A refresh with no signal swapped the portal for the browser's offline page                                                                                                               | Fixed       |
+| P1       | Both    | Production runs on Vercel Hobby: non-commercial terms, and an overage can pause every deployment                                                                                         | Open: owner |
+| P2       | App     | Business pages rendered on every request (1.0s first byte) though they asked to be cached                                                                                                | Fixed       |
+| P2       | App     | A CORS preflight before every browser read to the API                                                                                                                                    | Fixed       |
+| P2       | App     | About 550ms of connection setup on the first API and video request                                                                                                                       | Fixed       |
+| P2       | App     | An encoded path (`%252e%252e`) walked out of the proxy's allowlist                                                                                                                       | Fixed       |
+| P2       | App     | A scan code's target could send every printed QR code to another site                                                                                                                    | Fixed       |
+| P2       | Both    | `NEXT_PUBLIC_API_MOCKING` set by mistake on production would ship fixtures, with every screen looking healthy                                                                            | Fixed       |
+| P2       | Both    | Nothing pinned the region, so losing the line would cost about 400ms a page with every test still green                                                                                  | Fixed       |
+| P2       | App     | PostHog's own settings could switch on capture that carries the booking and invitation tokens, past the scrubbing                                                                        | Fixed       |
+| P2       | App     | Signing out forgot the invitations list but not each invitation opened                                                                                                                   | Fixed       |
+| P2       | App     | A booking saved on the phone showed a spinner instead, once the phone had gone offline                                                                                                   | Fixed       |
+| P2       | App     | A double tap sent a message twice, and a new message pushed an older one off the screen                                                                                                  | Fixed       |
+| P2       | Portal  | An expired session on Verification read "we cannot tell you where you stand", with a reload that could never work                                                                        | Fixed       |
+| P2       | Portal  | The root layout waited for the session check before starting the chrome's four reads, under every signed-in screen                                                                       | Fixed       |
+| P2       | Portal  | Reads asked twice in one render (the manifest, `/me`, `/profile`)                                                                                                                        | Fixed       |
+| P2       | App     | Search makes 10-11 function invocations per view by prefetching its tiles                                                                                                                | Open        |
+| P2       | App     | No error reporting from browsers in production                                                                                                                                           | Open: owner |
+| P2       | App     | On a first visit the analytics prompt, which appears at hydration, is the feed's largest paint whenever it is bigger than the first reel's title: 3.3s against 1.8s on a throttled phone | Open: owner |
+| P2       | Both    | Per-IP limits on the API see Vercel's addresses, not the person's                                                                                                                        | Open: API   |
+| P3       | App     | The booking pass token was forwarded unbounded                                                                                                                                           | Fixed       |
+| P3       | App     | A saved answer was overwritten by an older status read landing after it                                                                                                                  | Fixed       |
+| P3       | App     | Help read `/me` itself, and when signed out too                                                                                                                                          | Fixed       |
+| P3       | Portal  | A comment said `OWNER` cannot be assigned; it can, since D31                                                                                                                             | Fixed       |
 
 ## Changes implemented
 
@@ -247,25 +254,90 @@ Nothing else changed; `docs/SEARCH_INDEXING.md` in the app still describes its i
 
 ## Measurements
 
-Real numbers only. The baseline above is production before any change.
+Real numbers only, all from production. "Before" is the baseline above. "After" is the same day,
+once the release was live (app `b4b9d21`, portal `5c08bcf`), taken with the same harness, the same
+pages and the same curl runs. The harness and both runs' raw output are in
+`yuvoy/handoffs/2026-10-06-production-readiness-measure/`.
 
-**After-numbers are not taken yet.** Every change that moves a production figure (the region, the
-edge cache, the preconnects, Search's server read) acts only on production, and nothing here starts
-a server outside the e2e gate. The same harness and the same curl runs are repeated on production
-after the release, against these:
+### Page loads (Slow 4G, CPU 4x slower, medians of three)
 
-| Figure                          | Before                                   | What should move it        |
-| ------------------------------- | ---------------------------------------- | -------------------------- |
-| The feed's first byte           | 730ms                                    | the region                 |
-| A business page's first byte    | 1,004ms                                  | the cache                  |
-| Search's LCP on Slow 4G         | 4,156ms                                  | the first page in the HTML |
-| A function that reads nothing   | 295ms                                    | the region                 |
-| The portal's sign-in first byte | 439ms                                    | the region                 |
-| Preflights per cold view        | 1 on the feed and a listing, 2 on Search | no `Content-Type` on reads |
+| Page                                      | FCP before | FCP after | LCP before | LCP after          | Preflights before | Preflights after |
+| ----------------------------------------- | ---------- | --------- | ---------- | ------------------ | ----------------- | ---------------- |
+| `/` (the feed)                            | 2,432ms    | 1,800ms   | 2,432ms    | 3,296ms, see below | 1                 | 0                |
+| `/e/havelock-night-kayak-bioluminescence` | 1,556ms    | 1,628ms   | 1,556ms    | 1,628ms            | 1                 | 0                |
+| `/search`                                 | 1,544ms    | 1,572ms   | 4,156ms    | 3,060ms            | 2                 | 0                |
+| `/guides`                                 | 1,396ms    | 1,452ms   | 1,396ms    | 1,452ms            | 0                 | 0                |
+| `/o/blue-dunghi-divers`                   | 2,708ms    | 1,428ms   | 2,708ms    | 1,428ms            | 0                 | 0                |
+| `/trips`                                  | 1,528ms    | 1,492ms   | 2,732ms    | 2,656ms            | 0                 | 0                |
 
-Measured on the changed code, before the release: before the abort fix, a Node experiment aborted
-at 1s ran its full 4s, and in the e2e suite a 3s server budget let a render wait 4.5s. The suite's
-budget checks pass now.
+- **A business's page paints 1.3s sooner,** now that it is served from the cache.
+- **Search's largest paint is 1.1s sooner** (4,036-4,756ms before, 2,932-3,548ms after), with its
+  first page sent in the HTML.
+- **The feed's first paint is 0.6s sooner.** Its LCP median reads higher because the LCP is
+  whichever is bigger: the first reel's title, which paints with the page, or the analytics prompt,
+  which appears at hydration. The first reel decides which. Both got faster: the title from
+  2,320-2,432ms to 1,804ms, the prompt from 4,348ms to 3,296-3,468ms. The median was the title
+  before (two of three runs) and is the prompt after (two of three runs). See Remaining issues.
+- **A listing's paint did not change:** 1,556ms before, 1,628ms after. `/guides`, which this pass
+  did not touch, moved by 56ms, which puts the listing's 72ms within the variation between the two
+  sessions.
+- **Layout shift and blocking time did not move.** CLS is identical to the baseline on every page,
+  and TBT is 40-48ms.
+- **Bytes barely moved.** Search's HTML is 3KB bigger with its first page in it. A business's page
+  fetches 6KB more and loads one more script, of 3KB. Everything else is within 2KB of before,
+  apart from the feed's video and images, which depend on the first reel.
+- **Requests** fell by the preflights and rose by that one script. On the feed and a listing they
+  also read one lower than what was sent, because the harness counts only requests that finish,
+  and Chromium lists one read on each as cancelled (see the note below).
+
+### Server timing (curl, time to first byte, medians of nine)
+
+| Request                                           | Before         | After                                          |
+| ------------------------------------------------- | -------------- | ---------------------------------------------- |
+| A static file (`/icon.svg`)                       | 87ms           | 90ms                                           |
+| An app function that reads nothing (`/api/v1/me`) | 295ms (`iad1`) | 113ms (`bom1`)                                 |
+| `/` (the feed)                                    | 730ms          | 350ms                                          |
+| `/search`                                         | 305ms          | 128ms                                          |
+| `/o/blue-dunghi-divers`                           | 1,004ms        | 102ms, from the cache                          |
+| `/e/<slug>` and `/trips`                          | 84-87ms        | 90-94ms                                        |
+| `/guides/diving-in-havelock`                      | 430ms          | 117ms, prerendered; this pass did not touch it |
+| The API, `GET /reels`, called directly            | 309ms          | 299ms                                          |
+| The portal's `/sign-in`                           | 439ms          | 199ms                                          |
+| The portal's `/today`, signed out (a redirect)    | 319ms          | 141ms                                          |
+
+Every function's `x-vercel-id` reads `bom1::bom1` where it read `bom1::iad1`. What is left of the
+feed's 350ms is mostly the API's own read. Search's first byte is its loading shell; its first page
+streams in after it.
+
+### Connections
+
+Playwright's default browser contexts ignore `<link rel="preconnect">`, so the page-load harness,
+before and after, never shows a connection warmed by a hint. Measured instead in a persistent
+context on production, on the same throttled phone: the feed's first video manifest found its
+connection already open in three runs of three, where without the hints it waited 321-329ms for one,
+and was answered in 166-401ms against 484-747ms. The first API read on the feed and on a listing
+reused an open connection too. The feed's first video frame came at a median of 6.4s with the
+hints honoured and 8.3s without, though three runs spread over 2s.
+
+### Function invocations per cold page view
+
+`/` 5, `/e/<slug>` 7, `/guides` 5 and `/search` 15, the same as before. The feed read 7 on the first
+load after the deploy, while its cache was cold, and 5 after. Ten of Search's 15 are still the tiles'
+`/search/r/<id>` prefetches.
+
+### Chromium lists the app's API reads as cancelled
+
+In Chromium's network panel, each API read the app makes through `fetchWithin` shows as
+"(canceled)", `net::ERR_ABORTED`, once its last byte is in. Nothing is lost. Measured on
+production: the whole body arrives, the next request reuses the same connection, and the same URL
+read with `arrayBuffer()` instead of a stream reader is listed as finished. It is how the panel
+reports a body drained through a reader, and `deadline.ts` now says so, so that a red row there is
+not taken for a failed read.
+
+### Measured on the changed code, before the release
+
+Before the abort fix, a Node experiment aborted at 1s ran its full 4s, and in the e2e suite a 3s
+server budget let a render wait 4.5s. The suite's budget checks pass now.
 
 ## Regression testing
 
@@ -279,6 +351,12 @@ budget checks pass now.
   and 832 e2e.
 - **The commits that add this report** add the region and sign-out cookie tests and the comment, and
   ran the same gates; their numbers are on each PR.
+- **On production after the release:** one Vercel production deployment per repo and no Actions
+  deploy; the app's post-deploy audit passed, its check that Search resolves on the server among
+  them; every function answers from `bom1`; a business's page is a cache `HIT`; and Search's HTML
+  carries its first page of tiles.
+- **The commit that adds the after-numbers** changes two comments in the app (`deadline.ts`,
+  `preconnect.ts`) besides this report, and ran the app's gate. The portal's is this report alone.
 - **The UX stability pass is not reopened.** Its guards run inside both gates and pass: in both,
   `e2e/early-input.spec.ts`, `motion.spec.ts` and the `useChangedBeforeHydration` QA check; in the
   app, `motion-webkit.spec.ts`, `address.spec.ts` and the `isError` ban; in the portal, the
@@ -290,43 +368,45 @@ budget checks pass now.
 
 ## Remaining issues
 
-| Issue                                                                                                                             | Severity  | Impact                                                                                                              | Why it is not fixed here                                                                            | Next action                                                                               |
-| --------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Production is on Vercel Hobby                                                                                                     | P1        | Non-commercial terms; an overage can pause every deployment; 1M invocations and 5,000 image transformations a month | A plan and a bill                                                                                   | **Owner:** move the team to Pro                                                           |
-| Search prefetches each tile's `/search/r/<id>`, a dynamic route: 10-11 of its 15 invocations per view                             | P2        | Invocations against Hobby's monthly million                                                                         | A tile opens at once because of it, and on Pro it is cheap                                          | **Frontend:** count invocations after the release; prefetch on intent only if Hobby stays |
-| No error reporting from browsers in production                                                                                    | P2        | A failure on a traveller's phone is seen only if they say so                                                        | A vendor and a consent decision; the scrubbing seam is ready                                        | **Owner:** choose a vendor, or PostHog exceptions for consented travellers                |
-| Per-IP limits key on Vercel's addresses: invite redemption through the app's proxy, and the portal's sign-in code from its server | P2        | Everyone signing in to the portal shares one budget, so a busy hour or one person can use it up for all             | The API decides whom it trusts                                                                      | **Hima:** yuvoy-api#282                                                                   |
-| Message sends take no `Idempotency-Key`                                                                                           | P2        | A send whose answer is lost cannot be retried safely                                                                | The API's contract; the app sends once per tap and never retries a write                            | **Hima:** yuvoy-api#282                                                                   |
-| Question answers and a listing's own questions are not documented as screened for contact details, as messages are                | P2        | A phone number can travel in an answer to the manifest                                                              | The API's rule                                                                                      | **Hima:** yuvoy-api#282                                                                   |
-| The API sends no `Access-Control-Max-Age`, so a preflight is kept 5s                                                              | P2        | A booking status poll and each direct write re-pay a round trip once 5s have passed                                 | The API's headers                                                                                   | **Hima:** yuvoy-api#282                                                                   |
-| The portal counts unread conversations by walking the thread list (pages of 200, up to ten) under every signed-in screen          | P2        | A busy business pays several reads before every first byte                                                          | Needs a count from the API                                                                          | **Hima:** yuvoy-api#282                                                                   |
-| `X-Request-Id` is not exposed to the browser                                                                                      | P3        | A browser-side failure cannot be matched to the API's log                                                           | The API's headers                                                                                   | **Hima:** yuvoy-api#282                                                                   |
-| Portal pages read `/me` before their own reads                                                                                    | P3        | One API read in series on most signed-in screens, about the API's own time once in Mumbai                           | Small after the region move, and not measurable before the release                                  | **Frontend:** measure on production; overlap the reads where the first byte shows it      |
-| Offline check-ins sent back one by one render the boarding screen once each                                                       | P3        | N renders for N kept check-ins when the signal returns                                                              | Each is its own write under the offline-writes ruling (4 Oct), and a replay is rare                 | **Frontend:** batch the renders if replays grow                                           |
-| The bookings list asks for 100 rows and hands whole rows to the browser                                                           | P3        | Payload on the bookings screen                                                                                      | Correct and authorised; a projection is a refactor with no measured need yet                        | **Frontend:** trim to what the rows draw when the screen next changes                     |
-| Posters are the video host's 360 x 640, drawn full screen                                                                         | P3        | Soft on a 3x phone until the video starts                                                                           | Twice the size is about three times the bytes, and every poster is an image transformation on Hobby | **Owner:** decide with the plan                                                           |
-| Four fonts (125KB) preload on every first visit                                                                                   | P3        | On Slow 4G they compete with the page's CSS                                                                         | The approved typography (v3.2)                                                                      | **Owner:** only if a slow first load matters more than the type                           |
-| A manager who types `/team` still sees the roster, read-only                                                                      | P3        | The team's names and roles                                                                                          | The 3 Oct ruling hid the row (yuvoy-operator#117 item 4); the screen itself was not asked           | **Owner:** say whether the screen should refuse a manager too                             |
-| CLS 0.024 on the feed and 0.018 on a business's page                                                                              | P3        | Within "good" (under 0.1)                                                                                           | The feed's foot settles as the first reel lands                                                     | None now                                                                                  |
-| `/trips` LCP 2.7s waits on the session check                                                                                      | P3        | The prompt's paint                                                                                                  | The screen must know who is signed in before it draws trips                                         | None now                                                                                  |
-| Uploads have no deadline                                                                                                          | By design | A stalled upload waits                                                                                              | An upload is long and shows its own progress                                                        | None                                                                                      |
+| Issue                                                                                                                             | Severity  | Impact                                                                                                              | Why it is not fixed here                                                                                                                                                                                                                    | Next action                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Production is on Vercel Hobby                                                                                                     | P1        | Non-commercial terms; an overage can pause every deployment; 1M invocations and 5,000 image transformations a month | A plan and a bill                                                                                                                                                                                                                           | **Owner:** move the team to Pro                                                                                                |
+| Search prefetches each tile's `/search/r/<id>`, a dynamic route: 10 of its 15 invocations per view, the same after the release    | P2        | Invocations against Hobby's monthly million                                                                         | A tile opens at once because of it, and on Pro it is cheap                                                                                                                                                                                  | **Frontend:** prefetch on intent if the plan stays Hobby; nothing to do on Pro                                                 |
+| On a first visit the feed's LCP is the analytics prompt whenever it is bigger than the first reel's title                         | P2        | 3.3-3.5s on a throttled phone, where the title paints at 1.8s, and a first visit is the one that matters most       | The prompt reads the visitor's choice from the browser, so the server leaves it out and it appears at hydration. That stops it flashing for anyone who has already chosen (the UX stability pass, 6 Oct), and changing it reopens that pass | **Owner:** say whether the prompt may come with the page: in the HTML, hidden before the first paint for anyone who has chosen |
+| No error reporting from browsers in production                                                                                    | P2        | A failure on a traveller's phone is seen only if they say so                                                        | A vendor and a consent decision; the scrubbing seam is ready                                                                                                                                                                                | **Owner:** choose a vendor, or PostHog exceptions for consented travellers                                                     |
+| Per-IP limits key on Vercel's addresses: invite redemption through the app's proxy, and the portal's sign-in code from its server | P2        | Everyone signing in to the portal shares one budget, so a busy hour or one person can use it up for all             | The API decides whom it trusts                                                                                                                                                                                                              | **Hima:** yuvoy-api#282                                                                                                        |
+| Message sends take no `Idempotency-Key`                                                                                           | P2        | A send whose answer is lost cannot be retried safely                                                                | The API's contract; the app sends once per tap and never retries a write                                                                                                                                                                    | **Hima:** yuvoy-api#282                                                                                                        |
+| Question answers and a listing's own questions are not documented as screened for contact details, as messages are                | P2        | A phone number can travel in an answer to the manifest                                                              | The API's rule                                                                                                                                                                                                                              | **Hima:** yuvoy-api#282                                                                                                        |
+| The API sends no `Access-Control-Max-Age`, so a preflight is kept 5s                                                              | P2        | A booking status poll and each direct write re-pay a round trip once 5s have passed                                 | The API's headers                                                                                                                                                                                                                           | **Hima:** yuvoy-api#282                                                                                                        |
+| The portal counts unread conversations by walking the thread list (pages of 200, up to ten) under every signed-in screen          | P2        | A busy business pays several reads before every first byte                                                          | Needs a count from the API                                                                                                                                                                                                                  | **Hima:** yuvoy-api#282                                                                                                        |
+| `X-Request-Id` is not exposed to the browser                                                                                      | P3        | A browser-side failure cannot be matched to the API's log                                                           | The API's headers                                                                                                                                                                                                                           | **Hima:** yuvoy-api#282                                                                                                        |
+| Portal pages read `/me` before their own reads                                                                                    | P3        | One API read in series on most signed-in screens, about the API's own time once in Mumbai                           | Small after the region move: the portal's signed-out routes answer in 141-199ms, against 319-439ms before. A signed-in screen cannot be measured from outside                                                                               | **Frontend:** measure a signed-in screen with an operator's account; overlap the reads if its first byte shows the wait        |
+| Offline check-ins sent back one by one render the boarding screen once each                                                       | P3        | N renders for N kept check-ins when the signal returns                                                              | Each is its own write under the offline-writes ruling (4 Oct), and a replay is rare                                                                                                                                                         | **Frontend:** batch the renders if replays grow                                                                                |
+| The bookings list asks for 100 rows and hands whole rows to the browser                                                           | P3        | Payload on the bookings screen                                                                                      | Correct and authorised; a projection is a refactor with no measured need yet                                                                                                                                                                | **Frontend:** trim to what the rows draw when the screen next changes                                                          |
+| Posters are the video host's 360 x 640, drawn full screen                                                                         | P3        | Soft on a 3x phone until the video starts                                                                           | Twice the size is about three times the bytes, and every poster is an image transformation on Hobby                                                                                                                                         | **Owner:** decide with the plan                                                                                                |
+| Four fonts (125KB) preload on every first visit                                                                                   | P3        | On Slow 4G they compete with the page's CSS                                                                         | The approved typography (v3.2)                                                                                                                                                                                                              | **Owner:** only if a slow first load matters more than the type                                                                |
+| A manager who types `/team` still sees the roster, read-only                                                                      | P3        | The team's names and roles                                                                                          | The 3 Oct ruling hid the row (yuvoy-operator#117 item 4); the screen itself was not asked                                                                                                                                                   | **Owner:** say whether the screen should refuse a manager too                                                                  |
+| CLS 0.024 on the feed and 0.018 on a business's page                                                                              | P3        | Within "good" (under 0.1)                                                                                           | The feed's foot settles as the first reel lands                                                                                                                                                                                             | None now                                                                                                                       |
+| `/trips` LCP 2.7s waits on the session check                                                                                      | P3        | The prompt's paint                                                                                                  | The screen must know who is signed in before it draws trips                                                                                                                                                                                 | None now                                                                                                                       |
+| Uploads have no deadline                                                                                                          | By design | A stalled upload waits                                                                                              | An upload is long and shows its own progress                                                                                                                                                                                                | None                                                                                                                           |
 
 ## Production readiness assessment
 
-**The traveller app: ready.** The release moves its functions beside the API, caches the business
-pages, takes the preflight off every read, sends Search's first page with the HTML, and gives every
-request a deadline. It closes login CSRF, encoded traversal, an open redirect and the shared-phone
-sign-out, and keeps tokens out of analytics.
+**The traveller app: ready, and live.** The release moved its functions beside the API, cached the
+business pages, took the preflight off every read, sent Search's first page with the HTML, and gave
+every request a deadline. It closed login CSRF, encoded traversal, an open redirect and the
+shared-phone sign-out, and keeps tokens out of analytics. On production the region, the cache, the
+preflights, the connection hints and Search's first page each show in the measurements above.
 
-**The operator portal: ready.** The same region move and deadlines, one render per check-in, no
-offline page in place of the portal, and the chrome's reads overlapped with the session check.
+**The operator portal: ready, and live.** The same region move and deadlines, one render per
+check-in, no offline page in place of the portal, and the chrome's reads overlapped with the
+session check. Its public routes answer in less than half the time they did.
 
-**Before or with the release:**
+**Still open:**
 
-1. **Owner:** "ship it" for each product; `main` is untouched.
-2. **Owner:** move Vercel to Pro. It is the one risk that can take both products down at once.
-3. **Frontend, after the release:** the measurements above, on production, with the same harness.
-4. **Hima:** yuvoy-api#282. None of it blocks the release.
+1. **Owner:** move Vercel to Pro. It is the one risk that can take both products down at once.
+2. **Owner:** whether the analytics prompt may come with the page (see Remaining issues).
+3. **Hima:** yuvoy-api#282. None of it blocks anything shipped.
 
 **Not verified here:** real devices on island signal, the keyboard over forms, and Safari's handling
 of the script-written sign-out cookie (its e2e runs in Chromium).

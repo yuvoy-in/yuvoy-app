@@ -33,7 +33,7 @@ import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
 import { FadeText } from "@/components/ui/fade-text";
 import { arrivalPending, forgetArrival } from "@/lib/booking/arrival";
-import { DURATION, EASE, prefersReducedMotion } from "@/lib/motion";
+import { DURATION, EASE, arriveFrom, prefersReducedMotion } from "@/lib/motion";
 import { useListMotion } from "@/lib/motion/use-list-motion";
 import type { components } from "@/lib/api/schema.gen";
 import { PayButton, ReleaseButton } from "./pay-actions";
@@ -1048,13 +1048,13 @@ function settle(root: HTMLElement) {
   const tick = root.querySelector<SVGPathElement>("[data-arrival-tick]");
   if (prefersReducedMotion()) {
     for (const el of [panel, reference])
-      el?.animate([{ opacity: 0 }], {
+      el?.animate(arriveFrom({ opacity: 0 }), {
         duration: DURATION.reducedFade,
         easing: "linear",
       });
     return;
   }
-  panel?.animate([{ opacity: 0, transform: "translateY(12px)" }], {
+  panel?.animate(arriveFrom({ opacity: 0, transform: "translateY(12px)" }), {
     duration: DURATION.sheet,
     easing: EASE.interaction,
   });
@@ -1064,7 +1064,7 @@ function settle(root: HTMLElement) {
     easing: EASE.interaction,
     fill: "backwards",
   });
-  reference?.animate([{ opacity: 0 }], {
+  reference?.animate(arriveFrom({ opacity: 0 }), {
     duration: DURATION.quick,
     delay: 200,
     easing: EASE.interaction,

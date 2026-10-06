@@ -32,6 +32,7 @@ beforeEach(() => {
       return {
         finished: new Promise(() => {}),
         cancel: () => {},
+        playState: "running",
       } as unknown as Animation;
     },
   });
@@ -96,6 +97,26 @@ describe("RollingNumber", () => {
     });
     // A screen reader reads the number it is now, once.
     expect(spans[0].textContent).toBe("3");
+  });
+
+  it("leaves from where the figure was drawn when it changes mid-roll", () => {
+    // A party of three, then four, inside 200ms: the three used to jump back
+    // to its place, whole, and leave from there.
+    const { getByTestId, rerender } = render(badge(2));
+    rerender(badge(3));
+    const figure = getByTestId("badge").querySelector("span")!;
+    figure.style.transform = "translateY(5px)";
+    figure.style.opacity = "0.4";
+    played = [];
+    rerender(badge(4));
+    const copy = Array.from(getByTestId("badge").querySelectorAll("span")).find(
+      (s) => s.textContent === "3" && s.getAttribute("aria-hidden") === "true",
+    )!;
+    const leaving = played.find((p) => p.el === copy)!;
+    expect(leaving.keyframes[0]).toEqual({
+      transform: "translateY(5px)",
+      opacity: 0.4,
+    });
   });
 
   it("rolls down when it falls", () => {

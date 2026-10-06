@@ -12,6 +12,18 @@ import { apiBaseUrl } from "@/lib/api/client";
  * waited behind one. A hint in the HTML starts that work while the page is
  * still parsing.
  *
+ * Where a page asks for the hint decides when it lands. A listing asks at the
+ * top of the page and gets a `<link>` in the HTML's head. The feed and Search
+ * ask inside their gated content, so theirs travels in the RSC payload and
+ * starts at hydration, which on a throttled phone is still about a second
+ * before their first read from the browser.
+ *
+ * Playwright's default contexts ignore these hints, so a lab run in one never
+ * shows them; a persistent context honours them. Measured that way on
+ * production after the release: the first API read and the first video
+ * manifest each found their connection already open, where without the hint
+ * the manifest waited about 330ms for one.
+ *
  * Only where a page reads from the host as it loads. A connection nobody uses
  * is a handshake spent on a metered link and then dropped.
  */

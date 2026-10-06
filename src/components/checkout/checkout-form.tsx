@@ -45,6 +45,7 @@ import type { components } from "@/lib/api/schema.gen";
 import {
   DURATION,
   EASE,
+  arriveFrom,
   prefersReducedMotion,
   scrollPageBy,
 } from "@/lib/motion";
@@ -650,17 +651,17 @@ function CheckoutFields({
     if (typeof fields.animate !== "function") return;
     if (prefersReducedMotion()) {
       for (const el of [fields, bar])
-        el.animate([{ opacity: 0 }], {
+        el.animate(arriveFrom({ opacity: 0 }), {
           duration: DURATION.reducedFade,
           easing: "linear",
         });
       return;
     }
-    fields.animate([{ opacity: 0 }], {
+    fields.animate(arriveFrom({ opacity: 0 }), {
       duration: DURATION.quick,
       easing: EASE.interaction,
     });
-    bar.animate([{ transform: "translateY(100%)" }], {
+    bar.animate(arriveFrom({ transform: "translateY(100%)" }), {
       duration: DURATION.sheet,
       easing: EASE.interaction,
     });

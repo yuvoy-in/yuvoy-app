@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
-import { DURATION, EASE, prefersReducedMotion } from ".";
+import { DURATION, EASE, arriveFrom, opacityOf, prefersReducedMotion } from ".";
 
 /**
  * A list that changes in place, seen changing (T14 A and T11 A, approved
@@ -409,9 +409,21 @@ function play(
   }
 }
 
+/**
+ * The arrivals still playing, so something that goes before it has fully
+ * arrived fades from where it had got to (`fadeCopy`). Kept here because by
+ * then React has removed the element, and a removed element's animations are
+ * listed on it in WebKit but not in Chromium; the animation itself can still
+ * be read in both.
+ */
+const arrivals = new WeakMap<
+  Element,
+  { animation: Animation; from: number; rest: number }
+>();
+
 /*
-  From nothing to where the item rests: ONE keyframe, so the end is the
-  item's own values, whatever they are. A departure that is full rests at 40%
+  From nothing to where the item rests (`arriveFrom`): the end is the item's
+  own values, whatever they are. A departure that is full rests at 40%
   opacity, and an arrival written to 1 would land bright and then drop.
 */
 function enter(
@@ -421,26 +433,41 @@ function enter(
   { reduced, ms }: { reduced: boolean; ms: number },
 ) {
   if (typeof el.animate !== "function") return;
-  if (reduced) {
-    el.animate([{ opacity: 0 }], {
-      duration: DURATION.reducedFade,
-      easing: "linear",
-      fill: "backwards",
-    });
-    return;
-  }
-  const from: Keyframe =
-    arrive === "grow"
+  // Where it will rest, read before the arrival draws over it.
+  const rest = opacityOf(el);
+  const from: Keyframe = reduced
+    ? { opacity: 0 }
+    : arrive === "grow"
       ? { opacity: 0, transform: "scale(0.96)" }
       : arrive === "rise"
         ? { opacity: 0, transform: "translateY(8px)" }
         : { opacity: 0 };
-  el.animate([from], {
-    duration: ms,
-    delay,
-    easing: EASE.interaction,
-    fill: "backwards",
-  });
+  const animation = el.animate(
+    arriveFrom(from),
+    reduced
+      ? { duration: DURATION.reducedFade, easing: "linear", fill: "backwards" }
+      : { duration: ms, delay, easing: EASE.interaction, fill: "backwards" },
+  );
+  arrivals.set(el, { animation, from: Number(from.opacity ?? 0), rest });
+  animation.finished.then(
+    () => {
+      if (arrivals.get(el)?.animation === animation) arrivals.delete(el);
+    },
+    () => {},
+  );
+}
+
+/**
+ * How opaque an arrival still playing has its element drawn, or `null` for
+ * one that has landed or never arrived here. The effect's progress is the
+ * eased one, which is the opacity a 0-to-rest arrival is drawn at (measured
+ * equal in Chromium 151 and WebKit 26.5, 7 Oct 2026).
+ */
+function arrivalOpacity(el: Element): number | null {
+  const arrival = arrivals.get(el);
+  const progress = arrival?.animation.effect?.getComputedTiming().progress;
+  if (!arrival || progress === null || progress === undefined) return null;
+  return arrival.from + (arrival.rest - arrival.from) * progress;
 }
 
 /**
@@ -455,6 +482,23 @@ function fadeCopy(
   reduced: boolean,
 ) {
   const copy = node.cloneNode(true) as HTMLElement;
+  /*
+    Where it had got to. A copy carries none of the original's animations, so
+    an item that goes while it, or something in it, is still arriving was
+    copied whole and flashed brighter than it had been drawn: two taps on the
+    Trips tabs inside a quarter of a second drew the first tab whole for a
+    frame as it went. `cloneNode` makes the same tree, element for element in
+    the same order, so the two are read side by side, before anything is
+    taken out of the copy.
+  */
+  const drawn = [node, ...node.querySelectorAll("*")].map(arrivalOpacity);
+  [copy, ...copy.querySelectorAll<HTMLElement | SVGElement>("*")].forEach(
+    (part, i) => {
+      const at = drawn[i];
+      if (i > 0 && at !== null && at !== undefined)
+        part.style.opacity = String(at);
+    },
+  );
   copy.removeAttribute(KEY);
   copy.setAttribute(GHOST, "");
   for (const el of [copy, ...copy.querySelectorAll<HTMLElement>("[id]")])
@@ -483,8 +527,14 @@ function fadeCopy(
   copy.style.margin = "0";
   copy.style.pointerEvents = "none";
   root.appendChild(copy);
+  /*
+    And it fades from there: from where its arrival had got to, or else from
+    its own opacity, read off the copy, which carries its classes. It used to
+    fade from 1, so a departure drawn dimmed flashed whole as it went.
+  */
+  const from = drawn[0] ?? opacityOf(copy);
   copy
-    .animate([{ opacity: 1 }, { opacity: 0 }], {
+    .animate([{ opacity: from }, { opacity: 0 }], {
       duration: reduced ? DURATION.reducedFade : LEAVE_MS,
       easing: reduced ? "linear" : EASE.interaction,
       fill: "forwards",
