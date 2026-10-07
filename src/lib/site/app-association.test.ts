@@ -25,8 +25,23 @@ const BUNDLE_ID = "in.yuvoy.app";
 const TEAM_PLACEHOLDER = "REPLACE_WITH_APPLE_TEAM_ID";
 const SHA_PLACEHOLDER = "REPLACE_WITH_ANDROID_SIGNING_SHA256";
 
-/** What opens in the app. Each one is a route this app serves on the web. */
-const LINKED = ["/e/*", "/booking", "/r/*", "/o/*", "/i/*", "/trip/*", "/go/*"];
+/**
+ * What opens in the app, each a route this app serves on the web. The same
+ * list as the app's Android intent filters (B12 AUDIT.md, "Path families
+ * declared"), so iOS and Android claim the same links: change both or neither.
+ * No root and no catch-all, and no /go/*: a QR scan stays in the browser so
+ * the web keeps counting it.
+ */
+const LINKED = [
+  "/booking",
+  "/e/*",
+  "/r/*",
+  "/o/*",
+  "/i/*",
+  "/trip/*",
+  "/trips",
+  "/trips/*",
+];
 
 const read = (name: string) =>
   JSON.parse(readFileSync(join(WELL_KNOWN, name), "utf8"));

@@ -4,13 +4,14 @@
       {
         "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.in.yuvoy.app"],
         "components": [
-          { "/": "/e/*", "comment": "An experience and its booking form" },
           { "/": "/booking", "comment": "Booking status, token in #t=" },
+          { "/": "/e/*", "comment": "An experience and its booking form" },
           { "/": "/r/*", "comment": "A reel" },
           { "/": "/o/*", "comment": "A business page, its listings and reels" },
           { "/": "/i/*", "comment": "A trip invite" },
           { "/": "/trip/*", "comment": "A shared trip" },
-          { "/": "/go/*", "comment": "A QR scan" }
+          { "/": "/trips", "comment": "Trips tab, linked from booking status emails" },
+          { "/": "/trips/*", "comment": "Recovering and invited trips" }
         ]
       }
     ]
