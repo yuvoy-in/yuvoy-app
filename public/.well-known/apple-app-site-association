@@ -1,0 +1,18 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.in.yuvoy.app"],
+        "components": [
+          { "/": "/e/*", "comment": "An experience and its booking form" },
+          { "/": "/booking", "comment": "Booking status, token in #t=" },
+          { "/": "/r/*", "comment": "A reel" },
+          { "/": "/o/*", "comment": "A business page, its listings and reels" },
+          { "/": "/i/*", "comment": "A trip invite" },
+          { "/": "/trip/*", "comment": "A shared trip" },
+          { "/": "/go/*", "comment": "A QR scan" }
+        ]
+      }
+    ]
+  }
+}
