@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.in.yuvoy.app"],
+        "appIDs": ["K8PFJNX7U8.in.yuvoy.app"],
         "components": [
           { "/": "/booking", "comment": "Booking status, token in #t=" },
           { "/": "/e/*", "comment": "An experience and its booking form" },
