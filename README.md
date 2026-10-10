@@ -137,7 +137,10 @@ in the App Router, so a page becomes frozen at build time by the absence of some
 the presence of it. `scripts/check-prerender.mjs` lists every statically prerendered route with the
 reason it is safe to freeze; a route joining or leaving that list fails the check. It caught
 `/search`, which reads the wall clock during render — its day pills said "Today" over the build
-date until hydration rewrote them.
+date until hydration rewrote them. The one exception is a route whose pages are live data:
+`/e/[slug]` builds a page per experience in whatever catalog the build can reach, so it is signed
+off as a route, and each of its pages must revalidate within five minutes. Publishing a listing
+never fails a push.
 
 **`e2e/audit.spec.ts` is the only suite that runs against production.** It reads
 `/sitemap.xml` from whatever origin it is pointed at and audits every URL in it — status,
