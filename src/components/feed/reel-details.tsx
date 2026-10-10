@@ -75,6 +75,12 @@ type ExperienceSummary = components["schemas"]["ExperienceSummary"];
  * tree as well as out of the tab order, which is the difference between hidden
  * and merely unfocusable.
  *
+ * The tab bar steps aside for as long as it is open, and comes back when it
+ * goes (owner, 10 Oct 2026): its action used to sit flush on the pill. The
+ * stylesheet does that from `data-details` on the card ("the tab bar steps
+ * aside" in `globals.css`), so the foot keeps the panel's own margin rather
+ * than the bar's.
+ *
  * ## It behaves as it looks (T05 A, approved 4 Oct 2026)
  *
  * It has a handle and a rounded top, so it is pulled down like a sheet: the
