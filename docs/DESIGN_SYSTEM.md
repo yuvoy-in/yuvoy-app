@@ -200,8 +200,19 @@ stylesheet does not draw.
   where it was let go; otherwise it settles back). The handle is
   `touch-action: none`, or a pull on it would scroll the feed back a reel,
   and the card's swipe to the listing never sees a pull's moves.
+- **The tab bar steps aside while the details panel is open** (owner, 10 Oct
+  2026: the panel's action sat flush on the pill). It steps down 16px and
+  fades in 150ms, as for a focused screen, but on the panel's own curve: the
+  action arrives under it about 60ms in, and on the exit curve the pill was
+  still there to meet it. It comes back the same way 150ms after the panel
+  starts down, once the action has cleared it. Its ground and row fade,
+  never the pill (a fading parent turns frosted glass clear), and
+  `visibility` follows, so it leaves the tab order too. The panel's foot is
+  then its own 20px margin. The 13 Sep ruling stands: the bar stays on every
+  reel scrolled through.
 - **Reduced motion:** both are a 120ms fade in and out; a pull still follows
-  the finger, and a closing pull fades where it was let go.
+  the finger, and a closing pull fades where it was let go. The bar fades
+  with the panel and does not step.
 
 ### Search: waiting, and a list that changes in place (T11 A, T14 A)
 

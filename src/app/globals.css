@@ -942,8 +942,14 @@
     visibility: hidden;
   }
 
+  /*
+    `inherit`, not `visible`: a layer that insists on being visible stays
+    drawn when the bar is hidden around it, and WebKit drew it unfaded for a
+    frame as the bar stepped aside for a reel's details panel (10 Oct 2026).
+    Inheriting, it is visible exactly when the bar is.
+  */
   [data-tab-glide="on"] .tab-lit {
-    visibility: visible;
+    visibility: inherit;
     background-color: var(--color-paper);
     color: var(--color-forest);
   }
@@ -1805,20 +1811,110 @@
 }
 
 /*
-  The foot clears the BAR, not a screen.
+  The foot is the panel's own, because the bar steps aside for it (below).
 
-  `tabbar-clearance` is 92px because a screen leaves the bar's 56px, its 12px
-  foot and a breath. A panel's own edge is a surface: it needs to clear the
-  bar's top edge and nothing more. The pixels that buys are not decoration, they
-  are the operator's credential line, which is the whole of this product's
-  answer to having no star ratings and was falling below the fold by about that
-  much.
-
-  It follows the bar, so it moved back up with it on 15 September: 56 + 12.
+  It used to clear the bar's top edge and not a pixel more (56 + 12), so the
+  action stopped exactly where the pill began: two white pills stacked at the
+  foot of the phone with no air between them (the owner's screenshot, 10 Oct
+  2026). With the bar gone for as long as the panel is up, the action keeps
+  the panel's own margin, 20px under it as beside it. The 48px this frees go
+  to the body, where the operator's credential line, this product's answer to
+  having no star ratings, is the first thing to fall below the fold.
 */
 @utility reel-sheet-foot {
   @apply flex-none px-5;
-  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+/*
+  The tab bar steps aside while the panel is open (owner, 10 Oct 2026).
+
+  The owner's call, from that screenshot. It is the v2.7 rule for a focused
+  screen, applied to the one focused moment the feed has, and it narrows
+  nothing of 13 September's: the bar stays on every reel a traveller scrolls
+  through, and is back the moment the panel goes, whichever way it goes (the
+  handle, a pull, the picture, Escape, the next reel).
+
+  It steps down 16px and fades, as it does for a focused screen (T01 C), in
+  the same 150ms but on the panel's own curve rather than the exit one: it has
+  to be gone before the panel's action reaches it, about 60ms in, and the exit
+  curve has barely started by then (frame by frame in both engines, the action
+  rose under a ghost of the pill). On this curve it is down to a tenth of its
+  opacity by then.
+  It returns the same way, 150ms after the panel starts down: by then even the
+  shortest panel has carried its action below the pill (40% of its travel, on
+  the exit curve), and any sooner the two would cross.
+
+  - The ground and the row fade, never the pill. An element under opacity 1 is
+    a backdrop root, so a frosted ground whose parent fades loses the picture
+    behind it and turns clear for the length of the fade.
+  - `visibility` follows the fade, as it does for the panel, so the bar is out
+    of the tab order and the accessibility tree, not merely out of sight. The
+    retract had to be translated instead (v2.8), because the gesture that
+    brought it back was one a keyboard cannot make. Every way out of the
+    panel is one it can: Escape, and the handle, which is a named button.
+  - Keyed on the panel's own `data-details` with `:has()`, as the invite gate
+    keys this bar: the bar is the shell's and the panel is the card's, and no
+    state passes between them that could be left behind.
+
+  Reduced motion: nothing steps; the ground and the row fade with the panel's
+  own 120ms crossfade, which is why both carry `data-motion`.
+*/
+[data-tabbar] {
+  transition: visibility 0s linear 150ms;
+}
+
+[data-tabbar-pill] {
+  transition: transform 150ms var(--ease-interaction) 150ms;
+}
+
+[data-tabbar-ground],
+[data-tab-glide] {
+  transition: opacity 150ms var(--ease-interaction) 150ms;
+}
+
+body:has([data-details="open"]) {
+  & [data-tabbar] {
+    visibility: hidden;
+  }
+
+  & [data-tabbar-pill] {
+    transform: translateY(16px);
+    pointer-events: none;
+    transition: transform 150ms var(--ease-interaction);
+  }
+
+  & [data-tabbar-ground],
+  & [data-tab-glide] {
+    opacity: 0;
+    transition: opacity 150ms var(--ease-interaction);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-tabbar] {
+    transition: visibility 0s;
+  }
+
+  [data-tabbar-ground],
+  [data-tab-glide] {
+    transition: opacity 120ms linear;
+  }
+
+  body:has([data-details="open"]) {
+    & [data-tabbar] {
+      transition: visibility 0s linear 120ms;
+    }
+
+    & [data-tabbar-pill] {
+      transform: none;
+    }
+
+    & [data-tabbar-ground],
+    & [data-tab-glide] {
+      transition: opacity 120ms linear;
+    }
+  }
 }
 
 /* The host's title, in the host's voice. */
