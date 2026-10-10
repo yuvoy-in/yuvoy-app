@@ -32,6 +32,7 @@ declare global {
 
 const EASE_EXIT = "cubic-bezier(0.3, 0, 0.8, 0.15)";
 const EASE_MOVE = "cubic-bezier(0.2, 0, 0, 1)";
+const EASE_INTERACTION = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 async function openFilters(page: Page): Promise<Locator> {
   await page.goto("/search");
@@ -85,6 +86,61 @@ async function record(dialog: Locator) {
       attributes: true,
       attributeFilter: ["data-sheet", "open"],
     });
+  });
+}
+
+/** Opens the first reel's details panel and waits for it to finish rising. */
+async function openPanel(page: Page): Promise<Locator> {
+  await page.goto("/");
+  const card = page.locator('article[aria-posinset="1"]');
+  await card.waitFor();
+  await card.locator("button[aria-controls]").click();
+  const panel = card.locator(".reel-sheet");
+  await expect(panel).toHaveAttribute("data-open", "open");
+  await expect
+    .poll(() => panel.evaluate((el) => getComputedStyle(el).transform))
+    .toBe("none");
+  return panel;
+}
+
+/**
+ * The first reel's panel against its frame, in px: how tall it is drawn, how
+ * tall its details are, where its top sits, and whether its body scrolls.
+ */
+function panelGeometry(page: Page) {
+  return page.locator('article[aria-posinset="1"]').evaluate((card) => {
+    const panel = card.querySelector<HTMLElement>(".reel-sheet")!;
+    const part = (name: string) =>
+      panel.querySelector<HTMLElement>(`.reel-sheet-${name}`)!;
+    const frame = card.getBoundingClientRect();
+    const box = panel.getBoundingClientRect();
+    return {
+      frame: frame.height,
+      height: box.height,
+      top: box.top - frame.top,
+      details:
+        part("handle").offsetHeight +
+        part("scroll").scrollHeight +
+        part("foot").offsetHeight,
+      more: part("scroll").getAttribute("data-more"),
+    };
+  });
+}
+
+/** How the tab bar is drawn right now: its pill's step, and its two fades. */
+function barDrawn(page: Page) {
+  return page.evaluate(() => {
+    const style = (selector: string) =>
+      getComputedStyle(document.querySelector(selector)!);
+    const pill = style("[data-tabbar-pill]");
+    return {
+      step: new DOMMatrixReadOnly(pill.transform).m42,
+      ground: style("[data-tabbar-ground]").opacity,
+      row: style("[data-tab-glide]").opacity,
+      duration: pill.transitionDuration,
+      easing: pill.transitionTimingFunction,
+      fade: style("[data-tabbar-ground]").transitionDuration,
+    };
   });
 }
 
@@ -258,19 +314,6 @@ export function defineSheetMotion() {
       test.skip(!isMobile, "the pull is a touch gesture on the phone's feed");
     });
 
-    async function openPanel(page: Page) {
-      await page.goto("/");
-      const card = page.locator('article[aria-posinset="1"]');
-      await card.waitFor();
-      await card.locator("button[aria-controls]").click();
-      const panel = card.locator(".reel-sheet");
-      await expect(panel).toHaveAttribute("data-open", "open");
-      await expect
-        .poll(() => panel.evaluate((el) => getComputedStyle(el).transform))
-        .toBe("none");
-      return panel;
-    }
-
     test("opens in 250ms and closes faster, in 200ms", async ({ page }) => {
       const panel = await openPanel(page);
       const opening = await panel.evaluate(
@@ -334,6 +377,215 @@ export function defineSheetMotion() {
       await expect(panel).toHaveAttribute("data-open", "shut");
       // touch-action: none on the handle; without it this scrolled back a reel.
       expect(await feed.evaluate((el) => el.scrollTop)).toBe(before);
+    });
+  });
+
+  test.describe("the tab bar steps aside for the details panel", () => {
+    test.beforeEach(({ isMobile }) => {
+      test.skip(!isMobile, "the floating bar is a phone's; the rail stays");
+    });
+
+    test("it steps down and out while the panel is open, and the action gets the room", async ({
+      page,
+    }) => {
+      /*
+        The owner's screenshot (10 Oct 2026): the panel's action stopped where
+        the pill began, two white pills stacked with no air between them.
+      */
+      const panel = await openPanel(page);
+      const bar = page.locator("nav[data-tabbar]");
+      // Hidden, not just transparent: out of the tab order and the tree.
+      await expect(bar).toBeHidden();
+      /*
+        The paper under the open destination too. It used to insist on
+        `visible`, and WebKit drew it unfaded for a frame over the action as
+        the bar around it was hidden.
+      */
+      await expect(bar.locator(".tab-lit")).toBeHidden();
+      /*
+        On the panel's own curve, so it is all but gone before the action
+        reaches it, about 60ms in.
+      */
+      expect(await barDrawn(page)).toMatchObject({
+        step: 16,
+        ground: "0",
+        row: "0",
+        duration: "0.15s",
+        easing: EASE_INTERACTION,
+      });
+
+      // The panel's own margin, 20px under the action as beside it.
+      const card = (await page
+        .locator('article[aria-posinset="1"]')
+        .boundingBox())!;
+      const action = (await panel.locator(".reel-sheet-cta").boundingBox())!;
+      const under = card.y + card.height - (action.y + action.height);
+      expect(Math.abs(under - 20), `${under}px under the action`).toBeLessThan(
+        1,
+      );
+      expect(Math.abs(action.x - card.x - 20)).toBeLessThan(1);
+
+      await panel.getByRole("button", { name: "Close details" }).click();
+      await expect(bar).toBeVisible();
+      await expect
+        .poll(() => barDrawn(page))
+        .toMatchObject({ step: 0, ground: "1", row: "1" });
+    });
+
+    test("under reduced motion it only fades, with the panel (S01 A)", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await openPanel(page);
+      const bar = page.locator("nav[data-tabbar]");
+      await expect(bar).toBeHidden();
+      // No step, and a fade the global rule has not squashed to nothing.
+      expect(await barDrawn(page)).toMatchObject({
+        step: 0,
+        ground: "0",
+        row: "0",
+        fade: "0.12s",
+      });
+      await page.keyboard.press("Escape");
+      await expect(bar).toBeVisible();
+    });
+  });
+
+  test.describe("the details panel fits its details, never above 70%", () => {
+    /*
+      The owner's ceiling (10 Oct 2026), raised from 54%, and the owner's
+      choice of how to meet it: as tall as the details, at most 70% of the
+      frame, the body scrolling past that.
+    */
+    test.beforeEach(({ isMobile }) => {
+      test.skip(!isMobile, "the phone's panel; the column above lg is pinned");
+    });
+
+    test("on a short screen it stops at 70% and its body scrolls", async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 560 });
+      const panel = await openPanel(page);
+      await expect(panel.locator(".reel-sheet-dep")).toHaveCount(3);
+      const at = await panelGeometry(page);
+      expect(
+        at.details,
+        "the details fit, so this proves nothing",
+      ).toBeGreaterThan(at.frame * 0.7);
+      expect(Math.abs(at.height - at.frame * 0.7)).toBeLessThan(1);
+      expect(at.more).toBe("true");
+    });
+
+    test("on a tall screen it is as tall as its details", async ({ page }) => {
+      await page.setViewportSize({ width: 412, height: 1000 });
+      const panel = await openPanel(page);
+      await expect(panel.locator(".reel-sheet-dep")).toHaveCount(3);
+      const at = await panelGeometry(page);
+      expect(Math.abs(at.height - at.details)).toBeLessThan(1);
+      expect(at.height).toBeLessThan(at.frame * 0.7);
+      expect(at.more).toBe("false");
+    });
+
+    test("on a phone on its side it never covers the row at the top", async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 740, height: 250 });
+      await openPanel(page);
+      const at = await panelGeometry(page);
+      // 70% would leave 75px; the row is 64px, and it keeps 80.
+      expect(at.top).toBeGreaterThanOrEqual(79.5);
+      const login = (await page
+        .locator(".feed-scrim-top")
+        .getByRole("link", { name: "Login" })
+        .boundingBox())!;
+      expect(login.y + login.height).toBeLessThanOrEqual(at.top);
+    });
+
+    test("when fewer departures land, it glides to its new height", async ({
+      page,
+    }) => {
+      /*
+        One open departure where the placeholder stood for three, landing
+        once the panel has risen. Unanimated, the panel's whole top dropped
+        by two rows at once.
+      */
+      await page.setViewportSize({ width: 412, height: 1000 });
+      await page.addInitScript(() => {
+        const fetchOf = window.fetch.bind(window);
+        window.fetch = async (input, init) => {
+          const url =
+            typeof input === "string"
+              ? input
+              : input instanceof Request
+                ? input.url
+                : String(input);
+          if (!/\/availability\?/.test(url)) return fetchOf(input, init);
+          const response = await fetchOf(input, init);
+          const body = await response.json();
+          body.slots = body.slots.filter((slot: { id: string }) =>
+            slot.id.endsWith("_a"),
+          );
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          const headers = new Headers(response.headers);
+          headers.delete("content-length");
+          return new Response(JSON.stringify(body), {
+            status: response.status,
+            headers,
+          });
+        };
+      });
+      const panel = await openPanel(page);
+      await expect(
+        panel.getByRole("status", { name: "Loading departures" }),
+      ).toBeVisible();
+      const before = await panelGeometry(page);
+
+      // Caught on the frame it starts, wherever in the next seconds that is.
+      const glide = await panel.locator(".reel-sheet-deps").evaluate(
+        (section) =>
+          new Promise<{
+            duration: number;
+            easing: string;
+            from: number;
+            to: number;
+          } | null>((resolve) => {
+            const until = performance.now() + 5000;
+            const look = () => {
+              const found = section
+                .getAnimations()
+                .map((a) => a.effect as KeyframeEffect)
+                .find((e) => e.getKeyframes().some((k) => "height" in k));
+              if (found) {
+                const frames = found.getKeyframes();
+                resolve({
+                  duration: Number(found.getComputedTiming().duration),
+                  easing: String(found.getTiming().easing),
+                  from: parseFloat(String(frames[0].height)),
+                  to: parseFloat(String(frames.at(-1)!.height)),
+                });
+              } else if (performance.now() > until) resolve(null);
+              else requestAnimationFrame(look);
+            };
+            look();
+          }),
+      );
+      expect(glide, "the panel jumped: no glide ran").not.toBeNull();
+      expect(glide).toMatchObject({ duration: 200, easing: EASE_MOVE });
+      // From the three-row placeholder to the one departure that landed.
+      const gave = glide!.from - glide!.to;
+      expect(gave).toBeGreaterThan(90);
+      await expect(panel.locator(".reel-sheet-dep")).toHaveCount(1);
+
+      await expect
+        .poll(() =>
+          panel
+            .locator(".reel-sheet-deps")
+            .evaluate((section) => section.getAnimations().length),
+        )
+        .toBe(0);
+      const after = await panelGeometry(page);
+      expect(Math.abs(after.height - after.details)).toBeLessThan(1);
+      expect(Math.abs(after.top - before.top - gave)).toBeLessThan(1);
     });
   });
 }

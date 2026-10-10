@@ -225,10 +225,11 @@ test.describe("the reel keeps the screen", () => {
     const cardBox = (await card.boundingBox())!;
     const panelBox = (await panel.boundingBox())!;
     const covered = (cardBox.y + cardBox.height - panelBox.y) / cardBox.height;
+    // The owner's ceiling, 70% (10 Oct 2026), to within a pixel.
     expect(
       covered,
-      "the panel covers more than its 54% ceiling",
-    ).toBeLessThanOrEqual(0.55);
+      "the panel covers more than its 70% ceiling",
+    ).toBeLessThanOrEqual(0.7 + 1 / cardBox.height);
 
     // Tapping the picture puts it away.
     await page.mouse.click(cardBox.x + cardBox.width / 2, cardBox.y + 80);

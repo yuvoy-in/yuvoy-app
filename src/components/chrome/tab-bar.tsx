@@ -27,6 +27,16 @@ import { BAR_MOTION } from "@/lib/motion/route-motion";
  * all gone rather than left switched off, so there is nothing here to
  * re-enable by accident. The reel's own overlay was cut back in the same
  * change, which is what buys the picture its room instead.
+ *
+ * ## It steps aside for a reel's details panel (owner, 10 Oct 2026)
+ *
+ * The panel's action used to sit flush on the pill, so while a panel is open
+ * the bar steps down and out, and it comes back when the panel goes. Nothing
+ * here knows about it: the stylesheet keys the bar on the panel's own
+ * `data-details` ("the tab bar steps aside" in `globals.css`), so no state
+ * passes from the card to the shell. The ground and the row (`NavList`'s glide
+ * wrapper) carry `data-motion` because they ship their own reduced-motion fade
+ * for it.
  */
 export function TabBar() {
   const pathname = usePathname();
@@ -138,6 +148,7 @@ export function TabBar() {
             <span
               aria-hidden="true"
               data-tabbar-ground=""
+              data-motion=""
               className={cn(
                 "tabbar-ground ring-paper/12 rounded-full ring-1",
                 onMedia ? "tabbar-on-media" : "app-chrome",

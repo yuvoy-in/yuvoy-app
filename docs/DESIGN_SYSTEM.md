@@ -102,7 +102,10 @@ drift).
   on the same tap. Nothing waits for an animation.
 - **Exits are faster than entrances**, about two thirds.
 - **Transform and opacity**; clip-path only on small elements. Never animate
-  a box's size per frame: measure once and play the difference (FLIP).
+  a box's size per frame: measure once and play the difference (FLIP). One
+  exception, argued in `useHeightGlide`: the reel panel's departures, where
+  the edge that moves is the panel's own top and no transform can move it
+  without moving or clipping what sits below.
 - **Never clip a filtered element.** The tab bar's frosted ground and its
   paper are separate elements: in Safari a clipped `backdrop-filter` drew a
   shaded block instead of a pill (found in the study, 4 Oct 2026).
@@ -200,8 +203,27 @@ stylesheet does not draw.
   where it was let go; otherwise it settles back). The handle is
   `touch-action: none`, or a pull on it would scroll the feed back a reel,
   and the card's swipe to the listing never sees a pull's moves.
+- **The details panel fits its details, at most 70% of the frame** (owner,
+  10 Oct 2026; it was a 54% ceiling, which cut the departures off on every
+  phone). As tall as what is in it, its body scrolling past 70%; on a tall
+  screen that is about 56%, by the owner's choice over always filling 70%.
+  It never covers the top 80px (the row of the mark, Login or a way back),
+  which only bites on a phone on its side. When its departures land at
+  another height than their placeholder (one or two, none, a failed read),
+  it glides there in 200ms on `move` rather than jumping.
+- **The tab bar steps aside while the details panel is open** (owner, 10 Oct
+  2026: the panel's action sat flush on the pill). It steps down 16px and
+  fades in 150ms, as for a focused screen, but on the panel's own curve: the
+  action arrives under it about 60ms in, and on the exit curve the pill was
+  still there to meet it. It comes back the same way 150ms after the panel
+  starts down, once the action has cleared it. Its ground and row fade,
+  never the pill (a fading parent turns frosted glass clear), and
+  `visibility` follows, so it leaves the tab order too. The panel's foot is
+  then its own 20px margin. The 13 Sep ruling stands: the bar stays on every
+  reel scrolled through.
 - **Reduced motion:** both are a 120ms fade in and out; a pull still follows
-  the finger, and a closing pull fades where it was let go.
+  the finger, and a closing pull fades where it was let go. The bar fades
+  with the panel and does not step.
 
 ### Search: waiting, and a list that changes in place (T11 A, T14 A)
 

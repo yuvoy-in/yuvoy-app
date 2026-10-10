@@ -32,6 +32,7 @@ import {
   prefersReducedMotion,
   scaledDuration,
 } from "@/lib/motion";
+import { useHeightGlide } from "@/lib/motion/use-height-glide";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 
@@ -66,14 +67,21 @@ type ExperienceSummary = components["schemas"]["ExperienceSummary"];
  * ## Non-modal, on purpose
  *
  * A `<dialog>` would bring a focus trap and a backdrop, and both stop the video
- * being watched. This covers a stated ceiling of the frame and no more, leaves
- * the clip running above it, and is dismissed four ways: the handle, a tap on
- * the picture, Escape, and scrolling on to the next reel.
+ * being watched. This is as tall as its details and never taller than 70% of
+ * the frame (owner, 10 Oct 2026; it was 54%), leaves the clip running above
+ * it, and is dismissed four ways: the handle, a tap on the picture, Escape,
+ * and scrolling on to the next reel.
  *
  * Nothing inside is reachable by tab while it is shut. That is `inert`, not a
  * `tabIndex` sweep: the attribute takes the subtree out of the accessibility
  * tree as well as out of the tab order, which is the difference between hidden
  * and merely unfocusable.
+ *
+ * The tab bar steps aside for as long as it is open, and comes back when it
+ * goes (owner, 10 Oct 2026): its action used to sit flush on the pill. The
+ * stylesheet does that from `data-details` on the card ("the tab bar steps
+ * aside" in `globals.css`), so the foot keeps the panel's own margin rather
+ * than the bar's.
  *
  * ## It behaves as it looks (T05 A, approved 4 Oct 2026)
  *
@@ -413,6 +421,7 @@ export function ReelDetails({
                 state={departures}
                 slug={experience.slug}
                 instant={instant}
+                open={open}
               />
             ) : (
               /* The absence, stated: the contract's own ninety days. */
@@ -512,18 +521,32 @@ export function ReelDetails({
  * skeleton the size of what it will become, a failure says so and offers the
  * read again (the action below still opens the listing), and none open says
  * so in words.
+ *
+ * The skeleton is the size of three, and a listing may have fewer, none, or a
+ * read that failed. The panel fits its details, so its top moves when they
+ * land at another height; it glides there while the panel is open
+ * (`useHeightGlide`), rather than jumping.
  */
 function Departures({
   state,
   slug,
   instant,
+  open,
 }: {
   state: NextDepartures;
   slug: string;
   instant: boolean;
+  /** Whether the panel is open: a shut panel has nothing to glide. */
+  open: boolean;
 }) {
+  const ref = useRef<HTMLElement | null>(null);
+  useHeightGlide(
+    ref,
+    state.state === "open" ? `open:${state.departures.length}` : state.state,
+    open,
+  );
   return (
-    <section className="reel-sheet-deps" aria-label="Coming up">
+    <section ref={ref} className="reel-sheet-deps" aria-label="Coming up">
       <p className="reel-sheet-deps-head">
         <span className="label text-paper/75">Coming up</span>
         {state.state === "open" ? (
