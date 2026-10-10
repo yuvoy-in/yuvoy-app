@@ -81,6 +81,17 @@ export function describeSendRefusal(error: unknown): string | null {
     return error.message.trim() || closedBecause(reason);
   }
 
+  /*
+    The same message sent again while the first send of it is still being
+    written (yuvoy-api#282). Not a failure: the next tap carries the same key,
+    and the API answers it with that message once it is in. `describeError`
+    words this code for checkout ("continues the same booking"), so a message
+    gets its own sentence. The API's own is a log line, not copy.
+  */
+  if (error.code === "idempotency_in_progress") {
+    return "This message is still on its way. Give it a moment, then tap Send again. It will only arrive once.";
+  }
+
   if (error.code !== "invalid_input") return null;
   const problem = readString(error.details.text);
   // An `invalid_input` that is NOT about the text really is our bug, and has

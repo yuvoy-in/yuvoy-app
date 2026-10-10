@@ -3,6 +3,7 @@ import {
   callUpstream,
   FORWARDED_REQUEST_HEADERS,
   unreachable,
+  visitorAddressHeaders,
 } from "./upstream";
 import { StalledError } from "@/lib/api/deadline";
 
@@ -179,6 +180,106 @@ describe("the allowlist itself", () => {
     for (const name of FORWARDED_REQUEST_HEADERS) {
       expect(banned).not.toContain(name.toLowerCase());
     }
+  });
+});
+
+/*
+  The person behind the call, for the API's per-IP limits (yuvoy-api#282
+  item 3, yuvoy-api#299). Believed by the API only beside the shared secret,
+  so both go or neither does, and the address is the one Vercel wrote.
+*/
+describe("the visitor's address, for the API's per-IP limits", () => {
+  const SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef";
+  afterEach(() => vi.unstubAllEnvs());
+
+  function visit(headers: Record<string, string>) {
+    return new Request("https://app.yuvoy.in/api/v1/me/invite-codes/redeem", {
+      method: "POST",
+      headers,
+    });
+  }
+
+  it("sends Vercel's address with the secret beside it", async () => {
+    vi.stubEnv("PROXY_CLIENT_IP_SECRET", SECRET);
+    await callUpstream({
+      method: "POST",
+      path: "/me/invite-codes/redeem",
+      token: "sess_abc",
+      body: { code: "ISLAND-7" },
+      from: visit({
+        "x-real-ip": "203.0.113.9",
+        // Anybody can write this one, so it is never what is sent.
+        "x-forwarded-for": "198.51.100.1, 203.0.113.9",
+      }),
+    });
+    expect(sentHeaders()["X-Yuvoy-Client-IP"]).toBe("203.0.113.9");
+    expect(sentHeaders()["X-Yuvoy-Proxy-Secret"]).toBe(SECRET);
+  });
+
+  it("takes an IPv6 address as it is", () => {
+    vi.stubEnv("PROXY_CLIENT_IP_SECRET", SECRET);
+    expect(
+      visitorAddressHeaders(new Headers({ "x-real-ip": "2001:db8::1" })),
+    ).toEqual({
+      "X-Yuvoy-Client-IP": "2001:db8::1",
+      "X-Yuvoy-Proxy-Secret": SECRET,
+    });
+  });
+
+  it("sends neither without the secret, so nothing changes until it is set", async () => {
+    await callUpstream({
+      method: "GET",
+      path: "/me",
+      token: "sess_abc",
+      from: visit({ "x-real-ip": "203.0.113.9" }),
+    });
+    const names = Object.keys(sentHeaders()).map((n) => n.toLowerCase());
+    expect(names).not.toContain("x-yuvoy-client-ip");
+    expect(names).not.toContain("x-yuvoy-proxy-secret");
+  });
+
+  it("sends neither with a secret the API would not boot with", () => {
+    const quiet = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const secret of ["short", `${SECRET.slice(0, 20)} ${SECRET}`]) {
+      vi.stubEnv("PROXY_CLIENT_IP_SECRET", secret);
+      expect(
+        visitorAddressHeaders(new Headers({ "x-real-ip": "203.0.113.9" })),
+      ).toEqual({});
+    }
+    // Said by name, never by value.
+    for (const call of quiet.mock.calls) {
+      expect(String(call[0])).not.toContain(SECRET.slice(0, 20));
+    }
+    quiet.mockRestore();
+  });
+
+  it("sends neither for an address that is not one bare address", () => {
+    vi.stubEnv("PROXY_CLIENT_IP_SECRET", SECRET);
+    for (const address of [
+      "",
+      "203.0.113.9, 198.51.100.1",
+      "203.0.113.9:443",
+      "[2001:db8::1]",
+      "fe80::1%en0",
+      "not an address",
+    ]) {
+      expect(
+        visitorAddressHeaders(new Headers({ "x-real-ip": address })),
+      ).toEqual({});
+    }
+    expect(visitorAddressHeaders(new Headers())).toEqual({});
+    expect(visitorAddressHeaders(undefined)).toEqual({});
+  });
+
+  it("reads a page's own headers when there is no incoming request", async () => {
+    vi.stubEnv("PROXY_CLIENT_IP_SECRET", SECRET);
+    await callUpstream({
+      method: "GET",
+      path: "/me",
+      token: "sess_abc",
+      visitor: new Headers({ "x-real-ip": "203.0.113.9" }),
+    });
+    expect(sentHeaders()["X-Yuvoy-Client-IP"]).toBe("203.0.113.9");
   });
 });
 

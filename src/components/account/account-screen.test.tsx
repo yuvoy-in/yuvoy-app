@@ -736,7 +736,7 @@ describe("what the code step says (yuvoy-api#254)", () => {
     );
     expect(
       screen.getByText(
-        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes and works once.",
+        "If we have an email for this number, from your latest booking or your invitation, a code is on its way to that email. It is good for a few minutes and works once.",
       ),
     ).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/whatsapp/i);
@@ -751,7 +751,7 @@ describe("what the code step says (yuvoy-api#254)", () => {
     // Read with the field, so a screen reader hears it on focus. The mock
     // also sends a development code, which the hint names first.
     expect(box).toHaveAccessibleDescription(
-      /No email\? Use the number you booked with, or call us on \+91 81216 57657\.$/,
+      /No email\? Use the number you booked with or were invited on, or call us on \+91 81216 57657\.$/,
     );
     expect(
       screen.getByRole("link", { name: "+91 81216 57657" }),
@@ -771,5 +771,44 @@ describe("what the code step says (yuvoy-api#254)", () => {
 
     expect(document.body).toHaveTextContent(/A code is on its way/);
     expect(document.body.textContent).not.toMatch(/[–—―]/);
+  });
+
+  it("says a closed account is closed, in the API's words, with a person to call", async () => {
+    /*
+      `account_deletion_pending`: a 403, only once the code checked out, for
+      a number whose account is closed and waiting to be erased. It used to
+      fall through to "We could not connect", which sends them round again.
+    */
+    server.use(
+      http.post(`${BASE}/me/sign-in/verify`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "account_deletion_pending",
+              message:
+                "Your account is being deleted \u2014 you cannot sign in. If you did not mean to close it, contact support.",
+            },
+          },
+          { status: 403 },
+        ),
+      ),
+    );
+    await askForCode();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Sign-in code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Show me my trips" }));
+
+    expect(
+      await screen.findByText("This account is being closed"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Your account is being deleted. You cannot sign in. If you did not mean to close it, contact support.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Call us on +91 81216 57657" }),
+    ).toHaveAttribute("href", "tel:+918121657657");
+    expect(screen.queryByText("We could not connect")).toBeNull();
   });
 });

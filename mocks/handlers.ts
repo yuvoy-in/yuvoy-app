@@ -218,6 +218,90 @@ const KNOWN_CATEGORIES = new Set<string>([
   "events",
 ] satisfies components["schemas"]["Category"][]);
 
+/**
+ * `bookableFrom` and `bookableTo` (yuvoy-api#258), read and refused as the
+ * API reads and refuses them: both or neither, never beside `bookableOn`,
+ * real days, the end not before the start and at most 31 days after it, each
+ * refusal its `400 invalid_input` with the API's own words. Refused, never
+ * clamped: a mock that quietly cut a long range would let a client that
+ * sends one pass, against an API that answers it with a 400.
+ *
+ * `null` for no range, or the 400 to answer with.
+ */
+function bookableRangeOf(
+  u: URL,
+): { from: string; to: string } | null | Response {
+  const from = u.searchParams.get("bookableFrom") ?? "";
+  const to = u.searchParams.get("bookableTo") ?? "";
+  const bookableOn = u.searchParams.get("bookableOn") ?? "";
+  if (!from && !to) return null;
+
+  const refuse = (message: string, details: Record<string, string>) =>
+    HttpResponse.json(
+      { error: { code: "invalid_input", message, details } },
+      { status: 400, headers: mockHeaders(requestId()) },
+    );
+  if (!from || !to) {
+    return refuse("send bookableFrom and bookableTo together", {
+      bookableFrom: from,
+      bookableTo: to,
+    });
+  }
+  if (bookableOn) {
+    return refuse(
+      "use bookableOn for one day, or bookableFrom and bookableTo for several, not both",
+      { bookableOn, bookableFrom: from, bookableTo: to },
+    );
+  }
+  const day = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const [y, m, d] = value.split("-").map(Number);
+    const ms = Date.UTC(y, m - 1, d);
+    return new Date(ms).toISOString().slice(0, 10) === value ? ms : null;
+  };
+  const start = day(from);
+  if (start === null) {
+    return refuse("bookableFrom should look like 2026-10-15", {
+      bookableFrom: from,
+    });
+  }
+  const end = day(to);
+  if (end === null) {
+    return refuse("bookableTo should look like 2026-10-18", {
+      bookableTo: to,
+    });
+  }
+  if (end < start) {
+    return refuse("bookableTo cannot be before bookableFrom", {
+      bookableFrom: from,
+      bookableTo: to,
+    });
+  }
+  if (end - start > 31 * 86_400_000) {
+    return refuse("bookableFrom and bookableTo can be at most 31 days apart", {
+      bookableFrom: from,
+      bookableTo: to,
+    });
+  }
+  return { from, to };
+}
+
+/**
+ * Whether a listing is bookable on some day of the range. `nextAvailable` is
+ * the only date a fixture carries, so it stands in for the departure list, as
+ * it does for `bookableOn`; and under a range the API answers the first
+ * departure INSIDE it there, which a fixture's one date already is.
+ */
+function inRange(
+  nextAvailable: string | undefined | null,
+  range: { from: string; to: string } | null,
+): boolean {
+  if (!range) return true;
+  return Boolean(
+    nextAvailable && nextAvailable >= range.from && nextAvailable <= range.to,
+  );
+}
+
 export const handlers = [
   /* ------------------------------------------------------------- catalog */
 
@@ -488,6 +572,8 @@ export const handlers = [
     const category = u.searchParams.get("category");
     const activityType = u.searchParams.get("activityType");
     const bookableOn = u.searchParams.get("bookableOn");
+    const range = bookableRangeOf(u);
+    if (range instanceof Response) return range;
 
     if (category && !KNOWN_CATEGORIES.has(category)) {
       return HttpResponse.json(
@@ -568,6 +654,7 @@ export const handlers = [
       // Only reels of listings bookable that day. `nextAvailable` is the only
       // date this fixture carries, so it stands in for the departure list.
       if (bookableOn && e.nextAvailable !== bookableOn) return false;
+      if (!inRange(e.nextAvailable, range)) return false;
       if (
         !within(
           e.durationMinutes,
@@ -817,8 +904,10 @@ export const handlers = [
     const destinationKey = u.searchParams.get("destinationKey");
     const category = u.searchParams.get("category");
     const activityType = u.searchParams.get("activityType");
+    const range = bookableRangeOf(u);
+    if (range instanceof Response) return range;
     const filtered = Boolean(
-      bookableOn || destinationKey || category || activityType,
+      bookableOn || range || destinationKey || category || activityType,
     );
 
     /*
@@ -874,6 +963,7 @@ export const handlers = [
     }
     // Date-first discovery: only what can actually be booked that day.
     if (bookableOn) items = items.filter((e) => e.nextAvailable === bookableOn);
+    items = items.filter((e) => inRange(e.nextAvailable, range));
     if (destinationKey) {
       items = items.filter((e) => e.destinationKey === destinationKey);
     }

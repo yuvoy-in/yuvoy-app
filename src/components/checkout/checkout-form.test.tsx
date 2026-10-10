@@ -679,6 +679,71 @@ describe("CheckoutForm — what the operator asks", () => {
   });
 
   /*
+    An answer holding a phone number, an email address or a link is refused,
+    never dropped (yuvoy-api#282 item 5). Against the mock's own refusal,
+    which is the API's: the reason goes beside the answer, and the panel says
+    what happened rather than asking for answers already given.
+  */
+  it("says beside an answer holding a phone number why it was refused", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
+    await fillDive(user);
+    await user.click(screen.getByRole("radio", { name: "Yes" }));
+    await user.type(
+      screen.getByLabelText(
+        "Which hotel should we collect you from? (optional)",
+      ),
+      "Ring 98765 43210 at the gate",
+    );
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+
+    expect(
+      await screen.findByText("An answer has contact details in it"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "An answer cannot include a phone number, an email address or a link, and this one looks like it has a phone number, from seven or more digits written close together. Write it another way.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("This one needs an answer.")).toBeNull();
+    expect(
+      screen.queryByText("Some questions need an answer first"),
+    ).toBeNull();
+  });
+
+  it("books with a time range in an answer, which is not a phone number", async () => {
+    let sent: { answers?: unknown } | null = null;
+    server.use(
+      http.post(`${BASE}/reservations`, async ({ request }) => {
+        sent = (await request.clone().json()) as { answers?: unknown };
+        // On to the mock's own handler, which refuses a phone number.
+        return undefined;
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<CheckoutForm experience={dive} slot={diveSlot} />);
+    await fillDive(user);
+    await user.click(screen.getByRole("radio", { name: "Yes" }));
+    await user.type(
+      screen.getByLabelText(
+        "Which hotel should we collect you from? (optional)",
+      ),
+      "Sea Shell, any time 0830-0930",
+    );
+    await user.click(screen.getByRole("button", { name: /^book now/i }));
+
+    // Held, and on to the booking: the mock took the answer.
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(sent!.answers).toContainEqual({
+      questionId: "q_pickup",
+      answer: "Sea Shell, any time 0830-0930",
+    });
+    expect(
+      screen.queryByText("An answer has contact details in it"),
+    ).toBeNull();
+  });
+
+  /*
     A `choice` question an operator saved with no options. Nothing can answer
     it, so if it were required and the body still sent `answers`, every
     checkout would be refused with a 409 the traveller cannot clear: the

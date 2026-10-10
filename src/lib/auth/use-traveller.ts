@@ -17,6 +17,7 @@ import {
 import { fetchWithin } from "@/lib/api/deadline";
 import { qk } from "@/lib/query/policy";
 import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
+import { dedash } from "@/lib/format/dedash";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
 import { resetSavedSession } from "@/lib/feed/account-saved";
@@ -299,7 +300,8 @@ async function asYuvoyError(response: Response): Promise<YuvoyError> {
   if (isErrorEnvelope(body)) {
     return new YuvoyError({
       code: body.error.code,
-      message: body.error.message,
+      // API words, cleaned at the boundary as the API client cleans them.
+      message: dedash(body.error.message),
       status: response.status,
       details: body.error.details,
       requestId:
