@@ -1679,12 +1679,24 @@
   Non-modal, and that is the design rather than a shortcut.
 
   A `<dialog>` brings a focus trap and a backdrop, and both stop the video being
-  watched. This covers a stated ceiling of 54% of the frame and no more, so at
-  least 46% of the clip is visible and playing at every moment it is open.
+  watched. This is as tall as its details and never taller than 70% of the
+  frame, so at least 30% of the clip is visible and playing at every moment it
+  is open; past that its body scrolls.
+
+  70% is the owner's ceiling (10 Oct 2026), raised from 54%, which cut the
+  departures and the operator's line off on every phone. Fitting the details
+  under it rather than always filling it was the owner's call too: on a tall
+  screen the details need about 56%, and the rest stays picture. When the
+  departures land at a different height, the panel glides there
+  (`useHeightGlide`).
+
+  The second term only bites on a frame under about 270px, a phone on its
+  side: the top 80px stay uncovered, the 64px row of the mark, Login or a way
+  back, and some air, so the panel never sits on a control.
 */
 @utility reel-sheet {
   @apply rounded-t-sheet absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden;
-  max-height: 54%;
+  max-height: min(70%, calc(100% - 5rem));
   background-color: color-mix(in srgb, var(--color-abyss) 94%, transparent);
   box-shadow: inset 0 1px 0
     color-mix(in srgb, var(--color-paper) 14%, transparent);
