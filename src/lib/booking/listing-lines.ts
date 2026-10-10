@@ -4,11 +4,14 @@
  *
  * Both are the API's to word, the same rule as `pricingUnitLabel`: a phrase a
  * client builds for itself is a second copy of a rule the server owns, and
- * the copy that drifts is the one that misstates money to a consumer. Neither
- * field is in the pinned contract yet (yuvoy-api#248), so each is read by
- * PRESENCE off the listing, structurally, the way `readPayAtCounter` reads a
- * field the contract had not caught up with. Once the contract carries them,
- * these become plain typed reads.
+ * the copy that drifts is the one that misstates money to a consumer.
+ *
+ * Both are in the pinned contract since 10 Oct 2026 (yuvoy-api#248):
+ * `paymentLabel` always, `cancellationSummary` when the listing has one. Each
+ * is still read by PRESENCE off the listing, structurally, and that is now
+ * the degrade path rather than a stop gap: a deployment older than the pin,
+ * or a blank string, falls back to what is true today instead of printing
+ * nothing beside a price.
  */
 
 /**

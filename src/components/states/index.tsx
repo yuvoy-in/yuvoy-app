@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { YuvoyError, NetworkError } from "@/lib/api/errors";
+import { answersHoldContactDetails } from "@/lib/booking/answers";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 
@@ -328,6 +329,21 @@ export function describeError(
         body sent again is refused identically.
       */
       case "answers_required":
+        /*
+          The same code when an answer holds a phone number, an email address
+          or a link (yuvoy-api#282 item 5), refused rather than dropped. The
+          questions were answered then, and "need an answer" would send the
+          traveller looking for a blank that is not there. The form marks the
+          answer with the API's own reason.
+        */
+        if (answersHoldContactDetails(error)) {
+          return {
+            ...base,
+            title: "An answer has contact details in it",
+            body: "Answers cannot include a phone number, an email address or a link. Change the marked answer and try again. Nothing was held and nothing was charged.",
+            canRetry: false,
+          };
+        }
         return {
           ...base,
           title: "Some questions need an answer first",
@@ -427,11 +443,16 @@ export function describeError(
           body: "Booking needs an invite code. Sign in with your number, then enter the code you were given. Nothing was held and nothing was charged.",
           canRetry: false,
         };
+      /*
+        Also what a code given for one number answers any other number, in
+        any state (yuvoy-api#195, 10 Oct 2026): so the second thing to check
+        is the number signed in, which the code screen shows above the field.
+      */
       case "invite_code_unknown":
         return {
           ...base,
           title: "We do not recognise that code",
-          body: "Check it against the one you were given. If it still does not work, it may have been withdrawn, so ask for a new one.",
+          body: "Check it against the one you were given. If it was given for a phone number, sign in with that number: it works for no other. If it still does not work, ask for a new one.",
           canRetry: false,
         };
       case "invite_code_used":
@@ -446,6 +467,24 @@ export function describeError(
           ...base,
           title: "That code has expired",
           body: "Ask whoever gave it to you for a new one.",
+          canRetry: false,
+        };
+      /*
+        CLOSING AN ACCOUNT (B9, D13). A 403 from signing in and from finding a
+        booking, only after the code checked out: this number closed its
+        account and the request to erase it is still open. The contract says
+        to render the API's message, which tells the traveller to contact
+        support if closing it was a mistake; the body here is only for a
+        refusal that arrives without one. No retry: the same code is refused
+        the same way until our staff finish or refuse the request.
+      */
+      case "account_deletion_pending":
+        return {
+          ...base,
+          title: "This account is being closed",
+          body:
+            error.message.trim() ||
+            "This number closed its Yuvoy account, so it cannot sign in. If that was a mistake, contact us.",
           canRetry: false,
         };
       default:

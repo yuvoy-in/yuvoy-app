@@ -13,12 +13,17 @@ import {
   asListingQuestion,
   batchAnswers,
   changedAnswers,
+  refusedAnswerReasons,
+  refusedForContactDetails,
   type AnswerDraft,
 } from "@/lib/booking/answers";
 import type { components } from "@/lib/api/schema.gen";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
 type PartyQuestion = components["schemas"]["PartyQuestion"];
+
+/** No answer refused. One empty map, so a render does not make another. */
+const NONE: ReadonlyMap<string, string> = new Map();
 
 /**
  * What the operator asked, and what this party answered - yuvoy-app#46 §4.
@@ -72,12 +77,19 @@ export function BookingQuestions({
     equality against a value the server may have normalised.
   */
   const [draft, setDraft] = useState<AnswerDraft>({});
+  /*
+    Why each answer the last save sent was refused, by question id
+    (yuvoy-api#282 item 5). Worked out where the batch is in hand, because
+    the API names a refused answer only by its place in the list it was sent.
+  */
+  const [refused, setRefused] = useState<ReadonlyMap<string, string>>(NONE);
 
   const open = answerableNow(questions);
   const past = questions.filter((q) => !q.current);
 
   const save = useMutation({
     retry: false,
+    onMutate: () => setRefused(NONE),
     mutationFn: async () => {
       const client = createApiClient();
       /*
@@ -89,12 +101,18 @@ export function BookingQuestions({
       */
       let latest: PartyQuestion[] | null = null;
       for (const batch of batchAnswers(changedAnswers(questions, draft))) {
-        const { data, error } = await client.POST("/bookings/answers", {
-          headers: { Authorization: `Bearer ${token}` },
-          body: { answers: batch },
-        });
-        if (error) throw error;
-        latest = data.questions;
+        try {
+          const { data, error } = await client.POST("/bookings/answers", {
+            headers: { Authorization: `Bearer ${token}` },
+            body: { answers: batch },
+          });
+          if (error) throw error;
+          latest = data.questions;
+        } catch (error) {
+          // The client throws a refusal rather than returning it.
+          setRefused(refusedAnswerReasons(error, batch));
+          throw error;
+        }
       }
       return latest;
     },
@@ -143,6 +161,7 @@ export function BookingQuestions({
               onChange={(id, value) =>
                 setDraft((prev) => ({ ...prev, [id]: value }))
               }
+              reasons={refused}
               legend={
                 unanswered > 0
                   ? "Still to answer"
@@ -176,7 +195,18 @@ export function BookingQuestions({
           <AnswerList questions={open} closed />
         )}
 
-        {save.error ? (
+        {/*
+          A save refused for what an answer holds says so in a line, with the
+          reason beside the answer itself: `invalid_input` is otherwise read as
+          our bug, "Something went wrong", with a retry the same answer fails.
+        */}
+        {save.error && refused.size > 0 ? (
+          <p role="alert" className="text-terra-deep mt-3 text-sm">
+            {refusedForContactDetails(save.error)
+              ? "Answers cannot include a phone number, an email address or a link. Change the marked answer and save again."
+              : "Change the marked answer and save again."}
+          </p>
+        ) : save.error ? (
           <FailurePanel
             failure={describeError(save.error, { tokenBearing: true })}
             className="mt-4"

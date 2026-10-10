@@ -162,6 +162,14 @@ export interface ReelFilters {
   q?: string;
   /** `YYYY-MM-DD`, in the market's timezone. */
   bookableOn?: string;
+  /**
+   * A range of days, `YYYY-MM-DD` both, in the market's timezone: what can be
+   * booked on at least one of them (yuvoy-api#258). Both or neither, the end
+   * at most {@link MAX_RANGE_GAP_DAYS} days after the start, and never with
+   * `bookableOn`. `filtersFromParams` and {@link bookableRange} make it so.
+   */
+  bookableFrom?: string;
+  bookableTo?: string;
   /** `<market>/<destination>`. */
   destinationKey?: string;
   /** A CLOSED enum: an unknown value is a 400, not an empty page. */
@@ -179,6 +187,63 @@ export interface ReelFilters {
    * band is chosen.
    */
   price?: PriceBand;
+}
+
+/* ------------------------------------------------------- a range of days */
+
+/**
+ * The API's limit on a range: `bookableTo` at most this many days after
+ * `bookableFrom`, so 32 days counting both ends ("at most 31 days apart").
+ */
+export const MAX_RANGE_GAP_DAYS = 31;
+
+/** A `YYYY-MM-DD` that names a real day, as UTC midnight, or null. */
+function dayOf(value: string | undefined): number | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  const ms = Date.UTC(y, m - 1, d);
+  // 2026-02-30 matches the pattern and is not a day.
+  return new Date(ms).toISOString().slice(0, 10) === value ? ms : null;
+}
+
+/**
+ * A range the API will take, or null for one it never would.
+ *
+ * Not a day, or an end before its start, is null: there is no honest reading
+ * of either. An end past the API's limit is CUT to it, and `cut` says so, so
+ * the caller can say so too: a stay of six weeks still asks for its first 32
+ * days rather than for nothing (the API refuses a longer range outright).
+ */
+export function bookableRange(
+  from: string | undefined,
+  to: string | undefined,
+): { bookableFrom: string; bookableTo: string; cut: boolean } | null {
+  const start = dayOf(from);
+  const end = dayOf(to);
+  if (start === null || end === null || end < start) return null;
+  const last = start + MAX_RANGE_GAP_DAYS * 86_400_000;
+  if (end <= last) return { bookableFrom: from!, bookableTo: to!, cut: false };
+  return {
+    bookableFrom: from!,
+    bookableTo: new Date(last).toISOString().slice(0, 10),
+    cut: true,
+  };
+}
+
+/**
+ * The range in `filters` if it is one the API will take as it stands, else
+ * nothing. One day and a range ask different questions of the same view, and
+ * the API refuses both at once; the day wins, as the narrower question.
+ */
+function rangeOf(
+  filters: ReelFilters,
+): { bookableFrom: string; bookableTo: string } | null {
+  if (filters.bookableOn) return null;
+  const range = bookableRange(filters.bookableFrom, filters.bookableTo);
+  if (!range || range.cut) return null;
+  // The two ends alone: this is spread into the API's query, and `cut` would
+  // go with it as a parameter the API does not take.
+  return { bookableFrom: range.bookableFrom, bookableTo: range.bookableTo };
 }
 
 /** Whether anything at all has been asked for. */
@@ -219,6 +284,9 @@ export function reelFilterKey(filters: ReelFilters): string {
     */
     isDurationBand(filters.duration) ? filters.duration : "",
     isPriceBand(filters.price) ? filters.price : "",
+    // Last, so every key minted before the range existed reads the same.
+    rangeOf(filters)?.bookableFrom ?? "",
+    rangeOf(filters)?.bookableTo ?? "",
   ]);
 }
 
@@ -231,9 +299,11 @@ export function reelQuery(filters: ReelFilters) {
   const price = isPriceBand(filters.price)
     ? (PRICE_BANDS[filters.price] as PriceRange)
     : undefined;
+  const range = rangeOf(filters);
   return {
     ...(q ? { q } : {}),
     ...(filters.bookableOn ? { bookableOn: filters.bookableOn } : {}),
+    ...(range ?? {}),
     ...(filters.destinationKey
       ? { destinationKey: filters.destinationKey }
       : {}),
@@ -270,6 +340,8 @@ export function reelQuery(filters: ReelFilters) {
 const PARAM = {
   q: "q",
   bookableOn: "on",
+  bookableFrom: "from",
+  bookableTo: "to",
   destinationKey: "place",
   category: "kind",
   activityType: "doing",
@@ -281,6 +353,7 @@ const PARAM = {
 
 export function filtersToParams(filters: ReelFilters): URLSearchParams {
   const params = new URLSearchParams();
+  const range = rangeOf(filters);
   for (const [field, name] of Object.entries(PARAM)) {
     const value = filters[field as keyof ReelFilters]?.trim();
     if (!value) continue;
@@ -288,6 +361,10 @@ export function filtersToParams(filters: ReelFilters): URLSearchParams {
     // written into an address a traveller might share.
     if (field === "duration" && !isDurationBand(value)) continue;
     if (field === "price" && !isPriceBand(value)) continue;
+    // Both ends of a range the API takes, or neither: half a range is a 400.
+    if ((field === "bookableFrom" || field === "bookableTo") && !range) {
+      continue;
+    }
     params.set(name, value);
   }
   return params;
@@ -298,9 +375,23 @@ export function filtersFromParams(
 ): ReelFilters {
   if (!params) return {};
   const read = (name: string) => params.get(name)?.trim() || undefined;
+  const bookableOn = read(PARAM.bookableOn);
+  /*
+    A range, VALIDATED here like a band and for the same reason: the API
+    refuses half of one, a backwards one, one beside a day and one longer than
+    its limit, and none of those is a question worth a 400 page. A day wins
+    over a range, the end of a range too long is cut to the limit (the pill
+    then shows exactly what was asked), and anything else is dropped.
+  */
+  const range = bookableOn
+    ? null
+    : bookableRange(read(PARAM.bookableFrom), read(PARAM.bookableTo));
   return {
     q: read(PARAM.q),
-    bookableOn: read(PARAM.bookableOn),
+    bookableOn,
+    ...(range
+      ? { bookableFrom: range.bookableFrom, bookableTo: range.bookableTo }
+      : {}),
     destinationKey: read(PARAM.destinationKey),
     /*
       Not validated against the enum here, and deliberately.

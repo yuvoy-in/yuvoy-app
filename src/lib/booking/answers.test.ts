@@ -3,12 +3,16 @@ import { YuvoyError } from "@/lib/api/errors";
 import {
   ANSWER_MAX,
   answerableNow,
+  answersHoldContactDetails,
   answersRequiredIds,
+  answersRequiredReasons,
   asListingQuestion,
   batchAnswers,
   canEnforceAnswers,
   changedAnswers,
   isUnanswerable,
+  refusedAnswerReasons,
+  refusedForContactDetails,
   toBookingAnswers,
   unansweredRequired,
 } from "./answers";
@@ -161,6 +165,125 @@ describe("reading the refusal", () => {
       details: { questions: [{ questionId: "q_dived", text: "x" }] },
     });
     expect(answersRequiredIds(other)).toEqual([]);
+  });
+});
+
+/*
+  An answer holding a phone number, an email address or a link is refused,
+  never dropped (yuvoy-api#282 item 5), with the API's reason to show beside
+  it. These are the API's own sentences at the pinned contract.
+*/
+describe("why an answer was not taken", () => {
+  const CONTACT =
+    "an answer cannot include a phone number, an email address or a link, and this one looks like it has a link. Write it another way";
+
+  it("reads a checkout refusal's reason per question, as a sentence", () => {
+    const error = new YuvoyError({
+      code: "answers_required",
+      message: "Some answers need another look before you can book.",
+      status: 409,
+      details: {
+        questions: [
+          {
+            questionId: "q_hotel",
+            text: "Which hotel?",
+            reason: CONTACT,
+            contactDetail: "link",
+          },
+          { questionId: "q_dived", text: "Has everyone dived before?" },
+        ],
+      },
+    });
+    expect(answersRequiredIds(error)).toEqual(["q_hotel", "q_dived"]);
+    expect([...answersRequiredReasons(error)]).toEqual([
+      [
+        "q_hotel",
+        "An answer cannot include a phone number, an email address or a link, and this one looks like it has a link. Write it another way.",
+      ],
+    ]);
+    expect(answersHoldContactDetails(error)).toBe(true);
+  });
+
+  it("gives a choice no longer offered its reason, and a blank one none", () => {
+    const error = new YuvoyError({
+      code: "answers_required",
+      message:
+        "Some questions this trip asks need an answer before you can book.",
+      status: 409,
+      details: {
+        questions: [
+          {
+            questionId: "q_agency",
+            text: "Which agency?",
+            reason: "that choice is no longer offered, pick again",
+          },
+        ],
+      },
+    });
+    expect(answersRequiredReasons(error).get("q_agency")).toBe(
+      "That choice is no longer offered, pick again.",
+    );
+    expect(answersHoldContactDetails(error)).toBe(false);
+  });
+
+  it("strips a long dash the API's details still carry", () => {
+    const error = new YuvoyError({
+      code: "answers_required",
+      message: "no",
+      status: 409,
+      details: {
+        questions: [
+          {
+            questionId: "q_hotel",
+            text: "x",
+            reason: "not that \u2014 pick again",
+          },
+        ],
+      },
+    });
+    expect(answersRequiredReasons(error).get("q_hotel")).not.toMatch(
+      /[\u2013\u2014\u2015]/,
+    );
+  });
+
+  it("maps a booking link's refusal back to the questions in the batch sent", () => {
+    const error = new YuvoyError({
+      code: "invalid_input",
+      message: "some of these answers need fixing",
+      status: 400,
+      details: {
+        "answers[1].answer": CONTACT,
+        "answers[1].contactDetail": "link",
+        // A place the batch does not have names nothing here.
+        "answers[7].answer": "does not fit this question",
+      },
+    });
+    const sent = [
+      { questionId: "q_dived", answer: "yes" },
+      { questionId: "q_hotel", answer: "see arrived.in" },
+    ];
+    expect([...refusedAnswerReasons(error, sent)]).toEqual([
+      [
+        "q_hotel",
+        "An answer cannot include a phone number, an email address or a link, and this one looks like it has a link. Write it another way.",
+      ],
+    ]);
+    expect(refusedForContactDetails(error)).toBe(true);
+  });
+
+  it("reads nothing from another refusal", () => {
+    const closed = new YuvoyError({
+      code: "answers_closed",
+      message: "no",
+      status: 409,
+      details: { "answers[0].answer": CONTACT },
+    });
+    expect(
+      refusedAnswerReasons(closed, [{ questionId: "q", answer: "a" }]).size,
+    ).toBe(0);
+    expect(refusedForContactDetails(closed)).toBe(false);
+    expect(answersRequiredReasons(new Error("no")).size).toBe(0);
+    expect(answersHoldContactDetails(undefined)).toBe(false);
   });
 });
 

@@ -511,6 +511,37 @@ repo=yuvoy-in/yuvoy-api
 # Checked with `git ls-remote` immediately before pinning: master is
 # c363196060b1.
 
-ref=c363196060b190ddd8ee24b3ec9a6beafcde7dd0
+# 10 Oct 2026. Forward from c363196060b1 to 178d98912d87, 89 commits up to
+# yuvoy-api #302. Read for removals first: nothing the traveller document
+# carried is removed or changes shape. Objects it spelled out in place are
+# now named schemas (the trips row is `MyBookingListItem`), which renames
+# their generated types and nothing else.
+#
+# Consumed in this change:
+#   - `stay` on `GET /me`, with `PUT /me/stay` and `DELETE /me/stay` (#257):
+#     the island days live on the account, through this app's proxy. An API
+#     answering no `stay` key keeps them on the phone, as before.
+#   - `bookableFrom` and `bookableTo` on `/reels` and `/search` (#258), at
+#     most 31 days apart: Trips links a stay's days to Search, which shows
+#     the range as a pill.
+#   - `paymentLabel` and `cancellationSummary` on a listing (#248), and
+#     `holding` and `holdExpiresAt` on a trips row (#270), now in the
+#     contract. Both pairs are still read by presence.
+#   - `account_deletion_pending` on both sign-in verifies, and the sign-in
+#     202's sentence that names an invitation (#195).
+#   - An optional `Idempotency-Key` on `POST /bookings/messages` (#282 item 4).
+#   - `reason` and `contactDetail` on an answer refused for holding contact
+#     details: per question on a checkout's `409 answers_required`, and keyed
+#     by place on `POST /bookings/answers` (#282 item 5).
+#   - `X-Yuvoy-Client-IP` with `X-Yuvoy-Proxy-Secret` from this app's server
+#     (#282 item 3, yuvoy-api#299). Sent only once `PROXY_CLIENT_IP_SECRET` is
+#     set; until then nothing changes.
+#
+# Named, not consumed: `invalid_push_token`, the native apps' device routes.
+#
+# Checked with `git ls-remote` immediately before pinning: master is
+# 178d98912d87.
+
+ref=178d98912d879f1cf633fd5d60b404f63dcd78a7
 branch=master
-pinned_on=2026-09-24
+pinned_on=2026-10-10
