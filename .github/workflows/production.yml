@@ -1,4 +1,4 @@
-# app.yuvoy.in: a MANUAL redeploy, and nothing else.
+# app.yuvoy.in: a MANUAL redeploy.
 #
 # Vercel's Git integration deploys `main` on every push (connected 20 Sep
 # 2026), so this workflow no longer runs on push. For four days it did both:
@@ -6,6 +6,10 @@
 # domain, and this one, built with no `.git`, stamped the service worker with
 # an empty version (see src/lib/site/sw-version.ts). The audit that used to
 # follow this deploy now follows Vercel's: audit-after-deploy.yml.
+#
+# The same deploy also runs on its own when Vercel never picks up a push to
+# `main` (deploy-watchdog.yml, since 10 Oct 2026). Both hold the `production`
+# group, so the two queue instead of racing.
 #
 # There is ONE Vercel project for now (owner decision, 1 Sep 2026), so `main`
 # is the only branch that deploys and `dev` deploys nowhere.
@@ -30,8 +34,8 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   # A deploy that succeeds is not a deploy that works. Half of what the audit
-  # checks — robots.txt agreeing with the meta tag, the sitemap resolving, the
-  # share image serving — depends on values that exist only in the Vercel
+  # checks (robots.txt agreeing with the meta tag, the sitemap resolving, the
+  # share image serving) depends on values that exist only in the Vercel
   # dashboard, and a green build says nothing about any of them. That gap cost
   # three deploys to find once.
   audit:
