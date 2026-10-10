@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["K8PFJNX7U8.in.yuvoy.app"],
+        "components": [
+          { "/": "/booking", "comment": "Booking status, token in #t=" },
+          { "/": "/e/*", "comment": "An experience and its booking form" },
+          { "/": "/r/*", "comment": "A reel" },
+          { "/": "/o/*", "comment": "A business page, its listings and reels" },
+          { "/": "/i/*", "comment": "A trip invite" },
+          { "/": "/trip/*", "comment": "A shared trip" },
+          { "/": "/trips", "comment": "Trips tab, linked from booking status emails" },
+          { "/": "/trips/*", "comment": "Recovering and invited trips" }
+        ]
+      }
+    ]
+  }
+}
