@@ -253,6 +253,173 @@ describe("MessageThread", () => {
   });
 
   /*
+    A send whose answer was lost may have landed (yuvoy-api#282 item 4). The
+    same key on the resend is what lets the API answer with the message it
+    already wrote instead of posting it twice.
+  */
+  it("resends a message whose answer was lost under the same key, and the next message under a new one", async () => {
+    const keys: (string | null)[] = [];
+    serveThread();
+    server.use(
+      http.post(`${BASE}/bookings/messages`, ({ request }) => {
+        keys.push(request.headers.get("idempotency-key"));
+        // The first answer never arrives; every later one does.
+        if (keys.length === 1) return HttpResponse.error();
+        return HttpResponse.json(
+          { ...fromMe, id: `msg_000${keys.length + 2}` },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<MessageThread token="t" bookingState="confirmed" />);
+    await screen.findByText("Bring a towel, the wind is up.");
+    const box = screen.getByLabelText("Write to the operator");
+
+    await user.type(box, "See you at the jetty");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(keys).toHaveLength(1));
+    // Not sent, as far as the screen knows: the words stay to send again.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Send" })).toBeEnabled(),
+    );
+    expect(box).toHaveValue("See you at the jetty");
+
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(box).toHaveValue(""));
+
+    await user.type(box, "One more thing");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(keys).toHaveLength(3));
+
+    expect(keys[0]).toMatch(/^msg_[A-Za-z0-9_.:-]{12,124}$/);
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).toMatch(/^msg_[A-Za-z0-9_.:-]{12,124}$/);
+    expect(keys[2]).not.toBe(keys[0]);
+  });
+
+  it("sends changed words under a new key, even after a lost answer", async () => {
+    const keys: (string | null)[] = [];
+    serveThread();
+    server.use(
+      http.post(`${BASE}/bookings/messages`, ({ request }) => {
+        keys.push(request.headers.get("idempotency-key"));
+        return HttpResponse.error();
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<MessageThread token="t" bookingState="confirmed" />);
+    await screen.findByText("Bring a towel, the wind is up.");
+    const box = screen.getByLabelText("Write to the operator");
+
+    await user.type(box, "See you at the jetty");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(keys).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Send" })).toBeEnabled(),
+    );
+
+    // The same key with other words is refused, so other words get a new one.
+    await user.type(box, " at seven");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(keys).toHaveLength(2));
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  it("says a message still on its way is on its way, and the next tap sends it once", async () => {
+    const keys: (string | null)[] = [];
+    serveThread();
+    server.use(
+      http.post(`${BASE}/bookings/messages`, ({ request }) => {
+        keys.push(request.headers.get("idempotency-key"));
+        if (keys.length === 1) {
+          return HttpResponse.json(
+            {
+              error: {
+                code: "idempotency_in_progress",
+                message: "an identical request is still being processed",
+              },
+            },
+            { status: 409, headers: { "Retry-After": "2" } },
+          );
+        }
+        return HttpResponse.json(
+          { ...fromMe, id: "msg_0003" },
+          { status: 201, headers: { "Idempotent-Replay": "true" } },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<MessageThread token="t" bookingState="confirmed" />);
+    await screen.findByText("Bring a towel, the wind is up.");
+    const box = screen.getByLabelText("Write to the operator");
+
+    await user.type(box, "See you at the jetty");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(
+      await screen.findByText(
+        "This message is still on its way. Give it a moment, then tap Send again. It will only arrive once.",
+      ),
+    ).toBeInTheDocument();
+    // Checkout's reading of the code is about a booking, not a message.
+    expect(document.body.textContent).not.toMatch(/same booking/);
+    expect(document.body.textContent).not.toMatch(/Something went wrong/);
+
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(box).toHaveValue(""));
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  /*
+    The mock answers as the API does, or a screen goes green against rules
+    the API does not keep.
+  */
+  it("keeps the API's key rules in the mock: replayed, refused for other words, refused malformed", async () => {
+    const send = (text: string, key?: string) =>
+      fetch(`${BASE}/bookings/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer tok_other_phone",
+          "Content-Type": "application/json",
+          ...(key ? { "Idempotency-Key": key } : {}),
+        },
+        body: JSON.stringify({ text }),
+      });
+    const key = "msg_0123456789abcdef";
+
+    const first = await send("See you at the jetty", key);
+    expect(first.status).toBe(201);
+    const written = (await first.json()) as BookingMessage;
+
+    const again = await send("See you at the jetty", key);
+    expect(again.status).toBe(201);
+    expect(again.headers.get("Idempotent-Replay")).toBe("true");
+    expect(await again.json()).toEqual(written);
+
+    const other = await send("See you at seven", key);
+    expect(other.status).toBe(409);
+    expect(
+      ((await other.json()) as { error: { code: string } }).error.code,
+    ).toBe("idempotency_key_reuse");
+
+    const short = await send("See you at the jetty", "msg_short");
+    expect(short.status).toBe(400);
+    expect(
+      ((await short.json()) as { error: { code: string } }).error.code,
+    ).toBe("idempotency_key_malformed");
+
+    // A refused send keeps nothing, so its key still writes the message.
+    const refusedKey = "msg_fedcba9876543210";
+    const refused = await send("call me on 98765 43210", refusedKey);
+    expect(refused.status).toBe(400);
+    expect((await send("See you there", refusedKey)).status).toBe(201);
+  });
+
+  /*
     THE REFUSAL THAT MUST NOT READ AS OUR BUG - yuvoy-app#47 §2.
 
     `invalid_input` is in CLIENT_BUGS, so describeError says "Something went

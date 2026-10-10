@@ -8,6 +8,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createApiClient } from "@/lib/api/client";
+import { YuvoyError } from "@/lib/api/errors";
+import { freshIdempotencyKey } from "@/lib/booking/idempotency";
 import { describeError, FailurePanel, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -154,22 +156,58 @@ export function MessageThread({
   /*
     One send at a time, decided as the form is submitted. `send.isPending`
     reaches the form a render later, so a second Enter or tap in between sent
-    the message twice, and the API takes no key that would fold the two into
-    one (production readiness, 6 Oct 2026).
+    the message twice (production readiness, 6 Oct 2026). The key below folds
+    a resend into one message; this keeps two taps from being two sends at all.
   */
   const sending = useRef(false);
+  /*
+    The send's `Idempotency-Key` (yuvoy-api#282), held for the text it was
+    minted for.
+
+    A send whose answer never came back may still have landed. Tapping Send
+    again on the same text sends the same key, and the API answers with the
+    message it already wrote (`Idempotent-Replay`) rather than posting it
+    twice, and tells the business once. Other text gets a new key, because
+    the same key with different text is refused `idempotency_key_reuse`, and
+    a send that went through lets go of its key, so the same words written
+    again later are a new message.
+
+    In memory, not `sessionStorage` as checkout's key is: a reload loses the
+    draft with it, and the thread read after the reload shows whether the
+    message got there.
+  */
+  const sendKey = useRef<{ text: string; key: string } | null>(null);
   const send = useMutation({
     retry: false,
     mutationFn: async (text: string) => {
+      const held = sendKey.current;
+      const key = held?.text === text ? held.key : freshIdempotencyKey("msg");
+      sendKey.current = { text, key };
       const client = createApiClient();
       const { data, error } = await client.POST("/bookings/messages", {
+        params: { header: { "Idempotency-Key": key } },
         headers: { Authorization: `Bearer ${token}` },
         body: { text },
       });
       if (error) throw error;
       return data;
     },
+    onError: (error) => {
+      /*
+        The two refusals about the key itself. Neither can happen to a key
+        minted above for this text, and if one ever does, holding on to it
+        would refuse every tap after; the next one gets a new key instead.
+      */
+      if (
+        error instanceof YuvoyError &&
+        (error.code === "idempotency_key_reuse" ||
+          error.code === "idempotency_key_malformed")
+      ) {
+        sendKey.current = null;
+      }
+    },
     onSuccess: async () => {
+      sendKey.current = null;
       setDraft("");
       /*
         Refetched rather than appended from the 201.
