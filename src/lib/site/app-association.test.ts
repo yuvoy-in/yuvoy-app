@@ -58,7 +58,9 @@ describe("apple-app-site-association", () => {
   });
 
   it("carries the Yuvoy Apple Team ID", () => {
-    expect(aasa.applinks.details[0].appIDs).toEqual([`${TEAM_ID}.${BUNDLE_ID}`]);
+    expect(aasa.applinks.details[0].appIDs).toEqual([
+      `${TEAM_ID}.${BUNDLE_ID}`,
+    ]);
   });
 
   it("links exactly the agreed paths, each one a route here", () => {
