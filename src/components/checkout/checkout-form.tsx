@@ -17,6 +17,7 @@ import { QuestionFields } from "./question-fields";
 import { checkoutRefusal } from "@/lib/booking/checkout-readiness";
 import {
   answersRequiredIds,
+  answersRequiredReasons,
   canEnforceAnswers,
   toBookingAnswers,
   unansweredRequired,
@@ -516,6 +517,8 @@ function CheckoutFields({
     can act on without reading the form again from the top.
   */
   const flaggedQuestions = answersRequiredIds(create.error);
+  // And why, beside each one whose answer was sent and not taken.
+  const answerReasons = answersRequiredReasons(create.error);
   const capacityError =
     create.error instanceof YuvoyError &&
     create.error.code === "capacity_unavailable"
@@ -754,6 +757,7 @@ function CheckoutFields({
               setAnswers((prev) => ({ ...prev, [id]: value }))
             }
             flagged={flaggedQuestions}
+            reasons={answerReasons}
             legend={`What ${experience.operator.name} asks`}
             intro="The operator asks these, and they go on their manifest with your booking."
           />

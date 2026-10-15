@@ -2,36 +2,25 @@ import { formatMoney } from "@/lib/format/money";
 import { marketToday } from "@/lib/booking/availability-window";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { holdDeadlineWords } from "@/lib/booking/hold-deadline";
-import type { components, operations } from "@/lib/api/schema.gen";
+import type { components } from "@/lib/api/schema.gen";
 
 export type InvitedTrip = components["schemas"]["InvitedTrip"];
 
 /**
  * One row of `GET /me/bookings`, and the only shape Trips renders.
  *
- * DERIVED from the generated operation rather than retyped. The response is
- * inline in the contract with no named schema, and a hand-written copy of an
- * inline shape is exactly what `contracts/PINNED` exists to prevent: it would
- * still compile the day the server adds a field or drops one, and the
+ * The contract's own `MyBookingListItem`, not a hand-written copy: a copy
+ * would still compile the day the server adds a field or drops one, and the
  * disagreement would surface at runtime, in a list of somebody's bookings.
+ * The row was inline in the contract until the 10 Oct 2026 pin, which named
+ * it and also carries `holding` and `holdExpiresAt` (an accepted request
+ * waiting on payment, yuvoy-api#270): this type used to add those two by hand.
  *
  * It lived in `merge-trips.ts` until yuvoy-app#60 removed the device list this
  * screen used to merge in. There is one source now, so there is nothing to
  * merge and the type belongs beside the tab rules that place it.
  */
-type ListedTrip =
-  operations["listMyBookings"]["responses"][200]["content"]["application/json"]["bookings"][number];
-
-/*
-  Plus `holding` and `holdExpiresAt`, which yuvoy-api#279 adds to this row (an
-  accepted request, waiting on payment) and the pinned contract does not have
-  yet. Both are additions, so this stays true once the contract is re-pinned,
-  and can then be deleted back to `ListedTrip`.
-*/
-export type ServerTrip = Omit<ListedTrip, "state"> & {
-  state: ListedTrip["state"] | "holding";
-  holdExpiresAt?: string;
-};
+export type ServerTrip = components["schemas"]["MyBookingListItem"];
 
 /**
  * Which tab a trip belongs in, and what its price line says (yuvoy-app#38).

@@ -201,13 +201,13 @@ describe("the landing, for somebody signed out", () => {
 
     expect(
       screen.getByText(
-        "If your latest booking with this number has an email, a code is on its way to that email. It is good for a few minutes and works once.",
+        "If we have an email for this number, from your latest booking or your invitation, a code is on its way to that email. It is good for a few minutes and works once.",
       ),
     ).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/on whatsapp/i);
     // The same way out as Account, because it is the same steps.
     expect(screen.getByLabelText("Sign-in code")).toHaveAccessibleDescription(
-      /No email\? Use the number you booked with, or call us on \+91 81216 57657\.$/,
+      /No email\? Use the number you booked with or were invited on, or call us on \+91 81216 57657\.$/,
     );
   });
 
@@ -333,7 +333,8 @@ describe("the code screen", () => {
     [
       404,
       "invite_code_unknown",
-      "We do not recognise that code. Check it against the one you were given.",
+      // A code given for one number is unknown to every other (yuvoy-api#195).
+      "We do not recognise that code. Check it against the one you were given. If it was given for a phone number, sign in with that number: it works for no other.",
     ],
     [409, "invite_code_used", "That code has already been used."],
     [410, "invite_code_expired", "That code has expired."],

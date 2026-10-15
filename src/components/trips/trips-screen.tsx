@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   useTravellerSession,
   useMyBookings,
@@ -28,7 +29,7 @@ import { Panel } from "@/components/ui/panel";
 import { TripCard, InvitedTripCard } from "./trip-card";
 import { NextUpPass } from "./next-up-pass";
 import { IslandDays } from "./island-days";
-import { useStay } from "@/lib/trips/use-stay";
+import { deviceStayQuery } from "@/lib/trips/use-stay";
 import { nextUpTrip } from "@/lib/trips/next-up";
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { marketDayOf } from "@/lib/booking/availability-window";
@@ -112,13 +113,15 @@ export function TripsScreen() {
   const server = useMyBookings(signedIn, { tab, ...range });
   const invited = useInvitedTrips(signedIn);
   /*
-    The stay on this phone, asked for alongside the session rather than after
-    it. Your island days only mount once the session has answered, so they
-    used to ask the device then, and their panel arrived a moment after the
-    screen, pushing everything under it down (stability audit, 6 Oct 2026).
-    One query: the panel reads this same answer.
+    The phone's copy of the stay, asked for alongside the session rather than
+    after it. The days live on the account now (yuvoy-api#257), which can only
+    be asked once the session has answered; the phone's copy still decides
+    the plan against an API too old to keep them, and holds days set before
+    the account could, still to move. Asked here, it is in the cache by the
+    time the panel mounts (stability audit, 6 Oct 2026). One query: the panel
+    reads this same answer.
   */
-  useStay();
+  useQuery(deviceStayQuery);
 
   /*
     A tab's contents fade THROUGH to the next tab's (T07 A, approved 4 Oct

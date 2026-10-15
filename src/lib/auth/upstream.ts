@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { NextResponse } from "next/server";
 import { apiBaseUrl } from "@/lib/api/client";
 import { fetchWithin, StalledError } from "@/lib/api/deadline";
@@ -50,6 +51,63 @@ const SCENARIO_HEADER = "x-yuvoy-scenario";
  */
 export const FORWARDED_REQUEST_HEADERS = ["Idempotency-Key"] as const;
 
+/**
+ * The person's own address, for the API's per-IP limits (yuvoy-api#282
+ * item 3, yuvoy-api#299).
+ *
+ * Every call this server makes, it makes for somebody, and without this the
+ * API's per-IP limits count Vercel: everybody redeeming an invite code or
+ * signing in shares the budget of the few addresses Vercel calls from. The
+ * API believes `X-Yuvoy-Client-IP` only beside an `X-Yuvoy-Proxy-Secret`
+ * matching its own `PROXY_CLIENT_IP_SECRET`, and only as one bare IPv4 or
+ * IPv6 address; anything else counts the calling server, as before.
+ *
+ * SET, never forwarded. The address is Vercel's `x-real-ip`, which Vercel
+ * writes from the connection and overwrites when a caller sends one, never
+ * `X-Forwarded-For`, which anybody can write and which would buy a fresh
+ * budget per request. And both or neither: with no usable secret here no
+ * address goes either, so a deployment without the variable sends exactly
+ * what it always sent.
+ *
+ * The secret is server only (never `NEXT_PUBLIC_`), never logged, and goes
+ * nowhere but the API. Neither header is in the API's CORS allow list, so a
+ * page cannot send them itself.
+ */
+export function visitorAddressHeaders(
+  visitor: Headers | null | undefined,
+): Record<string, string> {
+  const secret = proxySecret();
+  if (!secret) return {};
+  const address = visitor?.get("x-real-ip")?.trim();
+  /*
+    One bare address: `isIP` refuses a port, brackets and a list, and a zone
+    (`fe80::1%en0`) is refused here, since `isIP` takes one and the API does
+    not promise to.
+  */
+  if (!address || address.includes("%") || isIP(address) === 0) return {};
+  return { "X-Yuvoy-Client-IP": address, "X-Yuvoy-Proxy-Secret": secret };
+}
+
+/**
+ * The shared secret, when it is one the API would boot with: 32 or more
+ * characters a header can carry. Anything else is sent as nothing, because a
+ * header `fetch` cannot carry would fail every call to the API, and it is
+ * said once in the log, by name only.
+ */
+function proxySecret(): string | null {
+  const secret = process.env.PROXY_CLIENT_IP_SECRET;
+  if (!secret) return null;
+  if (/^[\x21-\x7E]{32,}$/.test(secret)) return secret;
+  if (!warnedOfSecret) {
+    warnedOfSecret = true;
+    console.warn(
+      "PROXY_CLIENT_IP_SECRET is not 32 or more visible characters, so no visitor address is sent to the API.",
+    );
+  }
+  return null;
+}
+let warnedOfSecret = false;
+
 /*
   How long this server waits on an API that has gone quiet (see
   lib/api/deadline): eight seconds for a read, twenty-five for a write. Each is
@@ -92,10 +150,16 @@ export async function callUpstream(options: {
   /** A JSON body, for a write. */
   body?: unknown;
   /**
-   * The incoming request, read only for `FORWARDED_REQUEST_HEADERS` and, in a
-   * mocked build, the scenario header.
+   * The incoming request, read only for `FORWARDED_REQUEST_HEADERS`, the
+   * visitor's address (`visitorAddressHeaders`) and, in a mocked build, the
+   * scenario header.
    */
   from?: Request;
+  /**
+   * The visitor's request headers, for a call a Server Component makes, which
+   * has no incoming `Request`: read with `headers()`, for the address alone.
+   */
+  visitor?: Headers;
   /**
    * The page's own `?__scenario=`, for a call a Server Component makes, which
    * has no incoming `Request` to read it off. Honoured in a mocked build only,
@@ -120,6 +184,11 @@ export async function callUpstream(options: {
       if (value) headers[name] = value;
     }
   }
+
+  Object.assign(
+    headers,
+    visitorAddressHeaders(options.from?.headers ?? options.visitor),
+  );
 
   /*
     Only in a mocked build, and only from the incoming request. Reading it

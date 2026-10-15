@@ -141,6 +141,19 @@ export const ERROR_CODES = [
   "invite_code_unknown",
   "invite_code_used",
   "invite_code_expired",
+  /*
+    A 403 from `POST /me/sign-in/verify` and `POST /bookings/recovery/verify`,
+    only after the code checked out: this number closed its account and the
+    request to erase it is still open, so it cannot sign in. The API's message
+    says to contact support if closing it was a mistake, and is rendered.
+  */
+  "account_deletion_pending",
+  /*
+    The device-token routes' refusal (the native apps' push registration).
+    This app registers no device, so it never sees it; it is named because
+    `pnpm qa` refuses a declared code this list cannot name.
+  */
+  "invalid_push_token",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

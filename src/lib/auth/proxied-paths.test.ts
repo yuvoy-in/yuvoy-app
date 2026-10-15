@@ -101,6 +101,21 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("POST", "/me/invite-codes/issue")).toBeNull();
   });
 
+  it("forwards keeping and clearing the stay, and no other verb", () => {
+    /*
+      yuvoy-api#257. PUT replaces the stay and DELETE clears it; `GET /me`
+      reads it back, so a read here would be a second door to the same data.
+    */
+    expect(allowedProxyPath("PUT", "/me/stay")).toBe("/me/stay");
+    expect(allowedProxyPath("DELETE", "/me/stay")).toBe("/me/stay");
+    expect(allowedProxyPath("GET", "/me/stay")).toBeNull();
+    expect(allowedProxyPath("POST", "/me/stay")).toBeNull();
+    expect(allowedProxyPath("PATCH", "/me/stay")).toBeNull();
+    expect(allowedProxyPath("PUT", "/me/stay/x")).toBeNull();
+    // PUT on anything else is still nothing: the verb is not a wildcard.
+    expect(allowedProxyPath("PUT", "/me")).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

@@ -195,3 +195,47 @@ describe("describeError: booking by invitation", () => {
     expect(d.body).toMatch(/nothing was charged/i);
   });
 });
+
+describe("describeError: a closed account", () => {
+  it("prints the API's own sentence, and offers no retry", () => {
+    /*
+      `account_deletion_pending` (B9, D13): signing in and finding a booking
+      both answer it once the code checked out. The contract says to render
+      the message, which says to contact support if it was a mistake.
+    */
+    const d = describeError(
+      new YuvoyError({
+        code: "account_deletion_pending",
+        message: "Your account is being deleted, so you cannot sign in.",
+        status: 403,
+        requestId: "01J",
+      }),
+    );
+    expect(d.title).toBe("This account is being closed");
+    expect(d.body).toBe(
+      "Your account is being deleted, so you cannot sign in.",
+    );
+    expect(d.canRetry).toBe(false);
+    expect(d.requestId).toBe("01J");
+  });
+
+  it("still says what happened when the refusal carries no sentence", () => {
+    const d = describeError(err("account_deletion_pending", 403));
+    expect(d.body).toBe("raw");
+    const blank = describeError(
+      new YuvoyError({
+        code: "account_deletion_pending",
+        message: " ",
+        status: 403,
+      }),
+    );
+    expect(blank.body).toMatch(/closed its Yuvoy account/);
+  });
+
+  it("names the number when a code is not recognised", () => {
+    // A code given for one number answers any other `invite_code_unknown`.
+    expect(describeError(err("invite_code_unknown", 404)).body).toMatch(
+      /sign in with that number/,
+    );
+  });
+});

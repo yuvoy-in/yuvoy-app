@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { headers } from "next/headers";
 import {
   INVITE_ONLY,
   accessOfStanding,
@@ -59,6 +60,20 @@ export interface RequestAccess {
  */
 export const ACCESS_TIMEOUT_MS = 3_000;
 
+/**
+ * The page request's headers, for the visitor's address on the read below
+ * (`visitorAddressHeaders`). Read only once a session is known, so a page
+ * with the gate off stays as static as it was. Outside a request there are
+ * none, and the address is simply not sent.
+ */
+async function visitorHeaders(): Promise<Headers | undefined> {
+  try {
+    return await headers();
+  } catch {
+    return undefined;
+  }
+}
+
 async function readAccess(scenario?: string): Promise<RequestAccess> {
   if (!INVITE_ONLY) return { access: "open", phone: null };
 
@@ -71,6 +86,7 @@ async function readAccess(scenario?: string): Promise<RequestAccess> {
       path: "/me",
       token,
       scenario,
+      visitor: await visitorHeaders(),
       signal: AbortSignal.timeout(ACCESS_TIMEOUT_MS),
     });
     if (answer.status === 401) return { access: "signed-out", phone: null };

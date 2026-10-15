@@ -395,12 +395,18 @@ export function SearchScreen({
             <div key="empty" data-motion-key="empty">
               <EmptyState
                 title={
-                  filters.bookableOn ? "Nothing on that day" : "No matches"
+                  filters.bookableOn
+                    ? "Nothing on that day"
+                    : filters.bookableFrom
+                      ? "Nothing on those days"
+                      : "No matches"
                 }
                 body={
                   filters.bookableOn
                     ? "No departure can be booked on that date. Try another day or remove a filter."
-                    : "Nothing on sale matches this. Remove a filter or try another word."
+                    : filters.bookableFrom
+                      ? "No departure can be booked on any of those dates. Try other days or remove a filter."
+                      : "Nothing on sale matches this. Remove a filter or try another word."
                 }
                 /*
                   Clears every filter and KEEPS the typed word. Somebody who typed

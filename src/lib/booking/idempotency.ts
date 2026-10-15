@@ -43,6 +43,16 @@ function randomSuffix(): string {
 }
 
 /**
+ * A new key in the contract's charset, `prefix` naming what it guards
+ * (`chk` for a checkout, `msg` for a message), so a key in the API's log says
+ * which kind of request it was. The lifecycle is the caller's: this only
+ * mints one.
+ */
+export function freshIdempotencyKey(prefix: string): string {
+  return `${prefix}_${randomSuffix()}`.slice(0, 128);
+}
+
+/**
  * Everything the server fingerprints. Changing any of it needs a new key.
  *
  * This is the contract's own ReservationInput, not a hand-written mirror — an
@@ -115,7 +125,7 @@ export function idempotencyKeyFor(body: CheckoutBodyShape): string {
 
   if (existing && existing.fingerprint === fingerprint) return existing.key;
 
-  const key = `chk_${randomSuffix()}`.slice(0, 128);
+  const key = freshIdempotencyKey("chk");
   write(body.slotId, { key, fingerprint });
   return key;
 }

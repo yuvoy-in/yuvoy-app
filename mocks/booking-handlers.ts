@@ -136,6 +136,16 @@ const idempotent = new Map<
   { fingerprint: string; body: Record<string, unknown> }
 >();
 
+/**
+ * A message send's `Idempotency-Key` (yuvoy-api#282): booking and key -> the
+ * text it was sent with and the message it wrote. Kept only once a message is
+ * written, as the API keeps it, so a refused send leaves its key unused.
+ */
+const messageKeys = new Map<
+  string,
+  { text: string; message: Record<string, unknown> }
+>();
+
 type MockQuestion = NonNullable<Experience["questions"]>[number];
 
 /**
@@ -183,6 +193,53 @@ function recordAnswers(
     out[questionId] = answer;
   }
   return out;
+}
+
+/**
+ * What `POST /bookings/answers` refuses, keyed as the API keys it: by the
+ * answer's place in the list sent, `answers[0].answer`. An answer holding a
+ * phone number, an email address or a link carries the API's sentence and
+ * `answers[0].contactDetail` (yuvoy-api#282 item 5). Anything here means
+ * nothing is saved.
+ */
+function answerProblems(
+  questions: readonly MockQuestion[],
+  sent: readonly unknown[],
+): Record<string, string> {
+  const problems: Record<string, string> = {};
+  const seen = new Set<string>();
+  sent.forEach((entry, i) => {
+    const at = `answers[${i}]`;
+    const { questionId, answer } = (entry ?? {}) as {
+      questionId?: unknown;
+      answer?: unknown;
+    };
+    const id = typeof questionId === "string" ? questionId.trim() : "";
+    const question = questions.find((q) => q.id === id);
+    if (!question) {
+      problems[`${at}.questionId`] = "not a question this booking asks";
+      return;
+    }
+    if (seen.has(id)) {
+      problems[`${at}.questionId`] =
+        "this question is answered twice in one request";
+      return;
+    }
+    seen.add(id);
+    const kind =
+      question.answerType === "short_text" && typeof answer === "string"
+        ? contactDetailIn(answer.trim())
+        : null;
+    if (kind) {
+      problems[`${at}.answer`] = answerContactRefusal(kind);
+      problems[`${at}.contactDetail`] = kind;
+      return;
+    }
+    if (Object.keys(recordAnswers([question], [entry])).length === 0) {
+      problems[`${at}.answer`] = "does not fit this question";
+    }
+  });
+  return problems;
 }
 
 /**
@@ -300,26 +357,47 @@ function closedSentence(reason: string): string {
 }
 
 /**
- * The server's D-051 rules, mirrored closely enough to be worth testing
- * against. The APP does not re-implement these; this is the other side.
+ * The server's D-051 rules, as `internal/contactdetail` writes them at the
+ * pinned contract. The APP does not re-implement these; this is the other
+ * side, and it is exact so a screen is tested against what the API refuses.
+ *
+ * Since yuvoy-api#282 item 5 the same rules screen answers too, and three
+ * kinds of digits are set aside before a phone number is counted: a date
+ * (14.09.2026), a span of clock times with no colon (0830-0930) and a code
+ * that runs from letters into digits (Z1234567). A bare run of ten digits is
+ * still a number.
  */
 function contactDetailIn(text: string): "phone" | "email" | "link" | null {
-  if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(text))
+  if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(text)) {
     return "email";
-  if (/(^|\s)(https?:\/\/|www\.)/i.test(text)) return "link";
-  if (/\b[a-z0-9-]+\.(com|in|net|org|io|co|me)\b/i.test(text)) return "link";
-  /*
-    Seven or more digits counted through the separators between them, EXCEPT a
-    date written like 14.09.2026 or 2026-09-14. Dates are struck out first, so
-    "see you on 14.09.2026" sends and "call me on 98765 43210" does not.
-  */
-  const withoutDates = text
-    .replace(/\b\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}\b/g, " ")
-    .replace(/\b\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}\b/g, " ");
-  for (const run of withoutDates.match(/[\d\s().\-]+/g) ?? []) {
-    if (run.replace(/\D/g, "").length >= 7) return "phone";
   }
-  return null;
+  if (
+    /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|in|net|org|io|co|me)\b)/i.test(text)
+  ) {
+    return "link";
+  }
+  const digits = text
+    .replace(
+      /\b(?:(?:0?[1-9]|[12]\d|3[01])[./-](?:0?[1-9]|[12]\d|3[01])[./-](?:\d{4}|\d{2})|\d{4}[./-](?:0?[1-9]|1[0-2])[./-](?:0?[1-9]|[12]\d|3[01]))\b/g,
+      "_",
+    )
+    .replace(
+      /\b(?:[01]\d|2[0-3])[0-5]\d\s*-\s*(?:[01]\d|2[0-3])[0-5]\d\b/g,
+      "_",
+    )
+    .replace(/\b[A-Za-z]+\d[A-Za-z0-9]*\b/g, "_");
+  return /(?:\d[\s\-().]*){7,}/.test(digits) ? "phone" : null;
+}
+
+/** The API's sentence for an answer holding one, without the answer. */
+function answerContactRefusal(kind: "phone" | "email" | "link"): string {
+  const what =
+    kind === "email"
+      ? "an email address"
+      : kind === "link"
+        ? "a link"
+        : "a phone number, from seven or more digits written close together";
+  return `an answer cannot include a phone number, an email address or a link, and this one looks like it has ${what}. Write it another way`;
 }
 
 /** The reservation a status token opens, or `undefined`. */
@@ -527,6 +605,41 @@ export const bookingHandlers = [
     const sentAnswers = Array.isArray(body.answers) ? body.answers : null;
     const recorded = sentAnswers ? recordAnswers(questions, sentAnswers) : {};
 
+    /*
+      The one answer that is refused rather than dropped (yuvoy-api#282
+      item 5): free text holding a phone number, an email address or a link,
+      to any question, required or not. Before the required check, as the
+      API runs it, with the question, the reason and the kind.
+    */
+    const refusedAnswers = (sentAnswers ?? []).flatMap((entry) => {
+      const { questionId, answer } = (entry ?? {}) as {
+        questionId?: unknown;
+        answer?: unknown;
+      };
+      const question = questions.find((q) => q.id === questionId);
+      if (question?.answerType !== "short_text") return [];
+      if (typeof answer !== "string") return [];
+      const kind = contactDetailIn(answer.trim());
+      return kind
+        ? [
+            {
+              questionId: question.id,
+              text: question.text,
+              reason: answerContactRefusal(kind),
+              contactDetail: kind,
+            },
+          ]
+        : [];
+    });
+    if (refusedAnswers.length > 0) {
+      return envelope(
+        "answers_required",
+        "Some answers need another look before you can book.",
+        409,
+        { questions: refusedAnswers },
+      );
+    }
+
     if (sentAnswers) {
       const missing = questions.filter(
         (q) => q.required && recorded[q.id] === undefined,
@@ -537,7 +650,25 @@ export const bookingHandlers = [
           "Some questions this trip asks need an answer before you can book.",
           409,
           {
-            questions: missing.map((q) => ({ questionId: q.id, text: q.text })),
+            questions: missing.map((q) => {
+              /*
+                Why, when an answer was sent for it and did not fit. The
+                API's sentence for a choice: the one a listing that changed
+                its options while the form was open produces.
+              */
+              const sent = sentAnswers.some(
+                (entry) =>
+                  (entry as { questionId?: unknown } | null)?.questionId ===
+                  q.id,
+              );
+              return {
+                questionId: q.id,
+                text: q.text,
+                ...(sent && q.answerType === "choice"
+                  ? { reason: "that choice is no longer offered, pick again" }
+                  : {}),
+              };
+            }),
           },
         );
       }
@@ -1070,6 +1201,15 @@ export const bookingHandlers = [
     if (code !== "123456") {
       return envelope("unauthorized", "That code is not right.", 401);
     }
+    // As sign-in: a closed account, refused once the code checks out.
+    if (scenarioOf(request) === "account-deletion-pending") {
+      return envelope(
+        "account_deletion_pending",
+        // The API's own words (yuvoy-api handler/account_deletion.go).
+        "Your account is being deleted, so you cannot sign in. If you did not mean to close it, contact support.",
+        403,
+      );
+    }
     // A FRESH token. The previous link stops working.
     const existing = [...reservations.values()][0];
     if (!existing)
@@ -1141,6 +1281,19 @@ export const bookingHandlers = [
     if (!record)
       return envelope("unauthorized", "That link is not valid.", 401);
 
+    /*
+      Optional, and checked before the text, as the API checks it, with the
+      API's own sentences below (yuvoy-api#282 item 4).
+    */
+    const key = request.headers.get("idempotency-key");
+    if (key !== null && !/^[A-Za-z0-9_.:-]{16,128}$/.test(key)) {
+      return envelope(
+        "idempotency_key_malformed",
+        "Idempotency-Key must be 16-128 characters of A-Z a-z 0-9 _ . : -",
+        400,
+      );
+    }
+
     const { text } = (await request.json()) as { text?: unknown };
     if (typeof text !== "string" || text.trim().length === 0) {
       return envelope("invalid_input", "Write something before sending.", 400, {
@@ -1178,6 +1331,28 @@ export const bookingHandlers = [
       );
     }
 
+    /*
+      A resend under a key already used: the message that send wrote, with
+      nothing new posted, or a refusal when the text is not the same. Answered
+      before the closed check, as the API answers it, so a message that landed
+      just before the conversation closed still comes back as sent.
+    */
+    const stored = key ? `${record.reservationId}:${key}` : null;
+    const prior = stored ? messageKeys.get(stored) : undefined;
+    if (prior) {
+      if (prior.text !== text.trim()) {
+        return envelope(
+          "idempotency_key_reuse",
+          "that Idempotency-Key was already used for a different request",
+          409,
+        );
+      }
+      return HttpResponse.json(prior.message, {
+        status: 201,
+        headers: { "Idempotent-Replay": "true", ...mockHeaders(rid()) },
+      });
+    }
+
     const closed = closedReasonFor(record, scenario);
     if (closed) {
       return envelope("messages_closed", closedSentence(closed), 409, {
@@ -1193,6 +1368,7 @@ export const bookingHandlers = [
       sentAt: new Date(mockNow()).toISOString(),
     };
     record.messages = [...(record.messages ?? []), message];
+    if (stored) messageKeys.set(stored, { text: message.text, message });
     return HttpResponse.json(message, {
       status: 201,
       headers: mockHeaders(rid()),
@@ -1279,18 +1455,17 @@ export const bookingHandlers = [
     const questions = record.slug
       ? (EXPERIENCE_DETAIL[record.slug]?.questions ?? [])
       : [];
-    const accepted = recordAnswers(questions, sent);
     // All or nothing: one that did not fit means nothing is saved.
-    if (Object.keys(accepted).length !== sent.length) {
+    const problems = answerProblems(questions, sent);
+    if (Object.keys(problems).length > 0) {
       return envelope(
         "invalid_input",
         "some of these answers need fixing",
         400,
-        {
-          "answers[0].answer": "does not fit this question",
-        },
+        problems,
       );
     }
+    const accepted = recordAnswers(questions, sent);
 
     // Each answer REPLACES; questions left out keep what they had.
     record.answers = { ...(record.answers ?? {}), ...accepted };
@@ -1485,17 +1660,18 @@ export const bookingHandlers = [
     }
 
     /*
-      202 and the API's own sentence, word for word since yuvoy-api#254: a code
-      goes by email to the latest booking's address, a number with no booking
-      gets nothing, and the answer is the same for every number so it reveals
-      neither. The screens print this `message`, so the mock must carry the
-      real one.
+      202 and the API's own sentence, word for word: a code goes by email to
+      the latest booking's address (yuvoy-api#254), or for a number that has
+      never booked to the email staff entered with its invitation
+      (yuvoy-api#195, live 10 Oct 2026). A number with neither gets nothing,
+      and the answer is the same for every number so it reveals none of that.
+      The screens print this `message`, so the mock must carry the real one.
     */
     return HttpResponse.json(
       {
         sent: true,
         message:
-          "If your latest booking with this number has an email, a code is on its way to that email.",
+          "If we have an email for this number, from your latest booking or your invitation, a code is on its way to that email.",
         devCode: DEV_SIGN_IN_CODE,
       },
       { status: 202, headers: mockHeaders(rid()) },
@@ -1517,6 +1693,19 @@ export const bookingHandlers = [
     */
     if (code !== DEV_SIGN_IN_CODE) {
       return envelope("unauthorized", "That code did not work.", 401);
+    }
+    /*
+      A number that closed its account, with the erasure still open: a 403,
+      and only after the code checked out, so it tells nobody without the
+      code anything (`AccountDeletionPending`).
+    */
+    if (scenarioOf(request) === "account-deletion-pending") {
+      return envelope(
+        "account_deletion_pending",
+        // The API's own words (yuvoy-api handler/account_deletion.go).
+        "Your account is being deleted, so you cannot sign in. If you did not mean to close it, contact support.",
+        403,
+      );
     }
 
     return HttpResponse.json(
@@ -1590,6 +1779,19 @@ export const bookingHandlers = [
         ...(scenarioOf(request) === "admitted-absent"
           ? {}
           : { admitted: isAdmitted(request) }),
+        /*
+          The days on the island (yuvoy-api#257): "Always present on this
+          API", null when none is kept, so the mock always sends the key.
+          `?__scenario=stay-absent` leaves it out, as an API from before #257
+          would, which is the one way the app keeps the days on the phone.
+        */
+        ...(scenarioOf(request) === "stay-absent"
+          ? {}
+          : {
+              stay:
+                staysByCredential.get(request.headers.get("authorization")!) ??
+                null,
+            }),
         /*
           Present only under a traveller session. The mock cannot tell a
           session token from a status token by inspection, so it keys on the
@@ -1686,6 +1888,67 @@ export const bookingHandlers = [
           404,
         );
     }
+  }),
+
+  /*
+    Keeping and clearing the stay (yuvoy-api#257), by the contract's rules:
+    days in the market's calendar, `to` not before `from` and at most 60 days
+    after it, both between 2000 and 2100, and `destinationKey`, when sent, a
+    key the catalogue knows. Each problem is one sentence in `details`, keyed
+    by its field, as `setMyStay` says. Refused, never clamped: a mock that
+    quietly fixed a bad range would let a screen that sends one pass.
+
+    `?__scenario=stay-absent` is an API from before #257, where the route does
+    not exist.
+  */
+  http.put(url("/me/stay"), async ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (!auth) return envelope("unauthorized", "Sign in first.", 401);
+    const scenario = scenarioOf(request);
+    if (scenario === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+    if (scenario === "stay-absent") {
+      return envelope("not_found", "No such route.", 404);
+    }
+
+    const body = (await request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
+    const problems = stayProblems(body);
+    if (Object.keys(problems).length > 0) {
+      return envelope(
+        "invalid_input",
+        "Those days could not be kept.",
+        400,
+        problems,
+      );
+    }
+    const stay = {
+      from: body!.from as string,
+      to: body!.to as string,
+      ...(typeof body!.destinationKey === "string"
+        ? { destinationKey: body!.destinationKey }
+        : {}),
+    };
+    staysByCredential.set(auth, stay);
+    return HttpResponse.json(stay, { headers: mockHeaders(rid()) });
+  }),
+
+  http.delete(url("/me/stay"), async ({ request }) => {
+    const auth = request.headers.get("authorization");
+    if (!auth) return envelope("unauthorized", "Sign in first.", 401);
+    const scenario = scenarioOf(request);
+    if (scenario === "session-expired") {
+      return envelope("token_expired", "That session has ended.", 401);
+    }
+    if (scenario === "stay-absent") {
+      return envelope("not_found", "No such route.", 404);
+    }
+    // "Clearing a stay that is not there is the same 204."
+    staysByCredential.delete(auth);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   /* -------------------------------------------------- invited trips ---- */
@@ -2152,6 +2415,59 @@ export const MOCK_INVITE_CODES = {
  */
 const admittedByCode = new Set<string>();
 
+/**
+ * The stay each number keeps on its account (yuvoy-api#257), keyed by the
+ * credential that set it, as admission is. Reset by `__resetBookingMocks`.
+ */
+const staysByCredential = new Map<
+  string,
+  { from: string; to: string; destinationKey?: string }
+>();
+
+/** The destination keys the mock catalogue's vocabulary names. */
+const KNOWN_DESTINATIONS = new Set([
+  "andaman/havelock",
+  "andaman/neil",
+  "andaman/port_blair",
+]);
+
+/** `setMyStay`'s refusals, one sentence per field, or none. */
+function stayProblems(
+  body: Record<string, unknown> | null,
+): Record<string, string> {
+  const problems: Record<string, string> = {};
+  const day = (value: unknown): number | null => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return null;
+    }
+    const [y, m, d] = value.split("-").map(Number);
+    const ms = Date.UTC(y, m - 1, d);
+    const back = new Date(ms);
+    // 2026-02-30 is not a day, whatever the pattern says.
+    if (back.getUTCMonth() !== m - 1 || back.getUTCDate() !== d) return null;
+    return y >= 2000 && y <= 2100 ? ms : null;
+  };
+  const from = day(body?.from);
+  const to = day(body?.to);
+  if (from === null) problems.from = "Give the day you arrive, as a date.";
+  if (to === null) problems.to = "Give the day you leave, as a date.";
+  if (from !== null && to !== null) {
+    if (to < from)
+      problems.to = "The day you leave is before the day you arrive.";
+    else if (to - from > 60 * 86_400_000) {
+      problems.to = "A stay is at most 60 days.";
+    }
+  }
+  const destination = body?.destinationKey;
+  if (
+    destination !== undefined &&
+    (typeof destination !== "string" || !KNOWN_DESTINATIONS.has(destination))
+  ) {
+    problems.destinationKey = "That is not a destination we know.";
+  }
+  return problems;
+}
+
 /** The scenarios whose number is NOT admitted until it redeems a code. */
 const NOT_ADMITTED_SCENARIOS = new Set([
   "not-admitted",
@@ -2533,6 +2849,7 @@ export function __resetBookingMocks(): void {
   // The listed trips are fixtures, not a test's leftovers: they come back.
   seedListedTrips();
   idempotent.clear();
+  messageKeys.clear();
   // The guest list too, or one test's invitation is the next one's fixture.
   mockGuests.length = 0;
   guestSeq = 1;
@@ -2540,4 +2857,6 @@ export function __resetBookingMocks(): void {
   supportRequests.length = 0;
   // And the numbers one test let in with a code.
   admittedByCode.clear();
+  // And the days one test kept on an account.
+  staysByCredential.clear();
 }

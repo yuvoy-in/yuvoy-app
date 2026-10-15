@@ -30,10 +30,14 @@ import {
  *
  * The first four are the order the issue names (yuvoy-app#37). How long and
  * how much follow, because they follow in the sheet too (yuvoy-api#197).
+ *
+ * A range of days is one pill, under its first field: `bookableTo` never
+ * stands without it, and removing the pill removes both (yuvoy-api#258).
  */
 export const PILL_ORDER = [
   "destinationKey",
   "bookableOn",
+  "bookableFrom",
   "category",
   "activityType",
   "duration",
@@ -98,6 +102,15 @@ export function dateLabel(date: string): string {
   return `${weekdayName(civil)} ${dayMonth(civil)}`;
 }
 
+/**
+ * A range of days, both ends spelled out: "Thu 15 Oct to Sun 18 Oct". As the
+ * island days plan heads its own range, so the pill reads the same words as
+ * the plan the traveller tapped through from.
+ */
+export function rangeLabel(from: string, to: string): string {
+  return `${dateLabel(from)} to ${dateLabel(to)}`;
+}
+
 /** The vocabulary, in the shape this module needs. */
 export interface VocabularyLike {
   destinations?: { key: string; label: string }[];
@@ -138,6 +151,16 @@ export function filterPills(
 
     if (field === "bookableOn") {
       pills.push({ field, label: dayLabel(value, today) });
+      continue;
+    }
+    if (field === "bookableFrom") {
+      // Half a range never reaches here from the address, see `filtersFromParams`.
+      pills.push({
+        field,
+        label: filters.bookableTo
+          ? rangeLabel(value, filters.bookableTo)
+          : null,
+      });
       continue;
     }
     /*
@@ -186,6 +209,8 @@ export function withoutFilter(
 ): ReelFilters {
   const next: ReelFilters = { ...filters, [field]: undefined };
   if (field === "category") next.activityType = undefined;
+  // The range's one pill stands for both its ends.
+  if (field === "bookableFrom") next.bookableTo = undefined;
   return next;
 }
 

@@ -1,8 +1,12 @@
-# Reusable deploy — called by the env-named workflows so GitHub notifications
+# Reusable deploy, called by the env-named workflows so GitHub notifications
 # read "Production deployment" rather than "_deploy".
 #
 # Ported from yuvoy-web, including two gotchas that were expensive to find
 # there and would be expensive to rediscover here.
+#
+# deploy-watchdog.yml calls it too, with `fallback_branch` set, when Vercel
+# never picked up a push to `main`. Only then does it ask once more, right
+# before uploading, whether the deploy is still needed.
 name: _deploy
 
 on:
@@ -13,6 +17,18 @@ on:
         type: string
         required: false
         default: ""
+      fallback_branch:
+        description: >-
+          Set only by deploy-watchdog.yml, to the branch the push went to.
+          `ref` is then uploaded only if Vercel still has not picked it up
+          and it is still that branch's head.
+        type: string
+        required: false
+        default: ""
+    outputs:
+      deployed:
+        description: "true once the build is uploaded to production."
+        value: ${{ jobs.deploy.outputs.deployed }}
     secrets:
       VERCEL_TOKEN:
         required: true
@@ -25,6 +41,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    outputs:
+      deployed: ${{ steps.ship.outputs.deployed }}
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -53,7 +71,7 @@ jobs:
       # PINNED, not `@latest`.
       #
       # On 1 Sep 2026 `vercel@59.11.0` shipped depending on `@vercel/go@9.0.0`,
-      # which was never published — the registry answers 404 for it. Every
+      # which was never published: the registry answers 404 for it. Every
       # deploy in every repo failed on `npm error notarget`, with nothing wrong
       # in any of them.
       #
@@ -63,5 +81,24 @@ jobs:
       - run: npm i -g vercel@59.10.0
       - run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
       - run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      # A fallback deploy asks once more before uploading: the build takes
+      # minutes, and in that time Vercel may have picked the push up after
+      # all, or the branch may have moved on. Anything but `missing` skips the
+      # upload, and `unknown` fails the run.
+      - id: still-missed
+        if: ${{ inputs.fallback_branch != '' }}
+        run: node scripts/check-vercel-pickup.mjs "$GITHUB_REPOSITORY" "$REF" "$BRANCH"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PUSHED_AT: ${{ github.event.repository.pushed_at }}
+          REF: ${{ inputs.ref }}
+          BRANCH: ${{ inputs.fallback_branch }}
+          PICKUP_DEADLINE_S: "0"
+
       # --archive=tgz: the upload times out on a repo this size without it.
-      - run: vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"
+      - id: ship
+        if: ${{ inputs.fallback_branch == '' || steps.still-missed.outputs.verdict == 'missing' }}
+        run: |
+          vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN"
+          echo "deployed=true" >> "$GITHUB_OUTPUT"

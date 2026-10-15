@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   bandRange,
+  bookableRange,
   DURATION_BANDS,
   filtersFromParams,
   filtersToParams,
@@ -31,7 +32,13 @@ import {
  * So the key is tested field by field rather than in the obvious one case.
  */
 
-const FIELDS: (keyof ReelFilters)[] = [
+/*
+  Every field but the range, which never stands beside `bookableOn` and has
+  its own tests below: one sample cannot carry both.
+*/
+type Single = Exclude<keyof ReelFilters, "bookableFrom" | "bookableTo">;
+
+const FIELDS: Single[] = [
   "q",
   "bookableOn",
   "destinationKey",
@@ -41,7 +48,7 @@ const FIELDS: (keyof ReelFilters)[] = [
   "price",
 ];
 
-const SAMPLE: Required<ReelFilters> = {
+const SAMPLE: Required<Pick<ReelFilters, Single>> = {
   q: "kayak",
   bookableOn: "2026-09-20",
   destinationKey: "andaman/havelock",
@@ -333,5 +340,85 @@ describe("isAsking", () => {
     for (const field of FIELDS) {
       expect(isAsking({ [field]: SAMPLE[field] }), field).toBe(true);
     }
+  });
+});
+
+/**
+ * A range of days (yuvoy-api#258): both ends or neither, the end at most 31
+ * days after the start, and never beside one day. The API refuses every other
+ * shape with a 400, so none of them may leave this module.
+ */
+describe("a range of days", () => {
+  const RANGE = { bookableFrom: "2026-10-15", bookableTo: "2026-10-18" };
+
+  it("is sent, keyed and written into the address as both ends", () => {
+    expect(reelQuery(RANGE)).toEqual(RANGE);
+    expect(reelFilterKey(RANGE)).not.toBe(reelFilterKey({}));
+    expect(reelFilterKey(RANGE)).not.toBe(
+      reelFilterKey({ ...RANGE, bookableTo: "2026-10-19" }),
+    );
+    const params = filtersToParams(RANGE);
+    expect(params.get("from")).toBe("2026-10-15");
+    expect(params.get("to")).toBe("2026-10-18");
+    expect(filtersFromParams(params)).toMatchObject(RANGE);
+    expect(isAsking(RANGE)).toBe(true);
+  });
+
+  it("takes one day as a range of one", () => {
+    const one = { bookableFrom: "2026-10-15", bookableTo: "2026-10-15" };
+    expect(reelQuery(one)).toEqual(one);
+  });
+
+  it("is never sent half, backwards, or beside one day", () => {
+    expect(reelQuery({ bookableFrom: "2026-10-15" })).toEqual({});
+    expect(reelQuery({ bookableTo: "2026-10-18" })).toEqual({});
+    expect(
+      reelQuery({ bookableFrom: "2026-10-18", bookableTo: "2026-10-15" }),
+    ).toEqual({});
+    expect(reelQuery({ ...RANGE, bookableOn: "2026-10-16" })).toEqual({
+      bookableOn: "2026-10-16",
+    });
+    expect(filtersToParams({ bookableFrom: "2026-10-15" }).toString()).toBe("");
+    // The key does not see a range that is never sent.
+    expect(reelFilterKey({ bookableFrom: "2026-10-15" })).toBe(
+      reelFilterKey({}),
+    );
+  });
+
+  it("reads an address the same way, keeping the day over the range", () => {
+    const read = (query: string) =>
+      filtersFromParams(new URLSearchParams(query));
+    expect(read("from=2026-10-15").bookableFrom).toBeUndefined();
+    expect(read("from=2026-10-18&to=2026-10-15").bookableFrom).toBeUndefined();
+    // Matches the pattern, and is not a day.
+    expect(read("from=2026-02-27&to=2026-02-30").bookableFrom).toBeUndefined();
+    const both = read("on=2026-10-16&from=2026-10-15&to=2026-10-18");
+    expect(both.bookableOn).toBe("2026-10-16");
+    expect(both.bookableFrom).toBeUndefined();
+    expect(both.bookableTo).toBeUndefined();
+  });
+
+  it("cuts a range longer than the API takes to its limit, and says so", () => {
+    // October has 31 days: the 1st to 1 Nov is exactly the limit.
+    expect(bookableRange("2026-10-01", "2026-11-01")).toEqual({
+      bookableFrom: "2026-10-01",
+      bookableTo: "2026-11-01",
+      cut: false,
+    });
+    expect(bookableRange("2026-10-01", "2026-11-02")).toEqual({
+      bookableFrom: "2026-10-01",
+      bookableTo: "2026-11-01",
+      cut: true,
+    });
+    expect(bookableRange("2026-10-02", "2026-10-01")).toBeNull();
+    expect(bookableRange(undefined, "2026-10-01")).toBeNull();
+    // An address asks for the cut range, which the pill then names.
+    expect(
+      filtersFromParams(new URLSearchParams("from=2026-10-01&to=2026-12-01")),
+    ).toMatchObject({ bookableFrom: "2026-10-01", bookableTo: "2026-11-01" });
+    // A range over the limit is never sent as it stands.
+    expect(
+      reelQuery({ bookableFrom: "2026-10-01", bookableTo: "2026-12-01" }),
+    ).toEqual({});
   });
 });

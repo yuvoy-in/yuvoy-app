@@ -159,4 +159,5 @@ async function proxy(
 export const GET = sameOriginOnly(proxy);
 export const POST = sameOriginOnly(proxy);
 export const PATCH = sameOriginOnly(proxy);
+export const PUT = sameOriginOnly(proxy);
 export const DELETE = sameOriginOnly(proxy);

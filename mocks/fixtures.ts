@@ -503,6 +503,12 @@ export const EXPERIENCE_DETAIL: Record<string, Experience> = Object.fromEntries(
         cannot be bought is the state the whole flag exists to make visible.
       */
       bookable: true,
+      /*
+        Required by the contract since the 10 Oct 2026 pin (yuvoy-api#248).
+        The phrase the live API answers while only the counter takes money,
+        so every screen built on the mocks reads what production reads.
+      */
+      paymentLabel: "Pay at the counter on the day",
       included: ["Instructor", "All equipment", "Boat transfer"],
       requirements: ["Be able to swim", "No prior experience needed"],
       policyTier: "weather",

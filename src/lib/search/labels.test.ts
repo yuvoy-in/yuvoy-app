@@ -202,3 +202,31 @@ describe("taking a filter off", () => {
     expect(withoutFilters(banded)).toEqual({ q: "diving" });
   });
 });
+
+describe("a range of days as a pill", () => {
+  // yuvoy-api#258: one pill for both ends, named as the island days plan names them.
+  const range = { bookableFrom: "2026-10-15", bookableTo: "2026-10-18" };
+
+  it("is one pill, in the When place, reading both ends", () => {
+    const pills = filterPills(
+      { ...range, category: "adventure", destinationKey: "andaman/havelock" },
+      vocabulary,
+      TODAY,
+    );
+    expect(pills.map((p) => p.field)).toEqual([
+      "destinationKey",
+      "bookableFrom",
+      "category",
+    ]);
+    expect(pills[1].label).toBe("Thu 15 Oct to Sun 18 Oct");
+    expect(activeFilterCount(range)).toBe(1);
+  });
+
+  it("comes off whole, and with everything on Clear all", () => {
+    const next = withoutFilter({ ...range, q: "dive" }, "bookableFrom");
+    expect(next.bookableFrom).toBeUndefined();
+    expect(next.bookableTo).toBeUndefined();
+    expect(next.q).toBe("dive");
+    expect(withoutFilters({ ...range, q: "dive" })).toEqual({ q: "dive" });
+  });
+});

@@ -11,14 +11,20 @@ import {
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { dateLabel } from "@/lib/search/labels";
-import { filtersToParams } from "@/lib/search/filters";
+import {
+  MAX_RANGE_GAP_DAYS,
+  bookableRange,
+  filtersToParams,
+} from "@/lib/search/filters";
 import {
   MAX_STAY_DAYS,
   planDays,
   stayLength,
   type Stay,
 } from "@/lib/trips/stay";
-import { useStay } from "@/lib/trips/use-stay";
+import { useStay, type StayHome } from "@/lib/trips/use-stay";
+import { YuvoyError } from "@/lib/api/errors";
+import { dedash } from "@/lib/format/dedash";
 import { cn } from "@/lib/cn";
 import { StateChip } from "@/components/booking/state-chip";
 import { LoadingState, Skeleton } from "@/components/states";
@@ -42,20 +48,26 @@ import { Sheet, SheetPresence } from "@/components/ui/sheet";
  * The bookings come from the stay's own range (`GET /me/bookings` with `from`
  * and `to`), and if there are more than one page of them the days past the
  * last one read say so instead. A free day links to Search on that day
- * (`bookableOn`), one request when it is opened; showing what fits across the
- * whole stay at once waits on a range filter (yuvoy-api#258).
+ * (`bookableOn`), and the plan links to Search over every day of the stay
+ * still to come (`bookableFrom` and `bookableTo`, yuvoy-api#258): one
+ * request either way, made when it is opened.
  *
  * ## Where the dates live
  *
- * On this phone, until the account can keep them (yuvoy-api#257), and the
- * section says so in as many words.
+ * On the account (yuvoy-api#257), so the plan is the same on every phone the
+ * traveller signs in on; on this phone only against an API too old to keep
+ * them. The section says which, in as many words. See `use-stay.ts`.
  */
 export function IslandDays({ signedIn }: { signedIn: boolean }) {
-  const { stay, save } = useStay();
+  const { stay: value, pending, failed, retry, home, save } = useStay(signedIn);
   const [editing, setEditing] = useState(false);
   // For laying out the days before any answer has set the server's clock.
   const [deviceToday] = useState(marketToday);
-  const value = stay.data ?? null;
+  // A sheet opens clean: the last change's refusal is not this one's.
+  const edit = () => {
+    save.reset();
+    setEditing(true);
+  };
 
   // The stay's own trips: the whole range, on its own query.
   const trips = useMyBookings(value ? signedIn : false, {
@@ -72,19 +84,20 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
     <SheetPresence key="stay-sheet" open={editing}>
       <StaySheet
         stay={value}
-        onSave={(next) => save.mutate(next)}
+        home={home}
+        save={save}
         onClose={() => setEditing(false)}
       />
     </SheetPresence>
   );
 
   /*
-    The device store answers in a moment, and Trips asks it alongside the
-    session, so this is rarely seen. It used to draw nothing, and the panel
-    then arrived above the list and pushed it down; now the panel is here from
-    the first frame, with its heading, and only what it says is still to come.
+    The account answers once the session has (the phone's store, against an
+    older API, in a moment). It used to draw nothing, and the panel then
+    arrived above the list and pushed it down; now the panel is here from the
+    first frame, with its heading, and only what it says is still to come.
   */
-  if (stay.isPending) {
+  if (pending) {
     return (
       <Panel className="mt-6">
         <section aria-labelledby="island-days">
@@ -103,6 +116,24 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
     );
   }
 
+  if (failed) {
+    return (
+      <Panel className="mt-6">
+        <section aria-labelledby="island-days">
+          <h2 id="island-days" className="text-base font-bold text-balance">
+            Your island days
+          </h2>
+          <p role="alert" className="text-forest/80 mt-1.5 text-sm">
+            Your days did not load.
+          </p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={retry}>
+            Try again
+          </Button>
+        </section>
+      </Panel>
+    );
+  }
+
   if (!value) {
     return (
       <Panel className="mt-6">
@@ -114,12 +145,10 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
             Tell us the days you are here, and Trips lays them out with what you
             have booked on each, and what runs on the free ones.
           </p>
-          <Button className="mt-4" onClick={() => setEditing(true)}>
+          <Button className="mt-4" onClick={edit}>
             Set your days
           </Button>
-          <p className="text-forest/70 mt-3 text-xs">
-            Your dates are kept on this phone.
-          </p>
+          <KeptLine home={home} className="mt-3" />
         </section>
         {sheet}
       </Panel>
@@ -136,7 +165,7 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
           {dateLabel(value.from)} to {dateLabel(value.to)}
         </p>
       </div>
-      <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+      <Button variant="ghost" size="sm" onClick={edit}>
         Change
       </Button>
     </div>
@@ -177,9 +206,11 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
               </ol>
             )}
           </LoadingState>
-          <p className="text-forest/70 mt-2 text-xs">
-            Your dates are kept on this phone.
-          </p>
+          {/* Drawn while waiting too, so the panel does not grow when they land. */}
+          {waiting.state === "over" ? null : (
+            <StayLink stay={value} today={deviceToday} />
+          )}
+          <KeptLine home={home} className="mt-2" />
         </section>
         {sheet}
       </Panel>
@@ -230,11 +261,21 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
             They ended on {dateLabel(value.to)}. Coming back? Set your new days.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Button onClick={() => setEditing(true)}>Set new days</Button>
-            <Button variant="outline" onClick={() => save.mutate(null)}>
+            <Button onClick={edit}>Set new days</Button>
+            <Button
+              variant="outline"
+              pending={save.isPending}
+              pendingLabel="Clearing"
+              onClick={() => save.mutate(null)}
+            >
               Clear them
             </Button>
           </div>
+          {save.error && !editing ? (
+            <p role="alert" className="text-terra-deep mt-3 text-sm">
+              That did not go through. Try again.
+            </p>
+          ) : null}
         </section>
         {sheet}
       </Panel>
@@ -298,9 +339,8 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
             </li>
           ))}
         </ol>
-        <p className="text-forest/70 mt-2 text-xs">
-          Your dates are kept on this phone.
-        </p>
+        <StayLink stay={value} today={today} />
+        <KeptLine home={home} className="mt-2" />
       </section>
       {sheet}
     </Panel>
@@ -313,19 +353,40 @@ export function IslandDays({ signedIn }: { signedIn: boolean }) {
  * first day is today or later, the last is not before the first, and a stay
  * is at most `MAX_STAY_DAYS` long, held by `min` and `max` and checked again,
  * because `min` on a date input is advisory.
+ *
+ * The sheet stays open until the change is kept, and closes on the answer:
+ * on the account it is a request, and one that fails says so here, beside
+ * the dates, rather than closing over days that were never saved.
  */
 function StaySheet({
   stay,
-  onSave,
+  home,
+  save,
   onClose,
 }: {
   stay: Stay | null;
-  onSave: (next: Stay | null) => void;
+  home: StayHome;
+  save: ReturnType<typeof useStay>["save"];
   onClose: () => void;
 }) {
   const [today] = useState(marketToday);
   const [from, setFrom] = useState(stay?.from ?? "");
   const [to, setTo] = useState(stay?.to ?? "");
+
+  const keep = (next: Stay | null) => {
+    if (save.isPending) return;
+    save.mutate(next, { onSuccess: onClose });
+  };
+  /*
+    The API's own sentence for a date it refused, keyed `from` or `to`
+    (`setMyStay`). The rules here match its rules, so this is the case they
+    miss (a year past 2100), but it is the API's word that is shown.
+  */
+  const refusal = (key: "from" | "to") => {
+    const said =
+      save.error instanceof YuvoyError ? save.error.details[key] : undefined;
+    return typeof said === "string" ? dedash(said) : undefined;
+  };
 
   const latest = from ? marketDaysFrom(from, MAX_STAY_DAYS).at(-1) : undefined;
   const backwards = Boolean(from && to && to < from);
@@ -346,10 +407,9 @@ function StaySheet({
             <Button
               variant="outline"
               className="flex-1"
-              onClick={() => {
-                onSave(null);
-                onClose();
-              }}
+              pending={save.isPending && save.variables === null}
+              pendingLabel="Clearing"
+              onClick={() => keep(null)}
             >
               Clear
             </Button>
@@ -357,10 +417,9 @@ function StaySheet({
           <Button
             className="flex-1"
             disabled={!ready}
-            onClick={() => {
-              onSave({ from, to });
-              onClose();
-            }}
+            pending={save.isPending && save.variables !== null}
+            pendingLabel="Saving"
+            onClick={() => keep({ from, to })}
           >
             Save
           </Button>
@@ -375,6 +434,7 @@ function StaySheet({
           min={today}
           max={to || undefined}
           onChange={(e) => setFrom(e.target.value)}
+          error={refusal("from")}
         />
         <Field
           label="Leaving"
@@ -390,14 +450,68 @@ function StaySheet({
                 ? `That is more than ${MAX_STAY_DAYS} days.`
                 : past
                   ? "That day has gone."
-                  : undefined
+                  : refusal("to")
           }
         />
+        {save.error && !refusal("from") && !refusal("to") ? (
+          <p role="alert" className="text-terra-deep text-sm">
+            {save.error instanceof YuvoyError
+              ? save.error.message
+              : "That did not save. Try again."}
+          </p>
+        ) : null}
         <p className="text-forest/70 text-xs">
-          Kept on this phone. Nothing is booked by setting them.
+          {home === "account"
+            ? "Kept with your account."
+            : "Kept on this phone."}{" "}
+          Nothing is booked by setting them.
         </p>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * What runs on any day of the stay still to come, in one search
+ * (yuvoy-api#258), beside the per-day links. Cut at the API's limit, and then
+ * it says so rather than calling part of a stay the whole of it.
+ */
+function StayLink({ stay, today }: { stay: Stay; today: string }) {
+  const start = today > stay.from ? today : stay.from;
+  const range = bookableRange(start, stay.to);
+  if (!range) return null;
+  const days = MAX_RANGE_GAP_DAYS + 1;
+  return (
+    <p className="mt-3 text-sm">
+      <Link
+        href={`/search?${filtersToParams({
+          bookableFrom: range.bookableFrom,
+          bookableTo: range.bookableTo,
+        }).toString()}`}
+        className="text-terra-deep tap-target font-bold underline"
+      >
+        {!range.cut
+          ? "See what runs during your stay"
+          : start === stay.from
+            ? `See what runs in your first ${days} days`
+            : `See what runs in your next ${days} days`}
+      </Link>
+    </p>
+  );
+}
+
+/**
+ * Where the days are kept, said under them. On the account they follow the
+ * traveller to any phone they sign in on; on this phone they do not, and a
+ * traveller who changes phones should not find that out by losing them.
+ */
+function KeptLine({ home, className }: { home: StayHome; className: string }) {
+  return (
+    <p className={cn("text-forest/70 text-xs", className)}>
+      {home === "account"
+        ? "Your dates are kept with your account."
+        : "Your dates are kept on this phone."}
+    </p>
   );
 }
 

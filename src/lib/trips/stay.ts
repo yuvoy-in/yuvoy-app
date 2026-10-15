@@ -7,12 +7,15 @@ import type { ServerTrip } from "./tabs";
  * The days a traveller is on the island, and the plan Trips draws from them
  * (the approved redesign: traveller A with C's day plan in Trips, 3 Oct 2026).
  *
- * ## On this phone only, for now
+ * ## The phone's copy
  *
- * The account cannot keep a stay yet (yuvoy-api#257), so it lives in this
- * device's IndexedDB, the store the app already keeps saves and booking links
- * in, and the screen says so. It is a convenience a traveller typed in, not a
- * record: losing it costs them one sheet, and nothing reads it but Trips.
+ * The account keeps the stay since yuvoy-api#257 (`use-stay.ts`), so every
+ * phone a traveller signs in on sees the same days. This module is the copy
+ * kept in this device's IndexedDB, the store the app already keeps saves and
+ * booking links in: signed out, against an API from before #257, and for a
+ * stay set before the account could keep one, until it moves there. It is a
+ * convenience a traveller typed in, not a record: losing it costs them one
+ * sheet, and nothing reads it but Trips.
  */
 export interface Stay {
   /** `YYYY-MM-DD`, the market's own calendar, the day they arrive. */

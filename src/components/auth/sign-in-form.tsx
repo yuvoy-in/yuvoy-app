@@ -11,7 +11,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { OwnForm } from "@/components/ui/own-form";
 import { PhoneField, DEFAULT_DIAL_CODE } from "@/components/ui/phone-field";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink, buttonVariants } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { useListMotion } from "@/lib/motion/use-list-motion";
 import { SUPPORT_PHONE, SUPPORT_PHONE_HREF } from "@/lib/support/phone";
@@ -107,8 +107,10 @@ export type SignInFlow = ReturnType<typeof useSignInFlow>;
  * What a screen says once a code has been asked for: the API's own sentence.
  *
  * Since yuvoy-api#254 a code goes by email to the address on the number's
- * latest booking (there is no WhatsApp sender yet), and a number with no
- * booking is sent nothing, which the answer must not reveal. The API words
+ * latest booking (there is no WhatsApp sender yet), and since yuvoy-api#195's
+ * invitee half (10 Oct 2026) to the email staff entered with an invitation
+ * for a number that has never booked. A number with neither is sent nothing,
+ * which the answer must not reveal. The API words
  * its `message` to hold for every number and will reword it when delivery
  * changes, so the screens print it rather than a promise of their own.
  * "Check your WhatsApp" was one of those, and it stopped being true.
@@ -211,8 +213,9 @@ export function SignInSteps({
                 step.
 
                 The hint is for whoever gets nothing, under the box where they
-                are waiting: the two things that still work, a number that has
-                booked and a person on the phone.
+                are waiting: the things that still work, a number that has
+                booked, a number an invitation was given for (yuvoy-api#195,
+                10 Oct 2026), and a person on the phone.
               */
               <Field
                 form={form}
@@ -229,7 +232,8 @@ export function SignInSteps({
                     {devCode
                       ? `Development build: the code is ${devCode}. `
                       : null}
-                    No email? Use the number you booked with, or call us on{" "}
+                    No email? Use the number you booked with or were invited on,
+                    or call us on{" "}
                     <a
                       href={SUPPORT_PHONE_HREF}
                       className="text-terra-deep tap-target whitespace-nowrap underline"
@@ -371,6 +375,31 @@ export function signInFailure(
       title: "That code did not work",
       body: "It may be wrong, it may have expired, or it may already have been used. Ask for a new one and try again.",
       field: "code",
+    };
+  }
+
+  /*
+    The code was right, but this number closed its account and the request
+    to erase it is still open (`account_deletion_pending`, a 403 only ever
+    answered after the code checked out). Not "We could not connect": that
+    would send them round again. The API's message says to contact support
+    if closing it was a mistake, and it is printed as sent, with the one way
+    to reach a person that needs no session.
+  */
+  if (code === "account_deletion_pending") {
+    return {
+      title: "This account is being closed",
+      body:
+        (error as YuvoyError).message.trim() ||
+        "This number closed its Yuvoy account, so it cannot sign in. If that was a mistake, contact us.",
+      action: (
+        <a
+          href={SUPPORT_PHONE_HREF}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          Call us on {SUPPORT_PHONE}
+        </a>
+      ),
     };
   }
 

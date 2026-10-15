@@ -36,7 +36,7 @@
  */
 
 export interface ProxiedPath {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   /**
    * A contract path. `{id}` matches one segment and nothing containing a
    * slash, so `{id}` can never widen into a traversal.
@@ -140,6 +140,19 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     be called in a loop.
   */
   { method: "POST", pattern: "/me/invite-codes/redeem" },
+  /*
+    The days a traveller is on the island, kept on the account
+    (yuvoy-api#257) so a new phone, a cleared browser and the other phone of a
+    couple see the same plan. `use-stay.ts` is the caller of both, and only
+    while signed in: `GET /me` reads the stay back, so there is no read here.
+
+    The contract also takes a booking's status token on both, which this app
+    never sends: the stay belongs to the number, and the session is the proof
+    of the number. PUT replaces and DELETE clears, and nothing else lives
+    under `/me/stay`.
+  */
+  { method: "PUT", pattern: "/me/stay" },
+  { method: "DELETE", pattern: "/me/stay" },
 ];
 
 /*

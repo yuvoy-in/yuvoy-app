@@ -184,7 +184,12 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
   if (!bar) return list;
 
   return (
-    <div ref={glide} data-tab-glide="off" className="relative">
+    /*
+      `data-motion`: the bar's row fades by itself while a reel's details
+      panel is open, and ships its own reduced-motion fade for it (see
+      `TabBar`).
+    */
+    <div ref={glide} data-tab-glide="off" data-motion="" className="relative">
       {list}
       {/*
         The lit layer: the same row again, paper on forest-ink, clipped to the

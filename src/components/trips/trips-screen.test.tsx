@@ -1005,12 +1005,169 @@ describe("the next up pass", () => {
  * Your island days (the approved redesign: traveller A with C's day plan in
  * Trips, 3 Oct 2026). The plan's rules are `lib/trips/stay.test.ts`; these
  * pin the screen: setting the days, what a day says, and what it never claims.
+ *
+ * The days live on the account since yuvoy-api#257, so a test keeps them
+ * there through the mock API, as another phone would, and reads them back
+ * the same way: the screen is right only if the API has what it shows.
  */
 describe("your island days", () => {
   const STAY_KEY = "yuvoy:stay:v1";
+  const SESSION = "Bearer sess_test";
   const days = (n: number) => marketDaysFrom(marketToday(), n);
 
-  it("asks for the days, keeps them on the phone, and lays them out", async () => {
+  /** Days kept on the account before the screen opens, as another phone would. */
+  const keepOnAccount = async (from: string, to: string) => {
+    const kept = await fetch(`${BASE}/me/stay`, {
+      method: "PUT",
+      headers: { Authorization: SESSION, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to }),
+    });
+    expect(kept.status).toBe(200);
+  };
+
+  /** What the account holds now, read straight from the API. */
+  const accountStay = async () => {
+    const me = await fetch(`${BASE}/me`, {
+      headers: { Authorization: SESSION },
+    });
+    return ((await me.json()) as { stay: unknown }).stay;
+  };
+
+  it("asks for the days, keeps them on the account, and lays them out", async () => {
+    signIn();
+    noInvites();
+    server.use(serverBookings([]));
+    const user = userEvent.setup();
+    renderWithQuery(<TripsScreen />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Set your days" }),
+    );
+    expect(
+      screen.getByText(
+        "Kept with your account. Nothing is booked by setting them.",
+      ),
+    ).toBeInTheDocument();
+    const [first, , last] = days(3);
+    await user.type(screen.getByLabelText("Arriving"), first);
+    await user.type(screen.getByLabelText("Leaving"), last);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Today")).toBeInTheDocument();
+    expect(screen.getByText("Tomorrow")).toBeInTheDocument();
+    expect(await accountStay()).toEqual({ from: first, to: last });
+    // On the account, and not on the phone as well.
+    expect(idb.store.has(STAY_KEY)).toBe(false);
+    expect(
+      screen.getAllByText("Your dates are kept with your account."),
+    ).toHaveLength(1);
+  });
+
+  it("shows the days the account keeps, set on another phone", async () => {
+    const [today, tomorrow] = days(2);
+    signIn();
+    await keepOnAccount(today, tomorrow);
+    noInvites();
+    server.use(serverBookings([]));
+    renderWithQuery(<TripsScreen />);
+
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    /*
+      Once the bookings are in: the rows drawn while they load are a tree of
+      their own, so a row found then is gone a moment later.
+    */
+    await waitFor(() => {
+      expect(
+        within(plan).queryByRole("status", { name: "Laying out your days" }),
+      ).toBeNull();
+      expect(within(plan).getByText("Today")).toBeInTheDocument();
+    });
+    expect(within(plan).getByText("Tomorrow")).toBeInTheDocument();
+  });
+
+  it("moves days set on this phone to the account, once, and forgets them here", async () => {
+    // Set before the account could keep them: they must not be lost, nor kept twice.
+    const [today, tomorrow] = days(2);
+    idb.store.set(STAY_KEY, { from: today, to: tomorrow });
+    signIn();
+    noInvites();
+    server.use(serverBookings([]));
+    renderWithQuery(<TripsScreen />);
+
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    expect(await within(plan).findByText("Tomorrow")).toBeInTheDocument();
+    await waitFor(() => expect(idb.store.has(STAY_KEY)).toBe(false));
+    expect(await accountStay()).toEqual({ from: today, to: tomorrow });
+    expect(
+      within(plan).getByText("Your dates are kept with your account."),
+    ).toBeInTheDocument();
+  });
+
+  it("lets the account's days win over a phone's older copy", async () => {
+    const [today, tomorrow, third] = days(3);
+    signIn();
+    await keepOnAccount(tomorrow, third);
+    idb.store.set(STAY_KEY, { from: today, to: today });
+    noInvites();
+    server.use(serverBookings([]));
+    renderWithQuery(<TripsScreen />);
+
+    await waitFor(() => expect(idb.store.has(STAY_KEY)).toBe(false));
+    expect(await accountStay()).toEqual({ from: tomorrow, to: third });
+    const plan = screen.getByRole("region", { name: "Your island days" });
+    expect(within(plan).queryByText("Today")).toBeNull();
+    expect(within(plan).getByText("Tomorrow")).toBeInTheDocument();
+  });
+
+  it("keeps the phone's copy when the move fails, to try again", async () => {
+    const [today, tomorrow] = days(2);
+    idb.store.set(STAY_KEY, { from: today, to: tomorrow });
+    signIn();
+    noInvites();
+    let tried = 0;
+    server.use(
+      serverBookings([]),
+      http.put(`${BASE}/me/stay`, () => {
+        tried += 1;
+        return HttpResponse.json(
+          { error: { code: "service_unavailable", message: "Try again." } },
+          { status: 503 },
+        );
+      }),
+    );
+    renderWithQuery(<TripsScreen />);
+
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    // Still shown, from the phone, rather than lost to a failed request.
+    expect(await within(plan).findByText("Tomorrow")).toBeInTheDocument();
+    await waitFor(() => expect(tried).toBe(1));
+    expect(idb.store.get(STAY_KEY)).toEqual({ from: today, to: tomorrow });
+  });
+
+  it("keeps the days on the phone against an API that cannot keep them", async () => {
+    // `stay` absent from `GET /me` is an API from before yuvoy-api#257.
+    server.use(
+      http.get(`${BASE}/me`, () =>
+        HttpResponse.json({
+          phone: "+919000000000",
+          name: "Asha Menon",
+          email: null,
+          interests: [],
+          onboardingRequired: false,
+          memberSince: null,
+          trips: { total: 0, upcoming: 0, completed: 0 },
+          reviews: { count: 0 },
+          support: { whatsappE164: null, hours: "9am to 7pm" },
+          admitted: true,
+        }),
+      ),
+    );
     signIn();
     noInvites();
     server.use(serverBookings([]));
@@ -1026,17 +1183,53 @@ describe("your island days", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Today")).toBeInTheDocument();
-    expect(screen.getByText("Tomorrow")).toBeInTheDocument();
     expect(idb.store.get(STAY_KEY)).toEqual({ from: first, to: last });
     expect(
-      screen.getAllByText("Your dates are kept on this phone."),
-    ).toHaveLength(1);
+      screen.getByText("Your dates are kept on this phone."),
+    ).toBeInTheDocument();
+  });
+
+  it("stays open and says so when the days do not save", async () => {
+    signIn();
+    noInvites();
+    server.use(
+      serverBookings([]),
+      http.put(`${BASE}/me/stay`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "invalid_input",
+              message: "Those days could not be kept.",
+              details: { to: "A stay is at most 60 days \u2014 pick fewer." },
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<TripsScreen />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Set your days" }),
+    );
+    const [first, , last] = days(3);
+    await user.type(screen.getByLabelText("Arriving"), first);
+    await user.type(screen.getByLabelText("Leaving"), last);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    // The API's own sentence, beside the field it names, with no long dash.
+    expect(
+      await screen.findByText("A stay is at most 60 days. Pick fewer."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(await accountStay()).toBeNull();
   });
 
   it("puts each trip on its day, and offers what runs on a free one", async () => {
     const [today, tomorrow] = days(2);
-    idb.store.set(STAY_KEY, { from: today, to: tomorrow });
     signIn();
+    await keepOnAccount(today, tomorrow);
     noInvites();
     server.use(
       serverBookings([
@@ -1069,8 +1262,8 @@ describe("your island days", () => {
     // More than a page of trips in the stay: days past the last row read say
     // so, rather than "Nothing booked".
     const [today, , third] = days(3);
-    idb.store.set(STAY_KEY, { from: today, to: third });
     signIn();
+    await keepOnAccount(today, third);
     noInvites();
     server.use(
       serverBookings([{ localDate: today, localTime: "07:00" }], {
@@ -1094,8 +1287,8 @@ describe("your island days", () => {
       bookings landed (stability audit, 6 Oct 2026).
     */
     const [today, , third] = days(3);
-    idb.store.set(STAY_KEY, { from: today, to: third });
     signIn();
+    await keepOnAccount(today, third);
     noInvites();
     server.use(
       http.get(`${BASE}/me/bookings`, async () => {
@@ -1118,12 +1311,18 @@ describe("your island days", () => {
     expect(within(plan).queryByText(/Nothing booked/)).toBeNull();
   });
 
-  it("is a panel from the first frame while the phone reads the days", async () => {
+  it("is a panel from the first frame while the account is read", async () => {
     // It drew nothing, then arrived above the list and pushed it down.
-    idb.hang.add(STAY_KEY);
     signIn();
     noInvites();
-    server.use(serverBookings([]));
+    server.use(
+      serverBookings([]),
+      // The proxied read only: the session's own check of the cookie answers.
+      http.get("*/api/v1/me", async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      }),
+    );
     renderWithQuery(<TripsScreen />);
     const plan = await screen.findByRole("region", {
       name: "Your island days",
@@ -1136,9 +1335,57 @@ describe("your island days", () => {
     ).toBeNull();
   });
 
-  it("says when the days are over, and lets them go", async () => {
-    idb.store.set(STAY_KEY, { from: "2026-01-01", to: "2026-01-03" });
+  it("does not wait on a phone store that never answers", async () => {
+    // The account has spoken; a hung store only holds days still to move.
+    idb.hang.add(STAY_KEY);
     signIn();
+    noInvites();
+    server.use(serverBookings([]));
+    renderWithQuery(<TripsScreen />);
+    expect(
+      await screen.findByRole("button", { name: "Set your days" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says when the account did not load, and asks again", async () => {
+    signIn();
+    noInvites();
+    /*
+      Down until the tap, not for one read: every reader of the account that
+      mounts after a failure asks again on its own.
+    */
+    let down = true;
+    server.use(
+      serverBookings([]),
+      http.get("*/api/v1/me", () => {
+        if (down) {
+          return HttpResponse.json(
+            { error: { code: "service_unavailable", message: "Not now." } },
+            { status: 503 },
+          );
+        }
+        // Answering nothing hands the read on to the app's own route.
+        return undefined;
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<TripsScreen />);
+    const plan = await screen.findByRole("region", {
+      name: "Your island days",
+    });
+    expect(
+      await within(plan).findByText("Your days did not load."),
+    ).toBeInTheDocument();
+    down = false;
+    await user.click(within(plan).getByRole("button", { name: "Try again" }));
+    expect(
+      await within(plan).findByRole("button", { name: "Set your days" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says when the days are over, and lets them go", async () => {
+    signIn();
+    await keepOnAccount("2026-01-01", "2026-01-03");
     noInvites();
     server.use(serverBookings([]));
     const user = userEvent.setup();
@@ -1148,6 +1395,6 @@ describe("your island days", () => {
     expect(
       await screen.findByRole("button", { name: "Set your days" }),
     ).toBeInTheDocument();
-    expect(idb.store.has(STAY_KEY)).toBe(false);
+    expect(await accountStay()).toBeNull();
   });
 });

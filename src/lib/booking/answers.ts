@@ -1,5 +1,6 @@
 import { YuvoyError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema.gen";
+import { dedash } from "@/lib/format/dedash";
 
 type ListingQuestion = components["schemas"]["ListingQuestion"];
 type PartyQuestion = components["schemas"]["PartyQuestion"];
@@ -138,26 +139,126 @@ export function toBookingAnswers(
 }
 
 /**
- * The question ids a `409 answers_required` named.
- *
- * `details.questions` is "`{ questionId: string, text: string }[]`, in the
- * listing's order. Point at each one." Read defensively, because this is one
- * of the few places a server `details` blob decides what a form marks: a shape
- * that is not what the contract says must leave the traveller with the plain
- * refusal rather than take checkout to the error boundary.
+ * The question ids a `409 answers_required` named, in the listing's order:
+ * "Point at each one."
  */
 export function answersRequiredIds(error: unknown): string[] {
+  return namedQuestions(error)
+    .map((entry) => entry.questionId)
+    .filter((id): id is string => typeof id === "string");
+}
+
+/**
+ * Why each named question's answer did not count, by question id: the API's
+ * sentence, shown beside the question in place of "This one needs an answer"
+ * (yuvoy-api#282 item 5).
+ *
+ * An entry carries `reason` when an answer was sent for its question and was
+ * not taken. One holding a phone number, an email address or a link refuses
+ * the checkout whether its question is required or not, rather than being
+ * dropped; a choice the listing no longer offers leaves a required question
+ * unanswered. Either way the traveller DID answer, and being asked for an
+ * answer would send them looking for a blank that is not there. An entry
+ * with no `reason` was simply not answered, and the form's sentence stands.
+ */
+export function answersRequiredReasons(
+  error: unknown,
+): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  for (const entry of namedQuestions(error)) {
+    const reason = asSentence(entry.reason);
+    if (typeof entry.questionId === "string" && reason) {
+      out.set(entry.questionId, reason);
+    }
+  }
+  return out;
+}
+
+/**
+ * Whether a checkout was refused for what an answer HOLDS rather than for a
+ * question left blank: a named question carries `contactDetail`. The panel
+ * beside the form then says so instead of asking for answers.
+ */
+export function answersHoldContactDetails(error: unknown): boolean {
+  return namedQuestions(error).some(
+    (entry) => typeof entry.contactDetail === "string",
+  );
+}
+
+/**
+ * The questions a `409 answers_required` named, as objects, and nothing else.
+ *
+ * `details.questions` is "`{ questionId: string, text: string }[]`, in the
+ * listing's order", with `reason` and `contactDetail` on some. Read
+ * defensively, because this is one of the few places a server `details` blob
+ * decides what a form marks: a shape that is not what the contract says must
+ * leave the traveller with the plain refusal rather than take checkout to the
+ * error boundary.
+ */
+function namedQuestions(error: unknown): Record<string, unknown>[] {
   if (!(error instanceof YuvoyError)) return [];
   if (error.code !== "answers_required") return [];
   const raw = (error.details as { questions?: unknown }).questions;
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((entry) =>
-      entry && typeof entry === "object"
-        ? (entry as { questionId?: unknown }).questionId
-        : undefined,
+  return raw.filter(
+    (entry): entry is Record<string, unknown> =>
+      entry !== null && typeof entry === "object",
+  );
+}
+
+/**
+ * Why a booking link's save was refused, by question id (yuvoy-api#282
+ * item 5).
+ *
+ * `POST /bookings/answers` saves all or nothing, and its `400` keys each
+ * problem by the answer's place in the list sent: `answers[0].answer` is the
+ * sentence for the first answer. `sent` is that list, the batch the API
+ * refused, so each sentence lands beside its own question. A place `sent`
+ * does not have names no question here and is left out.
+ */
+export function refusedAnswerReasons(
+  error: unknown,
+  sent: readonly BookingAnswer[],
+): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  if (!(error instanceof YuvoyError) || error.code !== "invalid_input") {
+    return out;
+  }
+  for (const [key, value] of Object.entries(error.details)) {
+    const at = /^answers\[(\d+)\]\.answer$/.exec(key);
+    const answer = at ? sent[Number(at[1])] : undefined;
+    const reason = asSentence(value);
+    if (answer && reason) out.set(answer.questionId, reason);
+  }
+  return out;
+}
+
+/** Whether a booking link's refused save held contact details in an answer. */
+export function refusedForContactDetails(error: unknown): boolean {
+  return (
+    error instanceof YuvoyError &&
+    error.code === "invalid_input" &&
+    Object.keys(error.details).some((key) =>
+      /^answers\[\d+\]\.contactDetail$/.test(key),
     )
-    .filter((id): id is string => typeof id === "string");
+  );
+}
+
+/**
+ * The API's reason as a line on its own.
+ *
+ * Its reasons are written to sit inside a sentence of its own, lower case and
+ * with no full stop ("an answer cannot include ... Write it another way"),
+ * and `details`, unlike the message, are not stripped of long dashes on the
+ * way in. Beside a field the reason IS the sentence, so it gets a capital and
+ * a full stop, and keeps every word the API chose.
+ */
+function asSentence(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const text = dedash(raw).trim();
+  if (!text) return null;
+  const line = text.charAt(0).toUpperCase() + text.slice(1);
+  return /[.!?]$/.test(line) ? line : `${line}.`;
 }
 
 /* ------------------------------------------------ the booking page's side */

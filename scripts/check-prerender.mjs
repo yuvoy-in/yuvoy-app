@@ -14,14 +14,18 @@
  * build, a green test suite, and a wrong date on the screen.
  *
  * So the build output is asserted, not the source. Every statically
- * prerendered route is listed below with the reason it is safe to freeze.
- * A route that starts or stops being prerendered fails this check, and the
- * fix is either to opt it out or to add it here with a reason.
+ * prerendered route is listed below with the reason it is safe to freeze,
+ * except the pages of a route whose list of pages is live data: those are
+ * signed off by route, in LIVE_DATA_ROUTES. A route that starts or stops being
+ * prerendered fails this check, and the fix is either to opt it out or to add
+ * it here with a reason.
  *
- * Runs after `next build`, inside `pnpm verify`.
+ * Runs after `next build`, inside `pnpm verify`. The rules themselves are in
+ * prerender-signoff.mjs, where they are tested without a build.
  */
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, relative, dirname, sep } from "node:path";
+import { prerenderProblems } from "./prerender-signoff.mjs";
 
 const MANIFEST = join(process.cwd(), ".next/prerender-manifest.json");
 
@@ -97,6 +101,36 @@ if (INVITE_ONLY) {
     "Behind the invite gate, which reads the session cookie per request.";
 }
 
+/**
+ * Dynamic routes whose list of pages is live data, signed off by route.
+ *
+ * `/e/[slug]` prerenders a page for every experience the catalog lists: its
+ * `generateStaticParams` reads GET /catalog/index at build time. So which
+ * pages a build holds is a fact about the catalog it could reach, not about
+ * the code. On Vercel that is production's catalog; on a machine where
+ * something answers NEXT_PUBLIC_API_URL it is whatever that serves (on
+ * 9 Oct 2026, the five mock listings); with nothing answering it is none.
+ * Signing those pages off one by one failed every push that could reach a
+ * catalog (yuvoy-app#168).
+ *
+ * So the route is signed off instead, and what makes it safe is checked on
+ * every page it produced, however many there are:
+ *
+ *   - each page revalidates, at most `maxRevalidateSeconds` apart, so a
+ *     listing is never frozen at build time until the next deploy;
+ *   - the route stays cached, and renders a slug the build did not see on
+ *     demand instead of answering 404, so a listing published after a deploy
+ *     is reachable at once.
+ */
+const LIVE_DATA_ROUTES = {
+  "/e/[slug]": {
+    maxRevalidateSeconds: 300,
+    reason:
+      "One page per published experience. Availability is read live in the " +
+      "browser and is never part of this HTML.",
+  },
+};
+
 if (!existsSync(MANIFEST)) {
   console.error(
     `\n✗ ${MANIFEST} is missing. Run \`pnpm build\` before this check.\n`,
@@ -105,35 +139,13 @@ if (!existsSync(MANIFEST)) {
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-const prerendered = new Set(Object.keys(manifest.routes ?? {}));
+const routes = Object.entries(manifest.routes ?? {});
 
-const problems = [];
-
-for (const route of prerendered) {
-  if (route in ALLOWED) continue;
-  if (route in MUST_BE_DYNAMIC) {
-    problems.push(
-      `"${route}" was prerendered and must not be — ${MUST_BE_DYNAMIC[route]}\n` +
-        `      Add \`export const dynamic = "force-dynamic"\` to its page.`,
-    );
-    continue;
-  }
-  problems.push(
-    `"${route}" is newly prerendered and nobody signed off on freezing it.\n` +
-      `      If its HTML is the same whenever it is built, add it to ALLOWED\n` +
-      `      in this file with the reason. If it reads the clock, live data or\n` +
-      `      anything per-request, opt it out instead.`,
-  );
-}
-
-for (const route of Object.keys(ALLOWED)) {
-  if (!prerendered.has(route)) {
-    problems.push(
-      `"${route}" is no longer prerendered. That is a performance regression\n` +
-        `      unless it was deliberate — remove it from ALLOWED if it was.`,
-    );
-  }
-}
+const problems = prerenderProblems(manifest, {
+  allowed: ALLOWED,
+  mustBeDynamic: MUST_BE_DYNAMIC,
+  liveData: LIVE_DATA_ROUTES,
+});
 
 /**
  * A `revalidate` that does nothing.
@@ -193,6 +205,11 @@ if (problems.length) {
   process.exit(1);
 }
 
+const livePages = routes.filter(
+  ([route, { srcRoute }]) => srcRoute in LIVE_DATA_ROUTES && srcRoute !== route,
+).length;
+
 console.log(
-  `\n✓ prerender manifest matches sign-off (${prerendered.size} routes)\n`,
+  `\n✓ prerender manifest matches sign-off (${routes.length} routes, ` +
+    `${livePages} of them from live data)\n`,
 );

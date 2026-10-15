@@ -45,6 +45,7 @@ export function QuestionFields({
   draft,
   onChange,
   flagged,
+  reasons,
   legend,
   intro,
   className,
@@ -55,6 +56,12 @@ export function QuestionFields({
   onChange: (questionId: string, value: string) => void;
   /** Ids a `409 answers_required` named, marked in the listing's order. */
   flagged?: readonly string[];
+  /**
+   * The API's sentence for an answer it did not take, by question id
+   * (yuvoy-api#282 item 5), shown in place of "This one needs an answer":
+   * the traveller did answer, and this says what to change.
+   */
+  reasons?: ReadonlyMap<string, string>;
   legend: string;
   intro?: string;
   className?: string;
@@ -86,7 +93,10 @@ export function QuestionFields({
             question={question}
             value={draft[question.id] ?? ""}
             onChange={(next) => onChange(question.id, next)}
-            flagged={flaggedSet.has(question.id)}
+            problem={
+              reasons?.get(question.id) ??
+              (flaggedSet.has(question.id) ? NEEDS_ANSWER : undefined)
+            }
             disabled={disabled}
           />
         ))}
@@ -100,17 +110,19 @@ function QuestionControl({
   question,
   value,
   onChange,
-  flagged,
+  problem,
   disabled,
 }: {
   scope: string;
   question: ListingQuestion;
   value: string;
   onChange: (value: string) => void;
-  flagged: boolean;
+  /** What is wrong with this one, when something is. */
+  problem?: string;
   disabled?: boolean;
 }) {
   const id = `${scope}-${question.id}`;
+  const flagged = problem !== undefined;
   const errorId = flagged ? `${id}-error` : undefined;
   /*
     "(optional)" on the optional ones rather than a marker on the required
@@ -133,7 +145,7 @@ function QuestionControl({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         maxLength={ANSWER_MAX}
-        error={flagged ? NEEDS_ANSWER : undefined}
+        error={problem}
         disabled={disabled}
       />
     );
@@ -166,7 +178,7 @@ function QuestionControl({
         </div>
         {flagged ? (
           <p id={errorId} role="alert" className="text-terra-deep mt-2 text-xs">
-            {NEEDS_ANSWER}
+            {problem}
           </p>
         ) : null}
       </fieldset>
@@ -212,7 +224,7 @@ function QuestionControl({
       </select>
       {flagged ? (
         <p id={errorId} role="alert" className="text-terra-deep mt-1.5 text-xs">
-          {NEEDS_ANSWER}
+          {problem}
         </p>
       ) : null}
     </div>

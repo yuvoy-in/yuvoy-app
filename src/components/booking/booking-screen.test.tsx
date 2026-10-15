@@ -815,6 +815,75 @@ describe("the listing's own questions", () => {
       screen.queryByRole("button", { name: /save answers/i }),
     ).not.toBeInTheDocument();
   });
+
+  /*
+    An answer holding a phone number, an email address or a link is refused,
+    never dropped (yuvoy-api#282 item 5), and the API names it only by its
+    place in the list sent. The reason goes beside that answer, and the line
+    under the form says what happened instead of "Something went wrong".
+  */
+  it("says beside an answer why it was refused for holding a link", async () => {
+    const hotel = {
+      questionId: "q_hotel",
+      text: "Which hotel should we collect you from?",
+      answerType: "short_text",
+      required: false,
+      current: true,
+      answered: false,
+    };
+    let sent: unknown = null;
+    server.use(
+      http.get(`${BASE}/bookings/status`, () =>
+        HttpResponse.json(
+          statusBody({ questions: [hotel], answersOpen: true }),
+        ),
+      ),
+      http.post(`${BASE}/bookings/answers`, async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json(
+          {
+            error: {
+              code: "invalid_input",
+              message: "some of these answers need fixing",
+              details: {
+                "answers[0].answer":
+                  "an answer cannot include a phone number, an email address or a link, and this one looks like it has a link. Write it another way",
+                "answers[0].contactDetail": "link",
+              },
+            },
+          },
+          { status: 400 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithQuery(<BookingScreen />);
+    await user.type(
+      await screen.findByLabelText(
+        "Which hotel should we collect you from? (optional)",
+      ),
+      "Sea Shell, see seashell.in",
+    );
+    await user.click(screen.getByRole("button", { name: "Save answers" }));
+
+    expect(
+      await screen.findByText(
+        "An answer cannot include a phone number, an email address or a link, and this one looks like it has a link. Write it another way.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Answers cannot include a phone number, an email address or a link. Change the marked answer and save again.",
+      ),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Something went wrong/);
+    expect(sent).toEqual({
+      answers: [
+        { questionId: "q_hotel", answer: "Sea Shell, see seashell.in" },
+      ],
+    });
+  });
 });
 
 /* ------------------------------------------ what the operator said */

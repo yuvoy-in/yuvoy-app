@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ChipButton } from "@/components/ui/chip";
 import { Skeleton } from "@/components/states";
 import { marketToday, marketDaysFrom } from "@/lib/booking/availability-window";
-import { dayLabel } from "@/lib/search/labels";
+import { dayLabel, rangeLabel } from "@/lib/search/labels";
 import {
   DURATION_BANDS,
   PRICE_BANDS,
@@ -103,14 +103,38 @@ export function FilterSheet({
       draft.bookableOn !== tomorrow,
   );
 
+  /*
+    The days a search arrived with from the island days plan
+    (yuvoy-api#258), kept as a chip of their own while the sheet is open:
+    picking one day replaces them, and this is the way back to them without
+    leaving the sheet. Only ever a range the address already carried, so it is
+    one the API takes (`filtersFromParams`).
+  */
+  const [range] = useState(() =>
+    filters.bookableFrom && filters.bookableTo
+      ? { bookableFrom: filters.bookableFrom, bookableTo: filters.bookableTo }
+      : null,
+  );
+  const onRange = Boolean(
+    range &&
+    draft.bookableFrom === range.bookableFrom &&
+    draft.bookableTo === range.bookableTo,
+  );
+
   /** Only the chosen category's types, which is what makes 35 into a handful. */
   const shownTypes = draft.category
     ? activityTypes.filter((t) => t.category === draft.category)
     : [];
 
+  /** One day, or any day. Either way not a range: the API takes one or the other. */
   const setDay = (bookableOn: string | undefined) => {
     setPickingDate(false);
-    setDraft((d) => ({ ...d, bookableOn }));
+    setDraft((d) => ({
+      ...d,
+      bookableOn,
+      bookableFrom: undefined,
+      bookableTo: undefined,
+    }));
   };
 
   /*
@@ -211,7 +235,7 @@ export function FilterSheet({
       <Group label="When" className="mt-6">
         <ChipButton
           size="lg"
-          pressed={draft.bookableOn === undefined && !pickingDate}
+          pressed={draft.bookableOn === undefined && !pickingDate && !onRange}
           onClick={() => setDay(undefined)}
         >
           Any day
@@ -244,13 +268,32 @@ export function FilterSheet({
             ? dayLabel(draft.bookableOn, today)
             : "Pick a date"}
         </ChipButton>
+        {range ? (
+          <ChipButton
+            size="lg"
+            pressed={onRange}
+            onClick={() => {
+              setPickingDate(false);
+              setDraft((d) => ({ ...d, bookableOn: undefined, ...range }));
+            }}
+          >
+            {rangeLabel(range.bookableFrom, range.bookableTo)}
+          </ChipButton>
+        ) : null}
       </Group>
 
       {pickingDate ? (
         <MonthCalendar
           value={draft.bookableOn}
           today={today}
-          onSelect={(date) => setDraft((d) => ({ ...d, bookableOn: date }))}
+          onSelect={(date) =>
+            setDraft((d) => ({
+              ...d,
+              bookableOn: date,
+              bookableFrom: undefined,
+              bookableTo: undefined,
+            }))
+          }
         />
       ) : null}
 
