@@ -11,9 +11,8 @@ import nextConfig from "../../../next.config";
  * fails, so these pin the files, the type they go out with and that nothing
  * in next.config sends them anywhere else.
  *
- * The two ids the owner supplies start as placeholders. The shape checks
- * accept either the placeholder or a real value, so replacing them needs no
- * change here. Until then the links do nothing, by design.
+ * The Apple Team ID and the EAS release signing SHA-256 are real values now,
+ * so a placeholder fails the shape checks below.
  */
 
 const ROOT = process.cwd();
@@ -22,8 +21,9 @@ const AASA = "/.well-known/apple-app-site-association";
 const ASSETLINKS = "/.well-known/assetlinks.json";
 
 const BUNDLE_ID = "in.yuvoy.app";
-const TEAM_PLACEHOLDER = "REPLACE_WITH_APPLE_TEAM_ID";
-const SHA_PLACEHOLDER = "REPLACE_WITH_ANDROID_SIGNING_SHA256";
+const TEAM_ID = "K8PFJNX7U8";
+const RELEASE_SHA256 =
+  "ED:E5:17:35:87:84:66:3A:F5:6F:30:02:01:AD:B4:98:92:10:5F:49:54:4A:5C:14:81:00:E1:7A:9D:79:7D:8B";
 
 /**
  * What opens in the app, each a route this app serves on the web. The same
@@ -57,9 +57,8 @@ describe("apple-app-site-association", () => {
     expect(detail.paths).toBeUndefined();
   });
 
-  it("carries the team id placeholder or a real ten character team id", () => {
-    const team = aasa.applinks.details[0].appIDs[0].split(".")[0];
-    expect(team === TEAM_PLACEHOLDER || /^[A-Z0-9]{10}$/.test(team)).toBe(true);
+  it("carries the Yuvoy Apple Team ID", () => {
+    expect(aasa.applinks.details[0].appIDs).toEqual([`${TEAM_ID}.${BUNDLE_ID}`]);
   });
 
   it("links exactly the agreed paths, each one a route here", () => {
@@ -86,14 +85,11 @@ describe("assetlinks.json", () => {
     expect(links[0].target.package_name).toBe(BUNDLE_ID);
   });
 
-  it("carries the fingerprint placeholder or real SHA-256 fingerprints", () => {
+  it("carries the EAS release signing SHA-256 and nothing malformed", () => {
     const prints: string[] = links[0].target.sha256_cert_fingerprints;
-    expect(prints.length).toBeGreaterThan(0);
+    expect(prints).toContain(RELEASE_SHA256);
     for (const print of prints) {
-      expect(
-        print === SHA_PLACEHOLDER ||
-          /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(print),
-      ).toBe(true);
+      expect(print).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
     }
   });
 });

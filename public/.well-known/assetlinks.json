@@ -4,7 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "in.yuvoy.app",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_ANDROID_SIGNING_SHA256"]
+      "sha256_cert_fingerprints": ["ED:E5:17:35:87:84:66:3A:F5:6F:30:02:01:AD:B4:98:92:10:5F:49:54:4A:5C:14:81:00:E1:7A:9D:79:7D:8B"]
     }
   }
 ]
