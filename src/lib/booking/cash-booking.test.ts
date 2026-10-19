@@ -168,20 +168,37 @@ describe("finishInCash", () => {
     },
   };
 
-  it("asks how the hold can be paid, then books it in cash", async () => {
+  it("asks how the hold can be paid, then books it in cash, each call with the booking's link", async () => {
     const calls: string[] = [];
     server.use(
-      http.post(`${BASE}/reservations/:id/payment-order`, ({ params }) => {
-        calls.push(`order:${params.id}`);
-        return HttpResponse.json(cashOffer);
-      }),
-      http.post(`${BASE}/reservations/:id/cash-booking`, ({ params }) => {
-        calls.push(`cash:${params.id}`);
-        return HttpResponse.json({ bookingReference: "YV-1" }, { status: 201 });
-      }),
+      http.post(
+        `${BASE}/reservations/:id/payment-order`,
+        ({ params, request }) => {
+          calls.push(
+            `order:${params.id}:${request.headers.get("authorization")}`,
+          );
+          return HttpResponse.json(cashOffer);
+        },
+      ),
+      http.post(
+        `${BASE}/reservations/:id/cash-booking`,
+        ({ params, request }) => {
+          calls.push(
+            `cash:${params.id}:${request.headers.get("authorization")}`,
+          );
+          return HttpResponse.json(
+            { bookingReference: "YV-1" },
+            { status: 201 },
+          );
+        },
+      ),
     );
-    expect(await finishInCash("res_1")).toBe(true);
-    expect(calls).toEqual(["order:res_1", "cash:res_1"]);
+    expect(await finishInCash("res_1", "tok_res_1")).toBe(true);
+    // Whose hold it is (yuvoy-api#369): the link the reservation answered with.
+    expect(calls).toEqual([
+      "order:res_1:Bearer tok_res_1",
+      "cash:res_1:Bearer tok_res_1",
+    ]);
   });
 
   it("books nothing when cash is not offered, and says so by returning false", async () => {
@@ -193,7 +210,7 @@ describe("finishInCash", () => {
         return HttpResponse.json({}, { status: 201 });
       }),
     );
-    expect(await finishInCash("res_1")).toBe(false);
+    expect(await finishInCash("res_1", "tok_res_1")).toBe(false);
     expect(cash).toBe(0);
   });
 
@@ -204,7 +221,7 @@ describe("finishInCash", () => {
         409,
       ),
     );
-    expect(await finishInCash("res_1")).toBe(false);
+    expect(await finishInCash("res_1", "tok_res_1")).toBe(false);
 
     server.use(
       order(cashOffer),
@@ -215,7 +232,7 @@ describe("finishInCash", () => {
         ),
       ),
     );
-    expect(await finishInCash("res_1")).toBe(false);
+    expect(await finishInCash("res_1", "tok_res_1")).toBe(false);
   });
 });
 

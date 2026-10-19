@@ -69,8 +69,8 @@ describe("CheckoutForm — one tap", () => {
         calls.push("reserve");
         return HttpResponse.json(active, { status: 201 });
       }),
-      http.post(`${BASE}/reservations/:id/payment-order`, () => {
-        calls.push("order");
+      http.post(`${BASE}/reservations/:id/payment-order`, ({ request }) => {
+        calls.push(`order ${request.headers.get("authorization")}`);
         return HttpResponse.json({
           state: "coming_soon",
           message: "Card and UPI are opening shortly.",
@@ -80,8 +80,8 @@ describe("CheckoutForm — one tap", () => {
           },
         });
       }),
-      http.post(`${BASE}/reservations/:id/cash-booking`, () => {
-        calls.push("cash");
+      http.post(`${BASE}/reservations/:id/cash-booking`, ({ request }) => {
+        calls.push(`cash ${request.headers.get("authorization")}`);
         return HttpResponse.json(
           { bookingReference: "YV-TAP" },
           { status: 201 },
@@ -96,7 +96,12 @@ describe("CheckoutForm — one tap", () => {
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith("/booking#t=tok_tap"),
     );
-    expect(calls).toEqual(["reserve", "order", "cash"]);
+    // Both hold writes with the link the reservation answered with (yuvoy-api#369).
+    expect(calls).toEqual([
+      "reserve",
+      "order Bearer tok_tap",
+      "cash Bearer tok_tap",
+    ]);
   });
 
   it("sends a request as a request, and asks nothing about paying", async () => {

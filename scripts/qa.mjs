@@ -1851,6 +1851,44 @@ for (const f of files) {
   }
 }
 
+/* ------ 21. a hold write carries the booking link (yuvoy-api#369) ------- */
+
+/**
+ * `POST /reservations/{id}/release`, `/payment-order` and `/cash-booking` are
+ * moving from the reservation id alone to the booking's link or the owner's
+ * session (yuvoy-api#369, S-06). The API logs a call without one today and
+ * refuses it once both the web and the app send the link, so a hold write
+ * written without `headers` would pass every test here and fail in
+ * production on the day the window closes. Each call is read to its closing
+ * parenthesis, so its options may span lines.
+ */
+for (const f of files) {
+  if (/\.test\.tsx?$/.test(f)) continue;
+  const s = code(f);
+  for (const m of s.matchAll(
+    /\.POST\(\s*(["'`])\/reservations\/\{id\}\/(release|payment-order|cash-booking)\1/g,
+  )) {
+    const open = m.index + m[0].indexOf("(");
+    let depth = 0;
+    let close = s.length;
+    for (let i = open; i < s.length; i++) {
+      if (s[i] === "(") depth++;
+      else if (s[i] === ")" && --depth === 0) {
+        close = i;
+        break;
+      }
+    }
+    if (!/\bheaders\b/.test(s.slice(open, close))) {
+      problems.push(
+        `${rel(f)}: POST /reservations/{id}/${m[2]} sends no headers. A hold ` +
+          `write carries the booking link as \`Authorization: Bearer\` ` +
+          `(yuvoy-api#369): without it the API refuses the call once the ` +
+          `window closes.`,
+      );
+    }
+  }
+}
+
 /* --------------------------------------------------------------- report -- */
 
 console.log(`\nroutes: ${[...routes].sort().join("  ")}\n`);

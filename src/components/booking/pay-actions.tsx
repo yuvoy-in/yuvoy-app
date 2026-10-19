@@ -30,12 +30,20 @@ type BookingStatus = components["schemas"]["BookingStatus"];
  * This hold's payment order. One reservation has at most one by construction,
  * so asking twice returns the same order: the contract's own guarantee, and
  * what makes asking on arrival safe.
+ *
+ * All three hold writes here (this one, the cash booking and the release)
+ * carry the booking link the page was opened with (yuvoy-api#369, S-06): the
+ * API is moving them from the reservation id alone to that link or the owner's
+ * session, and this page always has the link.
  */
-async function requestPaymentOrder(reservationId: string) {
+async function requestPaymentOrder(reservationId: string, token: string) {
   const client = createApiClient();
   const { data, error } = await client.POST(
     "/reservations/{id}/payment-order",
-    { params: { path: { id: reservationId } } },
+    {
+      params: { path: { id: reservationId } },
+      headers: { Authorization: `Bearer ${token}` },
+    },
   );
   if (error) throw error;
   return data;
@@ -77,9 +85,12 @@ async function requestPaymentOrder(reservationId: string) {
  */
 export function PayButton({
   status,
+  token,
   onBooked,
 }: {
   status: BookingStatus;
+  /** The booking link this page was opened with, for the hold writes. */
+  token: string;
   /** Refetch the status once a cash booking lands, so the screen catches up. */
   onBooked?: () => void;
 }) {
@@ -87,7 +98,7 @@ export function PayButton({
 
   const options = useQuery({
     queryKey: qk.paymentOrder(status.reservationId),
-    queryFn: () => requestPaymentOrder(status.reservationId),
+    queryFn: () => requestPaymentOrder(status.reservationId, token),
     /*
       Asked once per hold. It answers a question about the reservation, not
       about time, and a refetch on focus would be a POST on every glance away.
@@ -102,7 +113,7 @@ export function PayButton({
 
   const order = useMutation({
     retry: false,
-    mutationFn: () => requestPaymentOrder(status.reservationId),
+    mutationFn: () => requestPaymentOrder(status.reservationId, token),
     onSuccess: async (answer) => {
       if (answer.state !== "ready") return;
       setHandoff("opening");
@@ -142,7 +153,10 @@ export function PayButton({
       */
       const { data, error } = await client.POST(
         "/reservations/{id}/cash-booking",
-        { params: { path: { id: status.reservationId } } },
+        {
+          params: { path: { id: status.reservationId } },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
       return data;
@@ -326,9 +340,12 @@ export function PayButton({
  */
 export function ReleaseButton({
   status,
+  token,
   onReleased,
 }: {
   status: BookingStatus;
+  /** The booking link this page was opened with. */
+  token: string;
   onReleased: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -340,6 +357,7 @@ export function ReleaseButton({
       const client = createApiClient();
       const { error } = await client.POST("/reservations/{id}/release", {
         params: { path: { id: status.reservationId } },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
     },
