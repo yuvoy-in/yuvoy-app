@@ -1655,20 +1655,26 @@ for (const f of files) {
 /* ------- 19. a code is never promised by WhatsApp, or said to be sent ---- */
 
 /**
- * A traveller's sign-in code goes by email to the address on their latest
- * booking until a WhatsApp sender exists, and a number with no booking is
- * sent nothing (yuvoy-api#254). "Check your WhatsApp" and "a code on
- * WhatsApp" said otherwise, on the screens every visitor meets once the
- * invite gate is on. Those screens print the API's own sentence now
- * (`codeSentSentence`), which changes when delivery does. Recovery follows
- * the same rule, and it said "a code by WhatsApp, or email" (yuvoy-app#125).
+ * A traveller's sign-in code goes by email until a WhatsApp sender exists
+ * (yuvoy-api#254), and since yuvoy-api#303 only to an address given while
+ * signed in as the number, on Account or with an invitation. "Check your
+ * WhatsApp" and "a code on WhatsApp" said otherwise, on the screens every
+ * visitor meets once the invite gate is on. Those screens print the API's
+ * own sentence now (`codeSentSentence`), which changes when delivery does.
+ * Recovery follows the same rule, and it said "a code by WhatsApp, or email"
+ * (yuvoy-app#125).
  *
  * "The code we sent" and "we sent a code" go too: the API answers every
  * number the same way so it never confirms a send, and a screen that does
  * tells anybody that the number has booked.
  *
+ * And "the email on your latest booking" goes (yuvoy-api#303): a booking's
+ * email gets no code since the address typed at a guest checkout stopped
+ * counting, so a screen that says so has a guest wait for a code that never
+ * comes. Comments may tell that history; shown copy may not.
+ *
  * Lift the WhatsApp half when the API sends codes by WhatsApp and its
- * sentence says so. The "we sent" half stays.
+ * sentence says so. The other two halves stay.
  */
 for (const f of files) {
   if (/\.test\.tsx?$/.test(f)) continue;
@@ -1680,8 +1686,9 @@ for (const f of files) {
   ) {
     problems.push(
       `${rel(f)}: promises a sign-in code by WhatsApp. Codes go by email ` +
-        `to the latest booking, or nowhere (yuvoy-api#254). Print the API's ` +
-        `sentence with \`codeSentSentence\` instead.`,
+        `to an address given while signed in or with an invitation, or ` +
+        `nowhere (yuvoy-api#254, #303). Print the API's sentence with ` +
+        `\`codeSentSentence\` instead.`,
     );
   }
   if (
@@ -1694,6 +1701,13 @@ for (const f of files) {
         `same way so it never confirms one, and a screen that does tells ` +
         `anybody the number has booked (yuvoy-app#125). Say where to look ` +
         `("Check your email") or what it is ("Sign-in code") instead.`,
+    );
+  }
+  if (/\b(latest|newest)\s+booking\b/i.test(s)) {
+    problems.push(
+      `${rel(f)}: says a code goes to a booking's email. Since ` +
+        `yuvoy-api#303 a code goes only to an email given while signed in, ` +
+        `on Account or with an invitation. Say that, in the API's words.`,
     );
   }
 }

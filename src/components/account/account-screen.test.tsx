@@ -710,10 +710,11 @@ describe("first sign-in", () => {
   });
 });
 
-describe("what the code step says (yuvoy-api#254)", () => {
+describe("what the code step says (yuvoy-api#254, #303)", () => {
   /*
-    A code goes by email to the address on the number's latest booking, and a
-    number with no booking is sent nothing. The screen prints the API's own
+    A code goes by email, only to an address given while signed in as the
+    number or with an invitation (yuvoy-api#303), and a number with none is
+    sent nothing. The screen prints the API's own
     sentence, which holds for every number, where it used to say "Check your
     WhatsApp" and "We sent a six-digit code", neither of them true any more.
   */
@@ -736,7 +737,7 @@ describe("what the code step says (yuvoy-api#254)", () => {
     );
     expect(
       screen.getByText(
-        "If we have an email for this number, from your latest booking or your invitation, a code is on its way to that email. It is good for a few minutes and works once.",
+        "If you gave us an email for this number while signed in, or with your invitation, a code is on its way to that email. It is good for a few minutes and works once.",
       ),
     ).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/whatsapp/i);

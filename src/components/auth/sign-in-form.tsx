@@ -106,11 +106,11 @@ export type SignInFlow = ReturnType<typeof useSignInFlow>;
 /**
  * What a screen says once a code has been asked for: the API's own sentence.
  *
- * Since yuvoy-api#254 a code goes by email to the address on the number's
- * latest booking (there is no WhatsApp sender yet), and since yuvoy-api#195's
- * invitee half (10 Oct 2026) to the email staff entered with an invitation
- * for a number that has never booked. A number with neither is sent nothing,
- * which the answer must not reveal. The API words
+ * A code goes by email (there is no WhatsApp sender yet), and since
+ * yuvoy-api#303 only to an address given while signed in as the number, on
+ * Account or with an invitation (yuvoy-api#195), never to one typed at a guest
+ * checkout. A number with none is sent nothing, which the answer must not
+ * reveal. The API words
  * its `message` to hold for every number and will reword it when delivery
  * changes, so the screens print it rather than a promise of their own.
  * "Check your WhatsApp" was one of those, and it stopped being true.
