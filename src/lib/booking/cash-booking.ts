@@ -194,15 +194,14 @@ export async function finishInCash(
 ): Promise<boolean> {
   try {
     const client = createApiClient();
-    const headers = { Authorization: `Bearer ${statusToken}` };
     const order = await client.POST("/reservations/{id}/payment-order", {
       params: { path: { id: reservationId } },
-      headers,
+      headers: { Authorization: `Bearer ${statusToken}` },
     });
     if (order.error || !readPayAtCounter(order.data)) return false;
     const booking = await client.POST("/reservations/{id}/cash-booking", {
       params: { path: { id: reservationId } },
-      headers,
+      headers: { Authorization: `Bearer ${statusToken}` },
     });
     return !booking.error;
   } catch {
