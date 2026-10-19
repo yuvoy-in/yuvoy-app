@@ -500,7 +500,7 @@ function CheckoutFields({
     */
     if (reservation.state === "active") {
       setFinishing(true);
-      await finishInCash(reservation.reservationId);
+      await finishInCash(reservation.reservationId, reservation.statusToken);
     }
 
     // The token goes in the FRAGMENT, immediately, and is never put in a path
