@@ -7,6 +7,12 @@ export const metadata: Metadata = pageMetadata({
   description:
     "YuvoyFinder is the program Yuvoy uses to find things to do in Indian cities and towns, such as events, workshops and trips, so people can discover them on Yuvoy.",
   path: "/finder",
+  /*
+    The name already carries the brand, so the layout's template would make
+    the tab read "YuvoyFinder · Yuvoy" (the sitemap audit counts the brand
+    once). "YuvoyFinder" alone is also what a site owner searches for.
+  */
+  absoluteTitle: true,
 });
 
 /** What every finder request sends (yuvoy-api `internal/finder/robots.go`, `UserAgent`). */

@@ -13,6 +13,8 @@ test("the finder's page says what it is and how a site stops it", async ({
 }) => {
   const response = await page.goto("/finder");
   expect(response?.status()).toBe(200);
+  // The brand once: the name carries it, so the layout's " · Yuvoy" is skipped.
+  await expect(page).toHaveTitle("YuvoyFinder");
 
   await expect(
     page.getByRole("heading", { level: 1, name: "YuvoyFinder" }),

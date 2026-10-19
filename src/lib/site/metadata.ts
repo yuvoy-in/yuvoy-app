@@ -141,8 +141,9 @@ export interface PageMeta {
   /**
    * Skip the layout's `%s · Yuvoy` title template.
    *
-   * For the one page whose title already IS the brand — the feed. Without it
-   * the homepage reads "Yuvoy · Yuvoy".
+   * For a page whose title already carries the brand. The feed's title IS the
+   * brand, and without it the homepage reads "Yuvoy · Yuvoy"; /finder's
+   * "YuvoyFinder" would read "YuvoyFinder · Yuvoy".
    */
   absoluteTitle?: boolean;
 }
