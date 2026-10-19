@@ -181,9 +181,9 @@ describe("the landing, for somebody signed out", () => {
 
   it("says what the API says once a code is asked for (yuvoy-api#254)", async () => {
     /*
-      The code goes by email to the latest booking, or nowhere for a number
-      that has never booked, so the gate prints the API's sentence rather than
-      promising a WhatsApp message.
+      The code goes by email to an address given while signed in or with an
+      invitation (yuvoy-api#303), or nowhere, so the gate prints the API's
+      sentence rather than promising a WhatsApp message.
     */
     __resetAppRouteMocks();
     const user = userEvent.setup();
@@ -201,7 +201,7 @@ describe("the landing, for somebody signed out", () => {
 
     expect(
       screen.getByText(
-        "If we have an email for this number, from your latest booking or your invitation, a code is on its way to that email. It is good for a few minutes and works once.",
+        "If you gave us an email for this number while signed in, or with your invitation, a code is on its way to that email. It is good for a few minutes and works once.",
       ),
     ).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/on whatsapp/i);
