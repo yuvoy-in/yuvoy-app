@@ -971,6 +971,7 @@ describe("operator updates", () => {
 describe("giving the seats back", () => {
   it("releases a hold in two taps and lands on what the server says", async () => {
     let released = false;
+    let releasedWith: string | null = null;
     server.use(
       http.get(`${BASE}/bookings/status`, () =>
         HttpResponse.json(
@@ -984,8 +985,9 @@ describe("giving the seats back", () => {
               }),
         ),
       ),
-      http.post(`${BASE}/reservations/:id/release`, () => {
+      http.post(`${BASE}/reservations/:id/release`, ({ request }) => {
         released = true;
+        releasedWith = request.headers.get("authorization");
         return new HttpResponse(null, { status: 204 });
       }),
     );
@@ -1005,6 +1007,8 @@ describe("giving the seats back", () => {
       await screen.findByText("This booking was let go"),
     ).toBeInTheDocument();
     expect(released).toBe(true);
+    // With the link the page was opened with, whose hold it is (yuvoy-api#369).
+    expect(releasedWith).toBe("Bearer tok_test");
   });
 
   it("withdraws a request with its own words", async () => {
@@ -1566,6 +1570,7 @@ describe("finishing a booking in cash", () => {
   });
 
   it("gives the reference, the amount to bring, and where — in the operator's favour", async () => {
+    const sentWith: string[] = [];
     server.use(
       http.get(`${BASE}/bookings/status`, () =>
         HttpResponse.json(
@@ -1574,16 +1579,18 @@ describe("finishing a booking in cash", () => {
           }),
         ),
       ),
-      http.post(`${BASE}/reservations/res_1/payment-order`, () =>
-        HttpResponse.json({
+      http.post(`${BASE}/reservations/res_1/payment-order`, ({ request }) => {
+        sentWith.push(`order ${request.headers.get("authorization")}`);
+        return HttpResponse.json({
           state: "coming_soon",
           message: "Card and UPI are opening shortly.",
           holdStillActive: true,
           payAtCounter,
-        }),
-      ),
-      http.post(`${BASE}/reservations/res_1/cash-booking`, () =>
-        HttpResponse.json(
+        });
+      }),
+      http.post(`${BASE}/reservations/res_1/cash-booking`, ({ request }) => {
+        sentWith.push(`cash ${request.headers.get("authorization")}`);
+        return HttpResponse.json(
           {
             bookingReference: "YV-8F3K2A",
             state: "paid_pending_ops",
@@ -1591,8 +1598,8 @@ describe("finishing a booking in cash", () => {
             currency: "INR",
           },
           { status: 201 },
-        ),
-      ),
+        );
+      }),
     );
 
     const user = userEvent.setup();
@@ -1626,6 +1633,37 @@ describe("finishing a booking in cash", () => {
     expect(
       screen.queryByText(/unpaid|pending payment/i),
     ).not.toBeInTheDocument();
+    // The question on arrival and the booking, each with the page's link (yuvoy-api#369).
+    expect(sentWith).toEqual(["order Bearer tok_test", "cash Bearer tok_test"]);
+  });
+
+  it("sends each hold its own link: a second hold opened in the same tab", async () => {
+    const orders: string[] = [];
+    server.use(
+      http.get(`${BASE}/bookings/status`, ({ request }) => {
+        const second =
+          request.headers.get("authorization") === "Bearer tok_second";
+        return HttpResponse.json(
+          holding({ reservationId: second ? "res_2" : "res_1" }),
+        );
+      }),
+      http.post(
+        `${BASE}/reservations/:id/payment-order`,
+        ({ params, request }) => {
+          orders.push(`${params.id} ${request.headers.get("authorization")}`);
+          return HttpResponse.json(ready(), { status: 201 });
+        },
+      ),
+    );
+    renderWithQuery(<BookingScreen />);
+    await waitFor(() => expect(orders).toEqual(["res_1 Bearer tok_test"]));
+    act(() => setHash("#t=tok_second"));
+    await waitFor(() =>
+      expect(orders).toEqual([
+        "res_1 Bearer tok_test",
+        "res_2 Bearer tok_second",
+      ]),
+    );
   });
 
   it("renders a 200 retry exactly like the 201 — the same booking", async () => {

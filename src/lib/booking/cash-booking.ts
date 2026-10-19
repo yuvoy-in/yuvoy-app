@@ -180,19 +180,29 @@ export function cashToGetBack(status: {
  * at most one booking by construction, so a traveller who taps again on ferry
  * wifi gets the same answer, never a second booking.
  *
+ * Both carry the booking link the reservation answered with (yuvoy-api#369,
+ * S-06): hold writes are moving from the reservation id alone to that link or
+ * the owner's session.
+ *
  * `true` once booked. `false` when cash is not offered or either call failed,
  * and that is not an error to show at checkout: the hold is real, and the
  * booking page it opens next offers every way to finish it, cash first.
  */
-export async function finishInCash(reservationId: string): Promise<boolean> {
+export async function finishInCash(
+  reservationId: string,
+  statusToken: string,
+): Promise<boolean> {
   try {
     const client = createApiClient();
+    const headers = { Authorization: `Bearer ${statusToken}` };
     const order = await client.POST("/reservations/{id}/payment-order", {
       params: { path: { id: reservationId } },
+      headers,
     });
     if (order.error || !readPayAtCounter(order.data)) return false;
     const booking = await client.POST("/reservations/{id}/cash-booking", {
       params: { path: { id: reservationId } },
+      headers,
     });
     return !booking.error;
   } catch {

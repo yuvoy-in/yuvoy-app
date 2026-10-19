@@ -552,15 +552,19 @@ function StatusBody({
         </Panel>
       ) : null}
 
-      {status.state === "holding" ? (
+      {token && status.state === "holding" ? (
         /*
           `onChanged` refetches the status, so once a cash booking lands the
           screen re-reads the server rather than believing its own optimism —
           the same rule the release button follows. The success moment renders
           from the booking response either way, so a slow refetch never leaves
           somebody who just committed looking at a pay button.
+
+          With the link only, like every other action here: paying is a hold
+          write, and it carries the link (yuvoy-api#369). An offline copy has
+          none, and could not reach the server anyway.
         */
-        <PayButton status={status} onBooked={onChanged} />
+        <PayButton status={status} token={token} onBooked={onChanged} />
       ) : null}
 
       {/*
@@ -573,7 +577,7 @@ function StatusBody({
       {token &&
       onChanged &&
       (status.state === "holding" || status.state === "awaiting_operator") ? (
-        <ReleaseButton status={status} onReleased={onChanged} />
+        <ReleaseButton status={status} token={token} onReleased={onChanged} />
       ) : null}
 
       {/* Everything needed for the day, on the page. Not in a message that
