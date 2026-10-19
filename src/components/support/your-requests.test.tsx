@@ -197,10 +197,25 @@ describe("your requests", () => {
       ),
     );
 
-    renderWithQuery(<HelpCenter />);
+    const { client } = renderWithQuery(<HelpCenter />);
     await screen.findByRole("heading", { name: "Booking" });
-    await new Promise((r) => setTimeout(r, 80));
-    expect(screen.queryByRole("region", { name: "Your requests" })).toBeNull();
+    /*
+      Until the 405 has landed, not for a fixed time: on a busy machine the
+      answer took longer than 80ms and the skeleton was still drawn. The
+      section is not drawn before the read starts either, so the read's own
+      state is what proves the empty page is the answer, not the wait.
+    */
+    await waitFor(
+      () => {
+        expect(client.getQueryState(qk.supportRequests())?.status).toBe(
+          "error",
+        );
+        expect(
+          screen.queryByRole("region", { name: "Your requests" }),
+        ).toBeNull();
+      },
+      { timeout: 4000 },
+    );
     expect(screen.queryByRole("alert")).toBeNull();
   });
 

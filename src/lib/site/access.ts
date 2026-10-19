@@ -20,7 +20,7 @@
  * ## The owner's posture: public pages only (21 Sep 2026)
  *
  *   - Open to anybody, and still indexed: the guides, a listing, a business,
- *     `/help`.
+ *     `/help`, and `/finder`, which is for site owners rather than travellers.
  *   - Always open, because they are links somebody sent or they belong to a
  *     booking that exists: `/go/`, `/i/`, `/trip/`, `/booking`, `/trips`,
  *     `/account`, `/offline` and a shared reel.
