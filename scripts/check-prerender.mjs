@@ -41,6 +41,9 @@ const ALLOWED = {
   "/account": "Settings and consent. All state is client-side and per-device.",
   "/apple-icon.png": "Build asset.",
   "/favicon.ico": "Build asset.",
+  "/finder":
+    "What YuvoyFinder reads and how a site stops it (yuvoy-api#324). Fixed " +
+    "words in the page, so the HTML changes only on deploy.",
   "/help":
     "The Help Center. Its answers are a module in the repo, so the HTML " +
     "changes only on deploy. Same class as /guides.",

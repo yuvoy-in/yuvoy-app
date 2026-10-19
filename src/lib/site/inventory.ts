@@ -40,6 +40,12 @@ export const INDEXABLE_FIXED_ROUTES: readonly FixedRoute[] = [
     to open the app. Changes only on deploy: the answers are a module.
   */
   { path: "/help", changeFrequency: "monthly", priority: 0.6 },
+  /*
+    The page YuvoyFinder names in every request (yuvoy-api#324). A site owner
+    who finds the finder in their logs, or searches its name, must reach it, so
+    it is indexed like /help. Static: it changes only on deploy.
+  */
+  { path: "/finder", changeFrequency: "monthly", priority: 0.3 },
 ] as const;
 
 /**
