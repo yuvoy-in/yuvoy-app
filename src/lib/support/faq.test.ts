@@ -31,8 +31,9 @@ describe("the answers", () => {
     /*
       yuvoy-app#113. Two answers said a booking could be reached with no code
       at all, and that the lost LINK would arrive again. Recovery sends a code
-      (to the email on the number's latest booking, yuvoy-app#125) and the
-      code opens the booking on a fresh link, retiring the old one.
+      and the code opens the booking on a fresh link, retiring the old one.
+      Since yuvoy-api#303 the code goes only to an email given while signed in
+      or with an invitation, never to the email on the latest booking.
     */
     const text = (id: string) =>
       allFaqItems()
@@ -41,8 +42,9 @@ describe("the answers", () => {
 
     expect(text("lost-link")).toMatch(/Find my booking/);
     expect(text("lost-link")).toMatch(
-      /a code goes to the email on your latest booking/,
+      /If you gave us an email for this number while signed in, or with your invitation, a code goes to that email/,
     );
+    expect(text("lost-link")).not.toMatch(/latest booking/);
     expect(text("lost-link")).toMatch(/old link stops working/);
     expect(text("sign-in-code")).not.toMatch(/do not need a code/);
     expect(text("sign-in-code")).toMatch(/Find my booking/);
@@ -50,9 +52,10 @@ describe("the answers", () => {
 
   it("says codes go by email and gives a person to call, never WhatsApp", () => {
     /*
-      yuvoy-app#125. No WhatsApp sender exists, so a code goes to the email on
-      the latest booking or nowhere. The answer for a code that did not work
-      is also the one for a code that never came.
+      yuvoy-app#125. No WhatsApp sender exists, so a code goes by email or
+      nowhere: since yuvoy-api#303, to an email given while signed in or with
+      an invitation. The answer for a code that did not work is also the one
+      for a code that never came.
     */
     const text = (id: string) =>
       allFaqItems()
@@ -63,7 +66,10 @@ describe("the answers", () => {
       expect(text(id)).not.toMatch(/whatsapp/i);
     }
     expect(text("sign-in-code")).toMatch(/work once/);
-    expect(text("sign-in-code")).toMatch(/email on the latest booking/);
+    expect(text("sign-in-code")).toMatch(
+      /email you gave us for your number while signed in/,
+    );
+    expect(text("sign-in-code")).not.toMatch(/latest booking/);
     expect(text("sign-in-code")).toContain(SUPPORT_PHONE);
   });
 

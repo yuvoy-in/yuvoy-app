@@ -1660,18 +1660,19 @@ export const bookingHandlers = [
     }
 
     /*
-      202 and the API's own sentence, word for word: a code goes by email to
-      the latest booking's address (yuvoy-api#254), or for a number that has
-      never booked to the email staff entered with its invitation
-      (yuvoy-api#195, live 10 Oct 2026). A number with neither gets nothing,
-      and the answer is the same for every number so it reveals none of that.
-      The screens print this `message`, so the mock must carry the real one.
+      202 and the API's own sentence, word for word (signInSent in the API's
+      handler/traveller.go): since yuvoy-api#303 a code goes by email only to
+      an address given while signed in as the number, on Account or with an
+      invitation (yuvoy-api#195), never to one typed at a guest checkout. A
+      number with none gets nothing, and the answer is the same for every
+      number so it reveals none of that. The screens print this `message`, so
+      the mock must carry the real one.
     */
     return HttpResponse.json(
       {
         sent: true,
         message:
-          "If we have an email for this number, from your latest booking or your invitation, a code is on its way to that email.",
+          "If you gave us an email for this number while signed in, or with your invitation, a code is on its way to that email.",
         devCode: DEV_SIGN_IN_CODE,
       },
       { status: 202, headers: mockHeaders(rid()) },

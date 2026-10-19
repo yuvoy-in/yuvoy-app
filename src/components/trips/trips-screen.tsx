@@ -454,8 +454,10 @@ function Header() {
  * as guests. This screen used to open on a sign-in wall and offer the way to
  * their booking as a small link underneath, so a guest had to work out that
  * signing in was not what they needed. Now the guest's route leads: the link
- * in their booking message, or `/trips/recover`, which sends a code to the
- * email on the number's latest booking and needs no account at all.
+ * in their booking message, or `/trips/recover`. Since yuvoy-api#303 that
+ * sends a code only to an email given while signed in as the number, on
+ * Account or with an invitation, so the panel no longer says "No account
+ * needed": a guest who never signed in gets no code.
  *
  * Signing in stays, second and in the owner's words, verbatim. The two are
  * genuinely different: signing in works for a number that has never booked
@@ -470,8 +472,8 @@ function SignedOut() {
         <h2 className="text-base font-bold text-balance">Find my booking</h2>
         <p className="text-forest/70 text-body mt-1.5 text-pretty">
           Open the link in your booking message. No message to hand? Use the
-          number you booked with, and a code goes to the email on your latest
-          booking. No account needed.
+          number you booked with. If you gave us an email for that number while
+          signed in, or with your invitation, a code goes to that email.
         </p>
         <ButtonLink href="/trips/recover" className="mt-4">
           Find my booking

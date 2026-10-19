@@ -152,7 +152,7 @@ export const FAQ: FaqCategory[] = [
         id: "lost-link",
         question: "I lost my booking link.",
         answer: [
-          "Open Trips and choose Find my booking. Enter the number you booked with, and a code goes to the email on your latest booking. The code opens your booking on a new link, and the old link stops working.",
+          "Open Trips and choose Find my booking, and enter the number you booked with. If you gave us an email for this number while signed in, or with your invitation, a code goes to that email. The code opens your booking on a new link, and the old link stops working.",
           "For your privacy the app answers the same way whether or not that number has a booking, so nobody can use it to find out who booked what.",
         ],
       },
@@ -182,7 +182,7 @@ export const FAQ: FaqCategory[] = [
         question: "My sign-in code did not work.",
         answer: [
           "Codes last a few minutes, work once, and each new one replaces the last, so if you asked twice only the newest works.",
-          `A code goes to the email on the latest booking made with your number. If none arrives, use the number you booked with, or call us on ${SUPPORT_PHONE}.`,
+          `A code goes to the email you gave us for your number while signed in, or with your invitation. If none arrives, use the number you booked with, or call us on ${SUPPORT_PHONE}.`,
           "If you only want to reach one booking, you do not need to sign in. Open the link in your booking message, or choose Find my booking on Trips.",
         ],
       },
