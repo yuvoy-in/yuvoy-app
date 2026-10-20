@@ -273,7 +273,16 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
 
       {me ? (
         <div className="mt-3">
-          <p className="text-forest/80 text-sm">{me.phone}</p>
+          {/*
+            How this account signs in: the number, or, for an account made
+            through the email door with no number proved yet, the proven
+            address. Neither, and the line is left out.
+          */}
+          {me.phone || me.provenEmail ? (
+            <p className="text-forest/80 text-sm">
+              {me.phone ?? me.provenEmail}
+            </p>
+          ) : null}
           {me.memberSince ? (
             <p className="text-forest/70 mt-1 text-sm">
               Member since {memberSince(me.memberSince)}

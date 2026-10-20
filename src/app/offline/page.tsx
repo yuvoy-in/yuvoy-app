@@ -34,7 +34,7 @@ export default function OfflinePage() {
         You are offline
       </p>
       <p className="text-paper/70 text-body mt-3 max-w-sm text-pretty">
-        Havelock does this. A booking you have already opened on this phone
+        Signal comes and goes. A booking you have already opened on this phone
         still opens from its own link. Everything else needs a connection to
         tell you anything true.
       </p>

@@ -154,6 +154,52 @@ export const ERROR_CODES = [
     `pnpm qa` refuses a declared code this list cannot name.
   */
   "invalid_push_token",
+  /*
+    The sign-in doors (yuvoy-api a2aec936, yuvoy-app#181's pin).
+
+    `sign_in_unavailable` is a 503 from both sign-in routes when a door is
+    switched off in `features.signIn`: somebody's decision, not an outage, so
+    it is a deliberate stop below and never offers a retry. The phone door
+    this app uses has no switch today, so it is not expected here.
+
+    The other four need what this app never sends: `under_age_sign_up` a birth
+    year (R4-T1), and `identity_taken`, `identity_kind_taken` and
+    `fresh_sign_in_required` a session on `POST /me/sign-in/verify`, which
+    `POST /api/session` calls with none.
+  */
+  "sign_in_unavailable",
+  "under_age_sign_up",
+  "identity_taken",
+  "identity_kind_taken",
+  "fresh_sign_in_required",
+  /*
+    Refusals of routes this app does not call yet: going (R4), Trigo (R5),
+    plans (R7), tables (R8) and people (R9). Named because `pnpm qa` refuses a
+    declared code this list cannot name; each release that calls a route gives
+    its codes their sentences.
+  */
+  "event_not_open",
+  "adult_confirmation_required",
+  "consent_required",
+  "turn_in_progress",
+  "daily_limit_reached",
+  "plans_unavailable",
+  "plan_full",
+  "plan_closed",
+  "plan_limit_reached",
+  "tables_unavailable",
+  "table_closed",
+  "table_full",
+  "table_request_limit",
+  "table_banned",
+  "women_only",
+  "people_paused",
+  "name_required",
+  "friend_limit_reached",
+  "friend_link_expired",
+  "friend_link_full",
+  "crew_limit_reached",
+  "not_friends",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -165,17 +211,19 @@ export function isErrorCode(value: unknown): value is ErrorCode {
 }
 
 /**
- * The three 503s that are somebody's decision, not a failure.
+ * The 503s that are somebody's decision, not a failure.
  *
  * A crash screen here tells the traveller Yuvoy is broken when in fact a
  * human stopped sales on purpose. These get calm, truthful copy and leave
- * browsing intact.
+ * browsing intact. `sign_in_unavailable` is a sign-in door switched off: the
+ * API's own advice is to hide the door rather than retry.
  */
 export const DELIBERATE_STOPS = [
   "booking_disabled",
   "operator_not_bookable",
   "payments_unavailable",
   "media_unavailable",
+  "sign_in_unavailable",
 ] as const satisfies readonly ErrorCode[];
 
 export function isDeliberateStop(code: ErrorCode): boolean {

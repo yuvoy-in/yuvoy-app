@@ -257,8 +257,8 @@ function SignedOut({
     <>
       {variant === "page" ? (
         <p className={body}>
-          Find something worth doing in the Andaman Islands, and book a seat on
-          it. Real departures, filmed by the operators who run them.
+          Find something worth doing, and book a seat on it. Real departures,
+          filmed by the operators who run them.
         </p>
       ) : null}
       {variant === "panel" ? (
@@ -306,7 +306,7 @@ function SignedOut({
 
       {variant === "page" ? (
         <p className="text-forest/70 mt-3 text-sm">
-          The island guides are open to everyone.{" "}
+          Our guides are open to everyone.{" "}
           <Link
             href="/guides"
             className="text-terra-deep underline underline-offset-4"
@@ -566,7 +566,7 @@ export function redeemFailure(error: unknown): {
     return {
       panel: {
         title: "No connection",
-        body: "We could not reach Yuvoy. This is usually the island signal rather than you. Your code is still here, so try again when you have signal.",
+        body: "We could not reach Yuvoy. This is usually a weak signal rather than you. Your code is still here, so try again when you have signal.",
       },
     };
   }

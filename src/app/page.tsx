@@ -71,7 +71,7 @@ export const metadata: Metadata = pageMetadata({
   */
   title: "Yuvoy",
   description:
-    "Find something worth doing in the Andaman Islands, and book a seat on it. Real departures, filmed by the operators who run them.",
+    "Find something worth doing, and book a seat on it. Real departures, filmed by the operators who run them.",
   path: "/",
   absoluteTitle: true,
 });

@@ -526,8 +526,8 @@ export function ReelStrip({
           >
             {isFetchNextPageError ? (
               <p className="text-paper/60 leading-body text-xs text-pretty">
-                More reels did not load: usually the island signal rather than
-                you. Scroll up and back down to try again.
+                More reels did not load: usually a weak signal rather than you.
+                Scroll up and back down to try again.
               </p>
             ) : hasNextPage || isFetchingNextPage ? (
               /*

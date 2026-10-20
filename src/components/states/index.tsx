@@ -136,7 +136,7 @@ export function describeError(
   if (error instanceof NetworkError) {
     return {
       title: "No connection",
-      body: "We could not reach Yuvoy. This is usually the island signal rather than you.",
+      body: "We could not reach Yuvoy. This is usually a weak signal rather than you.",
       canRetry: true,
       deliberate: false,
     };
@@ -485,6 +485,21 @@ export function describeError(
           body:
             error.message.trim() ||
             "This number closed its Yuvoy account, so it cannot sign in. If that was a mistake, contact us.",
+          canRetry: false,
+        };
+      /*
+        A sign-in door switched off in `features.signIn` (yuvoy-api a2aec936).
+        A decision, not an outage: the same request is refused the same way
+        until the door opens, so there is no retry, and the API's sentence is
+        shown when it sends one.
+      */
+      case "sign_in_unavailable":
+        return {
+          ...base,
+          title: "Signing in is switched off",
+          body:
+            error.message.trim() ||
+            "This way of signing in is switched off for now, so nothing was sent.",
           canRetry: false,
         };
       default:
