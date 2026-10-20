@@ -5,6 +5,7 @@ import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
 import { pageMetadata } from "@/lib/site/metadata";
 import { privateRobotsMeta } from "@/lib/site/indexing";
 import { ReelScreen } from "@/components/feed/reel-screen";
+import { getPlaces, marketName } from "@/lib/site/places";
 import type { Reel } from "@/lib/feed/reels";
 
 /**
@@ -66,7 +67,15 @@ export async function generateMetadata({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const reel = await getReel(id, scenarioOf(await searchParams));
+  const [reel, places] = await Promise.all([
+    getReel(id, scenarioOf(await searchParams)),
+    getPlaces(),
+  ]);
+  const location = reel?.experience?.location;
+  // "Havelock, Andaman Islands": its own market, from the list (yuvoy-app#181).
+  const where = [location, marketName(places, reel?.experience?.marketKey)]
+    .filter(Boolean)
+    .join(", ");
 
   /*
     The title is the listing's, because that is the only honest name for a
@@ -77,10 +86,9 @@ export async function generateMetadata({
   return {
     ...pageMetadata({
       title: reel?.experience?.title ?? "A reel on Yuvoy",
-      description:
-        reel?.experience?.location != null
-          ? `Watch this, then book a seat. ${reel.experience.location}, Andaman Islands.`
-          : "Watch this, then book a seat on it. Andaman Islands.",
+      description: location
+        ? `Watch this, then book a seat. ${where}.`
+        : "Watch this, then book a seat on it.",
       path: `/r/${id}`,
     }),
     robots: privateRobotsMeta,

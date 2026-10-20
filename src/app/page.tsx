@@ -4,6 +4,7 @@ import { Feed } from "@/components/feed/feed";
 import { gatedRoute } from "@/components/auth/gated-route";
 import { firstReelsPage } from "@/lib/feed/first-page";
 import { preconnectApi } from "@/lib/site/preconnect";
+import { feedHeading, getPlaces } from "@/lib/site/places";
 
 /**
  * T2 — the reels feed. The app's front door.
@@ -98,11 +99,22 @@ export default async function FeedPage({
     content: async () => {
       // The cards read their listings from the browser once they are on screen.
       preconnectApi();
-      const { page, fetchedAt } = await firstReelsPage({
-        screen: "feed",
-        scenario,
-      });
-      return <Feed initialPage={page} initialFetchedAt={fetchedAt} />;
+      /*
+        The places beside the first page, not after it: both are on the way to
+        the HTML, and the list is cached for five minutes, so this is almost
+        always free. A list that did not load names no place in the heading.
+      */
+      const [{ page, fetchedAt }, places] = await Promise.all([
+        firstReelsPage({ screen: "feed", scenario }),
+        getPlaces(),
+      ]);
+      return (
+        <Feed
+          initialPage={page}
+          initialFetchedAt={fetchedAt}
+          heading={feedHeading(places)}
+        />
+      );
     },
   });
 }

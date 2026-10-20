@@ -210,6 +210,7 @@ describe("what a reel no longer carries", () => {
         mounted={false}
         muted
         autoplayAllowed={false}
+        surface="feed"
       />,
     );
 
@@ -374,6 +375,7 @@ describe("a card with no clip", () => {
         mounted={false}
         muted
         autoplayAllowed={false}
+        surface="feed"
       />,
     );
     return experience.operator.name;

@@ -8,11 +8,16 @@ import {
   subscribeConsent,
   consentSnapshot,
   consentServerSnapshot,
+  consentAskSnapshot,
+  consentAskServerSnapshot,
+  type ConsentAskRead,
   type ConsentRead,
   setConsent,
 } from "@/lib/analytics/consent";
+import { CONSENT_WORDS } from "@/lib/analytics/consent-words";
 import { installReporter, consoleReporter } from "@/lib/observability/report";
 import { Button } from "@/components/ui/button";
+import { CheckIcon, CloseIcon } from "@/components/ui/icons";
 import { LegalLinks } from "@/components/site/legal-links";
 
 /**
@@ -26,6 +31,19 @@ import { LegalLinks } from "@/components/site/legal-links";
  * traveller and the feed, on the one funnel there is, would cost more than the
  * analytics are worth. It floats above the tab bar as a chrome card, and on a
  * desktop tucks into the corner.
+ *
+ * ## The words, and when it asks (yuvoy-app#181)
+ *
+ * It asks the phone app's question (`CONSENT_WORDS`), because a yes now also
+ * counts what is done with a card: shown, opened, saved, shared and a link
+ * followed out (`lib/analytics/outcomes.ts`). A yes given to the older words
+ * is asked once more and keeps counting reel views until it is answered; a no
+ * is never asked again (`consentAskSnapshot`).
+ *
+ * It asks wherever something real is counted, not only where PostHog has a
+ * key: reel views and outcomes go to the API either way. A build on the mock
+ * counts into the mock, so it asks only with a key there, and every end to
+ * end spec that is not about consent runs without the card over it.
  */
 export function ConsentBanner() {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
@@ -43,6 +61,13 @@ export function ConsentBanner() {
     consentSnapshot,
     consentServerSnapshot,
   );
+  const ask = useSyncExternalStore<ConsentAskRead>(
+    subscribeConsent,
+    consentAskSnapshot,
+    consentAskServerSnapshot,
+  );
+  const counted =
+    Boolean(key) || process.env.NEXT_PUBLIC_API_MOCKING !== "enabled";
   /*
     Over a reel it goes to the TOP, under the masthead. At the foot it sat over
     the band where the caption, the date line and Book are, so the first thing
@@ -58,8 +83,8 @@ export function ConsentBanner() {
     if (key && consent === "granted") void enable(key, host);
   }, [key, host, consent]);
 
-  // Nothing to consent to, already decided, or not yet in a browser.
-  if (!key || consent !== "unset") return null;
+  // Nothing counted, already answered, or not yet in a browser.
+  if (!counted || (ask !== "ask" && ask !== "ask-again")) return null;
 
   return (
     <div
@@ -72,33 +97,68 @@ export function ConsentBanner() {
           : "bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:bottom-6",
       )}
     >
-      <p className="text-paper/80 text-sm">
-        May we count how this app gets used? It helps us fix what is broken. We
-        never send your name, your number or your booking.
-      </p>
+      <h2 className="text-paper text-base font-bold text-balance">
+        {CONSENT_WORDS.title}
+      </h2>
+      <p className="text-paper/80 mt-1 text-sm">{CONSENT_WORDS.lede}</p>
+      {/*
+        What is and is not counted, side by side on a phone: two short lists
+        rather than a paragraph, so the answer is about something read, not a
+        policy. The marks are drawn for the eye and said for the ear.
+      */}
+      <ul className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+        {CONSENT_WORDS.rows.map((row) => (
+          <li
+            key={row.text}
+            className={cn(
+              "flex items-start gap-1.5",
+              row.counted ? "text-paper/90" : "text-paper/65",
+            )}
+          >
+            {row.counted ? (
+              <CheckIcon
+                className="text-terra-soft mt-px size-3.5 shrink-0"
+                aria-hidden="true"
+              />
+            ) : (
+              <CloseIcon
+                className="mt-px size-3.5 shrink-0"
+                aria-hidden="true"
+              />
+            )}
+            <span>
+              <span className="sr-only">
+                {row.counted ? "Counted: " : "Never counted: "}
+              </span>
+              {row.text}
+            </span>
+          </li>
+        ))}
+      </ul>
       <div className="mt-4 flex gap-2">
         <Button
           variant="paper"
           onClick={() => setConsent("granted")}
           className="flex-1"
         >
-          Yes, that is fine
+          {CONSENT_WORDS.yes}
         </Button>
         <Button
           variant="outlineOnDark"
           onClick={() => setConsent("denied")}
           className="flex-1"
         >
-          No thanks
+          {CONSENT_WORDS.no}
         </Button>
       </div>
+      <p className="text-paper/70 mt-3 text-xs">{CONSENT_WORDS.reassure}</p>
       {/*
         The policy, at the moment somebody is asked to agree to something —
         yuvoy-app#15. A consent prompt that does not link what it is asking
         consent under is asking somebody to agree to a document they have no
         way to read.
       */}
-      <LegalLinks tone="dark" className="mt-4 text-xs" />
+      <LegalLinks tone="dark" className="mt-2 text-xs" />
     </div>
   );
 }

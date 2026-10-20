@@ -19,6 +19,8 @@ type Media = components["schemas"]["Media"];
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 type Experience = components["schemas"]["Experience"];
 type Slot = components["schemas"]["Slot"];
+type PlaceList = components["schemas"]["PlaceList"];
+type PlaceMarket = components["schemas"]["PlaceMarket"];
 
 const TZ = "Asia/Kolkata";
 
@@ -44,6 +46,58 @@ export function mockNow(): number {
 export function mockHeaders(requestId: string): Record<string, string> {
   return { "x-request-id": requestId, date: new Date(mockNow()).toUTCString() };
 }
+
+/**
+ * `GET /places` as production answers it on 20 Oct 2026 (yuvoy-app#181):
+ * Andaman alone, bookable, with the three destinations the vocabulary lists.
+ */
+export const PLACES: PlaceList = {
+  markets: [
+    {
+      key: "andaman",
+      name: "Andaman Islands",
+      mode: "bookable",
+      timezone: "Asia/Kolkata",
+      currency: "INR",
+      destinations: [
+        {
+          key: "andaman/havelock",
+          name: "Havelock (Swaraj Dweep)",
+          kind: "travel",
+          visibleTo: "all",
+        },
+        {
+          key: "andaman/neil",
+          name: "Neil (Shaheed Dweep)",
+          kind: "travel",
+          visibleTo: "all",
+        },
+        {
+          key: "andaman/port_blair",
+          name: "Port Blair",
+          kind: "travel",
+          visibleTo: "all",
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * A SAMPLE second bookable market, for the copy that names places from data
+ * (`?__scenario=two-markets`). A fixture, not a market Yuvoy sells in: its
+ * only job is to prove no sentence assumes there is one market.
+ */
+export const SAMPLE_SECOND_MARKET: PlaceMarket = {
+  key: "goa",
+  name: "Goa",
+  mode: "bookable",
+  timezone: "Asia/Kolkata",
+  currency: "INR",
+  destinations: [
+    { key: "goa/panaji", name: "Panaji", kind: "travel", visibleTo: "all" },
+  ],
+};
 
 const inr = (rupees: number): Money => ({
   amountMinor: rupees * 100,

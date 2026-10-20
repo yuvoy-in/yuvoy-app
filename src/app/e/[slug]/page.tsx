@@ -8,6 +8,8 @@ import { pageMetadata } from "@/lib/site/metadata";
 import { breadcrumbJsonLd } from "@/lib/site/structured-data";
 import { JsonLd } from "@/components/site/json-ld";
 import { preconnectApi } from "@/lib/site/preconnect";
+import { getPlaces, marketName, marketPhrase } from "@/lib/site/places";
+import { RecordOpened } from "@/components/analytics/record-opened";
 import type { components } from "@/lib/api/schema.gen";
 
 type Experience = components["schemas"]["Experience"];
@@ -83,8 +85,13 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const experience = await getExperience(slug);
+  const [experience, places] = await Promise.all([
+    getExperience(slug),
+    getPlaces(),
+  ]);
   if (!experience) return { title: "Not found" };
+  // Its own market, from the list (yuvoy-app#181); none when it did not load.
+  const where = marketPhrase(places, experience.marketKey);
 
   // No price, no availability and no rating in the metadata. Structured data
   // and a share card are claims even though neither is visible on the page,
@@ -96,7 +103,9 @@ export async function generateMetadata({
     description:
       experience.summary ??
       experience.description ??
-      `${experience.title} in the Andaman Islands, with a local operator.`,
+      (where
+        ? `${experience.title} in ${where}, with a local operator.`
+        : `${experience.title}, with a local operator.`),
     path: `/e/${experience.slug}`,
   });
 }
@@ -107,7 +116,7 @@ export default async function ExperiencePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const read = await readExperience(slug);
+  const [read, places] = await Promise.all([readExperience(slug), getPlaces()]);
   if (!read) notFound();
   const { experience, readAt } = read;
   // Availability is read from the browser, live, the moment the page opens.
@@ -121,7 +130,13 @@ export default async function ExperiencePage({
           { name: experience.title, path: `/e/${experience.slug}` },
         ])}
       />
-      <ExperienceDetail experience={experience} readAt={readAt} />
+      <ExperienceDetail
+        experience={experience}
+        readAt={readAt}
+        marketName={marketName(places, experience.marketKey)}
+      />
+      {/* What people do with a card (yuvoy-app#181): they opened this one. */}
+      <RecordOpened subjectId={experience.id} surface="listing" />
     </>
   );
 }

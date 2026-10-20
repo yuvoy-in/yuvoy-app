@@ -1751,11 +1751,29 @@ export const bookingHandlers = [
     }
 
     const fresh = scenarioOf(request) === "first-sign-in";
+    /*
+      Signed in through the email door with no number proved
+      (`?__scenario=email-door`, yuvoy-api#304): `phone` is null and the
+      proven email is the way in.
+    */
+    const emailDoor = scenarioOf(request) === "email-door";
     return HttpResponse.json(
       {
-        phone: "+919000000000",
+        phone: emailDoor ? null : "+919000000000",
         name: fresh ? null : "Asha Menon",
         email: fresh ? null : "asha@example.com",
+        emailProven: emailDoor,
+        provenEmail: emailDoor ? "asha@example.com" : null,
+        /*
+          Who sees releases early (R0-T2): nobody, unless
+          `?__scenario=cohort-staff` or `cohort-early` says so.
+        */
+        cohort:
+          scenarioOf(request) === "cohort-staff"
+            ? "staff"
+            : scenarioOf(request) === "cohort-early"
+              ? "early"
+              : null,
         interests: fresh ? [] : ["adventure", "scuba-diving"],
         onboardingRequired: fresh,
         memberSince: fresh ? null : "2026-07-02T04:30:00Z",

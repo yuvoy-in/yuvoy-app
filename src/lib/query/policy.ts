@@ -186,6 +186,11 @@ export const qk = {
   /** The filter chips' word list (yuvoy-app#37). */
   vocabulary: () => ["getPublicVocabulary"] as const,
   /**
+   * How far each release has reached (yuvoy-app#181). The same for everybody,
+   * so nothing keys it; who it opens for is the cohort on `myAccount`.
+   */
+  appConfig: () => ["getAppConfig"] as const,
+  /**
    * Search results as reels, keyed by the WHOLE filter set.
    *
    * Not a convenience. `GET /reels` mints a cursor against the filters it was

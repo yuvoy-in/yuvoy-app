@@ -86,6 +86,7 @@ async function card(inviteOnly: string) {
         mounted={false}
         muted
         autoplayAllowed={false}
+        surface="feed"
       />
     </InviteGuard>,
   );

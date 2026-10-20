@@ -59,7 +59,7 @@ export async function generateMetadata({
   return {
     ...pageMetadata({
       title: operator ? `A reel by ${operator.name}` : "A reel on Yuvoy",
-      description: "Watch this, then book a seat on it. Andaman Islands.",
+      description: "Watch this, then book a seat on it.",
       path: `/o/${slug}/r/${id}`,
     }),
     robots: privateRobotsMeta,

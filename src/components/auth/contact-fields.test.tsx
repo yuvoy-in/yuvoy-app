@@ -122,6 +122,29 @@ describe("a traveller who is signed in, with a name on record", () => {
   });
 });
 
+describe("a traveller who signed in by email and has no number", () => {
+  /*
+    The email door (yuvoy-api#304): `phone` is null on GET /me until a number
+    is proved, so the line names them without a bracket (yuvoy-app#181).
+  */
+  beforeEach(() => {
+    __signInAppRouteMock();
+    profile({
+      phone: null,
+      emailProven: true,
+      provenEmail: "asha@example.com",
+    });
+    draw();
+  });
+
+  it("is shown who they are, with no number and no empty bracket", async () => {
+    const line = await screen.findByText(/Booking as/);
+    expect(line).toHaveTextContent(/^Booking as Asha Menon$/);
+    // Still not asked for a number: the session books, and the API ignores one.
+    expect(screen.queryByLabelText("WhatsApp number")).toBeNull();
+  });
+});
+
 describe("a traveller who is signed in with NO name on record", () => {
   /*
     A number that signed in to look at their trips and skipped the

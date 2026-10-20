@@ -59,6 +59,7 @@ function renderCard() {
       mounted={false}
       muted
       autoplayAllowed={false}
+      surface="feed"
     />,
   );
   return screen.getByRole("article");

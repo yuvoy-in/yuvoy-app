@@ -30,9 +30,16 @@ export function OperatorListingsScreen({
   slug,
   initial,
   readAt,
+  marketNames,
 }: {
   slug: string;
   initial?: OperatorProfile;
+  /**
+   * Each market's name by its key, from the page's `GET /places`
+   * (yuvoy-app#181): the place a row names when its listing has no location
+   * of its own.
+   */
+  marketNames?: Readonly<Record<string, string>>;
   /**
    * When the route read `initial`, as epoch milliseconds. The route is cached,
    * so the seed can be minutes old; with its age known the profile is read
@@ -93,7 +100,11 @@ export function OperatorListingsScreen({
         <ul className="mt-6 space-y-3">
           {profile.listings.map(({ experience, bookable }) => (
             <li key={experience.id}>
-              <ListingCard experience={experience} bookable={bookable} />
+              <ListingCard
+                experience={experience}
+                bookable={bookable}
+                marketName={marketNames?.[experience.marketKey]}
+              />
             </li>
           ))}
         </ul>

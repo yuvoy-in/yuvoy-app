@@ -14,41 +14,53 @@ import { THEME_COLOR } from "@/lib/site/theme";
 import { robotsMeta } from "@/lib/site/indexing";
 import { verificationMeta } from "@/lib/site/verification";
 import { SITE_URL } from "@/lib/site/metadata";
+import { getAppConfig, siteDescription } from "@/lib/site/app-config";
 import { organizationJsonLd, webSiteJsonLd } from "@/lib/site/structured-data";
 import { JsonLd } from "@/components/site/json-ld";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  /*
-    Without this, Next resolves relative metadata URLs — the Open Graph image
-    among them — against localhost during a build and against the ephemeral
-    deployment host on Vercel. Both produce a share card pointing at a URL
-    nobody else can fetch, and the build says so on every run.
-  */
-  metadataBase: new URL(SITE_URL),
-  title: {
-    // Agrees with the homepage's own title. A fallback that said something
-    // different would be a second answer to "what is this site called".
-    default: "Yuvoy",
-    template: "%s · Yuvoy",
-  },
-  description:
-    "Find something worth doing in the Andaman Islands, and book a seat on it.",
-  // Noindex until launch (on app.yuvoy.in; the root-domain move is deferred).
-  // Derived, never
-  // written here: robots.txt and this tag are two halves of one answer and
-  // they have to flip together. See lib/site/indexing.ts.
-  robots: robotsMeta,
-  /*
-    Search-engine ownership, from the environment. Absent on every deployment
-    that sets no token, which is most of them.
+/**
+ * The site's own metadata, under every page's.
+ *
+ * A function rather than a constant for one line: the description is
+ * `siteDescription`, read from the release switches (yuvoy-app#181), so the
+ * positioning line goes live when `explore` reaches everybody, with no
+ * release of this app. The read is cached for a minute and names no place
+ * when it fails, so a static page stays static and never waits on it long.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    /*
+      Without this, Next resolves relative metadata URLs — the Open Graph image
+      among them — against localhost during a build and against the ephemeral
+      deployment host on Vercel. Both produce a share card pointing at a URL
+      nobody else can fetch, and the build says so on every run.
+    */
+    metadataBase: new URL(SITE_URL),
+    title: {
+      // Agrees with the homepage's own title. A fallback that said something
+      // different would be a second answer to "what is this site called".
+      default: "Yuvoy",
+      template: "%s · Yuvoy",
+    },
+    description: siteDescription(await getAppConfig()),
+    // Noindex until launch (on app.yuvoy.in; the root-domain move is
+    // deferred). Derived, never written here: robots.txt and this tag are two
+    // halves of one answer and they have to flip together. See
+    // lib/site/indexing.ts.
+    robots: robotsMeta,
+    /*
+      Search-engine ownership, from the environment. Absent on every
+      deployment that sets no token, which is most of them.
 
-    Deliberately independent of `robotsMeta`: you verify a property BEFORE it
-    is indexable, because verifying is how the owner sees crawl and coverage
-    problems ahead of launch rather than after it. See lib/site/verification.ts.
-  */
-  verification: verificationMeta(),
-};
+      Deliberately independent of `robotsMeta`: you verify a property BEFORE
+      it is indexable, because verifying is how the owner sees crawl and
+      coverage problems ahead of launch rather than after it. See
+      lib/site/verification.ts.
+    */
+    verification: verificationMeta(),
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: THEME_COLOR,

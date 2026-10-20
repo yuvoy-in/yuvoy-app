@@ -68,6 +68,7 @@ describe("feed card", () => {
         mounted={false}
         muted
         autoplayAllowed={false}
+        surface="feed"
       />,
     );
 
@@ -89,6 +90,7 @@ describe("feed card", () => {
         mounted={false}
         muted
         autoplayAllowed={false}
+        surface="feed"
       />,
     );
 

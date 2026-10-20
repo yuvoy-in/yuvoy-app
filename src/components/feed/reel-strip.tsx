@@ -7,6 +7,8 @@ import { Wordmark } from "@/components/ui/wordmark";
 import { LoginButton } from "@/components/auth/login-button";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { useReelViews } from "@/lib/feed/use-reel-views";
+import { useShownOutcome } from "@/lib/feed/use-shown-outcome";
+import type { OutcomeSurface } from "@/lib/analytics/outcomes";
 import {
   recallReel,
   reelScreenKey,
@@ -186,9 +188,16 @@ export function ReelStrip({
   chrome,
   emptyTailNote,
   initialIndex = 0,
+  surface,
 }: {
   /** In the server's order. Never re-sorted here — see `useReels`. */
   items: Reel[];
+  /**
+   * Which screen this strip is, for what is counted of its cards
+   * (yuvoy-app#181): `feed`, `search`, `business`, `shared_link` or `saved`.
+   * Required, so a new caller cannot count its cards as somebody else's.
+   */
+  surface: OutcomeSurface;
   tail: FeedTail;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
@@ -240,6 +249,17 @@ export function ReelStrip({
           experienceId: onScreen.experience?.id,
         }
       : null,
+  );
+  /*
+    And the same reel as a card shown (yuvoy-app#181), at its place in the
+    list, once it has been on screen for a second. Only with consent to the
+    words that name it; see `lib/analytics/outcomes.ts`.
+  */
+  useShownOutcome(
+    onScreen?.experience?.id
+      ? { subjectId: onScreen.experience.id, position: activeIndex }
+      : null,
+    surface,
   );
 
   // Decide once, on mount, whether video may autoplay at all.
@@ -503,6 +523,7 @@ export function ReelStrip({
               muted={muted}
               autoplayAllowed={autoplayAllowed}
               watch={i === activeIndex ? watch : undefined}
+              surface={surface}
             />
           ))}
 

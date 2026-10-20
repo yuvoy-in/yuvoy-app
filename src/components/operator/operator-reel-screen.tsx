@@ -175,6 +175,7 @@ export function OperatorReelScreen({
             : undefined
         }
         chrome={chrome}
+        surface="business"
       />
     </>
   );
