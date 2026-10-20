@@ -123,6 +123,8 @@ export interface PricedTrip {
  *      app.yuvoy.in came to show "Paid ₹9,000" to travellers who had handed
  *      over nothing (#29, D-034). This card is the second surface that mistake
  *      was available on.
+ *      Not for a cancelled or declined trip: nothing is owed on the day, so
+ *      the cash line is skipped and rules 3 and 4 decide.
  *   3. **A refund outranks the paid line**, because a cancelled trip whose
  *      money is coming back is about the refund, not about what it cost.
  *   4. **Cancelled with no refund says nothing**, rather than "Paid": there is
@@ -164,7 +166,13 @@ export function tripPriceLine(
     return by ? `Seats held. ${pay} by ${by}` : `Seats held. ${pay} to confirm`;
   }
 
-  if (trip.payment?.method === "cash" && trip.payment.collected !== true) {
+  // A cancelled or declined trip owes nothing on the day, so it never asks for cash.
+  const off = trip.state === "cancelled" || trip.state === "declined";
+  if (
+    !off &&
+    trip.payment?.method === "cash" &&
+    trip.payment.collected !== true
+  ) {
     /*
       Falls back to the price when the payment carries no amount of its own.
       The contract says they are the same number, and a traveller who has to
@@ -184,7 +192,7 @@ export function tripPriceLine(
       : `Refund of ${amount} on its way`;
   }
 
-  if (trip.state === "cancelled" || trip.state === "declined") return null;
+  if (off) return null;
 
   const paid = money(trip.price?.totalPaise);
   return paid ? `Paid ${paid}` : null;

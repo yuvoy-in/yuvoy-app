@@ -142,6 +142,24 @@ describe("what a trip card says about money", () => {
     ).toBe("Pay ₹9,000 cash on the day");
   });
 
+  it("asks for no cash on a cancelled or declined trip", () => {
+    const cash = { method: "cash", collected: false, amountPaise: 900000 };
+    for (const state of ["cancelled", "declined"]) {
+      expect(
+        tripPriceLine({ state, price: inr(900000), payment: cash }),
+      ).toBeNull();
+    }
+    // A refund that is coming back still outranks saying nothing.
+    expect(
+      tripPriceLine({
+        state: "cancelled",
+        price: inr(900000),
+        payment: cash,
+        refund: { amountPaise: 900000, state: "processed" },
+      }),
+    ).toBe("Refunded ₹9,000");
+  });
+
   it("says paid once the operator has taken the cash", () => {
     expect(
       tripPriceLine({
