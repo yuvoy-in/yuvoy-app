@@ -1858,17 +1858,34 @@ for (const f of files) {
  * moving from the reservation id alone to the booking's link or the owner's
  * session (yuvoy-api#369, S-06). The API logs a call without one today and
  * refuses it once both the web and the app send the link, so a hold write
- * written without `headers` would pass every test here and fail in
- * production on the day the window closes. Each call is read to its closing
- * parenthesis, so its options may span lines.
+ * written without it would pass every test here and fail in production on
+ * the day the window closes.
+ *
+ * The path is found as a string wherever it is, so the way the call is
+ * written (generic, bracketed, destructured) does not matter. It must be the
+ * first argument of a call whose own text sets
+ * `headers: { Authorization: `Bearer ${...}` }`: a path kept in a variable
+ * fails, and so does a header built elsewhere and passed in, because the link
+ * is written in the call, where this can see it. Each call is read to its
+ * closing parenthesis, so its options may span lines.
  */
+const HOLD_WRITE_PATH =
+  /(["'`])\/reservations\/\{id\}\/(release|payment-order|cash-booking)\1/g;
+const LINK_HEADER =
+  /\bheaders\s*:\s*\{[^{}]*?["']?\bAuthorization["']?\s*:\s*`Bearer \$\{/;
 for (const f of files) {
   if (/\.test\.tsx?$/.test(f)) continue;
   const s = code(f);
-  for (const m of s.matchAll(
-    /\.POST\(\s*(["'`])\/reservations\/\{id\}\/(release|payment-order|cash-booking)\1/g,
-  )) {
-    const open = m.index + m[0].indexOf("(");
+  for (const m of s.matchAll(HOLD_WRITE_PATH)) {
+    const open = s.slice(0, m.index).trimEnd().length - 1;
+    if (s[open] !== "(") {
+      problems.push(
+        `${rel(f)}: /reservations/{id}/${m[2]} is named outside the call ` +
+          `that sends it. Pass the path straight to POST(, with the booking ` +
+          `link in that call (yuvoy-api#369).`,
+      );
+      continue;
+    }
     let depth = 0;
     let close = s.length;
     for (let i = open; i < s.length; i++) {
@@ -1878,12 +1895,12 @@ for (const f of files) {
         break;
       }
     }
-    if (!/\bheaders\b/.test(s.slice(open, close))) {
+    if (!LINK_HEADER.test(s.slice(open, close))) {
       problems.push(
-        `${rel(f)}: POST /reservations/{id}/${m[2]} sends no headers. A hold ` +
-          `write carries the booking link as \`Authorization: Bearer\` ` +
-          `(yuvoy-api#369): without it the API refuses the call once the ` +
-          `window closes.`,
+        `${rel(f)}: POST /reservations/{id}/${m[2]} sends no booking link in ` +
+          `the call. A hold write sets \`headers: { Authorization: Bearer }\` ` +
+          `itself (yuvoy-api#369): without it the API refuses the call once ` +
+          `the window closes.`,
       );
     }
   }
