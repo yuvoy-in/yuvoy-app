@@ -148,7 +148,7 @@ export function describeLookupFailure(
 ): LookupFailure {
   if (error instanceof NetworkError) {
     return {
-      body: "That did not reach us. This is usually the island signal. Try again in a moment.",
+      body: "That did not reach us. This is usually a weak signal. Try again in a moment.",
       canRetry: true,
     };
   }

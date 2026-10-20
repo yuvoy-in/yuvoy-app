@@ -424,7 +424,7 @@ export function signInFailure(
   */
   return {
     title: "We could not connect",
-    body: "That is our side or the island signal, not your number. Try again in a moment.",
+    body: "That is our side or a weak signal, not your number. Try again in a moment.",
     action: (
       <ButtonLink href="/trips" variant="outline" size="sm">
         Go to my trips

@@ -14,6 +14,7 @@ import {
   LoadingState,
   Skeleton,
 } from "@/components/states";
+import { feedHeading } from "@/lib/site/places";
 
 /**
  * The reels feed — T2, the core of the product.
@@ -47,18 +48,25 @@ import {
  * — the first attempt at this fix traded a missing heading for a broken one,
  * and the accessibility suite caught what the audit suite had just asked for.
  */
-function FeedHeading() {
-  return <h1 className="sr-only">Experiences in the Andaman Islands</h1>;
+function FeedHeading({ text }: { text: string }) {
+  return <h1 className="sr-only">{text}</h1>;
 }
 
 export function Feed({
   initialPage,
   initialFetchedAt,
+  heading = feedHeading(null),
 }: {
   /** The first answer, server-rendered. See app/page.tsx for why. */
   initialPage?: ReelsPage | null;
   /** When the server fetched it. Epoch ms. */
   initialFetchedAt?: number;
+  /**
+   * The heading, in words the page chose from `GET /places` (yuvoy-app#181):
+   * "Experiences in the Andaman Islands" while that is the one market to book
+   * in. A feed rendered without one names no place.
+   */
+  heading?: string;
 }) {
   const {
     data,
@@ -102,7 +110,7 @@ export function Feed({
   if (isPending) {
     return (
       <>
-        <FeedHeading />
+        <FeedHeading text={heading} />
         <ReelFrame chrome={<ReelMasthead />}>
           <LoadingState label="Loading experiences">
             <Skeleton className="absolute inset-0 rounded-none" />
@@ -120,7 +128,7 @@ export function Feed({
   if (isLoadingError) {
     return (
       <>
-        <FeedHeading />
+        <FeedHeading text={heading} />
         <ReelFrame className={REEL_WELL_CENTRED} chrome={<ReelMasthead />}>
           <ErrorState
             error={error}
@@ -136,7 +144,7 @@ export function Feed({
   if (items.length === 0) {
     return (
       <>
-        <FeedHeading />
+        <FeedHeading text={heading} />
         <ReelFrame className={REEL_WELL_CENTRED} chrome={<ReelMasthead />}>
           <EmptyState
             tone="dark"
@@ -151,7 +159,7 @@ export function Feed({
   /* ------------------------------------------------------------- success */
   return (
     <>
-      <FeedHeading />
+      <FeedHeading text={heading} />
       <ReelStrip
         items={items}
         tail={tail}
@@ -160,6 +168,7 @@ export function Feed({
         isFetchNextPageError={isFetchNextPageError}
         fetchNextPage={() => void fetchNextPage()}
         chrome={<ReelMasthead />}
+        surface="feed"
       />
     </>
   );

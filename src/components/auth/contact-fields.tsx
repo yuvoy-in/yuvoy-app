@@ -103,9 +103,14 @@ export function ContactFields({
     <div className="space-y-4">
       {known ? (
         <div>
+          {/*
+            An account made through the email door has no number until one is
+            proved (`phone` is null on GET /me), so the bracket goes with it
+            rather than showing an empty one.
+          */}
           <p className="text-forest/80 text-body text-pretty">
-            Booking as <span className="font-bold">{known.name}</span> (
-            {maskPhone(known.phone)})
+            Booking as <span className="font-bold">{known.name}</span>
+            {known.phone ? <> ({maskPhone(known.phone)})</> : null}
           </p>
           <button
             type="button"

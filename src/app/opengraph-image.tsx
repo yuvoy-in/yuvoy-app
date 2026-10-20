@@ -54,7 +54,7 @@ export default function OpengraphImage() {
           Don&apos;t be a tourist.
         </div>
         <div style={{ color: "#d89772", fontSize: 30, marginTop: 24 }}>
-          Experiences in the Andaman Islands
+          The best of every trip
         </div>
       </div>
     </div>,

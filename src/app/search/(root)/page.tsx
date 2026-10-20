@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   ...pageMetadata({
     title: "Search",
     description:
-      "What is on in the Andamans, by the day. Only departures an operator can actually sell.",
+      "What is on, by the day. Only departures an operator can actually sell.",
     path: "/search",
   }),
   /*

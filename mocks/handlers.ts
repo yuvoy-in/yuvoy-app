@@ -11,6 +11,8 @@ import {
   FIXTURE_NOW,
   mockHeaders,
   mockNow,
+  PLACES,
+  SAMPLE_SECOND_MARKET,
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
@@ -105,7 +107,22 @@ export type Scenario =
     the budget itself, so which side won would be a race.
   */
   | "slow-reels"
-  | "stalled-reels";
+  | "stalled-reels"
+  /*
+    Places and release stages (yuvoy-app#181). `two-markets` adds the sample
+    second bookable market, so no sentence that names a place from data can
+    assume there is one; `places-unavailable` is the list failing, when every
+    page names no place. `explore-all`, `explore-early` and `explore-staff`
+    move the one release R0 has, which `/app-config` otherwise answers `off`.
+  */
+  | "two-markets"
+  | "places-unavailable"
+  | "explore-all"
+  | "explore-early"
+  | "explore-staff"
+  /* `POST /outcomes` answering 503 (keep the batch) or 429 (slow down). */
+  | "outcomes-down"
+  | "outcomes-slow-down";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -116,6 +133,9 @@ function scenarioOf(request: Request): Scenario {
 
 /** The views this process has stored, by `eventId`: a repeat is one view. */
 const recordedViews = new Set<string>();
+
+/** The outcomes this process has stored, by `eventId`: a repeat is one. */
+const recordedOutcomes = new Set<string>();
 
 let requestSeq = 0;
 const requestId = () =>
@@ -993,6 +1013,192 @@ export const handlers = [
       { headers: mockHeaders(requestId()) },
     ),
   ),
+
+  /* ------------------------------------------------- places and releases */
+
+  /*
+    Markets and their destinations (yuvoy-app#181, `listPlaces`): Andaman
+    alone, as production answers. No session, the same for everybody.
+  */
+  http.get(url("/places"), async ({ request }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+    const scenario = scenarioOf(request);
+    if (scenario === "places-unavailable") {
+      return envelope("unavailable", "Places are not answering.", 503);
+    }
+    return HttpResponse.json(
+      scenario === "two-markets"
+        ? { markets: [...PLACES.markets, SAMPLE_SECOND_MARKET] }
+        : PLACES,
+      { headers: mockHeaders(requestId()) },
+    );
+  }),
+
+  /*
+    The places this traveller may see (`listMyPlaces`): the public list until
+    a cohort sees places still opening, which R0 has none of. Signed in only,
+    as the API asks, for yuvoy-app#179 to build on.
+  */
+  http.get(url("/me/places"), async ({ request }) => {
+    if (!request.headers.get("authorization")) {
+      return envelope("unauthorized", "Sign in first.", 401);
+    }
+    return HttpResponse.json(PLACES, { headers: mockHeaders(requestId()) });
+  }),
+
+  /*
+    The app's config, with how far each release has reached (R0-T2): every
+    release `off`, as on dev and production today, unless a scenario moves
+    `explore`.
+  */
+  http.get(url("/app-config"), async ({ request }) => {
+    const failed = await commonFailure(request);
+    if (failed) return failed;
+    const scenario = scenarioOf(request);
+    const explore =
+      scenario === "explore-all"
+        ? "all"
+        : scenario === "explore-early"
+          ? "early"
+          : scenario === "explore-staff"
+            ? "staff"
+            : "off";
+    return HttpResponse.json(
+      {
+        minimumVersion: { ios: "0.0.0", android: "0.0.0" },
+        features: {
+          payments: "coming_soon",
+          inviteOnly: false,
+          signIn: { email: true, google: false, apple: false },
+        },
+        support: {
+          whatsappE164: "+919000000001",
+          hours: "9am to 7pm, every day",
+        },
+        deliveryHost: null,
+        releases: { explore, checkedCities: "off" },
+      },
+      { headers: mockHeaders(requestId()) },
+    );
+  }),
+
+  /*
+    What people did with a card (R0-T4, `recordOutcomes`), validated as the
+    API validates it: only a body that is not a batch of 1 to 50 is a 400, and
+    every other problem drops ONE event, named by its position, while the rest
+    are kept. The same `eventId` twice is stored once and answered as
+    accepted, which is what makes sending a whole batch again safe.
+
+    Stored nowhere but this process, and nothing about who sent it: a batch
+    that carries an `Authorization` header is refused outright here, because
+    the app must never send one (the API would link it to the traveller).
+  */
+  http.post(url("/outcomes"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    if (scenario === "outcomes-down") {
+      return envelope("unavailable", "Nothing was stored.", 503);
+    }
+    if (scenario === "outcomes-slow-down") {
+      return envelope("rate_limited", "Slow down.", 429);
+    }
+    if (request.headers.get("authorization")) {
+      return envelope(
+        "invalid_input",
+        "Outcomes from this app are sent with no session.",
+        400,
+      );
+    }
+
+    let body: { events?: unknown } | null = null;
+    try {
+      body = (await request.json()) as { events?: unknown };
+    } catch {
+      body = null;
+    }
+    const events = Array.isArray(body?.events) ? body.events : null;
+    if (!events || events.length < 1 || events.length > 50) {
+      return envelope(
+        "invalid_input",
+        "Send between 1 and 50 events in one call.",
+        400,
+        { events: "Between 1 and 50 events." },
+      );
+    }
+
+    const kinds = new Set([
+      "shown",
+      "opened",
+      "saved",
+      "shared",
+      "link_out",
+      "problem_reported",
+    ]);
+    const surfaces = new Set([
+      "feed",
+      "search",
+      "listing",
+      "saved",
+      "business",
+      "shared_link",
+      "found_feed",
+      "found_detail",
+    ]);
+    const known = new Set(EXPERIENCES.map((experience) => experience.id));
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const now = mockNow();
+    const droppedEvents: { index: number; reason: string }[] = [];
+    let accepted = 0;
+
+    events.forEach((raw, index) => {
+      const event = raw as Record<string, unknown> | null;
+      const occurredAt =
+        typeof event?.occurredAt === "string"
+          ? Date.parse(event.occurredAt)
+          : NaN;
+      const position = event?.position;
+      const reason =
+        !event ||
+        typeof event !== "object" ||
+        typeof event.subjectId !== "string" ||
+        event.subjectType !== "experience" ||
+        typeof event.occurredAt !== "string"
+          ? "invalid_event"
+          : typeof event.eventId !== "string" || !uuid.test(event.eventId)
+            ? "invalid_event_id"
+            : typeof event.kind !== "string" || !kinds.has(event.kind)
+              ? "unknown_kind"
+              : typeof event.surface !== "string" ||
+                  !surfaces.has(event.surface)
+                ? "unknown_surface"
+                : !known.has(event.subjectId)
+                  ? "unknown_subject"
+                  : position !== undefined &&
+                      (!Number.isInteger(position) ||
+                        (position as number) < 0 ||
+                        (position as number) > 999)
+                    ? "position_out_of_range"
+                    : !Number.isFinite(occurredAt)
+                      ? "invalid_occurred_at"
+                      : occurredAt > now + 5 * 60_000
+                        ? "occurred_at_in_future"
+                        : occurredAt < now - 24 * 60 * 60_000
+                          ? "occurred_at_too_old"
+                          : null;
+      if (reason) {
+        droppedEvents.push({ index, reason });
+        return;
+      }
+      recordedOutcomes.add(event!.eventId as string);
+      accepted += 1;
+    });
+
+    return HttpResponse.json(
+      { accepted, dropped: droppedEvents.length, droppedEvents },
+      { status: 202, headers: mockHeaders(requestId()) },
+    );
+  }),
 
   /* ---------------------------------------------------------------- scans */
 

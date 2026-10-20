@@ -5,6 +5,7 @@ import { createApiClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { OperatorListingsScreen } from "@/components/operator/operator-listings-screen";
 import { pageMetadata } from "@/lib/site/metadata";
+import { getPlaces, marketNames, marketPhrase } from "@/lib/site/places";
 import type { components } from "@/lib/api/schema.gen";
 
 type OperatorProfile = components["schemas"]["OperatorProfile"];
@@ -73,8 +74,16 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const operator = await getOperator(slug);
+  const [operator, places] = await Promise.all([
+    getOperator(slug),
+    getPlaces(),
+  ]);
   if (!operator) return { title: "Not found" };
+  // The market of its first listing (yuvoy-app#181), as on the profile.
+  const where = marketPhrase(
+    places,
+    operator.listings[0]?.experience.marketKey,
+  );
 
   /*
     No count in the description, and no adjectives. The number of listings
@@ -84,7 +93,9 @@ export async function generateMetadata({
   */
   return pageMetadata({
     title: `What ${operator.name} runs`,
-    description: `Every experience ${operator.name} has on sale in the Andaman Islands.`,
+    description: where
+      ? `Every experience ${operator.name} has on sale in ${where}.`
+      : `Every experience ${operator.name} has on sale.`,
     path: `/o/${slug}/listings`,
   });
 }
@@ -95,7 +106,7 @@ export default async function OperatorListingsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const read = await readOperator(slug);
+  const [read, places] = await Promise.all([readOperator(slug), getPlaces()]);
   if (!read) notFound();
 
   return (
@@ -103,6 +114,7 @@ export default async function OperatorListingsPage({
       slug={slug}
       initial={read.operator}
       readAt={read.readAt}
+      marketNames={marketNames(places)}
     />
   );
 }

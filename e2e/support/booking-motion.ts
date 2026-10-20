@@ -689,8 +689,24 @@ export function defineBookingMotion() {
       // A new document, as a link opened from a message is.
       await page.goto("about:blank");
       await page.goto("/booking#t=tok_other_phone");
+      /*
+        The page as it is once it has read everything: the pass the moment
+        would move, and the conversation, the last thing it asks for. The
+        moment is started by the render that draws the pass, so one more
+        frame has seen it if it was going to play. Not "networkidle": this is
+        the tab's second document, which the mock worker controls before the
+        page is listening, and the prefetches it lets through to the network
+        never finish as far as Playwright can tell (yuvoy-app#181).
+      */
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-      await page.waitForLoadState("networkidle");
+      await expect(page.locator("[data-arrival-reference]")).toBeVisible();
+      await expect(page.getByRole("log", { name: "Messages" })).toBeVisible();
+      await page.evaluate(
+        () =>
+          new Promise((done) =>
+            requestAnimationFrame(() => requestAnimationFrame(done)),
+          ),
+      );
       const again = await moment();
       expect(again.tick, "the moment played on a link").toBeUndefined();
       expect(again.panel).toBeUndefined();

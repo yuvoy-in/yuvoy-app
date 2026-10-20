@@ -28,6 +28,7 @@ function strip() {
       isFetchingNextPage={false}
       isFetchNextPageError={false}
       fetchNextPage={() => {}}
+      surface="feed"
     />,
   );
 }

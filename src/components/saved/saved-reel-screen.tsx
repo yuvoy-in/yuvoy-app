@@ -98,6 +98,7 @@ export function SavedReelScreen({ experienceId }: { experienceId: string }) {
         fetchNextPage={saved.fetchNextPage}
         emptyTailNote="That is everything you have saved."
         chrome={chrome}
+        surface="saved"
       />
     </>
   );

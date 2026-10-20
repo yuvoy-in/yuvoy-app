@@ -7,6 +7,7 @@ import { OperatorScreen } from "@/components/operator/operator-screen";
 import { pageMetadata } from "@/lib/site/metadata";
 import { breadcrumbJsonLd } from "@/lib/site/structured-data";
 import { JsonLd } from "@/components/site/json-ld";
+import { getPlaces, marketPhrase } from "@/lib/site/places";
 import type { components } from "@/lib/api/schema.gen";
 
 type OperatorProfile = components["schemas"]["OperatorProfile"];
@@ -78,8 +79,20 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const operator = await getOperator(slug);
+  const [operator, places] = await Promise.all([
+    getOperator(slug),
+    getPlaces(),
+  ]);
   if (!operator) return { title: "Not found" };
+  /*
+    The market of its first listing, from the list (yuvoy-app#181), which is
+    where the business runs while a business runs in one. None when the list
+    did not load or it lists nothing, and the sentence still holds.
+  */
+  const where = marketPhrase(
+    places,
+    operator.listings[0]?.experience.marketKey,
+  );
 
   /*
     No counts and no "verified" in the description. Both are true today and
@@ -89,8 +102,8 @@ export async function generateMetadata({
   return pageMetadata({
     title: operator.name,
     description: operator.locations?.length
-      ? `${operator.name} runs trips in ${operator.locations.join(", ")}, in the Andaman Islands.`
-      : `${operator.name}, an operator in the Andaman Islands.`,
+      ? `${operator.name} runs trips in ${operator.locations.join(", ")}${where ? `, in ${where}` : ""}.`
+      : `${operator.name}, an operator on Yuvoy.`,
     path: `/o/${operator.slug}`,
   });
 }

@@ -26,11 +26,23 @@ export type OperatorListing = OperatorProfile["listings"][number];
 export function ListingCard({
   experience,
   bookable,
+  marketName,
 }: {
   experience: OperatorListing["experience"];
   bookable: boolean;
+  /**
+   * The listing's market by name, from the page (yuvoy-app#181), for a
+   * listing with no location of its own.
+   */
+  marketName?: string;
 }) {
   const price = formatFromPrice(experience.fromPrice);
+  /*
+    Where it is: the listing's own place, else its market's name, else
+    nothing. Never a place written into this file, which is what the
+    "Andaman" this used to fall back to was.
+  */
+  const place = experience.location ?? marketName;
 
   return (
     <Link
@@ -42,9 +54,7 @@ export function ListingCard({
       </div>
       <div className="min-w-0 flex-1">
         <p className="voice-host text-balance">{experience.title}</p>
-        <p className="text-forest/70 mt-1 text-xs">
-          {experience.location ?? "Andaman"}
-        </p>
+        {place ? <p className="text-forest/70 mt-1 text-xs">{place}</p> : null}
         <p className="mt-2 text-sm font-bold">
           {price ?? (
             <span className="text-forest/70 font-normal">Price on request</span>

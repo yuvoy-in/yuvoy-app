@@ -137,6 +137,7 @@ export function SearchReelScreen({ mediaId }: { mediaId: string }) {
         fetchNextPage={() => void search.fetchNextPage()}
         emptyTailNote="That is everything matching this search."
         chrome={chrome}
+        surface="search"
       />
     </>
   );

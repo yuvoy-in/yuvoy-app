@@ -25,6 +25,7 @@ import {
   type SavedExperience,
 } from "./account-saved";
 import type { components } from "@/lib/api/schema.gen";
+import { recordOutcome, type OutcomeSurface } from "@/lib/analytics/outcomes";
 
 type SavedPage = components["schemas"]["SavedPage"];
 
@@ -190,9 +191,14 @@ export function useSaved() {
     a slug is a compile error rather than a row the list silently cannot show.
   */
   const toggleSaved = useCallback(
-    (experienceId: string, slug: string) => {
+    (
+      experienceId: string,
+      slug: string,
+      /** Where the tap was, so a save is counted as one (yuvoy-app#181). */
+      counted?: { surface: OutcomeSurface; position?: number },
+    ) => {
       const next = !ids.includes(experienceId);
-      mutate({ id: experienceId, slug, next, where });
+      mutate({ id: experienceId, slug, next, where, ...counted });
       return next;
     },
     [ids, mutate, where],
@@ -220,6 +226,14 @@ export interface SavedWrite {
    * refetch that confirms it.
    */
   item?: SavedExperience;
+  /**
+   * The screen a save was made on, for what is counted of the card
+   * (yuvoy-app#181). A save that carries one is counted as `saved` once it
+   * is kept; a removal never is, and neither is an undo, which carries none.
+   */
+  surface?: OutcomeSurface;
+  /** The card's place in that screen's list, from 0. */
+  position?: number;
 }
 
 /** A write as queued: stamped with the session it was made in. */
@@ -306,7 +320,8 @@ export function useSavedWrite() {
   const mutation = useMutation({
     mutationKey: WRITE_KEY,
     scope: WRITE_SCOPE,
-    mutationFn: async (write: QueuedWrite) => {
+    /** Resolves with whether the write was made, false for one dropped. */
+    mutationFn: async (write: QueuedWrite): Promise<boolean> => {
       if (write.where === "account") {
         /*
           Queued under a session that has since ended (sign out, then another
@@ -314,7 +329,7 @@ export function useSavedWrite() {
           would send it with the NEW session's cookie, onto somebody else's
           account, so it is dropped instead.
         */
-        if (write.epoch !== savedSessionEpoch()) return;
+        if (write.epoch !== savedSessionEpoch()) return false;
         if (write.next) {
           await saveToAccount(write.id);
         } else {
@@ -326,13 +341,24 @@ export function useSavedWrite() {
           */
           await deviceSavedStore.removeSaved(write.id);
         }
-        return;
+        return true;
       }
       if (write.next) {
         await deviceSavedStore.addSaved(write.id, write.slug, write.savedAt);
       } else {
         await deviceSavedStore.removeSaved(write.id);
       }
+      return true;
+    },
+    onSuccess: (made, write) => {
+      // A save that was kept, counted where it was made (yuvoy-app#181).
+      if (!made || !write.next || !write.surface) return;
+      recordOutcome({
+        kind: "saved",
+        subjectId: write.id,
+        surface: write.surface,
+        position: write.position,
+      });
     },
     onMutate: async (write): Promise<Previous> => {
       const idsKey = qk.savedIds(write.where);
@@ -395,7 +421,7 @@ export function useSavedWrite() {
   const mutate = useCallback(
     (
       write: SavedWrite,
-      options?: MutateOptions<void, Error, QueuedWrite, Previous>,
+      options?: MutateOptions<boolean, Error, QueuedWrite, Previous>,
     ) => queue({ ...write, epoch: savedSessionEpoch() }, options),
     [queue],
   );

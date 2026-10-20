@@ -282,7 +282,7 @@ export function SearchScreen({
           ref={box}
           value={q}
           onChange={(e) => searchFor(e.target.value)}
-          placeholder="Diving, boats, Havelock…"
+          placeholder="Diving, boats, a place…"
         />
         <Button
           variant="outline"
