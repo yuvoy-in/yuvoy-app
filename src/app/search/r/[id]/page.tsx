@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   ...pageMetadata({
     title: "A reel on Yuvoy",
-    description: "Watch this, then book a seat on it. Andaman Islands.",
+    description: "Watch this, then book a seat on it.",
     path: "/search",
   }),
   robots: privateRobotsMeta,

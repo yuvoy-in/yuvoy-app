@@ -405,6 +405,59 @@ describe("the account", () => {
     ).toBeInTheDocument();
   });
 
+  /*
+    Since the email door (yuvoy-api#304) an account can have no number: `phone`
+    is null on GET /me, and the proven email is the way in (yuvoy-app#181).
+  */
+  it("shows the email when there is no number", async () => {
+    server.use(
+      http.get(`${BASE}/me`, () =>
+        HttpResponse.json({
+          phone: null,
+          name: "Asha Menon",
+          email: null,
+          emailProven: true,
+          provenEmail: "asha@example.com",
+          interests: [],
+          onboardingRequired: false,
+          memberSince: null,
+          trips: { total: 0, upcoming: 0, completed: 0 },
+          reviews: { count: 0 },
+          support: { whatsappE164: null, hours: "" },
+        }),
+      ),
+    );
+    signedIn();
+    expect(await screen.findByText("Asha Menon")).toBeInTheDocument();
+    expect(screen.getByText("asha@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("+919000000000")).toBeNull();
+  });
+
+  it("shows neither a number nor an email when it has neither", async () => {
+    server.use(
+      http.get(`${BASE}/me`, () =>
+        HttpResponse.json({
+          phone: null,
+          name: "Asha Menon",
+          email: "typed@example.com",
+          emailProven: false,
+          provenEmail: null,
+          interests: [],
+          onboardingRequired: false,
+          memberSince: null,
+          trips: { total: 0, upcoming: 0, completed: 0 },
+          reviews: { count: 0 },
+          support: { whatsappE164: null, hours: "" },
+        }),
+      ),
+    );
+    signedIn();
+    expect(await screen.findByText("Asha Menon")).toBeInTheDocument();
+    // The typed email is not a way in, so it is not shown as one.
+    expect(screen.queryByText("typed@example.com")).toBeNull();
+    expect(screen.queryByText("null")).toBeNull();
+  });
+
   it("uses the singular where there is one of something", async () => {
     server.use(
       http.get(`${BASE}/me`, () =>

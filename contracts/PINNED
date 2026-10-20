@@ -542,6 +542,34 @@ repo=yuvoy-in/yuvoy-api
 # Checked with `git ls-remote` immediately before pinning: master is
 # 178d98912d87.
 
-ref=178d98912d879f1cf633fd5d60b404f63dcd78a7
+# 20 Oct 2026. Forward from 178d98912d87 to a2aec936c96d, 162 commits up to
+# yuvoy-api #458: the commit yuvoy-mobile pins, so both surfaces read one
+# contract (DEC-1 C). Read for removals first: no operation or schema is
+# removed or renamed. What this app already reads changes in three places,
+# all handled in this change: `phone` on `GET /me` may be null (an account
+# made through the email door), `AppConfig` gains `releases` and
+# `features.signIn`, and `ErrorCode` gains 27 values.
+#
+# Consumed in this change (yuvoy-app#181, R0-T5):
+#   - `listPlaces` (`GET /places`): the feed heading and the listing, reel and
+#     operator pages name the market from it.
+#   - `AppConfig.releases` and `cohort` on `GET /me`: release stages, read by
+#     `releaseStage` and `releaseOpen`. Nothing is gated yet.
+#   - `recordOutcomes` (`POST /outcomes`): shown, opened, saved, shared and
+#     link_out, only with consent, with no credential.
+#   - The nullable `phone` on `GET /me`: Account shows the email instead, and
+#     checkout drops the masked number.
+#
+# Named, not consumed: `features.signIn` and `signInWithGoogle` (R4), found
+# items (`/events*`, R2 and R3), `/event-submissions` (yuvoy-web), `/me/places`,
+# tables, plans, Trigo, people, saved and going events, and `checkIn` on a
+# booking status.
+#
+# Checked with `git ls-remote` immediately before pinning: master is
+# 650d5e1350a3. This pin is the mobile app's, not master. The live API already
+# answers `releases.creator` and `releases.supply`, which this document does
+# not name; the app-config reader keeps only the keys it knows.
+
+ref=a2aec936c96dbd9d845e4feafda4a8a89e771ce6
 branch=master
-pinned_on=2026-10-10
+pinned_on=2026-10-20

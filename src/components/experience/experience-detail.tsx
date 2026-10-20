@@ -15,6 +15,7 @@ import {
   ZapIcon,
 } from "@/components/ui/icons";
 import { ShareLink } from "@/components/ui/share-link";
+import { OutcomeLink } from "@/components/analytics/outcome-link";
 import { BookingLayer } from "./booking-layer";
 import { Gallery } from "./gallery";
 import { NextDays } from "./next-days";
@@ -42,10 +43,17 @@ type Experience = components["schemas"]["Experience"];
 export function ExperienceDetail({
   experience,
   readAt,
+  marketName,
 }: {
   experience: Experience;
   /** When the server read it: the listing page passes it on to checkout. */
   readAt?: number;
+  /**
+   * The listing's market by name, from the page's `GET /places`
+   * (yuvoy-app#181), for a listing with no location of its own. The swipe's
+   * preview has none to give, and then the place line is the activity alone.
+   */
+  marketName?: string | null;
 }) {
   const price = formatFromPrice(experience.fromPrice);
   const cancellation = cancellationLine(experience);
@@ -93,7 +101,13 @@ export function ExperienceDetail({
   // read straight off the response.
   const meetingText = experience.meetingPoint.text?.trim();
   const meetingLandmark = experience.meetingPoint.landmark?.trim();
-  const location = experience.location ?? "Andaman";
+  // Its own place, else its market's name, else nothing (yuvoy-app#181).
+  const eyebrow = [
+    experience.activityTypeLabel,
+    experience.location ?? marketName,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Screen
@@ -116,6 +130,7 @@ export function ExperienceDetail({
           path={`/e/${experience.slug}`}
           title={experience.title}
           label="Share this experience"
+          outcome={{ subjectId: experience.id, surface: "listing" }}
         />
       }
     >
@@ -138,11 +153,9 @@ export function ExperienceDetail({
               they chose. Absent on listings that predate the vocabulary, and
               then the place stands alone rather than beside a placeholder.
             */}
-            <p className="eyebrow text-terra-deep">
-              {[experience.activityTypeLabel, location]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+            {eyebrow ? (
+              <p className="eyebrow text-terra-deep">{eyebrow}</p>
+            ) : null}
 
             <h1 className="voice-host leading-display mt-4 text-4xl text-balance sm:text-5xl">
               {experience.title}
@@ -393,7 +406,7 @@ export function ExperienceDetail({
                     </p>
                   ) : null}
                   {map ? (
-                    <a
+                    <OutcomeLink
                       href={map}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -402,10 +415,11 @@ export function ExperienceDetail({
                         size: "sm",
                         className: "mt-4",
                       })}
+                      outcome={{ subjectId: experience.id, surface: "listing" }}
                     >
                       <MapPinIcon className="size-4" />
                       Open in maps
-                    </a>
+                    </OutcomeLink>
                   ) : null}
                 </Panel>
               </section>

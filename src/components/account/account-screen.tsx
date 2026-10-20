@@ -12,6 +12,7 @@ import {
   useSignInFlow,
 } from "@/components/auth/sign-in-form";
 import { LegalLinks } from "@/components/site/legal-links";
+import { UsageSetting } from "./usage-setting";
 import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
 import { useMyAccount, type TravellerAccount } from "@/lib/auth/use-my-account";
@@ -166,6 +167,12 @@ export function AccountScreen() {
       </p>
 
       {/*
+        The analytics answer, to change at any time, as the question promises
+        (yuvoy-app#181). On both branches, for the reason the links below are.
+      */}
+      <UsageSetting className="mt-10" />
+
+      {/*
         On BOTH branches of this screen (yuvoy-app#15). It was on the signed-in
         one only, and almost nobody is signed in: this product has no account
         to make, so the signed-out form is what a traveller meets here.
@@ -273,7 +280,16 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
 
       {me ? (
         <div className="mt-3">
-          <p className="text-forest/80 text-sm">{me.phone}</p>
+          {/*
+            How this account signs in: the number, or, for an account made
+            through the email door with no number proved yet, the proven
+            address. Neither, and the line is left out.
+          */}
+          {me.phone || me.provenEmail ? (
+            <p className="text-forest/80 text-sm">
+              {me.phone || me.provenEmail}
+            </p>
+          ) : null}
           {me.memberSince ? (
             <p className="text-forest/70 mt-1 text-sm">
               Member since {memberSince(me.memberSince)}
@@ -392,8 +408,10 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
       {/*
         The standing place for the policy — yuvoy-app#15. The consent banner
         carries it at the moment of asking and then never appears again; this
-        is where somebody comes looking for it a week later.
+        is where somebody comes looking for it a week later. The answer itself
+        sits above it, to change at any time (yuvoy-app#181).
       */}
+      <UsageSetting className="mt-10" />
       <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
 
       {me ? (

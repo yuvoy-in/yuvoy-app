@@ -156,7 +156,7 @@ describe("a status check that did not work", () => {
     ).toBe(true);
     const offline = describeLookupFailure(new NetworkError(), "session");
     expect(offline.canRetry).toBe(true);
-    expect(offline.body).toMatch(/island signal/);
+    expect(offline.body).toMatch(/weak signal/);
   });
 
   it("never reads as though the request itself failed", () => {

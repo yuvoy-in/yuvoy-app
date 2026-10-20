@@ -93,3 +93,91 @@ describe("before the page is in a browser", () => {
     host.remove();
   });
 });
+
+/**
+ * The words and when it asks (yuvoy-app#181). A yes now also counts what is
+ * done with a card, so it asks the phone app's question, and asks a yes given
+ * to the older words once more.
+ */
+describe("what it asks, and when", () => {
+  it("asks the app's question, with what is and is not counted", async () => {
+    pathname = "/search";
+    const card = await banner();
+    expect(
+      screen.getByRole("heading", {
+        name: "Can we count what you watch and open?",
+      }),
+    ).toBeInTheDocument();
+    expect(card).toHaveTextContent("It helps us learn what to show first.");
+    const rows = screen.getAllByRole("listitem").map((li) => li.textContent);
+    expect(rows).toEqual([
+      "Counted: Which videos and cards",
+      "Counted: Opens, saves and shares, and when",
+      "Never counted: Your name, number or email",
+      "Never counted: Where you are",
+    ]);
+    expect(
+      screen.getByRole("button", { name: "Yes, count them" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "No thanks" }),
+    ).toBeInTheDocument();
+    expect(card).toHaveTextContent(
+      "Not linked to your account · change it any time",
+    );
+  });
+
+  it("keeps the answer with the words it was given to", async () => {
+    pathname = "/search";
+    await banner();
+    await act(async () => {
+      screen.getByRole("button", { name: "Yes, count them" }).click();
+    });
+    expect(sessionStorage.getItem("yuvoy.consent.analytics")).toBe("granted:2");
+    expect(
+      screen.queryByRole("region", { name: "Analytics choice" }),
+    ).toBeNull();
+  });
+
+  it("asks a yes given to the older words once more", async () => {
+    pathname = "/search";
+    sessionStorage.setItem("yuvoy.consent.analytics", "granted");
+    await banner();
+    await act(async () => {
+      screen.getByRole("button", { name: "No thanks" }).click();
+    });
+    expect(sessionStorage.getItem("yuvoy.consent.analytics")).toBe("denied:2");
+  });
+
+  it("never asks a no again, whatever words it was given to", async () => {
+    pathname = "/search";
+    for (const answer of ["denied", "denied:2", "granted:2"]) {
+      cleanup();
+      sessionStorage.setItem("yuvoy.consent.analytics", answer);
+      vi.resetModules();
+      const { ConsentBanner } = await import("./consent-banner");
+      render(<ConsentBanner />);
+      expect(
+        screen.queryByRole("region", { name: "Analytics choice" }),
+        answer,
+      ).toBeNull();
+    }
+  });
+
+  it("asks wherever something real is counted, with or without the PostHog key", async () => {
+    pathname = "/search";
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_API_MOCKING", "disabled");
+    expect(await banner()).toBeInTheDocument();
+
+    // A build on the mock counts into the mock, and asks only with a key.
+    cleanup();
+    vi.stubEnv("NEXT_PUBLIC_API_MOCKING", "enabled");
+    vi.resetModules();
+    const { ConsentBanner } = await import("./consent-banner");
+    render(<ConsentBanner />);
+    expect(
+      screen.queryByRole("region", { name: "Analytics choice" }),
+    ).toBeNull();
+  });
+});

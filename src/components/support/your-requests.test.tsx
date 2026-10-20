@@ -283,7 +283,7 @@ describe("your requests", () => {
     renderWithQuery(<HelpCenter />);
     const list = await section();
     expect(
-      await within(list).findByText(/usually the island signal/, undefined, {
+      await within(list).findByText(/usually a weak signal/, undefined, {
         timeout: 4000,
       }),
     ).toBeInTheDocument();

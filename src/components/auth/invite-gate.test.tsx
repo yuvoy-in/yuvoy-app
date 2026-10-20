@@ -119,7 +119,8 @@ describe("the landing, for somebody signed out", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Find something worth doing in the Andaman Islands/),
+      // Words that name no place (yuvoy-app#181).
+      screen.getByText(/^Find something worth doing, and book a seat on it\./),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Have a code? Sign in with your number, then enter it."),

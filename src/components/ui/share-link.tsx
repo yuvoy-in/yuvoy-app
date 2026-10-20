@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { shareUrl } from "@/lib/share";
+import { recordOutcome, type OutcomeSurface } from "@/lib/analytics/outcomes";
 import { IconButton } from "./icon-button";
 import { ShareIcon } from "./icons";
 import { cn } from "@/lib/cn";
@@ -34,6 +35,7 @@ export function ShareLink({
   label,
   variant = "chrome",
   size,
+  outcome,
 }: {
   /** Root-relative, e.g. `/e/dawn-kayak` or `/r/9acb347f`. */
   path: string;
@@ -44,6 +46,12 @@ export function ShareLink({
   variant?: "chrome" | "onDark";
   /** Matches the discs it sits with. The feed's rail is `sm`. */
   size?: "sm" | "md" | "lg";
+  /**
+   * The card being shared, counted as `shared` once the link has gone, by a
+   * share sheet or onto the clipboard (yuvoy-app#181). A share sheet closed
+   * without sending is not counted.
+   */
+  outcome?: { subjectId: string; surface: OutcomeSurface; position?: number };
 }) {
   const [notice, setNotice] = useState<"copied" | "unavailable" | null>(null);
   /*
@@ -69,11 +77,14 @@ export function ShareLink({
 
   async function share() {
     const url = `${window.location.origin}${path}`;
-    const outcome = await shareUrl({ title, url });
+    const result = await shareUrl({ title, url });
+    if (outcome && (result === "shared" || result === "copied")) {
+      recordOutcome({ kind: "shared", ...outcome });
+    }
     const next =
-      outcome === "copied"
+      result === "copied"
         ? "copied"
-        : outcome === "unavailable"
+        : result === "unavailable"
           ? "unavailable"
           : null;
     setNotice(next);

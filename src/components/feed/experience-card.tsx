@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/icons";
 import { ShareLink } from "@/components/ui/share-link";
 import type { ReelWatch } from "@/lib/feed/use-reel-views";
+import { recordOutcome, type OutcomeSurface } from "@/lib/analytics/outcomes";
 
 type ExperienceSummary = components["schemas"]["ExperienceSummary"];
 type Media = components["schemas"]["Media"];
@@ -88,6 +89,7 @@ export function ExperienceCard({
   index,
   total,
   watch,
+  surface,
 }: {
   experience: ExperienceSummary;
   /**
@@ -111,6 +113,11 @@ export function ExperienceCard({
    * the player, which is the only thing that knows how much actually played.
    */
   watch?: ReelWatch;
+  /**
+   * The strip's screen, for what is counted of this card (yuvoy-app#181):
+   * its panel opened, a save, a share.
+   */
+  surface: OutcomeSurface;
 }) {
   /*
     Built ONCE, and handed to every way in. Book, the title, the swipe and the
@@ -372,7 +379,18 @@ export function ExperienceCard({
               type="button"
               aria-expanded={detailsOpen}
               aria-controls={panelId}
-              onClick={() => setDetailsOpen((open) => !open)}
+              onClick={() => {
+                // Opening the panel is opening the card; closing it is not.
+                if (!detailsOpen) {
+                  recordOutcome({
+                    kind: "opened",
+                    subjectId: experience.id,
+                    surface,
+                    position: index,
+                  });
+                }
+                setDetailsOpen((open) => !open);
+              }}
               className="ease-interaction flex min-h-11 items-center text-left text-sm transition-opacity duration-200 hover:opacity-80"
             >
               <span
@@ -443,7 +461,12 @@ export function ExperienceCard({
                 saved && "text-terra-soft ring-terra-soft/45",
               )}
               onClick={() =>
-                askToSave(() => toggle.current(experience.id, experience.slug))
+                askToSave(() =>
+                  toggle.current(experience.id, experience.slug, {
+                    surface,
+                    position: index,
+                  }),
+                )
               }
             >
               {/*
@@ -470,6 +493,11 @@ export function ExperienceCard({
               label={media ? "Share this reel" : "Share this experience"}
               variant="onDark"
               size="md"
+              outcome={{
+                subjectId: experience.id,
+                surface,
+                position: index,
+              }}
             />
 
             <Link href={href} className="feed-book">

@@ -121,7 +121,7 @@ export function SearchRouteSkeleton() {
           type="search"
           shape="pill"
           leading={<SearchIcon className="size-5" />}
-          placeholder="Diving, boats, Havelock…"
+          placeholder="Diving, boats, a place…"
           readOnly
         />
         <Button variant="outline" className="shrink-0">

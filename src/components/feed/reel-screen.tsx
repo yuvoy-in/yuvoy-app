@@ -59,8 +59,8 @@ export function ReelScreen({ reel }: { reel: Reel }) {
     <>
       {/*
         The heading names the reel rather than the page. A traveller arriving
-        from a message has no context at all, and "Experiences in the Andaman
-        Islands" would be a heading about a screen they did not ask for.
+        from a message has no context at all, and the feed's own heading would
+        be about a screen they did not ask for.
       */}
       <h1 className="sr-only">{reel.experience!.title}</h1>
       <ReelStrip
@@ -71,6 +71,7 @@ export function ReelScreen({ reel }: { reel: Reel }) {
         isFetchNextPageError={isFetchNextPageError}
         fetchNextPage={() => void fetchNextPage()}
         chrome={<ReelMasthead href="/" />}
+        surface="shared_link"
       />
     </>
   );

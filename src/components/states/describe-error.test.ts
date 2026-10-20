@@ -239,3 +239,37 @@ describe("describeError: a closed account", () => {
     );
   });
 });
+
+describe("describeError: a sign-in door switched off", () => {
+  it("prints the API's sentence, calls it deliberate and offers no retry", () => {
+    /*
+      `sign_in_unavailable` (yuvoy-api a2aec936): a 503 from both sign-in
+      routes while a door is switched off in `features.signIn`. The contract
+      says to hide the door rather than retry.
+    */
+    const d = describeError(
+      new YuvoyError({
+        code: "sign_in_unavailable",
+        message: "Signing in with an email is switched off for now.",
+        status: 503,
+        requestId: "01J",
+      }),
+    );
+    expect(d.title).toBe("Signing in is switched off");
+    expect(d.body).toBe("Signing in with an email is switched off for now.");
+    expect(d.canRetry).toBe(false);
+    expect(d.deliberate).toBe(true);
+  });
+
+  it("still says what happened when the refusal carries no sentence", () => {
+    const blank = describeError(
+      new YuvoyError({
+        code: "sign_in_unavailable",
+        message: " ",
+        status: 503,
+      }),
+    );
+    expect(blank.body).toMatch(/switched off for now/);
+    expect(blank.canRetry).toBe(false);
+  });
+});
