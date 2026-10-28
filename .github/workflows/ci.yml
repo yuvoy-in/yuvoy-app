@@ -50,6 +50,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
 
+      # The e2e server reads the mock settings from `.env.local`. A fresh
+      # checkout has none, so every server-side call went to an address that
+      # did not answer and the suite timed out (yuvoy-mobile#403, 29 Oct).
+      # `.env.example` holds the mock values and no secrets.
+      - run: cp .env.example .env.local
+
       # typecheck · lint · format · qa · test · contract:check · build · e2e
       - run: pnpm verify
         env:
