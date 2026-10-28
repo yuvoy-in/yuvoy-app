@@ -221,11 +221,15 @@ export const appRouteHandlers = [
     if (forwarded.status === 401) sessionToken = null;
 
     const text = await forwarded.text();
+    // The headers the real route passes on, and no others.
+    const headers = new Headers();
+    for (const name of ["Content-Type", "Retry-After"]) {
+      const value = forwarded.headers.get(name);
+      if (value) headers.set(name, value);
+    }
     return new HttpResponse(text || null, {
       status: forwarded.status,
-      headers: forwarded.headers.get("content-type")
-        ? { "Content-Type": forwarded.headers.get("content-type")! }
-        : undefined,
+      headers,
     });
   }),
 ];

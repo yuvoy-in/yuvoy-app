@@ -137,6 +137,12 @@ export interface UpstreamResult {
    * `expiresAt`; the proxy is a different machine.
    */
   apiDate: string | null;
+  /**
+   * The API's `Retry-After` on a 429, as sent. It is the only thing that
+   * tells a day's limit (set) from a request sent too fast (absent), so a
+   * report sheet can say which (yuvoy-app#179).
+   */
+  retryAfter: string | null;
 }
 
 export async function callUpstream(options: {
@@ -241,6 +247,7 @@ export async function callUpstream(options: {
     */
     idempotentReplay: response.headers.get("Idempotent-Replay") === "true",
     apiDate: response.headers.get("date"),
+    retryAfter: response.headers.get("Retry-After"),
   };
 }
 

@@ -148,6 +148,7 @@ export default async function FeedPage({
           category,
           token,
           headers: visitor ?? new Headers(),
+          scenario,
         });
         if (first.kind !== "gone") {
           return (
