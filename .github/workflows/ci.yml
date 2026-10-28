@@ -48,7 +48,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # Both engines: the `iphone` project runs on WebKit (hydration and
+      # motion specs that only fail there), so chromium alone left 64 tests
+      # with no browser to launch (yuvoy-mobile#403, 29 Oct).
+      - run: pnpm exec playwright install --with-deps chromium webkit
 
       # The e2e server reads the mock settings from `.env.local`. A fresh
       # checkout has none, so every server-side call went to an address that
