@@ -47,15 +47,21 @@ import {
 export type OutcomeEvent = components["schemas"]["OutcomeEvent"];
 export type OutcomeSurface = components["schemas"]["OutcomeSurface"];
 
-/** What the web sends in R0. `problem_reported` waits for R2's found items. */
-export type OutcomeKind = "shown" | "opened" | "saved" | "shared" | "link_out";
+/** What the web sends: R0's five, and R2's `problem_reported` for found items. */
+export type OutcomeKind =
+  | "shown"
+  | "opened"
+  | "saved"
+  | "shared"
+  | "link_out"
+  | "problem_reported";
 
 /** What a screen records: the rest is the collector's. */
 export interface Outcome {
   kind: OutcomeKind;
-  /** An experience in R0; R2's found items are `event`. */
-  subjectType?: "experience";
-  /** The experience's id. */
+  /** An experience unless said; R2's found items are `event` (yuvoy-app#179). */
+  subjectType?: "experience" | "event";
+  /** The experience's or the found item's id. */
   subjectId: string;
   surface: OutcomeSurface;
   /** Its place in the list it was shown in, from 0. */
@@ -71,6 +77,7 @@ const KINDS: ReadonlySet<string> = new Set<OutcomeKind>([
   "saved",
   "shared",
   "link_out",
+  "problem_reported",
 ]);
 
 const SURFACES: ReadonlySet<string> = new Set<OutcomeSurface>([
@@ -80,6 +87,8 @@ const SURFACES: ReadonlySet<string> = new Set<OutcomeSurface>([
   "saved",
   "business",
   "shared_link",
+  "found_feed",
+  "found_detail",
 ]);
 
 export interface OutcomeDeps {
@@ -263,7 +272,7 @@ export function createOutcomeCollector(deps: OutcomeDeps) {
       waiting.push({
         eventId: deps.uuid(),
         kind: outcome.kind,
-        subjectType: "experience",
+        subjectType: outcome.subjectType ?? "experience",
         subjectId: outcome.subjectId,
         surface: outcome.surface,
         ...(position === undefined ? {} : { position }),

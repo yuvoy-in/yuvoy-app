@@ -153,6 +153,30 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   */
   { method: "PUT", pattern: "/me/stay" },
   { method: "DELETE", pattern: "/me/stay" },
+  /*
+    The places a signed-in number may pick (yuvoy-app#179). Proxied because
+    the answer depends on the session: a staff number sees places a visitor
+    does not. Signed out, `/places` answers instead, from the server with no
+    credential.
+  */
+  { method: "GET", pattern: "/me/places" },
+  /*
+    A found feed's later pages, signed in (yuvoy-app#179). The session decides
+    which places this caller may read: with `explore` at `staff`, only a staff
+    number gets an answer. Signed out, the browser calls the API directly.
+  */
+  { method: "GET", pattern: "/events" },
+  /*
+    One found item, signed in, for the same reason as the feed: what the
+    caller may see depends on who they are (yuvoy-app#179).
+  */
+  { method: "GET", pattern: "/events/{id}" },
+  /*
+    Report a problem on a found item (yuvoy-app#179). Signed in, the API
+    counts the report against the number, so the day limit follows the
+    person rather than the browser. The body is `reason` and `note` only.
+  */
+  { method: "POST", pattern: "/events/{id}/reports" },
 ];
 
 /*

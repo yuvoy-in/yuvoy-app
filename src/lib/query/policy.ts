@@ -136,6 +136,25 @@ export const qk = {
   /** One reel by its own id — a shared link (yuvoy-app#36). */
   reel: (id: string) => ["getReel", id] as const,
   /**
+   * The places this caller may pick (yuvoy-app#179): `GET /me/places` signed
+   * in, `GET /places` signed out. Keyed by which, because a staff number sees
+   * places a visitor does not, and signing in or out must not reuse the other
+   * answer.
+   */
+  places: (signedIn: boolean) =>
+    ["listPlaces", signedIn ? "me" : "public"] as const,
+  /**
+   * One place's found feed (`GET /events`, yuvoy-app#179), paged by cursor
+   * inside the entry like `reels`. The third slot is the filter key, empty
+   * until yuvoy-app#180 adds the day chips, Free and search: the cursor is
+   * minted against the filters, so a different filter set is a different
+   * accumulated answer.
+   */
+  foundFeed: (placeKey: string, category: string | null, filterKey = "") =>
+    ["listEvents", placeKey, category ?? "", filterKey] as const,
+  /** One found item by its id, for the card page (`GET /events/{id}`). */
+  foundItem: (id: string) => ["getEvent", id] as const,
+  /**
    * Whether this device is signed in (yuvoy-app#57).
    *
    * One entry, read by every screen that shows a Login button or a signed-in
