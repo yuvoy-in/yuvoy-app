@@ -570,6 +570,22 @@ repo=yuvoy-in/yuvoy-api
 # answers `releases.creator` and `releases.supply`, which this document does
 # not name; the app-config reader keeps only the keys it knows.
 
-ref=a2aec936c96dbd9d845e4feafda4a8a89e771ce6
+# 29 Oct 2026. Forward from a2aec936c96d to ad4fa894f967 (master 13afcecc
+# carries the same contract byte for byte). Read for removals first: no path
+# and no schema is removed. yuvoy-api#480 (D-049 P0) renamed the plan, table
+# and finder names with no compatibility window: plan host to planner
+# (`PlanView.planner`, role `planner`, `plannerName`, `planner_leaves`), table
+# host to `leader`, and bare web host to `domain`. This app reads none of them
+# (no plan, table or finder screen yet), so nothing here changes with them;
+# the plan and table pages are built on this pin (yuvoy-app#193, #194, #373).
+# The host rename's other names (`ExperienceSummary.host` beside `operator`,
+# `/host-applications`) are additive until the traveller cut-over (P7).
+#
+# Consumed in this change: nothing new. `pnpm codegen` regenerated
+# `schema.gen.ts`, and `tsc` passes against it unchanged.
+#
+# Checked with `gh api repos/yuvoy-in/yuvoy-api/commits/ad4fa894`.
+
+ref=ad4fa894f96729bbb899b4cc47b46625b1862f83
 branch=master
-pinned_on=2026-10-20
+pinned_on=2026-10-29

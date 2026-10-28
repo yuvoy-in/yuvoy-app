@@ -91,7 +91,10 @@ export interface paths {
         put?: never;
         /**
          * Apply to run experiences on Yuvoy
-         * @description A business asking to join. Public and unauthenticated, because there is no account yet — that is the point.
+         * @deprecated
+         * @description The old path of `submitHostApplication`, kept until the traveller cut-over (D-049).
+         *
+         *     A business asking to join. Public and unauthenticated, because there is no account yet — that is the point.
          *
          *     This creates an application, **not an operator**. An application is a claim somebody typed into a form; an operator is a business we have checked, whose credentials we hold and whose departures the catalog joins against. Nothing here can put an experience in front of a traveller.
          *
@@ -102,6 +105,34 @@ export interface paths {
          *     `next` points the applicant at self-service signup rather than promising a call. It used to say somebody would ring within two working days, and nothing kept that promise — the operators who submitted this form in August 2026 were still waiting a month later. `POST /operator/v1/auth/signup` is open to them right now, the account it creates is PROSPECT and cannot be booked, and document verification is still the gate — so both halves of the new sentence are things the system actually does.
          */
         post: operations["submitOperatorApplication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/host-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply to run experiences on Yuvoy
+         * @description A business asking to join. Public and unauthenticated, because there is no account yet: that is the point.
+         *
+         *     This creates an application, **not a host**. An application is a claim somebody typed into a form; a host is a business we have checked, whose credentials we hold and whose departures the catalog joins against. Nothing here can put an experience in front of a traveller.
+         *
+         *     Deliberately forgiving about everything except the three fields needed to have a conversation: the business, a person, and a number that can be dialled. A form that rejects a boat owner for omitting a destination key loses supply in a market where supply is the constraint.
+         *
+         *     The response carries no identifier: there is nothing a stranger could do with one, and handing out ids for rows in a review queue is one more authorization boundary to get right later.
+         *
+         *     `next` points the applicant at self-service signup rather than promising a call. It used to say somebody would ring within two working days, and nothing kept that promise; the hosts who submitted this form in August 2026 were still waiting a month later. `POST /host/v1/auth/signup` is open to them right now, the account it creates is PROSPECT and cannot be booked, and document verification is still the gate, so both halves of the new sentence are things the system actually does.
+         */
+        post: operations["submitHostApplication"];
         delete?: never;
         options?: never;
         head?: never;
@@ -294,9 +325,29 @@ export interface paths {
         put?: never;
         /**
          * Tell Yuvoy a card is wrong
-         * @description Anyone may report a card they can see. A report from a person with a booking or an account at least 7 days old, or a second report from a different signed-in person, takes a card nobody has checked out of view for everyone until a person at Yuvoy looks; any other signed-in report, and any report on a checked card, answers `hidden: you`. Signed out, it always answers `hidden: you`; hide the card on this device. No id of the device is sent, and a body that still carries `deviceId` is a `400`. Each report reaches Yuvoy's support queue. A signed-in reporter with a phone number gets a `reference`, and the case shows in `listSupportRequests`, reading `resolved` once staff decide. The same person reporting the same card again is the same case. At most five reports a day on one card from one caller. Signed in, reports are counted per person, twenty a day; signed out, they are counted per caller address, and that count holds signed-out reports only. Past any of these day limits, `429` with `Retry-After` in seconds until that limit's day ends (midnight UTC). Reports sent too fast also answer `429`, with no `Retry-After`: wait a moment and send it again. A card the caller cannot see, and a malformed id, are `404`. Never cached.
+         * @description Anyone may report a card they can see. A report from a person with a booking or an account at least 7 days old, or a second report from a different signed-in person, takes a card nobody has checked out of view for everyone until a person at Yuvoy looks; any other signed-in report, and any report on a checked card, answers `hidden: you`. Signed out, it always answers `hidden: you`; hide the card on this device. No id of the device is sent, and a body that still carries `deviceId` is a `400`. Each report reaches Yuvoy's support queue. A signed-in reporter gets a `reference`, and the case shows in `listSupportRequests`, reading `resolved` once staff decide. The same person reporting the same card again is the same case. At most five reports a day on one card from one caller. Signed in, reports are counted per person, twenty a day; signed out, they are counted per caller address, and that count holds signed-out reports only. Past any of these day limits, `429` with `Retry-After` in seconds until that limit's day ends (midnight UTC). Reports sent too fast also answer `429`, with no `Retry-After`: wait a moment and send it again. A card the caller cannot see, and a malformed id, are `404`. Never cached.
          */
         post: operations["reportEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{id}/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Videos from people who went to an event
+         * @description As `listListingVideos`, for an event card. The card must be one the caller may see, as `getEvent` decides; otherwise `404`. A card merged into another lists the videos of the one kept. Never cached.
+         */
+        get: operations["listEventVideos"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -414,7 +465,7 @@ export interface paths {
         put?: never;
         /**
          * Ask to join. A person at Yuvoy approves each request.
-         * @description A sign-in session only, of a traveller who said they are 18 or over. Checked in this order: the caller's age, a ban, whether the table is listed for them (else `404`), whether it still takes requests (`409 table_closed` past its close time, once started, or cancelled), a seat they already have on it (answered `200` with it, a declined or removed one too), the women-only tick, then the limits: three requests waiting or two seats coming up is `409 table_request_limit`, and ten requests a day is `429` with `Retry-After`. A table with every seat approved is `409 table_full`; there is no waitlist. A withdrawn request may be sent once more. `firstName` is needed only when the profile has no first name that can be shown (`400` with `details.firstName` `missing` or `not_a_first_name`). Requests sent too fast answer `429` with no `Retry-After`.
+         * @description A sign-in session only, of a traveller who said they are 18 or over. Checked in this order: the caller's age, a ban, whether the table is listed for them (else `404`), whether it still takes requests (`409 table_closed` past its close time, once started, or cancelled), a seat they already have on it (answered `200` with it, a declined or removed one too), the women-only tick, then the limits: three requests waiting or two seats coming up is `409 table_request_limit`, and ten requests a day is `429` with `Retry-After`. A table with every seat approved is `409 table_full`; there is no waitlist. It is also the answer when somebody the caller has a block with holds a live seat. A withdrawn request may be sent once more. `firstName` is needed only when the profile has no first name that can be shown (`400` with `details.firstName` `missing` or `not_a_first_name`). Requests sent too fast answer `429` with no `Retry-After`.
          */
         post: operations["requestTableSeat"];
         delete?: never;
@@ -477,6 +528,86 @@ export interface paths {
         get: operations["listMyTables"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Businesses in one place that are not on Yuvoy
+         * @description Businesses in one place that have not joined Yuvoy, by name. Only `listed` ones are in the list. A session is read when sent and never required; it only decides which release stage and place the caller sees. While the `supply` release is closed to the caller, while the `feature:directory` kill switch is engaged, and for a place that is unknown or not visible to the caller, the answer is the same `404`. Pass `nextCursor` back with the same filters; `complete: true` with no `nextCursor` is the end. Never cached.
+         */
+        get: operations["listSuppliers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suppliers/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One business not on Yuvoy
+         * @description One business by its slug, in any state, so a business that joined reads `joining` or `on_yuvoy` rather than vanishing. A removed one, an unknown slug, and the closed cases of `listSuppliers` are the same `404`. Never cached.
+         */
+        get: operations["getSupplier"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/suppliers/{slug}/removal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a business off the directory
+         * @description Anybody, signed in or not, removes the listing at once. It is not listed again unless the business joins Yuvoy or a person at Yuvoy lists it again. Only the reason is kept, with a hash of the name and website, never who asked. A claim waiting on the listing is withdrawn with it. A business already on Yuvoy is `409 already_on_yuvoy`. Five removals a day from one caller address, then `429` with `Retry-After` in seconds until that day ends. Requests sent too fast also answer `429`, with no `Retry-After`. The closed cases of `listSuppliers` and an unknown slug are `404`. Never cached.
+         */
+        post: operations["removeSupplierListing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organiser-check-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check somebody in at the door
+         * @description A member of an organiser types the code on a traveller's Going card (`checkIn` on listMyGoing), or opens its link, and the going is marked went with check-in proof. Idempotent: the same code again answers 200 with `alreadyCheckedIn` and the first time. A code works on the event's first day and the day before it. A code that is unknown, for another organiser's event, for an organiser Yuvoy has not checked, or for a going taken back answers 404, the same for all of them. A sign-in session only (a recovery link is 401), then 404 while the `supply` release does not admit the caller, 403 `adult_confirmation_required` without the 18+ answer, and 503 `organisers_paused` while organiser pages are paused. 30 codes that match nothing in an hour, then every code answers 429 for the rest of that hour, a right one included; requests sent too fast answer 429 too. Never cached.
+         */
+        post: operations["checkInAtTheDoor"];
         delete?: never;
         options?: never;
         head?: never;
@@ -604,7 +735,7 @@ export interface paths {
          * Report reel views and watch time
          * @description The apps report which reels were watched, for how long, and whether to the end, in batches of 1 to 50. Collected so a ranking can later be built from real data. Nothing ranks on it yet, and nothing about a view changes what the feed shows.
          *
-         *     **Whose view it is.** A view belongs to the signed-in traveller when the request carries a sign-in session (`Authorization: Bearer <sessionToken>`), and is recorded against the traveller, with their number when they have one, so a traveller who signed in by email or Google is counted the same way. It is anonymous otherwise. A session is read when one is sent and never required: no header, an unknown or expired token, or a booking link's status token all record the views with no identity, and none of them is a `401`. No device id, cookie or IP address is stored with a view, and there is no field for one.
+         *     **Whose view it is.** The account's analytics choice decides, as it does for `recordOutcomes`. A batch sent with a sign-in session (`Authorization: Bearer <sessionToken>`) is read against that traveller's `analyticsConsent` (getMySettings). `granted`: the views are recorded against the traveller, with their number when they have one, so a traveller who signed in by email or Google is counted the same way. `denied`: the batch is answered `202` with every event dropped as `consent_denied` and nothing stored. No choice yet: the views are recorded with no identity, exactly as a signed-out view is. A session is read when one is sent and never required: no header, an unknown or expired token, or a booking link's status token all record the views with no identity, and none of them is a `401`. No device id, cookie or IP address is stored with a view, and there is no field for one. A `503` while the choice is read means nothing was stored: keep the batch and send it again later.
          *
          *     **Retries.** Each event carries an `eventId`, a UUID the app mints once per view and keeps with it until the call succeeds. Sending the same `eventId` again, in a retry of the whole batch or twice in one batch, stores the view once and is answered as accepted, so a retry after a timeout is always safe.
          *
@@ -656,6 +787,26 @@ export interface paths {
         };
         /** Get a single experience by slug */
         get: operations["getExperience"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/experiences/{slug}/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Videos from people who went
+         * @description Published videos by travellers who went on this experience, newest first, at most 12. A signed-in viewer does not see a video they reported, or one by somebody they blocked or who blocked them. Outside the creator release the list is empty. Never cached.
+         */
+        get: operations["listListingVideos"];
         put?: never;
         post?: never;
         delete?: never;
@@ -783,7 +934,10 @@ export interface paths {
         };
         /**
          * A business, everything it sells, and its reels
-         * @description The page behind the name on a reel. Tapping a reel opens its listing; tapping the operator on that listing had nowhere to go, so every business in the catalog was a name and a logo, and the other clips they had shot were reachable only by scrolling the whole feed until one came round again.
+         * @deprecated
+         * @description The old path of `getHost`, kept until the traveller cut-over (D-049).
+         *
+         *     The page behind the name on a reel. Tapping a reel opens its listing; tapping the operator on that listing had nowhere to go, so every business in the catalog was a name and a logo, and the other clips they had shot were reachable only by scrolling the whole feed until one came round again.
          *
          *     **One request for the whole first paint** — who they are, what they sell, and the first screen of reels. Page the grid beyond that with `/operators/{slug}/reels`.
          *
@@ -792,6 +946,32 @@ export interface paths {
          *     **`bookable` is per listing as well as for the business**, and the page answers for a business that has paused rather than 404-ing — somebody was sent this link an hour ago and is looking for a specific thing they saw. A business that has never published anything has no page.
          */
         get: operations["getOperator"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hosts/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A business, everything it sells, and its reels
+         * @description The page behind the name on a reel. Tapping a reel opens its listing; tapping the host on that listing had nowhere to go, so every business in the catalog was a name and a logo, and the other clips they had shot were reachable only by scrolling the whole feed until one came round again.
+         *
+         *     **One request for the whole first paint**: who they are, what they sell, and the first screen of reels. Page the grid beyond that with `/hosts/{slug}/reels`.
+         *
+         *     **There are no followers and no rating.** Reviews do not exist until real completed bookings produce them, and a number nobody earned is a fabricated claim. Nothing here counts anything a person could inflate.
+         *
+         *     **`bookable` is per listing as well as for the business**, and the page answers for a business that has paused rather than 404-ing; somebody was sent this link an hour ago and is looking for a specific thing they saw. A business that has never published anything has no page.
+         */
+        get: operations["getHost"];
         put?: never;
         post?: never;
         delete?: never;
@@ -809,11 +989,36 @@ export interface paths {
         };
         /**
          * The rest of a business's reels
-         * @description Newest first, which is **not** the main feed's ordering. The feed rotates operators so no business owns the scroll; on one business's own page that rotation has a single member and means nothing, and what somebody opening a portfolio wants is the most recent work first.
+         * @deprecated
+         * @description The old path of `listHostReels`, kept until the traveller cut-over (D-049).
+         *
+         *     Newest first, which is **not** the main feed's ordering. The feed rotates operators so no business owns the scroll; on one business's own page that rotation has a single member and means nothing, and what somebody opening a portfolio wants is the most recent work first.
          *
          *     Paged, and it says whether it ended. Pass `nextCursor` back; its absence with `complete: true` is the end. Do not infer the end from a short page.
          */
         get: operations["listOperatorReels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hosts/{slug}/reels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The rest of a business's reels
+         * @description Newest first, which is **not** the main feed's ordering. The feed rotates hosts so no business owns the scroll; on one business's own page that rotation has a single member and means nothing, and what somebody opening a portfolio wants is the most recent work first.
+         *
+         *     Paged, and it says whether it ended. Pass `nextCursor` back; its absence with `complete: true` is the end. Do not infer the end from a short page.
+         */
+        get: operations["listHostReels"];
         put?: never;
         post?: never;
         delete?: never;
@@ -918,6 +1123,50 @@ export interface paths {
          *     **A departure that moved after this booking was made** cancels with everything paid online refunded, whatever the tier, recorded as `OPERATOR_MOVED_IT` (D-032.3). The quote says so first, in `note`.
          */
         post: operations["commitCancellation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move a booking to another departure
+         * @description Moves the traveller's own cash booking to another departure of the same experience, in place: the reference, the booking's links, the price and the cancellation policy stay as they are. The move is checked as checkout checks a new booking, inside the departure's lock.
+         *
+         *     With a session, `reference` names one of the traveller's own bookings; with the booking's status token it is ignored. A booking the caller does not hold is 404, like one that does not exist.
+         *
+         *     Answered 404 to everybody until the trigo_actions release is open to the caller; a status token alone has no cohort, so it waits until the release reaches everybody. Until then `trigoActionId` is required and must name the Trigo card the traveller confirmed for this move.
+         */
+        post: operations["moveBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bookings/add-person": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add people to a booking
+         * @description Adds 1 to 10 people to the traveller's own cash booking, up to 20 and the departure's largest party. They pay the price agreed at checkout for each person; a booking priced per group keeps its total. The listing's safety questions are asked for the added people as checkout asks them. `reference`, the release and `trigoActionId` as for moveBooking.
+         */
+        post: operations["addPersonToBooking"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1060,7 +1309,7 @@ export interface paths {
         };
         /**
          * What you said you are going to
-         * @description Private to the caller; nobody else sees a going, and no card or count shows one. when=upcoming (the default) lists goings whose event has not ended, soonest first, moved and postponed ones included. when=past lists goings whose event ended or was cancelled in the last 12 months, newest first. Removed goings are not listed. Cursor is opaque; pass nextCursor back unchanged with the same when. Not held to the going release, so a traveller can always read the goings they have.
+         * @description The caller's own goings. Only friends see a going, and only one whose visibility is friends (listFriendsGoing); no card or count shows one. when=upcoming (the default) lists goings whose event has not ended, soonest first, moved and postponed ones included. when=past lists goings whose event ended or was cancelled in the last 12 months, newest first. Removed goings are not listed. Cursor is opaque; pass nextCursor back unchanged with the same when. Not held to the going release, so a traveller can always read the goings they have.
          */
         get: operations["listMyGoing"];
         put?: never;
@@ -1087,7 +1336,7 @@ export interface paths {
         get: operations["getMyGoing"];
         /**
          * Say you are going
-         * @description Idempotent. On a removed or cancelled going it makes it going again, and that counts as a new one. On a moved one it is the "Yes, still going" answer: stillGoingAsked goes back to false and the reminder chosen for the new time stands. At most 20 a day, counted in the place's day; the 21st is 429 rate_limited. Never books, holds or pays anything. A date with no time can be added until midnight at the end of its first day; a timed one until it starts. Postponed and sold out items can be added; a postponed one has no reminder and no askWentAt. A merged card stores the going on the card kept, and eventId in the answer is that card's id. 404 when the item is not shown to you (as getEvent decides, so one no longer listed too) or the going release is not open to you.
+         * @description Idempotent. On a removed or cancelled going it makes it going again, and that counts as a new one. On a moved one it is the "Yes, still going" answer: stillGoingAsked goes back to false and the reminder chosen for the new time stands. At most 20 a day, counted in the place's day; the 21st is 429 rate_limited. Never books, holds or pays anything. A date with no time can be added until midnight at the end of its first day; a timed one until it starts. Postponed and sold out items can be added; a postponed one has no reminder and no askWentAt. A merged card stores the going on the card kept, and eventId in the answer is that card's id. 404 when the item is not shown to you (as getEvent decides, so one no longer listed too) or the going release is not open to you. visibility says who may see the going (ItemVisibility). Omitted on a new going (or one removed before), it is friends when the caller's People sharing is friends and only_me otherwise; omitted on a going already marked, it stays as it was.
          */
         put: operations["setMyGoing"];
         post?: never;
@@ -1134,13 +1383,17 @@ export interface paths {
         put?: never;
         /**
          * Say whether you went, and how it was
-         * @description Needs a going on this event (getMyGoing finds it). Open from the start the traveller was last told until 30 days after its end, and the answer can be changed until then; each answer replaces the one before. A postponed going cannot be answered yet. A rating and tags only with went true. via omitted is event_page; push means a tap on the app's own notification. An id from before two cards were merged answers the going on the card kept. Private: nobody else sees an answer, and no event read, card or count carries a rating (REQ-R4-20). 404 when you have no going on it or the going release is not open to you. Shares the going routes' rate limit.
+         * @description Needs a going on this event (getMyGoing finds it). Open from the start the traveller was last told until 30 days after its end, and the answer can be changed until then; each answer replaces the one before. A postponed going cannot be answered yet. A rating and tags only with went true. via omitted is event_page; push means a tap on the app's own notification. An id from before two cards were merged answers the going on the card kept. Nobody else sees a rating or tags, and no event read, card or count carries a rating (REQ-R4-20). Friends see only that you went, and only when visibility is friends (listFriendActivity). visibility omitted on a first answer is friends when the caller's People sharing is friends and only_me otherwise; omitted on a changed answer, it stays as it was. updateMyWentVisibility changes it later. 404 when you have no going on it or the going release is not open to you. Shares the going routes' rate limit.
          */
         post: operations["answerDidYouGo"];
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Who may see a went answer
+         * @description The one way to change who sees a went answer after it is given. friends shows it to friends only while the caller's People sharing is friends too, and never shows the rating or tags. It can be changed at any time, also after the 30 days in which the answer itself can change, and it changes nothing else. 404 when there is no went answer for this event, or while the `people` release is closed to the caller. A session only.
+         */
+        patch: operations["updateMyWentVisibility"];
         trace?: never;
     };
     "/me/bookings": {
@@ -1340,7 +1593,7 @@ export interface paths {
          *
          *     **A phone gets pushes only while the session that registered it is alive.** Signing out (`signOutTraveller`), or the session running out after 14 days unused, stops them; signing in again and registering again starts them.
          *
-         *     **What a push carries.** A generic title and sentence with no name, number, business, listing, amount, date or reference in it, and `data: { type, id }`. `type` is `booking` or `message` and `id` is the trip's `reservationId` as `listMyBookings` returns it; open the trip over the session to show anything more. Pushed today: booking confirmed, a request accepted or declined, a booking not accepted, a message from the business, a cancellation and the day-before trip reminder. An accepted request opens the trip `listMyBookings` lists as `holding` while its hold runs. Each push is sent beside the message on WhatsApp or email, never instead of it.
+         *     **What a push carries.** A generic title and sentence with no name, number, business, listing, amount, date or reference in it, and `data: { type, id }`. `type` is `booking` or `message` and `id` is the trip's `reservationId` as `listMyBookings` returns it; open the trip over the session to show anything more. Pushed today: booking confirmed, a request accepted or declined, a booking not accepted, a message from the business, a cancellation and the day-before trip reminder. An accepted request opens the trip `listMyBookings` lists as `holding` while its hold runs. A push about a traveller's own video has `type` `upload` and `id` the upload's id, which `getMyUpload` reads: it is live, not accepted, on hold, or taken off a listing. A push about a date alert, when a listing the traveller asked Trigo about gets a date, is `data: { type: date_alert, id }` with `id` the alert's id as `listMyDateAlerts` returns it; the app opens that alert's listing. Each push is sent beside the message on WhatsApp or email, never instead of it.
          */
         post: operations["registerTravellerDevice"];
         /**
@@ -1398,7 +1651,7 @@ export interface paths {
          *
          *     `interests` are keys from `listInterestOptions`, or any category or activity-type key from `getPublicVocabulary`. At most 8 after duplicates are removed. Anything else is a `400`.
          *
-         *     Validation problems are a `400` with one plain sentence per field in `error.details`, keyed `name`, `email`, `interests` or `onboarded`.
+         *     Validation problems are a `400` with one plain sentence per field in `error.details`, keyed `name`, `email`, `interests`, `onboarded` or `creatorToolsOn`.
          */
         patch: operations["updateMyAccount"];
         trace?: never;
@@ -1432,7 +1685,7 @@ export interface paths {
         };
         /**
          * The account's analytics choice and email switches
-         * @description No recorded choice reads `analyticsConsent` null and both emails on. A session only: a recovery link answers 401 "Sign in to change your settings." (CAL-29). Private to the caller.
+         * @description No recorded choice reads `analyticsConsent` null and both emails on, `languages` empty and `showWomenOnlyTables` true. A session only: a recovery link answers 401 "Sign in to change your settings." (CAL-29). Private to the caller.
          */
         get: operations["getMySettings"];
         put?: never;
@@ -1442,7 +1695,7 @@ export interface paths {
         head?: never;
         /**
          * Change one or more settings
-         * @description Send only what changes. analyticsConsent needs analyticsNotice, the version of the notice the person was shown, which must be a published consent_notices row for analytics (else 400 invalid_input), and surface, where the person chose (web, ios or android; else 400 invalid_input). Each change of choice is kept as evidence (R4-T2); the same choice on the same notice sent again is not a new one. surface is not read back. The three taste quiz answers (R4-T1) are optional: null clears one, and a value outside its list is 400 invalid_input. A session only: a recovery link answers 401 "Sign in to change your settings." on GET and PATCH (CAL-29).
+         * @description Send only what changes. analyticsConsent needs analyticsNotice, the version of the notice the person was shown, which must be a published consent_notices row for analytics (else 400 invalid_input), and surface, where the person chose (web, ios or android; else 400 invalid_input). Each change of choice is kept as evidence (R4-T2); the same choice on the same notice sent again is not a new one. surface is not read back. The three taste quiz answers (R4-T1) are optional: null clears one, and a value outside its list is 400 invalid_input. languages replaces the whole list; an unknown code, a repeat or more than four is 400 invalid_input with details.languages (R10-T1). A session only: a recovery link answers 401 "Sign in to change your settings." on GET and PATCH (CAL-29).
          */
         patch: operations["updateMySettings"];
         trace?: never;
@@ -1487,6 +1740,138 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My videos and photos
+         * @description The caller's own uploads, newest first, in any state but deleted. A session only: a recovery link is `401`. Outside the creator release (`releases.creator` in `getAppConfig`) every `/me/uploads` route is `404`. `organiser_image` lists the pictures the caller added to their organisers' events; a picture another member added is not here, it is on the event (`OrganiserEvent.picture`). Never cached.
+         */
+        get: operations["listMyUploads"];
+        put?: never;
+        /**
+         * Start adding a video or a photo of something I went on, or a picture to my organiser's event
+         * @description Checks that the caller went on the experience or the event, and that it is over, then returns where to send the file: a tus upload URL for a video, or a signed PUT for a photo. Either is returned once and never stored. The same call for the same target and size (and, for a photo, the same `contentType`) while that upload is still being sent resumes it and does not count again.
+         *
+         *     `organiser_image` is a member's picture for one of their organiser's live events (R11-T2): `eventId` names the card, and the organiser is the card's own, so no organiser is sent. Any member may add it. It needs the supply release open to the caller as well as the creator release (`404` when either is closed), and is paused by either switch: `503 uploads_paused` or `503 organisers_paused`. The body is `purpose`, `eventId`, `sizeBytes` (1 to 5242880), the picture statement (`statement.kind` `organiser_image`) and `peopleConsentConfirmed`; `experienceId`, `caption` and `contentType` are refused with `400 invalid_input`, `details` naming the field. An event has at most one picture: a new start replaces the one there, uploading, in review or published, at once. It shares the five starts a day with videos. The answer's `protocol` is `post`: send the image to `url` as one multipart form-data POST with the field name `file`, then call `completeMyUpload`. Staff look before it shows on the card. A start is never resumed.
+         *
+         *     For a video or a picture, show the statement the person agrees to before this call, and send its `version` and `sha256`. `peopleConsentConfirmed` must be `true`: they confirm everybody they can recognise in it agreed to be shown. A photo (`went_photo`) is private: only its owner ever sees it, nobody reviews it, and it sends no statement. Send its `contentType`; at most 3 photos of one trip or event (`409 photo_limit_reached`). A caption has at most 140 characters and no phone number, email address or link (`400 caption_has_contact`, `details.caption` says which; it is refused, never stripped).
+         *
+         *     Five video or picture starts a day between them and ten photo starts a day, given back when a start is refused, then `429 rate_limited`. `503 uploads_paused` while adding videos, photos and pictures is paused (what is already up stays up); `503 photos_unavailable` for a photo when this service has no photo store; `503 media_unavailable` when the video provider, or for a picture the image host, is not set up. A session only. Never cached.
+         */
+        post: operations["startMyUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/uploads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * One of my uploads
+         * @description Another traveller's upload, or a deleted one, is `404`. A session only. Never cached.
+         */
+        get: operations["getMyUpload"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete one of my uploads
+         * @description Gone from every Yuvoy page now, in any state; the file is deleted within the hour. `503 photos_unavailable` for a photo when this service has no photo store. A session only.
+         *
+         *     An organiser's picture can be deleted by the member who added it or by any current member of that organiser, with the `uploadId` from `OrganiserEvent.picture`; the card shows its department's art again. Anybody else gets `404`.
+         */
+        delete: operations["deleteMyUpload"];
+        options?: never;
+        head?: never;
+        /**
+         * Change the caption of one of my uploads
+         * @description Only the caption can change; `""` takes it away, and a body without it changes nothing. The caption rules of `startMyUpload` apply. Once staff approve the video its caption is fixed: `409 caption_locked`. A session only. Never cached.
+         */
+        patch: operations["editMyUpload"];
+        trace?: never;
+    };
+    "/me/uploads/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say the file is sent
+         * @description Asks the video provider, or for a photo the bucket, whether the whole file arrived. Then a video is `in_review`: a person at Yuvoy looks before anybody else sees it. A photo is `private`: kept for its owner alone, with `photoUrl`. Safe to call again. A session only. Never cached.
+         *
+         *     For an organiser's picture it asks the image host, and only the member who started it may call it (anybody else gets `404`). A file not yet sent is `409 not_arrived`; a slot the host no longer has is `404`. A file that is not the one this start made is `409 media_refused` and the upload is `failed`, as for a refused video. Then the picture is `in_review`.
+         */
+        post: operations["completeMyUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/creator-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My share links and what came through them
+         * @description The caller's links to things they went on, newest first, with the opens and the bookings that came through each. The counts are indicative: no amount, no name and no date of another person's trip, and Yuvoy does not pay for links. A session only: a recovery link is `401`. Outside the creator release (`releases.creator` in `getAppConfig`) it is `404`. Never cached.
+         */
+        get: operations["listMyCreatorLinks"];
+        put?: never;
+        /**
+         * Get my share link for something I went on
+         * @description Returns your link for this listing or card, making it the first time (`201`); one per person per listing or card, so asking again is `200` with the same link. Only somebody who went, once it is over, gets one. Twenty links made a day, then `429 rate_limited`; a link you already have is never counted. Pausing new videos does not stop links. A session only. Never cached.
+         */
+        post: operations["getMyCreatorLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tell Yuvoy a video is wrong
+         * @description Hidden for the reporter at once, and a person at Yuvoy looks. A second person reporting the same video within 7 days takes it down until they have. Ten reports a day per traveller, then `429 rate_limited`. A video the caller cannot see is `404`. A session only. Never cached.
+         */
+        post: operations["reportVideo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/people": {
         parameters: {
             query?: never;
@@ -1506,7 +1891,7 @@ export interface paths {
         head?: never;
         /**
          * Choose what friends see, and whether requests are emailed
-         * @description The first step answers `sharing`; the first answer sets when People was started. `sharing: only_me` hides everything already shared without changing each item. Choosing `sharing` needs a confirmed adult and a first name; `requestEmails` alone needs neither. A session only. 404 while the `people` release is closed to the caller.
+         * @description The first step answers `sharing`; the first answer sets when People was started. `sharing: only_me` hides everything already shared without changing each item. `shareUpcomingGoing: true`, when sharing is friends once the call is saved (sent now or chosen before), also opens to friends the caller's upcoming goings that are only me (the ones made before People, counted in `privateUpcomingGoing`); false or absent leaves them as they are. Choosing `sharing` needs a confirmed adult and a first name; `requestEmails` alone needs neither. A session only. 404 while the `people` release is closed to the caller.
          */
         patch: operations["updateMyPeople"];
         trace?: never;
@@ -1546,6 +1931,46 @@ export interface paths {
          * @description Nobody is told. 204 also when the two were not friends. Anyone signed in may end a friendship, so neither the age answer nor a name is needed. A session only. 404 while the `people` release is closed to the caller.
          */
         delete: operations["removeFriend"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/friends-going": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which friends are going to these events
+         * @description For the cards on screen. Only friends who chose to share and whose going is not only me, and only live, upcoming events. An event with nobody visible is left out, so an empty list is the common answer. `total` is how many the caller could see by name; `friends` holds up to 20, most recent first. A session only. While the `people` release is closed to the caller this answers 200 with an empty `events` list, never 404, so cards render the same either way.
+         */
+        get: operations["listFriendsGoing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/friends/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What friends are up to
+         * @description Goings for the next 30 days and went answers from the last 30, from friends who share, and only those whose visibility is friends; never saves, plans or bookings (REQ-R9-06), and never a rating. Newest first by when it happens or happened. Pass `nextCursor` back unchanged for the next page. A session only. 404 while the `people` release is closed to the caller.
+         */
+        get: operations["listFriendActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1646,7 +2071,7 @@ export interface paths {
         put?: never;
         /**
          * Whose friend link this is
-         * @description Works signed out, for the page a link opens. The code is in the body so it is never in a logged path. `owner` and `relation` only with `state: ok`; `relation` only when a session is sent. `unavailable` covers an unknown code, a link switched off and an owner who cannot use People. 30 a minute per session or, when signed out, per client address, and 120 a minute on a shared address. Never stored by a cache. 404 while the `people` release is closed to the caller; signed out, that is until it reaches `all`.
+         * @description For the page a link opens. A session only: signed out it is the same 401 whatever the code, before the code is read. The code is in the body so it is never in a logged path. `owner` and `relation` only with `state: ok`. `unavailable` covers an unknown code, a link switched off and an owner who cannot use People. 30 a minute per session, and 120 a minute on a shared address. Never stored by a cache. 404 while the `people` release is closed to the caller.
          */
         post: operations["lookupFriendLink"];
         delete?: never;
@@ -1664,12 +2089,452 @@ export interface paths {
         };
         /**
          * Another traveller, as the caller may see them
-         * @description A friend sees `name` and `since`; somebody with a request either way sees `shortName` and, on an incoming request, `mutualFriends`. Anyone else answers 404, so an id alone shows nothing. A session only. 404 while the `people` release is closed to the caller.
+         * @description A friend sees `name` and `since`; somebody with a request either way sees `shortName` and, on an incoming request, `mutualFriends`. Anyone else answers 404, so an id alone shows nothing. Whoever sees the person also sees their published videos in `videos`, the newest 12, as a listing shows them: a video the caller reported is left out, and one its business took off the listing stays. `videos` is empty while the `creator` release is closed to the caller. A session only. 404 while the `people` release is closed to the caller.
          */
         get: operations["getPerson"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/crews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's crews, newest first
+         * @description A crew is a named list of the caller's friends, for asking them along in one tap. Only the caller sees their crews, and members are never told they are in one. At most 20 crews, so the list is not paged. A session only. 404 while the `people` release is closed to the caller.
+         */
+        get: operations["listMyCrews"];
+        put?: never;
+        /**
+         * Save a crew
+         * @description Every member must be the caller's friend now. 20 crews per person and 50 members per crew. Members are not told. Needs a confirmed adult and a first name, and People not restricted or ended for the caller (`people_paused`). A session only. 404 while the `people` release is closed to the caller.
+         */
+        post: operations["createCrew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/crews/{crewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a crew
+         * @description Nobody is told. 204 also for a crew that is not the caller's or is gone, which is left as it is. A session only. 404 while the `people` release is closed to the caller.
+         */
+        delete: operations["deleteCrew"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a crew or replace its members
+         * @description Send what changes. `memberIds` replaces every member the caller can see now, and each must be the caller's friend now. A member People cannot show at the time (restricted or hidden) stays in the crew and is listed again once they can be shown. The same gates as `createCrew`. 404 for a crew that is not the caller's, and while the `people` release is closed to the caller.
+         */
+        patch: operations["updateCrew"];
+        trace?: never;
+    };
+    "/plans/{planId}/crew-invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite a crew to a plan (planner)
+         * @description Adds each member who is still the caller's friend as a guest, the way a planner adds signed-in travellers, not through the guest reply, so each gets the plan as any invited guest does. `skipped` counts members left out: no longer a friend, blocked either way, not shown in People now, already on the plan, with no first name to show, or past the guest cap. `invited` and `skipped` add up to the crew's members. Needs a confirmed adult and a first name, and People not restricted or ended for the caller (`people_paused`). A session only. 404 while the `people` or the `plans` release is closed to the caller, and 503 `plans_unavailable` while plans are paused.
+         */
+        post: operations["inviteCrewToPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The groups directory for a place
+         * @description Groups that meet in a place, by name. Public, and only while the `people` release is `all`: 404 otherwise, when staff and early travellers read `listMyClubs`. Never stored by a cache, not even at the edge, so a group hidden on request leaves the list at once. Never says who follows a group. `onYuvoy` is false for a group that has not claimed its listing. 400 with `details.destinationKey` for a place Yuvoy does not have.
+         */
+        get: operations["listClubs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clubs/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One group
+         * @description Public. 404 for an unknown, removed, hidden or hidden-on-request group, and while the `people` release is not `all` (staff and early travellers read `getMyClub`). Never stored by a cache, not even at the edge. The `{slug}` position also takes the group's `clubId`, which `listMyClubFollows` and the `club_joined` push carry; the same 404s hold either way, so an id finds nothing its slug would not.
+         */
+        get: operations["getClub"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/clubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The groups directory for a place, as the caller's release stage allows
+         * @description The same answer as `listClubs`, for a session or a recovery link while the `people` release is `staff` or `early`; it answers at `all` too. A recovery link reads as nobody in a group, so it sees the directory only at `all`. 404 while the release is closed to the caller.
+         */
+        get: operations["listMyClubs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/clubs/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One group, as the caller's release stage allows
+         * @description The same answer as `getClub`. 404 for an unknown, removed, hidden or hidden-on-request group, and while the `people` release is closed to the caller. Like `getClub`, it takes the group's `clubId` in the `{slug}` position.
+         */
+        get: operations["getMyClub"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clubs/{clubId}/claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say you run this group
+         * @description A person at Yuvoy checks the claim against the group's own public contact before approving it, and the claimant hears by email. One waiting claim per person per group, and 3 claims a day per person. Needs a confirmed adult and a first name, and People not restricted or ended for the caller (`people_paused`). A session only. 404 for a group that is not shown, and while the `people` release is closed to the caller.
+         */
+        post: operations["claimClub"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clubs/{clubId}/removal-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for a listing to be taken down
+         * @description Public, no account needed. With `we_run_it_and_want_off` the listing is hidden at once (state `hidden_on_request`) and a person at Yuvoy removes it or puts it back; a request nobody has checked never removes a listing by itself. Other reasons wait for a person. 3 requests a day per group, so one caller cannot use up every group's requests, and 20 a day per client address. Sends no email, because an address nobody proved would let anyone make Yuvoy write to anybody. Never stored by a cache. 404 for a group that is not shown, and while the `people` release is closed to the caller; signed out, that is until it reaches `all`.
+         */
+        post: operations["requestClubRemoval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clubs/{clubId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Something is wrong with this listing
+         * @description Reaches Yuvoy's support queue; the listing stays as it is until a person looks. 5 reports a day per person. A session only. 404 for a group that is not shown, and while the `people` release is closed to the caller.
+         */
+        post: operations["reportClub"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * People the caller has blocked
+         * @description Newest first, at most 500, so there is no next page. A session only. 404 while the `people` release is closed to the caller.
+         */
+        get: operations["listMyBlocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/blocks/{personId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Block a person
+         * @description Hides the two from each other everywhere and ends their friendship, their requests and their places in each other's crews. The blocked person is never told. 204 also when the person is already blocked. The caller's own id is a 400 and an id that is nobody is a 404. Not gated on age or standing: anyone signed in may block. 500 blocks at most: one more answers 409 `conflict` with `details.reason` `block_limit`. A session only. 404 while the `people` release is closed to the caller.
+         */
+        put: operations["blockPerson"];
+        post?: never;
+        /**
+         * Unblock a person
+         * @description Nothing that the block ended comes back. 204 also when the person was not blocked. A session only. 404 while the `people` release is closed to the caller.
+         */
+        delete: operations["unblockPerson"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/people/{personId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a person to the Yuvoy team
+         * @description One open report per reporter and person: a repeat answers 202 with the open one's `reportId`. The person is never told who reported them. `alsoBlock` blocks the person in the same request. 5 reports a day per reporter. Needs a confirmed adult. A session only. 404 while the `people` release is closed to the caller.
+         */
+        post: operations["reportPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/life-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's life list, newest first
+         * @description Every entry is read from a record (bookings that ran, went answers, plans marked done, table check-ins) with its proof. The first page also carries `didYouGo`: goings on events that ended in the last 30 days with no answer, to ask with `answerDidYouGo`; it is empty while the `going` release is closed to the caller. `counts` are over the whole list. Later pages carry an empty `didYouGo` and zero counts. Pass `nextCursor` back unchanged for the next page. A session only. 404 while the `me` release is closed to the caller.
+         */
+        get: operations["getMyLifeList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/life-list/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Who may see one entry
+         * @description Trips and tables only. A went entry's visibility is written by `updateMyWentVisibility` (`PATCH /v1/me/went/{eventId}`), the one route that writes it, so a went entry here answers 409 `conflict` with `details.use` naming that route; a plan is always only me (409 `conflict`). Friends see an entry only when the caller's People sharing is friends too. 404 for an entry the caller has not got. A session only. 404 while the `me` release is closed to the caller.
+         */
+        patch: operations["updateMyLifeEntry"];
+        trace?: never;
+    };
+    "/me/badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Badges earned and in progress
+         * @description Evaluates the caller's rules first, so a badge shows as soon as its record exists. `earned` are the badges the caller holds now; `inProgress` is every special not earned yet and every season not earned whose last day has not passed. `seen` false marks a badge the app has not shown yet; mark it with `markBadgesSeen`. A session only. 404 while the `me` release is closed to the caller.
+         */
+        get: operations["getMyBadges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/badges/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark new badges as shown
+         * @description Sets `seen` on the caller's earned badges named in `keys`. A key the caller has not earned is ignored. A session only. 404 while the `me` release is closed to the caller.
+         */
+        post: operations["markBadgesSeen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/people/{personId}/life-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A friend's life list, as they chose to share it
+         * @description Checked entries only, under People's rules (two-way friends, no block, sharing with friends, the entry not only me), newest first. A went entry whose event is hidden is left out. Never a rating, and never who else cheered. Anyone else answers 404, so an id alone shows nothing. Pass `nextCursor` back unchanged for the next page. A session only. 404 while the `me` or the `people` release is closed to the caller.
+         */
+        get: operations["getPersonLifeList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/people/{personId}/life-list/{entryId}/cheer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Cheer a friend's entry
+         * @description One cheer per person and entry; a repeat answers 204 and changes nothing. Only an entry the caller may see on `getPersonLifeList`; anything else answers 404. A session only. 404 while the `me` or the `people` release is closed to the caller.
+         */
+        put: operations["cheerLifeEntry"];
+        post?: never;
+        /**
+         * Take a cheer back
+         * @description 204 also when there was no cheer, or the entry is gone. A session only. 404 while the `me` or the `people` release is closed to the caller.
+         */
+        delete: operations["uncheerLifeEntry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/club-follows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The groups the caller follows
+         * @description The groups the caller follows that the directory shows, newest follow first: `clubIds`, and in `clubs` the same groups in the same order with the slug and name to list and open each one. Private: nobody else sees who follows a group or how many. A session only. 404 while the `people` release is closed to the caller.
+         */
+        get: operations["listMyClubFollows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/club-follows/{clubId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Follow a group
+         * @description Private. The caller is told once when the group joins Yuvoy. 200 follows per person. Following a group twice is 204 too. Needs a confirmed adult and a first name, and People not restricted or ended for the caller (`people_paused`). A session only. 404 for a group that is not shown, and while the `people` release is closed to the caller.
+         */
+        put: operations["followClub"];
+        post?: never;
+        /**
+         * Stop following
+         * @description 204 also for a group the caller does not follow, and for one taken out of the directory. A session only. 404 while the `people` release is closed to the caller.
+         */
+        delete: operations["unfollowClub"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1823,6 +2688,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trigo/actions/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a Trigo card
+         * @description Re-reads the card's facts the way Trigo read them to make it. A book card answers the checkout to open with the card's own idempotencyKey; nothing is booked until the traveller finishes that checkout. A date-alert or trip-draft card writes its alert or draft and answers its id. Idempotent: a second confirm returns the first answer while it still holds. 409 action_changed with details.reason (sold_out, price_moved, time_moved, not_bookable, booking_changed) when the facts moved since the card, or action_expired when the card expired, was declined or replaced, or its checkout lapsed: ask Trigo again. 409 date_alerts_full for a date-alert card when the traveller already has 50 alerts waiting: stop one to add another. A session only: a recovery link answers 401. Not released to this traveller (releases.trigoActions): 404 not_found. Another traveller's card is 404, the same as one that does not exist. 503 unavailable while feature:trigo_actions is engaged. Private to the caller.
+         */
+        post: operations["confirmTrigoAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trigo/actions/{id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say no to a Trigo card
+         * @description Writes nothing but the card's state and Trigo's line "No problem. Nothing has been booked or changed." in the chat. The line costs no turn and does not count toward the 20 a day. Idempotent: declined again, it answers the same line. Not gated by the release or by feature:trigo_actions. A card already confirmed, used or replaced is 409 action_expired. A session only: a recovery link answers 401. Another traveller's card is 404. Private to the caller.
+         */
+        post: operations["declineTrigoAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/date-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The listings Trigo will tell the traveller about once they get a date
+         * @description The alerts the traveller saved from a Trigo date-alert card: every alert still waiting (a traveller has at most 50 waiting; a card for a 51st is refused, and its confirm answers 409 date_alerts_full), and the 50 that most recently told them (notifiedAt set), until those are removed 30 days after they told them. At most 100, newest first by createdAt. A stopped alert is not listed, nor one that expired after 180 days without a date. Each card is read from our records now: available is false once the listing is no longer shown. Not gated by releases.trigoActions or feature:trigo_actions. A session only: a recovery link answers 401. Private to the caller.
+         */
+        get: operations["listMyDateAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/date-alerts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop a date alert
+         * @description "Stop telling me": a waiting alert is stopped and leaves the list. An alert that already told the traveller has nothing left to send: 204, and it stays as it is. Another traveller's alert, one already stopped and one that does not exist are 404. Not gated by releases.trigoActions or feature:trigo_actions. A session only: a recovery link answers 401.
+         */
+        delete: operations["stopMyDateAlert"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/trip-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The trip drafts the traveller saved from Trigo, newest first (at most 20)
+         * @description Each draft is a day-by-day list of our own cards, read from our records now: available is false once a listing or event is no longer shown. A draft is removed 30 days after its last day. Not gated by releases.trigoActions or feature:trigo_actions. A session only: a recovery link answers 401. Private to the caller.
+         */
+        get: operations["listMyTripDrafts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/trip-drafts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a trip draft
+         * @description "Delete draft" deletes it; there is no deleted state to read back. Another traveller's draft and one that does not exist are 404. Not gated by releases.trigoActions or feature:trigo_actions. A session only: a recovery link answers 401.
+         */
+        delete: operations["deleteMyTripDraft"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/trigo/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What Trigo reads about the traveller
+         * @description The trips, goings and favourite departments Trigo reads when it answers, less what the traveller hid and what they cleared. A booking is a reservation id, a going a found item id and a department a Category key. Saves can be hidden but are never listed. items is empty, never null, when there is nothing. Not gated by the release. A session only: a recovery link answers 401. Private to the caller.
+         */
+        get: operations["getTrigoMemory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/trigo/memory/{subjectType}/{subjectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop Trigo reading one thing
+         * @description Trigo stops reading this booking, going, save or department in its answers. Hiding never cancels or deletes the booking, the going or the save itself. Hidden again, still 204. Another traveller's subject, a department that is not in the traveller's interests, a subjectType outside the enum and a subjectId over 80 characters are all 404 not_found, the same as a subject that does not exist. Not gated by the release. A session only: a recovery link answers 401. The next answer also reads none of the chat written before the hide, since an earlier answer may name what was hidden.
+         */
+        delete: operations["hideTrigoMemoryItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/trigo/memory/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Trigo reading everything it reads now
+         * @description Clear all: Trigo ignores the bookings, goings and saves made before now, and every department listed now. Nothing is cancelled or deleted. The next answer also reads none of the chat written before now. GET then answers clearedAt as this time. Not gated by the release. A session only: a recovery link answers 401.
+         */
+        post: operations["clearTrigoMemory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/stay": {
         parameters: {
             query?: never;
@@ -1918,7 +2963,7 @@ export interface paths {
          *
          *     **Signed in only.** A session with no number lists too. A booking link's status token proves one booking, not who holds it, so it cannot list; it is a `401` here. It can open a request raised about this booking or its reservation with `getSupportRequest`.
          *
-         *     The list also holds the cards this traveller reported while signed in with a number (`reportEvent`), under topic `other`, with `message` reading `You reported "<title>": <reason words>.` Such a request reads `resolved` once staff decide on the card.
+         *     The list also holds the cards this traveller reported while signed in (`reportEvent`), under topic `other`, with `message` reading `You reported "<title>": <reason words>.` Such a request reads `resolved` once staff decide on the card.
          *
          *     What is not here, so it is not faked: no staff replies (the conversation happens on WhatsApp or by email and is not stored) and no `waiting_on_traveller` state (staff do not record one).
          */
@@ -2457,7 +3502,7 @@ export interface paths {
         put?: never;
         /**
          * Make a plan
-         * @description Signed-in adults only. The answer carries `link`, which the host shares from their own WhatsApp; Yuvoy sends nothing to anybody. Suggested share text, for both apps: "{title}. {when}. Reply here, no app needed: {link}". The host answers `can` on every time they offer. Each time is from 30 minutes to 180 days ahead, ends after it starts and within 24 hours, and replyBy is before the earliest time. With no name on the profile, or one whose first word is not a first name, send `hostName`; without it the answer is 400 with `details.hostName` ("What should friends call you?"). At most 30 plans still ahead (409 `plan_limit_reached`) and 10 new plans a day (429). Every route on a plan is 404 while the `plans` release does not admit the caller, and 503 `plans_unavailable` while plans are paused.
+         * @description Signed-in adults only. The answer carries `link`, which the planner shares from their own WhatsApp; Yuvoy sends nothing to anybody. Suggested share text, for both apps: "{title}. {when}. Reply here, no app needed: {link}". The planner answers `can` on every time they offer. Each time is from 30 minutes to 180 days ahead, ends after it starts and within 24 hours, and replyBy is before the earliest time. With no name on the profile, or one whose first word is not a first name, send `plannerName`; without it the answer is 400 with `details.plannerName` ("What should friends call you?"). At most 30 plans still ahead (409 `plan_limit_reached`) and 10 new plans a day (429). Every route on a plan is 404 while the `plans` release does not admit the caller, and 503 `plans_unavailable` while plans are paused.
          */
         post: operations["createPlan"];
         delete?: never;
@@ -2474,7 +3519,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Plans I host or answered while signed in
+         * Plans I made or answered while signed in
          * @description when=upcoming (the default) lists open and decided plans whose time is still ahead, soonest first; when=past lists the rest, newest first. Cursor is opaque; pass nextCursor back unchanged with the same when.
          */
         get: operations["listMyPlans"];
@@ -2496,7 +3541,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * One plan for its host or a signed-in member
+         * One plan for its planner or a signed-in member
          * @description A plan the caller is not an active member of is 404, never 403.
          */
         get: operations["getPlan"];
@@ -2506,7 +3551,7 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change a plan (host)
+         * Change a plan (planner)
          * @description Repeat every week needs exactly one time, or a picked time, and repeatUntil is at most 12 weeks after the first start.
          */
         patch: operations["updatePlan"];
@@ -2524,7 +3569,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Offer another time (host; at most three)
+         * Offer another time (planner; at most three)
          * @description A fourth time is 400 with `details.times`. A weekly plan with no picked time keeps its one time: another is 400 with `details.repeatWeekly` until repeat is turned off or a time is picked.
          */
         post: operations["addPlanTime"];
@@ -2547,7 +3592,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Withdraw a time that is not the decided one (host) */
+        /** Withdraw a time that is not the decided one (planner) */
         delete: operations["removePlanTime"];
         options?: never;
         head?: never;
@@ -2566,8 +3611,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add an idea to vote on (host; at most three)
-         * @description An event or experience idea must be one the host can see. Its title passes the same check as a typed title (no link, email or phone number), else 400 with `details.id`. A fourth idea is 400 with `details.ideas`.
+         * Add an idea to vote on (planner; at most three)
+         * @description An event or experience idea must be one the planner can see. Its title passes the same check as a typed title (no link, email or phone number), else 400 with `details.id`. A fourth idea is 400 with `details.ideas`.
          */
         post: operations["addPlanIdea"];
         delete?: never;
@@ -2590,7 +3635,7 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Withdraw an idea (host)
+         * Withdraw an idea (planner)
          * @description Withdrawing the picked idea clears `decidedIdeaId`.
          */
         delete: operations["removePlanIdea"];
@@ -2611,7 +3656,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Pick this time, or pick the winning idea (host)
+         * Pick this time, or pick the winning idea (planner)
          * @description Send timeId or ideaId, one of them. Picking a time locks the plan: each answer for that time becomes Going, Maybe or Can't, shares freeze, and the claims of anybody who can't come are released. Picking another time later leaves the shares as they are.
          */
         post: operations["decidePlan"];
@@ -2632,7 +3677,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add something to bring (host; at most twenty) */
+        /** Add something to bring (planner; at most twenty) */
         post: operations["addPlanItem"];
         delete?: never;
         options?: never;
@@ -2653,7 +3698,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Take an item off the list (host) */
+        /** Take an item off the list (planner) */
         delete: operations["removePlanItem"];
         options?: never;
         head?: never;
@@ -2672,7 +3717,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add a cost to split (host; whole rupees; at most ten)
+         * Add a cost to split (planner; whole rupees; at most ten)
          * @description Needs a payee on the plan, else 400 with `details.payee`. On a decided plan the line is split at once among those going.
          */
         post: operations["addPlanCost"];
@@ -2695,7 +3740,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a cost line and its shares (host) */
+        /** Remove a cost line and its shares (planner) */
         delete: operations["removePlanCost"];
         options?: never;
         head?: never;
@@ -2714,7 +3759,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** The host ticks or unticks "Got it" on one share */
+        /** The planner ticks or unticks "Got it" on one share */
         post: operations["markShareReceived"];
         delete?: never;
         options?: never;
@@ -2733,14 +3778,14 @@ export interface paths {
         };
         get?: never;
         /**
-         * The host's or a signed-in member's own reply
+         * The planner's or a signed-in member's own reply
          * @description A member Yuvoy holds no age for sends `adult: true` on their first reply, else 400 with `details.adult`. A list over its cap (answers 6, claims 20, paid 10) or naming one id twice is 400 with `details.answers`, `details.claims` or `details.paid`. An item somebody took first is listed in `notClaimed`; that is not an error.
          */
         put: operations["replyToMyPlan"];
         post?: never;
         /**
          * Leave a plan. My row and answers are deleted, my items are freed, and any frozen share of mine goes with me.
-         * @description The host cannot leave; that is 409 `conflict` with `details.reason` `host_leaves` ("Cancel the plan instead.").
+         * @description The planner cannot leave; that is 409 `conflict` with `details.reason` `planner_leaves` ("Cancel the plan instead.").
          */
         delete: operations["leaveMyPlan"];
         options?: never;
@@ -2762,8 +3807,8 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Remove a guest (host). With block=true they cannot answer this plan again.
-         * @description Their claims are released; frozen shares stay until the host removes the cost line.
+         * Remove a guest (planner). With block=true they cannot answer this plan again.
+         * @description Their claims are released; frozen shares stay until the planner removes the cost line.
          */
         delete: operations["removePlanMember"];
         options?: never;
@@ -2782,7 +3827,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Make a new link; the old one stops working at once (host) */
+        /** Make a new link; the old one stops working at once (planner) */
         post: operations["renewPlanLink"];
         delete?: never;
         options?: never;
@@ -2801,7 +3846,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** We did it. From the decided start; the host's mark closes the plan. */
+        /** We did it. From the decided start; the planner's mark closes the plan. */
         post: operations["markPlanDone"];
         delete?: never;
         options?: never;
@@ -2821,7 +3866,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Cancel the plan and any weekly repeat (host)
+         * Cancel the plan and any weekly repeat (planner)
          * @description A plan already cancelled answers 200.
          */
         post: operations["cancelPlan"];
@@ -2843,8 +3888,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Report this plan or somebody on it (host or member)
-         * @description The host or a signed-in member reports the plan to a person at Yuvoy. A report is taken on a plan that is done or cancelled, and on a plan Yuvoy closed, whose link no longer works. `personName`, when sent, must be the first name of somebody on the plan, matched ignoring case, else 400 `invalid_input` with `details.personName`. A report is never refused for being one too many: past the daily count it is still stored and raised. Reports sent too fast answer 429; send it again in a moment. A plan the caller is not on is 404.
+         * Report this plan or somebody on it (planner or member)
+         * @description The planner or a signed-in member reports the plan to a person at Yuvoy. A report is taken on a plan that is done or cancelled, and on a plan Yuvoy closed, whose link no longer works. `personName`, when sent, must be the first name of somebody on the plan, matched ignoring case, else 400 `invalid_input` with `details.personName`. A report is never refused for being one too many: past the daily count it is still stored and raised. Reports sent too fast answer 429; send it again in a moment. A plan the caller is not on is 404.
          */
         post: operations["reportPlan"];
         delete?: never;
@@ -2868,7 +3913,7 @@ export interface paths {
          * A plan, as somebody holding its link sees it
          * @description No phone number, email, traveller id or member id of anybody, and nobody else's share. A cancelled or finished plan still answers, with its state, so a guest is told rather than shown a dead page. A plan Yuvoy closed answers 404 like any dead link, because closing nulls the link hash; its signed-in members read state `closed` through `GET /plans/{id}` (CAL-96). An unknown or renewed link, and a key whose member was removed or blocked, also answer 404.
          *
-         *     Who is reading is decided by `X-Yuvoy-Plan-Key`, else by a session when one is sent. A visitor (nobody has replied from here yet) sees everything except `payee`, `me` and `costs[].mine`; `payeeSet` still says whether there is somebody to pay. A member and the host see `payee`.
+         *     Who is reading is decided by `X-Yuvoy-Plan-Key`, else by a session when one is sent. A visitor (nobody has replied from here yet) sees everything except `payee`, `me` and `costs[].mine`; `payeeSet` still says whether there is somebody to pay. A member and the planner see `payee`.
          *
          *     After `linkExpiresAt`, and until the plan is purged, a caller who never replied gets 404, while a member found by key or session still reads it with `canReply` false: answers and claims are then 409 `plan_closed`, and a paid-only reply is still taken. `earlierShares` lists a member's unsettled shares on earlier weeks of a weekly plan.
          */
@@ -2901,7 +3946,7 @@ export interface paths {
         post?: never;
         /**
          * Remove my reply. My name and answers are deleted, my items are freed, and any frozen share of mine goes with me (CSO-26).
-         * @description The host cannot leave; that is 409 `conflict` with `details.reason` `host_leaves` ("Cancel the plan instead.").
+         * @description The planner cannot leave; that is 409 `conflict` with `details.reason` `planner_leaves` ("Cancel the plan instead.").
          */
         delete: operations["leaveByLink"];
         options?: never;
@@ -2954,6 +3999,258 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/organisers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set up an organiser page
+         * @description A signed-in adult sets up an organiser for a group or a series of events (R11-T2) and becomes its owner. It starts `pending`: a person at Yuvoy checks it, and every event it posts is checked before it shows. Every organiser route needs a sign-in session (a recovery link is 401) and the 18+ answer (403 `adult_confirmation_required`), and is 404 while the `supply` release does not admit the caller. Writes answer 503 `organisers_paused` while organiser pages are paused, except `cancelOrganiserEvent`. A field the server refuses is a 400 with `details` keyed by that field (a link's is `links.<index>`). Three a day per person, then 429 with `Retry-After` in seconds; requests sent too fast answer 429 with no `Retry-After`. Never cached.
+         *     With `clubId` (OrganiserFromClubInput), the holder of an approved claim on an R9 group sets up that group's organiser: it takes the group's name and place (a body that also sends `name` or `destinationKey` is 400 with `details.name` or `details.destinationKey`) and is `verified` at once, with no verification code. Checks run in this order after the organiser gates: the body (400), the day count (429), a group that is not shown (404), not the holder (403 `not_club_holder`), People not open to the caller (403 `people_paused`), a group that already has an organiser (409 `club_already_linked`).
+         */
+        post: operations["createOrganiser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/organisers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The organisers I am a member of
+         * @description Oldest first, with the caller's role in each, and the R9 groups the caller may set up an organiser for (`clubsToLink`). Never cached.
+         */
+        get: operations["listMyOrganisers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** One organiser, for a member */
+        get: operations["getOrganiser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change an organiser page (owner)
+         * @description The whole page, as `createOrganiser` takes it: a field left out is cleared. The slug never changes. A closed organiser is 409 `conflict` with `details.state`. On an organiser set up from a group (`clubId` set), `name` and `destinationKey` must be the stored ones; other values are 400 `invalid_input`.
+         */
+        patch: operations["updateOrganiser"];
+        trace?: never;
+    };
+    "/organisers/{id}/club": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link an organiser to a group you hold
+         * @description The owner of an organiser links it to an R9 group whose approved claim they hold. The organiser takes the group's name and place and keeps its slug. Every organiser linked becomes verified by the claim, method club_claim, whatever its state was (pending, not_verified or verified); its earlier method stays in the audit trail. Checks run in this order: the organiser gates; not a member (403 `not_a_member`), a helper (403 `not_owner`); the pause (503 `organisers_paused`); the body (400; a body that sends `name` or `destinationKey` is 400 with `details.name` or `details.destinationKey`, and a missing or bad `clubId` is 400 with `details.clubId`); a suspended or closed organiser (409 `conflict` with `details.state`); the day count, three a day per person (429 with `Retry-After` in seconds); a group that is not shown (404); not the holder (403 `not_club_holder`); People not open to the caller (403 `people_paused` with `details.standing` and `details.until`); the group already has another organiser, or this organiser already has another group (409 `club_already_linked` with `details.organiserId`, and `details.clubId` naming the other group for the second). Linking again to the same group answers 200 and changes nothing. Never cached.
+         */
+        post: operations["linkOrganiserToClub"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisers/{id}/helpers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * An organiser's helpers, for a member
+         * @description The helpers, oldest added first; the owners are not in it. An owner is given each helper's `travellerId`, to remove them by; a helper is given the first names only.
+         */
+        get: operations["listOrganiserHelpers"];
+        put?: never;
+        /**
+         * Add a helper by their email (owner)
+         * @description The email of an account that already proved it. Only a `verified` organiser takes helpers: otherwise 409 `conflict` with `details.state`. Somebody already a member is answered as they are. Ten a day per organiser, then 429 with `Retry-After` in seconds.
+         */
+        post: operations["addOrganiserHelper"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisers/{id}/helpers/{travellerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                travellerId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a helper (owner)
+         * @description Somebody who is not a helper of it, an owner included, is 404.
+         */
+        delete: operations["removeOrganiserHelper"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisers/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * An organiser's events, for a member
+         * @description Live ones soonest first, then those in checking soonest first, then cancelled, not accepted and ended ones latest first.
+         */
+        get: operations["listOrganiserEvents"];
+        put?: never;
+        /**
+         * Post an event (any member)
+         * @description It waits for a person's check (`in_checking`), or is `live` at once when self-publish is on for this organiser and caller. The posting member needs a proven email (409 `organiser_email_required`: open the add-a-way-in screen); nothing is stored without one. A suspended or closed organiser is 409 `conflict` with `details.state`. A field the server refuses is a 400 with `details` keyed by that field. Twenty posts and edits a day per organiser, then 429 with `Retry-After` in seconds.
+         */
+        post: operations["postOrganiserEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisers/{id}/events/{eventPostId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                eventPostId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change an event (any member)
+         * @description The whole event. One still in checking is changed where it waits. A live one reads `changes_in_checking` until a person accepts the changes, or stays `live` with them when self-publish is on. An event that started may keep its start. An ended event is 409 `event_has_ended`; a cancelled or not accepted one, or a suspended or closed organiser, is 409 `conflict` with `details.state`. Counts against the twenty a day that posts do.
+         */
+        patch: operations["editOrganiserEvent"];
+        trace?: never;
+    };
+    "/organisers/{id}/events/{eventPostId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                eventPostId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel an event (any member)
+         * @description Applies at once, whatever the organiser's state, and works while organiser pages are paused: everyone going is told once. Cancelling again answers the event as it is. An ended event is 409 `event_has_ended`; a not accepted one is 409 `conflict` with `details.state`. 503 only when the server has no organiser store.
+         */
+        post: operations["cancelOrganiserEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisers/{id}/events/{eventPostId}/numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                eventPostId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * How many are going, tapping through and turning up (any member)
+         * @description Counts only, never a name or an id: who is going stays private. An event that is not live yet has every count 0. Every count is for one date of the event, `on`: a weekly event's current date by default, or one before it. A traveller has one going and one answer per event, so on a past date `going` and `went` count only the people whose latest going is for that date: a regular who has since marked a later week counts on neither. `checkedIn` is the codes for that date used at the door. `ticketTapsAtLeast` is the taps from the day after the date before it ended up to this date's last day (the first date takes every tap before it): a tap does not say which week it was for.
+         */
+        get: operations["getOrganiserEventNumbers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisers/{id}/claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim an event card as the organiser's (owner)
+         * @description An owner says a card Yuvoy found is one of the organiser's own events, and shows it one of three ways: `email_domain` (one of the owner's proven emails is at the event's website), `public_page_code` (the owner posts the code in the answer on a page the organiser controls) or `call_to_published_number` (a person calls the number on the event's own page). A person at Yuvoy checks the claim; the answer is 202 with the claim's id and the words to show. Only a `verified` organiser claims: otherwise 409 `conflict` with `details.state`. An event the caller cannot see, one `getEvent` answers 404 for them, is 404. `getEvent`'s `claimable` says whether a card can be claimed now. Five claims a day per organiser, then 429 with `Retry-After` in seconds.
+         */
+        post: operations["claimEventForOrganiser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2990,13 +4287,41 @@ export interface components {
             kind: "expo";
             token: string;
         };
+        /** @description One app and platform's update rule. */
+        AppUpdateRule: {
+            /**
+             * @description `off`: no prompt. `soft`: below `minimumVersion`, a prompt the person can dismiss; the app stays usable. `required`: below `minimumVersion`, the app is blocked on the update screen.
+             * @enum {string}
+             */
+            mode: "off" | "soft" | "required";
+            /**
+             * @description `MAJOR.MINOR.PATCH`, no leading zeros. `0.0.0` only while `off`.
+             * @example 1.4.0
+             */
+            minimumVersion: string;
+            /**
+             * @description Why staff set it. `required` always has `security_fix` or `contract_break`. Null on a rule nobody has set.
+             * @enum {string|null}
+             */
+            reason: "general" | "security_fix" | "contract_break" | null;
+            /**
+             * Format: date-time
+             * @description When staff last changed it. Null when the server has not read the rules yet.
+             */
+            changedAt: string | null;
+        };
         AppConfig: {
-            /** @description The oldest app build still served, per platform, as `MAJOR.MINOR.PATCH`. An app whose own version is lower shows an update screen. `0.0.0` means no build is refused. */
+            /** @description The oldest app build still served, per platform, as `MAJOR.MINOR.PATCH`. An app whose own version is lower shows an update screen. `0.0.0` means no build is refused. Kept for builds older than `updatePolicy`: it carries a `required` rule's version and never a `soft` one's, so an older build never treats a prompt as a block. A build that reads `updatePolicy` ignores it. */
             minimumVersion: {
                 /** @example 1.0.0 */
                 ios: string;
                 /** @example 1.0.0 */
                 android: string;
+            };
+            /** @description The update rule staff set for this app on each platform (D-052 plan C), changed in the console without a deploy and served at most a minute late. A database fault keeps the last rule, and a server that never read one sends `off`, so a fault never makes the gate stricter. An API older than this sends no `updatePolicy`: read that, or anything malformed, as `off`. */
+            updatePolicy?: {
+                ios: components["schemas"]["AppUpdateRule"];
+                android: components["schemas"]["AppUpdateRule"];
             };
             features: {
                 /**
@@ -3033,6 +4358,11 @@ export interface components {
                 plans?: components["schemas"]["ReleaseStage"];
                 tables?: components["schemas"]["ReleaseStage"];
                 people?: components["schemas"]["ReleaseStage"];
+                creator?: components["schemas"]["ReleaseStage"];
+                supply?: components["schemas"]["ReleaseStage"];
+                me?: components["schemas"]["ReleaseStage"];
+                organiserSelfPublish?: components["schemas"]["ReleaseStage"];
+                trigoActions?: components["schemas"]["ReleaseStage"];
             };
         };
         /**
@@ -3059,10 +4389,10 @@ export interface components {
             /** @description The event's position in the request's `events` list, from 0. */
             index: number;
             /**
-             * @description `invalid_event` is an event that is not an object or is missing `reelId`, `watchedMs`, `completed` or `viewedAt`.
+             * @description `invalid_event` is an event that is not an object or is missing `reelId`, `watchedMs`, `completed` or `viewedAt`. `consent_denied` is every event of a batch sent with the session of a traveller whose analytics choice is `denied`; none of it is stored.
              * @enum {string}
              */
-            reason: "invalid_event" | "invalid_event_id" | "unknown_reel" | "watched_ms_out_of_range" | "invalid_viewed_at" | "viewed_at_in_future" | "viewed_at_too_old";
+            reason: "invalid_event" | "invalid_event_id" | "unknown_reel" | "watched_ms_out_of_range" | "invalid_viewed_at" | "viewed_at_in_future" | "viewed_at_too_old" | "consent_denied";
         };
         MyBookingListItem: {
             /** @description Empty while there is no booking: a request the operator has not answered yet, or one they accepted that is not paid for yet (`holding`). */
@@ -3070,7 +4400,12 @@ export interface components {
             /** @description Always present. What the app matches against the trips saved on the phone when there is no reference yet. */
             reservationId: string;
             experience: string;
+            /**
+             * @deprecated
+             * @description The old name of `hostName`; sent beside it until the traveller cut-over (D-049).
+             */
             operator: string;
+            hostName?: string;
             /** Format: date */
             localDate: string;
             /** @example 06:30 */
@@ -3107,8 +4442,13 @@ export interface components {
             holdExpiresAt?: string;
             /** @description The listing this trip was booked from, for linking back to it. */
             experienceSlug: string;
-            /** @description The business, for linking to its page. */
+            /**
+             * @deprecated
+             * @description The old name of `hostSlug`; sent beside it until the traveller cut-over (D-049).
+             */
             operatorSlug: string;
+            /** @description The business, for linking to its page. */
+            hostSlug?: string;
             /**
              * Format: uri
              * @description The listing's headline picture, resolved exactly as the catalog resolves `heroMedia`: a photograph from the image host or a video's poster. `null` when the listing has none; always sent.
@@ -3198,7 +4538,12 @@ export interface components {
         TripInvitePreview: {
             experience: string;
             experienceSlug: string;
+            /**
+             * @deprecated
+             * @description The old name of `hostName`; sent beside it until the traveller cut-over (D-049).
+             */
             operator: string;
+            hostName: string;
             /** Format: date */
             localDate: string;
             /** @example 06:30 */
@@ -3216,7 +4561,12 @@ export interface components {
             experience: string;
             /** @description Links to the listing, `getExperience`. */
             experienceSlug: string;
+            /**
+             * @deprecated
+             * @description The old name of `hostName`; sent beside it until the traveller cut-over (D-049).
+             */
             operator: string;
+            hostName: string;
             /** Format: date */
             localDate: string;
             /** @example 06:30 */
@@ -3300,6 +4650,8 @@ export interface components {
             cohort?: "staff" | "early" | null;
             /** @description True once the traveller confirmed they are 18 or over (R4-T1). False for an account made before the year was asked: ask it once with `confirmMyAge`. */
             ageConfirmed?: boolean;
+            /** @description Whether the traveller turned on the tools for adding a video of something they went on (R12-T1), set with `updateMyAccount`. False until they do. It shows or hides the tools and gates nothing. */
+            creatorToolsOn?: boolean;
             people?: components["schemas"]["PeopleSummary"];
             /** @description The days the traveller says they are on the island, set with `setMyStay`, or `null` when none is kept. Always present on this API. */
             stay: components["schemas"]["TravellerStay"] | null;
@@ -3313,7 +4665,7 @@ export interface components {
             };
         };
         /**
-         * @description What the traveller may still do in People. `ok` everything; `requests_paused` everything but asking for new friends; `restricted` and `removed` nothing. Always `ok` until reports are decided (R9-T2b).
+         * @description What the traveller may still do in People. `ok` everything; `requests_paused` everything but asking for new friends; `restricted` and `removed` nothing. Set by an automatic pause after reports and by the Yuvoy team's decision on a report.
          * @enum {string}
          */
         PeopleStanding: "ok" | "requests_paused" | "restricted" | "removed";
@@ -3341,8 +4693,32 @@ export interface components {
             requestsIn: components["schemas"]["FriendRequest"][];
             requestsOut: components["schemas"]["FriendRequest"][];
             friendLink: components["schemas"]["FriendLink"] | null;
-            /** @description Upcoming goings that are only me. */
+            /** @description Upcoming goings that are only me, for the first step's offer (`shareUpcomingGoing`). */
             privateUpcomingGoing: number;
+        };
+        /**
+         * @description Who may see a going or a went answer. friends shows only when the person's sharing is friends too.
+         * @enum {string}
+         */
+        ItemVisibility: "only_me" | "friends";
+        /** @description A friend's going or went answer, as listFriendActivity shows it. Never a rating or tags. */
+        FriendActivity: {
+            /** @enum {string} */
+            kind: "going" | "went";
+            /**
+             * Format: date-time
+             * @description The event's start; for a went answer on an event with no date, when it was answered.
+             */
+            at: string;
+            person: components["schemas"]["PersonRef"];
+            event: {
+                /** Format: uuid */
+                eventId: string;
+                title: string;
+                /** Format: date-time */
+                startsAt: string;
+                destinationKey: string;
+            };
         };
         PersonRef: {
             /** Format: uuid */
@@ -3352,6 +4728,94 @@ export interface components {
             /** @description Present only where the caller may see the name. */
             firstName?: string;
             initial: string;
+        };
+        /** @description One entry of a life list, read from a record, with what proves it. */
+        LifeEntry: {
+            /** @description kind:uuid, like trip:{bookingId}. */
+            entryId: string;
+            /** @enum {string} */
+            kind: "trip" | "went" | "plan" | "table";
+            title: string;
+            /** Format: date-time */
+            happenedAt: string;
+            /**
+             * Format: uri
+             * @description The entry's photo once photos are stored (R12-T1); null until then, and the app draws the department art (REQ-R10-01).
+             */
+            photoUrl?: string | null;
+            destinationKey?: string | null;
+            category?: components["schemas"]["Category"] | null;
+            /** @description Trips only; opens the listing. */
+            experienceSlug?: string;
+            /**
+             * Format: uuid
+             * @description Went entries only; opens the card.
+             */
+            eventId?: string;
+            /** @enum {string} */
+            proof: "booked" | "checked_in" | "said_you_went" | "with_friends" | "table_check_in";
+            /** @description True when the record itself proves it happened (an operator's tick or a table check-in). */
+            checked: boolean;
+            /** @description The owner's own rating, on the owner's list only; null on a friend's. */
+            rating?: number | null;
+            visibility: components["schemas"]["ItemVisibility"];
+            cheers: number;
+            /** @description Who cheered. The owner's own list only. */
+            cheeredBy?: components["schemas"]["PersonRef"][];
+            /** @description Whether the caller has cheered it. A friend's list only. */
+            cheeredByMe?: boolean;
+        };
+        /** @description A badge on a friend's page. Computed live over the entries that friend may see, so it has no stored earned date, seen flag or evidence (CAL-121). */
+        FriendBadge: {
+            key: string;
+            name: string;
+            emoji: string;
+            description: string;
+            /**
+             * Format: date
+             * @description Seasons only.
+             */
+            endsOn?: string;
+        };
+        /** @description A badge the caller earned, from the records that earned it. */
+        Badge: {
+            key: string;
+            name: string;
+            emoji: string;
+            description: string;
+            /** Format: date-time */
+            earnedAt: string;
+            /** @description Earned by checked records alone. Only these show to friends. */
+            checked: boolean;
+            /** @description False until the app marks it with `markBadgesSeen`. */
+            seen: boolean;
+            /**
+             * Format: date
+             * @description Seasons only: the season's last day.
+             */
+            endsOn?: string;
+            /** @description The entries that earned it, oldest first. An entry whose record is gone is left out, and the badge stays. */
+            evidence: {
+                /** @description kind:uuid, as on LifeEntry. */
+                entryId: string;
+                title: string;
+                /** Format: date-time */
+                happenedAt: string;
+            }[];
+        };
+        /** @description A badge not earned yet, with how far the caller has got. */
+        BadgeProgress: {
+            key: string;
+            name: string;
+            emoji: string;
+            description: string;
+            have: number;
+            need: number;
+            /**
+             * Format: date
+             * @description Seasons only: the season's last day.
+             */
+            endsOn?: string;
         };
         Friend: {
             /** Format: uuid */
@@ -3397,6 +4861,157 @@ export interface components {
             /** Format: date-time */
             since?: string;
             mutualFriends?: number;
+            /** @description The person's published videos, newest first. Empty while the `creator` release is closed to the caller. */
+            videos: components["schemas"]["ListingVideo"][];
+        };
+        Crew: {
+            /** Format: uuid */
+            crewId: string;
+            /** @description The caller's own name for it, like "College gang". */
+            name: string;
+            members: components["schemas"]["PersonRef"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CrewList: {
+            crews: components["schemas"]["Crew"][];
+        };
+        CrewInput: {
+            name: string;
+            memberIds: string[];
+        };
+        CrewPatch: {
+            name?: string;
+            /** @description Replaces every member the caller can see now; a member People cannot show stays. */
+            memberIds?: string[];
+        };
+        /** @description A group that meets in a place, typed by the Yuvoy team from the group's own public page. Every key is present. */
+        Club: {
+            /** Format: uuid */
+            clubId: string;
+            slug: string;
+            destinationKey: string;
+            name: string;
+            /** @description What the group does, like "Running club". */
+            what: string;
+            category: components["schemas"]["Category"] | null;
+            /** @description When it meets, in the group's own words, like "Sundays, 6 am". Not checked by Yuvoy. */
+            meets: string | null;
+            /** @description The part of town it meets in. */
+            area: string | null;
+            emoji: string;
+            /** @description Shown as "From <sourceName>". */
+            sourceName: string;
+            /**
+             * Format: uri
+             * @description The group's own public page.
+             */
+            sourceUrl: string;
+            /** @description True once somebody who runs the group has claimed it. False reads "Not on Yuvoy yet". */
+            onYuvoy: boolean;
+        };
+        ClubList: {
+            clubs: components["schemas"]["Club"][];
+        };
+        ClubClaimInput: {
+            /** @description What the person does in the group, in their words. */
+            roleText: string;
+            /**
+             * Format: email
+             * @description Where the team writes back. Shown to staff only.
+             */
+            contactEmail: string;
+            /**
+             * Format: uri
+             * @description A page of the group's own that names them, if there is one.
+             */
+            proofUrl?: string;
+            note?: string;
+        };
+        ClubClaimReceipt: {
+            /** Format: uuid */
+            claimId: string;
+            /** @description Words to show, verbatim. */
+            message: string;
+        };
+        EventClaimReceipt: {
+            /** Format: uuid */
+            claimId: string;
+            /** @description Words to show, verbatim. */
+            message: string;
+            /**
+             * @description Only for public_page_code. The code to post on a page the organiser controls, its own website or its own social page, never the event's card, its ticket page or the list we found it on.
+             * @example YUVOY-7KQ4MX
+             */
+            proofCode?: string;
+        };
+        ClubRemovalRequest: {
+            /**
+             * @description `we_run_it_and_want_off` hides the listing at once; the others wait for a person.
+             * @enum {string}
+             */
+            reason: "we_run_it_and_want_off" | "not_a_real_group" | "other";
+            note?: string;
+        };
+        ClubRemovalReceipt: {
+            /** @description True when the listing is hidden now. */
+            removed: boolean;
+            /** @description Words to show, verbatim. */
+            message: string;
+        };
+        ClubReport: {
+            /** @enum {string} */
+            reason: "not_a_real_group" | "wrong_details" | "offensive" | "other";
+            /** @description Required when `reason` is `other`. */
+            note?: string;
+        };
+        ClubReportReceipt: {
+            /** @description Words to show, verbatim. */
+            message: string;
+        };
+        BlockList: {
+            /** @description Newest first. */
+            blocked: components["schemas"]["BlockedPerson"][];
+        };
+        BlockedPerson: {
+            person: components["schemas"]["PersonRef"];
+            /**
+             * Format: date-time
+             * @description When the caller blocked them.
+             */
+            since: string;
+        };
+        /** @enum {string} */
+        PersonReportReason: "harassment" | "unwanted_requests" | "impersonation" | "offensive_name" | "under_18" | "unsafe_in_person" | "scam" | "other";
+        /**
+         * @description Where in the app the report was made from.
+         * @enum {string}
+         */
+        PersonReportContextKind: "profile" | "friend_request" | "friend_link" | "going" | "activity" | "plan" | "table" | "life_list" | "cheer";
+        PersonReport: {
+            reason: components["schemas"]["PersonReportReason"];
+            /** @description Required when `reason` is `other`. */
+            note?: string;
+            contextKind: components["schemas"]["PersonReportContextKind"];
+            /**
+             * Format: uuid
+             * @description The id of what the report was made from, when it has one.
+             */
+            contextRef?: string;
+            /**
+             * @description Block the person in the same request.
+             * @default false
+             */
+            alsoBlock: boolean;
+        };
+        PersonReportReceipt: {
+            /**
+             * Format: uuid
+             * @description The open report: this one, or the one already open about this person.
+             */
+            reportId: string;
+            /** @description Words to show, verbatim. */
+            message: string;
         };
         /** @description Days in the market's own calendar (Asia/Kolkata), `YYYY-MM-DD`. */
         TravellerStay: {
@@ -3429,6 +5044,57 @@ export interface components {
             /** @description When somebody is there to reply, in words. */
             hours: string;
         };
+        BookingMove: {
+            /** @description With a session, the booking to move. Ignored with the booking's own link. */
+            reference?: string | null;
+            /**
+             * Format: uuid
+             * @description A departure of the same experience.
+             */
+            toSlotId: string;
+            /**
+             * Format: date-time
+             * @description The departure's startsAt as it was shown. A different start answers 409 stale_availability.
+             */
+            expectStartsAt: string;
+            /**
+             * Format: uuid
+             * @description The Trigo card this change was confirmed from. Required until the release reaches everybody.
+             */
+            trigoActionId?: string | null;
+        };
+        BookingAddPerson: {
+            /** @description As for BookingMove. */
+            reference?: string | null;
+            extraPeople: number;
+            /** @description The booking's new total as it was shown: the price agreed at checkout for each person, or the same total for a booking priced per group. A different total answers 409 price_moved. */
+            expectTotalPaise: number;
+            /** @description The listing's safety questions for the added people, as checkout asks them. */
+            screening?: {
+                declaredClear?: boolean | null;
+                /** @description One per added person. */
+                ageBands?: string[];
+            };
+            /**
+             * Format: uuid
+             * @description As for BookingMove.
+             */
+            trigoActionId?: string | null;
+        };
+        /** @description The booking as it stands after the change. */
+        BookingChange: {
+            reference: string;
+            /** @enum {string} */
+            kind: "move" | "add_people";
+            /** Format: date */
+            localDate: string;
+            /** @description HH:MM where the departure leaves. */
+            localTime: string;
+            guests: number;
+            /** @description The cash to pay at the counter on the day, in paise. */
+            payAtCounterPaise: number;
+            currency: string;
+        };
         Error: {
             error: {
                 code: components["schemas"]["ErrorCode"];
@@ -3443,7 +5109,7 @@ export interface components {
          * @description A closed set, so a client can branch on the machine-readable code and never on the message. Codes are added by contract change, never invented at the call site.
          * @enum {string}
          */
-        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "payload_too_large" | "unclassified_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "answers_closed" | "answers_required" | "not_reviewable_yet" | "already_reviewed" | "review_window_closed" | "invalid_reason_code" | "refund_quote_moved" | "price_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "under_age_sign_up" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable" | "unavailable" | "messages_closed" | "invite_required" | "invite_code_unknown" | "invite_code_used" | "invite_code_expired" | "account_deletion_pending" | "sign_in_unavailable" | "identity_taken" | "identity_kind_taken" | "fresh_sign_in_required" | "invalid_push_token" | "event_not_open" | "adult_confirmation_required" | "consent_required" | "turn_in_progress" | "daily_limit_reached" | "plans_unavailable" | "plan_full" | "plan_closed" | "plan_limit_reached" | "tables_unavailable" | "table_closed" | "table_full" | "table_request_limit" | "table_banned" | "women_only" | "people_paused" | "name_required" | "friend_limit_reached" | "friend_link_expired" | "friend_link_full" | "crew_limit_reached" | "not_friends";
+        ErrorCode: "invalid_input" | "unauthorized" | "not_found" | "conflict" | "rate_limited" | "method_not_allowed" | "not_implemented" | "internal_error" | "payload_too_large" | "unclassified_error" | "capacity_unavailable" | "request_quota_exhausted" | "request_window_closed" | "grant_ceiling_exceeded" | "cutoff_passed" | "stale_availability" | "booking_disabled" | "operator_not_bookable" | "host_not_bookable" | "idempotency_key_malformed" | "idempotency_key_reuse" | "idempotency_in_progress" | "token_expired" | "reservation_not_payable" | "answers_closed" | "answers_required" | "not_reviewable_yet" | "already_reviewed" | "review_window_closed" | "invalid_reason_code" | "refund_quote_moved" | "price_moved" | "screening_required" | "screening_needs_a_doctor" | "under_minimum_age" | "booking_not_changeable" | "booking_departed" | "change_needs_a_person" | "under_age_sign_up" | "refund_requires_finance" | "confirmation_required" | "invalid_role" | "payments_unavailable" | "media_unavailable" | "unavailable" | "messages_closed" | "invite_required" | "invite_code_unknown" | "invite_code_used" | "invite_code_expired" | "account_deletion_pending" | "sign_in_unavailable" | "identity_taken" | "identity_kind_taken" | "fresh_sign_in_required" | "invalid_push_token" | "event_not_open" | "adult_confirmation_required" | "consent_required" | "turn_in_progress" | "daily_limit_reached" | "plans_unavailable" | "plan_full" | "plan_closed" | "plan_limit_reached" | "tables_unavailable" | "table_closed" | "table_full" | "table_request_limit" | "table_banned" | "women_only" | "people_paused" | "name_required" | "friend_limit_reached" | "friend_link_expired" | "friend_link_full" | "crew_limit_reached" | "not_friends" | "action_changed" | "action_expired" | "date_alerts_full" | "uploads_paused" | "photos_unavailable" | "caption_has_contact" | "not_went" | "not_open_yet" | "video_already_posted" | "upload_in_progress" | "not_arrived" | "media_refused" | "caption_locked" | "photo_limit_reached" | "already_on_yuvoy" | "age_locked" | "organisers_paused" | "not_a_member" | "not_owner" | "no_account_with_that_email" | "event_has_ended" | "organiser_email_required" | "not_club_holder" | "club_already_linked" | "own_code" | "check_in_not_today" | "claim_already_open" | "follow_limit_reached";
         Money: {
             /**
              * @description Amount in the currency's minor unit (paise for INR)
@@ -3452,6 +5118,45 @@ export interface components {
             amountMinor: number;
             /** @example INR */
             currency: string;
+        };
+        /** @description A business that is not on Yuvoy: four facts and the public page they came from, nothing else. */
+        SupplierListing: {
+            slug: string;
+            name: string;
+            category: components["schemas"]["Category"];
+            destinationKey: components["schemas"]["DestinationKey"];
+            placeName: string;
+            /** @example example.com */
+            sourceHost: string;
+            /** Format: uri */
+            sourceUrl: string;
+            /** @description True only when a person at Yuvoy checked it is a real business at this place. It is still not on Yuvoy. */
+            checked: boolean;
+            /**
+             * @description `listed`: not on Yuvoy. `joining`: the business claimed it and its papers are not checked yet. `on_yuvoy`: it sells on Yuvoy, see `hostSlug`.
+             * @enum {string}
+             */
+            state: "listed" | "joining" | "on_yuvoy";
+            /**
+             * @deprecated
+             * @description The old name of `hostSlug`; sent beside it until the traveller cut-over (D-049).
+             */
+            operatorSlug?: string;
+            /** @description Present only when `state` is `on_yuvoy`. */
+            hostSlug?: string;
+            /** @description Whether the business can claim this listing from the operator portal. Present while `state` is `listed`: `true` when no claim is open on it, `false` while one waits for our team. Absent once the business is `joining` or `on_yuvoy`. */
+            claimable?: boolean;
+        };
+        SupplierListingList: {
+            items: components["schemas"]["SupplierListing"][];
+            /** @description Told rather than inferred, as on `listEvents`. */
+            complete: boolean;
+            /** @description Absent when there is nothing after this page. */
+            nextCursor?: string;
+        };
+        SupplierRemoval: {
+            /** @enum {string} */
+            reason: "owner_request" | "closed_down" | "wrong_details" | "other";
         };
         /** @enum {string} */
         Category: "adventure" | "nature_wildlife" | "food_drink" | "arts_creativity" | "learning" | "culture_heritage" | "wellness" | "entertainment" | "community" | "sports" | "local_life" | "events";
@@ -3466,6 +5171,143 @@ export interface components {
             name: string;
             tier: components["schemas"]["ProviderTier"];
             verified?: boolean;
+        };
+        /** @description A traveller's own video, or private photo, of something they went on, as its owner reads it (R12-T1), or a picture a member added to their organiser's event (`organiser_image`, R11-T2). A picture's target is the event's card; it has no `wentOn`, caption or `playback`, and is never `held` or `private`. */
+        CreatorUpload: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            purpose: "listing_video" | "went_photo" | "organiser_image";
+            /**
+             * @description `uploading` until the file is sent and `completeMyUpload` called; `in_review` while a person looks; `published` once shown; `held` while reports are looked at; `rejected` with `rejection`; `private` for a photo, kept for you alone; `failed` when the file was refused or never sent.
+             * @enum {string}
+             */
+            state: "uploading" | "in_review" | "published" | "held" | "rejected" | "private" | "deleted" | "failed";
+            /**
+             * Format: date
+             * @description The day the traveller went. Absent for an organiser's picture.
+             */
+            wentOn?: string;
+            /**
+             * Format: uuid
+             * @description The organiser whose event the picture is of. Pictures only.
+             */
+            organiserId?: string;
+            target: {
+                /** @enum {string} */
+                kind: "experience" | "event";
+                /** Format: uuid */
+                id: string;
+                /** @description Experiences only. */
+                slug?: string;
+                title: string;
+            };
+            caption?: string;
+            /** @description Present when the video or picture was not accepted. */
+            rejection?: {
+                code: string;
+                /** @description Why, in plain words for the person who filmed it or took the picture. */
+                sentence: string;
+            };
+            /** @description The business took it off its listing. It stays on your profile. */
+            hiddenFromListing: boolean;
+            /** @description Present once the video is published. */
+            playback?: components["schemas"]["Media"];
+            /**
+             * Format: uri
+             * @description An organiser's picture once it is published; absent otherwise.
+             */
+            imageUrl?: string;
+            /**
+             * Format: uri
+             * @description Photos only, once private. A signed read for its owner that works for 5 minutes. Do not store it or send it anywhere else.
+             */
+            photoUrl?: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description A traveller's share link to something they went on (R12-T2), as its owner reads it. Counts only, and indicative: the code arrives from the browser, so they are never the basis of a perk or a payout. */
+        CreatorLink: {
+            /** @example C-K7QM2XPA */
+            code: string;
+            /**
+             * Format: uri
+             * @example https://app.yuvoy.in/go/C-K7QM2XPA
+             */
+            link: string;
+            target: {
+                /** @enum {string} */
+                kind: "experience" | "event";
+                /** Format: uuid */
+                id: string;
+                /** @description Experiences only. */
+                slug?: string;
+                title: string;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Opens counted without identifying anybody; not people. */
+            opens30Days: number;
+            opensTotal: number;
+            /** @description Bookings through the link that are paid, confirmed or completed. No amounts, no names. */
+            bookings: number;
+            /**
+             * Format: date
+             * @description The day the latest of them was booked. Absent when there is none.
+             */
+            lastBookingOn?: string;
+        };
+        CreatorUploadStart: {
+            /**
+             * @description `listing_video` is a video others see once staff approve it. `went_photo` is a private photo only its owner sees. `organiser_image` is a member's picture for their organiser's live event: send `eventId` and no `experienceId`, `caption` or `contentType`.
+             * @enum {string}
+             */
+            purpose: "listing_video" | "went_photo" | "organiser_image";
+            /**
+             * Format: uuid
+             * @description Exactly one of experienceId and eventId. Never for a picture.
+             */
+            experienceId?: string;
+            /**
+             * Format: uuid
+             * @description Exactly one of experienceId and eventId. A picture names the event's card.
+             */
+            eventId?: string;
+            /** @description The file's own size. Photos and pictures: at most 5242880. */
+            sizeBytes: number;
+            /**
+             * @description Photos only, and required for one; a video or picture start that sends it is a `400`.
+             * @enum {string}
+             */
+            contentType?: "image/jpeg" | "image/png";
+            /** @description The statement as it was shown. Videos and pictures only, and required for each; a photo start that sends either is a `400`. */
+            statement?: {
+                /**
+                 * @description `organiser_image` for a picture, with that statement's version and digest.
+                 * @default creator_video
+                 * @enum {string}
+                 */
+                kind: "creator_video" | "organiser_image";
+                version: number;
+                sha256: string;
+            };
+            /**
+             * @description Videos and pictures only, and required for each; a photo start that sends either is a `400`.
+             * @constant
+             */
+            peopleConsentConfirmed?: true;
+            /** @description Never for a picture: a picture start that sends it is a `400`. */
+            caption?: string;
+        };
+        ListingVideo: {
+            /** Format: uuid */
+            id: string;
+            /** @description Empty when the person gave none; say someone who went. */
+            firstName: string;
+            /** Format: date */
+            wentOn: string;
+            caption?: string;
+            playback: components["schemas"]["Media"];
         };
         Media: {
             id: string;
@@ -3613,7 +5455,12 @@ export interface components {
              */
             pricingUnitLabel?: string;
             heroMedia?: components["schemas"]["Media"];
+            /**
+             * @deprecated
+             * @description The old name of `host`; sent beside it until the traveller cut-over (D-049).
+             */
             operator: components["schemas"]["OperatorSummary"];
+            host?: components["schemas"]["OperatorSummary"];
             /**
              * Format: date
              * @description The next departure a traveller could actually book, as a date in the MARKET's timezone.
@@ -3756,8 +5603,11 @@ export interface components {
              * @description When a human last confirmed this seat count with the operator.
              */
             asOf: string;
-            /** @enum {string} */
-            verifiedVia?: "manifest_call" | "operator_message" | "operator_portal" | "ops_correction";
+            /**
+             * @description `host_message` and `host_portal` are the D-049 names of `operator_message` and `operator_portal`, listed so clients accept them; the API sends the old ones until the traveller cut-over.
+             * @enum {string}
+             */
+            verifiedVia?: "manifest_call" | "operator_message" | "operator_portal" | "host_message" | "host_portal" | "ops_correction";
             /**
              * @description True when nobody has confirmed this seat count with the operator in over 24 hours.
              *
@@ -3906,16 +5756,20 @@ export interface components {
          *
          *     Frozen at checkout alongside the price and the policy, and inherited by the booking at capture rather than re-read. At capture the traveller is arriving back from a payment provider's redirect, so anything read then would attribute every booking to the provider.
          *
-         *     Sent as part of the request body, so it is covered by the idempotency fingerprint: a retry that changes it is refused rather than silently re-attributing a booking that already exists.
+         *     Not part of the idempotency fingerprint: a retry with the same key replays the first reservation and its attribution, whatever this field says, so a retry cannot re-attribute a booking that already exists.
          */
         Attribution: {
             /**
-             * @description Anything outside this set is stored as `unknown` rather than rejected — a checkout must not fail over a marketing field.
+             * @description `host` and `operator` are the same source (D-049) and either is accepted.
+             *
+             *     Anything outside this set is stored as `unknown` rather than rejected — a checkout must not fail over a marketing field.
+             *
+             *     `creator` is a traveller's own link; `scanCode` names it. It is kept only when `scanCode` is an active creator link that is not the booker's own (by account or by contact number); otherwise the checkout is stored as `direct` with no code, and is never refused for it.
              *
              *     `web` is **our own marketing site**, and is deliberately not `referral`, which means somebody else's site, nor `direct`, which means the address was typed. A person who read `yuvoy.in` and tapped through did neither, and filing them under either name makes the funnel unreadable a quarter later.
              * @enum {string}
              */
-            source?: "qr" | "direct" | "search" | "social" | "referral" | "operator" | "web" | "unknown";
+            source?: "qr" | "direct" | "search" | "social" | "referral" | "operator" | "host" | "web" | "unknown" | "creator";
             /** @description Which card, which boat, which door. */
             placement?: string;
             campaign?: string;
@@ -4096,7 +5950,9 @@ export interface components {
         BookingStatus: {
             reservationId: string;
             /**
-             * @description Computed server-side from the reservation, fulfilment, payment and refund machines. Never stored, and never to be derived client-side.
+             * @description `awaiting_host` is the D-049 name of `awaiting_operator`, listed so clients accept it; the API sends the old one until the traveller cut-over.
+             *
+             *     Computed server-side from the reservation, fulfilment, payment and refund machines. Never stored, and never to be derived client-side.
              *
              *     `verifying` means money may have moved and the outcome is not yet settled. **Never render it as failure** — "if money left your account it is safe" is the only honest copy for that window. It is also what the server says when a booking exists but is not yet visible: claiming a confirmed seat we cannot prove is the one thing this endpoint must never do.
              *
@@ -4105,7 +5961,7 @@ export interface components {
              *     `declined` means money was taken and the seat could not be delivered; a full refund is already recorded and `refund` carries where it is.
              * @enum {string}
              */
-            state: "holding" | "awaiting_operator" | "expired" | "released" | "verifying" | "confirmed" | "declined" | "cancelled" | "completed" | "no_show";
+            state: "holding" | "awaiting_operator" | "awaiting_host" | "expired" | "released" | "verifying" | "confirmed" | "declined" | "cancelled" | "completed" | "no_show";
             /** @description `true` when this state cannot change on its own — stop polling. */
             final: boolean;
             /**
@@ -4121,9 +5977,19 @@ export interface components {
             experience: {
                 slug: string;
                 title: string;
+                /**
+                 * @deprecated
+                 * @description The old name of `hostName`; sent beside it until the traveller cut-over (D-049).
+                 */
                 operator: string;
-                /** @description The business, for linking to its page. */
+                hostName: string;
+                /**
+                 * @deprecated
+                 * @description The old name of `hostSlug`; sent beside it until the traveller cut-over (D-049).
+                 */
                 operatorSlug: string;
+                /** @description The business, for linking to its page. */
+                hostSlug: string;
                 /**
                  * Format: uri
                  * @description The listing's headline picture, resolved as the catalog resolves `heroMedia`. `null` when the listing has none; always sent.
@@ -4214,7 +6080,10 @@ export interface components {
              */
             requestExpiresAt?: string;
             /**
-             * @description What the operator has told everybody on this departure — a time change, a meeting point, a weather watch. Absent when there are none; the key is omitted rather than sent empty.
+             * @deprecated
+             * @description The old name of `hostUpdates`, the same list, sent beside it until the traveller cut-over (D-049).
+             *
+             *     What the host has told everybody on this departure: a time change, a meeting point, a weather watch. Absent when there are none; the key is omitted rather than sent empty.
              *
              *     This is where a relay note lands. Free text an operator writes is shown HERE and never sent to a phone, so a traveller who is told "see your booking page" has somewhere to look.
              */
@@ -4232,6 +6101,24 @@ export interface components {
                  * @enum {string}
                  */
                 intent?: "time_change" | "meeting_point_change" | "weather_watch" | "bring_item" | "note";
+                detail?: string;
+                note?: string;
+                /** Format: date-time */
+                sentAt: string;
+            }[];
+            /**
+             * @description What the host has told everybody on this departure: a time change, a meeting point, a weather watch. Absent when there are none; the key is omitted rather than sent empty. The same list as the old `operatorUpdates`.
+             *
+             *     This is where a relay note lands. Free text a host writes is shown HERE and never sent to a phone, so a traveller who is told "see your booking page" has somewhere to look.
+             */
+            hostUpdates?: {
+                /**
+                 * @description What sort of update this is.
+                 * @enum {string}
+                 */
+                kind: "time_change" | "meeting_point_change" | "weather_watch" | "bring_item" | "note";
+                /** @description Who sent it: the business's display name. An update about somebody's morning that appears from nobody is not reassuring. */
+                from: string;
                 detail?: string;
                 note?: string;
                 /** Format: date-time */
@@ -4276,10 +6163,10 @@ export interface components {
             /** @description Send it as `upTo` to mark this message and everything before it read. */
             id: string;
             /**
-             * @description `traveller` is the person holding this link; `operator` is the business.
+             * @description `traveller` is the person holding this link; `operator` is the business. `host` is the business's D-049 name, listed so clients accept it; the API sends `operator` until the traveller cut-over.
              * @enum {string}
              */
-            from: "traveller" | "operator";
+            from: "traveller" | "operator" | "host";
             /** @description The name to show beside it: the name given at checkout on the traveller's messages, and the business's name on the business's. */
             senderName: string;
             /** @description What was written, trimmed, with its line breaks. Every message carries exactly one of `text` and `textRemovedAt`, and a message that was just sent always carries `text`. */
@@ -4436,15 +6323,16 @@ export interface components {
             gettingHome: string;
             costNote?: string;
             seatsMax: number;
-            /** @description Approved guests. The host is not counted. */
+            /** @description Approved guests. The leader is not counted. May read as full to a caller for reasons the server does not give. */
             seatsTaken: number;
             full: boolean;
             womenOnly: boolean;
-            host: {
+            /** @description Who leads the table, a person from the Yuvoy team or from a partner club. */
+            leader: {
                 /** @enum {string} */
                 kind: "team" | "partner_club";
                 firstName: string;
-                /** @description Only when a partner club hosts. */
+                /** @description Only when a partner club leads it. */
                 clubName?: string;
             };
             /** @description The event the table is around, when there is one. */
@@ -4470,7 +6358,7 @@ export interface components {
              * @enum {string}
              */
             status: "listed" | "in_review" | "cancelled" | "ended";
-            /** @description First names of approved guests, only to somebody with a live request or seat. On a women-only table, only to approved guests: a request alone sees `seatsTaken`. */
+            /** @description First names of approved guests, only to somebody with a live request or seat. On a women-only table, only to approved guests: a request alone sees `seatsTaken`. An approved guest the caller has blocked, or who blocked the caller, is `A guest`. */
             whoIsGoing?: string[];
             /** @description Only to an approved guest, while the table is listed and for 30 days after it ended. */
             venue?: {
@@ -4551,6 +6439,11 @@ export interface components {
              * @description http or https only, and never a host on the finder's blocked list; absent when there is no safe link.
              */
             seeDetailsUrl?: string;
+            /**
+             * Format: uri
+             * @description The picture the card's organiser added, once staff approved it (R11-T2): the `card` size on a list, a going or a save, and the `hero` size on `getEvent`. Absent when there is none; draw the department's art then.
+             */
+            imageUrl?: string;
         };
         FoundItemPrice: {
             /**
@@ -4602,6 +6495,8 @@ export interface components {
             /** @description A checked, live item in a place open to all while `explore` is `all`. */
             indexable: boolean;
             stated: components["schemas"]["StatedFacts"];
+            /** @description True when an organiser may claim this event now: it has no organiser, no claim is waiting on it, and its facts fit an organiser's post (claimEventForOrganiser). Always false for a caller who is signed out. */
+            claimable: boolean;
         };
         /** @description What the item's page states, each only as the page states it; nobody checked it. Always present, whatever the `checkedCities` stage: show the block only while `checkedCities` is open to the caller. */
         StatedFacts: {
@@ -4648,7 +6543,7 @@ export interface components {
              */
             hidden: "everyone" | "you";
             /**
-             * @description Only for a signed-in reporter with a phone number.
+             * @description Only for a signed-in reporter.
              * @example SR-3F9A12C0
              */
             reference?: string;
@@ -4756,17 +6651,17 @@ export interface components {
          */
         OutcomeKind: "shown" | "opened" | "saved" | "shared" | "link_out" | "problem_reported";
         /**
-         * @description Where it happened. `shared_link` is a reel or listing opened from a link somebody shared. `found_feed` is `listEvents` and `found_detail` is `getEvent`, both with subject `event` (R2-T1).
+         * @description Where it happened. `shared_link` is a reel or listing opened from a link somebody shared. `found_feed` is `listEvents` and `found_detail` is `getEvent`, both with subject `event` (R2-T1). `trigo` is an opened card cited by Trigo (R5-T5).
          * @enum {string}
          */
-        OutcomeSurface: "feed" | "search" | "listing" | "saved" | "business" | "shared_link" | "found_feed" | "found_detail";
+        OutcomeSurface: "feed" | "search" | "listing" | "saved" | "business" | "shared_link" | "found_feed" | "found_detail" | "trigo";
         DroppedOutcomeEvent: {
             /** @description The event's position in the request's `events` list, from 0. */
             index: number;
             /** @enum {string} */
             reason: "invalid_event" | "invalid_event_id" | "unknown_kind" | "unknown_surface" | "unknown_subject" | "position_out_of_range" | "invalid_occurred_at" | "occurred_at_in_future" | "occurred_at_too_old" | "consent_denied";
         };
-        /** @description One thing the traveller said they are going to. Seen by them only. Show every time in timezone. */
+        /** @description One thing the traveller said they are going to. Seen in full by them only; friends see at most that they are going (visibility). Show every time in timezone. */
         Going: {
             /**
              * Format: uuid
@@ -4807,8 +6702,29 @@ export interface components {
             wentAnswer: components["schemas"]["WentAnswer"] | null;
             /** @description The card as it is now, or null once it is no longer listed or its place is not one you may see. An ended item keeps its card with status ended. */
             event: components["schemas"]["FoundItem"] | null;
+            visibility: components["schemas"]["ItemVisibility"];
+            /** @description What to show at the door. Present only on a going to an event of an organiser Yuvoy has checked, with a date, from the day before its first day, while organiser pages are not paused. The QR encodes `link`. One code for each date of an event that repeats. */
+            checkIn?: {
+                /** @example K7QM-2XPA */
+                code: string;
+                /**
+                 * Format: uri
+                 * @example https://app.yuvoy.in/door#K7QM2XPA
+                 */
+                link: string;
+                /**
+                 * Format: date
+                 * @description The event's first day in its place. The code also works the day before.
+                 */
+                validOn: string;
+                /**
+                 * Format: date-time
+                 * @description When the code was used at the door; null until then.
+                 */
+                checkedInAt: string | null;
+            };
         };
-        /** @description A Did you go answer. Seen by the traveller only. */
+        /** @description A Did you go answer. Seen in full by the traveller only; friends see at most that they went (visibility), never the rating or tags. */
         WentAnswer: {
             went: boolean;
             rating: number | null;
@@ -4817,6 +6733,7 @@ export interface components {
             proof: "self" | "check_in";
             /** Format: date-time */
             answeredAt: string;
+            visibility: components["schemas"]["ItemVisibility"];
         };
         SavedEventPage: {
             items: components["schemas"]["SavedEvent"][];
@@ -4858,6 +6775,10 @@ export interface components {
              * @enum {string|null}
              */
             cityTime?: "visiting" | "under_a_year" | "longer" | null;
+            /** @description The languages the person is happy to use, at most four. Kept and shown back; nothing else reads them yet. */
+            languages: ("en" | "hi" | "te" | "kn")[];
+            /** @description False hides women-only tables from the person's own table lists, read with a session. True when never set. */
+            showWomenOnlyTables: boolean;
         };
         TrigoTurnInput: {
             /**
@@ -4903,12 +6824,37 @@ export interface components {
             /** @description First name of the person from the Yuvoy team, on team and system messages. */
             staffName?: string | null;
             removed: boolean;
-            /** @description On a Trigo reply whose turn's traveller message held a link: the link's host. Trigo never opens a link, so show it as not checked yet, with "Ask the team to check", which sends this message's id to requestTrigoHandoff. Null on every other message, and once the traveller's text is removed after 90 days. */
+            /** @description On a Trigo reply whose turn's traveller message held a link: the link's domain. Trigo never opens a link, so show it as not checked yet, with "Ask the team to check", which sends this message's id to requestTrigoHandoff. Null on every other message, and once the traveller's text is removed after 90 days. */
             linkNotChecked?: components["schemas"]["TrigoLinkNotChecked"] | null;
+            /** @description On a Trigo reply that carries a confirm card (R6-T1): the card, as the server wrote it from our records when it was made, and what became of it. Null on every other message. Nothing is booked, changed or charged until the traveller confirms it; a book card hands them to the existing checkout. */
+            actionCard?: components["schemas"]["TrigoActionCard"] | null;
+        };
+        TrigoActionCard: {
+            /** Format: uuid */
+            actionId: string;
+            /** @enum {string} */
+            kind: "book" | "move_booking" | "add_people" | "date_alert" | "trip_draft";
+            /**
+             * @description expired once a proposed card is past expiresAt. A confirmed book card stays confirmed while a reservation made under its key is live (a hold not past its expiry, or a request waiting for the business), past expiresAt too, and confirm answers the same checkout; it reads expired past expiresAt when no reservation was made, or once the reservation ended with no booking. used once a booking carries a book card, and once a date-alert or trip-draft card is confirmed.
+             * @enum {string}
+             */
+            state: "proposed" | "confirmed" | "declined" | "expired" | "used" | "superseded";
+            /** Format: date-time */
+            expiresAt: string;
+            /** @description Server words: Check before I book, Check before I send, Confirm the change, One tap, Your trip draft. */
+            heading: string;
+            /** @description Server-written facts, such as 'Sat, 18 Oct · 08:00', '₹7,000 for 2 people', the payment line and the cancellation summary. */
+            lines: string[];
+            /** @description Confirm, Send, Move it, Add 2, Tell me, Save draft. */
+            confirmLabel: string;
+            /** @enum {string} */
+            declineLabel: "Not now";
+            /** @description Set once a reservation carries this card, or for a change. */
+            bookingReference?: string | null;
         };
         TrigoLinkNotChecked: {
             /** @example insider.in */
-            host: string;
+            domain: string;
         };
         TrigoCard: {
             /** @example exp:havelock-try-dive */
@@ -4985,6 +6931,98 @@ export interface components {
             /** @description The notice to show before the first message, word for word. */
             noticeText: string;
             acceptedVersion?: string | null;
+        };
+        TrigoActionConfirmation: {
+            /** Format: uuid */
+            actionId: string;
+            /** @enum {string} */
+            state: "confirmed" | "used";
+            /** @description Exactly one of checkout, change, done and handoff. */
+            next: {
+                checkout: {
+                    experienceSlug: string;
+                    /** Format: uuid */
+                    slotId: string;
+                    /** Format: date */
+                    localDate: string;
+                    guests: number;
+                    expectTotalPaise: number;
+                    /** @description trg_ and the action id; use it for POST /reservations unless the traveller changes the body. */
+                    idempotencyKey: string;
+                    /** @enum {string} */
+                    mode?: "allotment" | "request";
+                };
+            } | {
+                change: {
+                    bookingReference: string;
+                    /** @enum {string} */
+                    kind: "move" | "add_people";
+                    /** Format: uuid */
+                    toSlotId?: string | null;
+                    /** Format: date-time */
+                    expectStartsAt?: string | null;
+                    extraPeople?: number | null;
+                    expectTotalPaise: number;
+                    needsScreening: boolean;
+                };
+            } | {
+                done: {
+                    /** Format: uuid */
+                    alertId?: string | null;
+                    /** Format: uuid */
+                    draftId?: string | null;
+                };
+            } | {
+                handoff: components["schemas"]["TrigoMessage"];
+            };
+        };
+        TrigoDateAlert: {
+            /** Format: uuid */
+            id: string;
+            card: components["schemas"]["TrigoCard"];
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description When the traveller was told the listing has a date; null while the alert waits.
+             */
+            notifiedAt: string | null;
+        };
+        TrigoTripDraft: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** @description The market or destination key the draft was planned for, such as andaman or andaman/havelock. */
+            destinationKey: string;
+            /** Format: date */
+            dateFrom: string;
+            /** Format: date */
+            dateTo: string;
+            days: components["schemas"]["TrigoTripDraftDay"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        TrigoTripDraftDay: {
+            /** Format: date */
+            date: string;
+            cards: components["schemas"]["TrigoCard"][];
+        };
+        TrigoMemory: {
+            items: {
+                /** @enum {string} */
+                subjectType: "booking" | "going" | "save" | "department";
+                /** @description A reservation id, a found item id or a Category key; the subjectId to hide it with. */
+                subjectId: string;
+                /** @description What the app shows, such as the listing's title or the department's name. */
+                label: string;
+                /** @description Always null for now: cards served today carry only their id, and the card's facts come with R5-T1d and R5-T2. */
+                card?: components["schemas"]["TrigoCard"] | null;
+            }[];
+            /**
+             * Format: date-time
+             * @description When the traveller last cleared all, null for never.
+             */
+            clearedAt: string | null;
         };
         /**
          * @description Launch market. Extensible; `andaman` is simply the first.
@@ -5193,16 +7231,16 @@ export interface components {
         PlanShare: {
             /**
              * Format: uuid
-             * @description Host view only.
+             * @description Planner view only.
              */
             memberId?: string;
-            /** @description Host view only. */
+            /** @description Planner view only. */
             name?: string;
             /** @description Whole rupees, in paise. */
             amountMinor: number;
             /** @description The person ticked "I've paid". Yuvoy cannot check it. */
             paidMarked: boolean;
-            /** @description The host ticked "Got it". */
+            /** @description The planner ticked "Got it". */
             receivedMarked: boolean;
             /** @description `upi://pay?pa=...&pn=...&am=...&cu=INR&tn=...` for this share, built by the API. Absent on the payer's own share and on a zero share. Not every UPI app opens such a link: always show the UPI ID and amount as text too. */
             payLink?: string;
@@ -5221,21 +7259,22 @@ export interface components {
             paidCount: number;
             shareCount: number;
             mine?: components["schemas"]["PlanShare"];
-            /** @description Host view only. */
+            /** @description Planner view only. */
             shares?: components["schemas"]["PlanShare"][];
         };
         PlanPerson: {
             /**
              * Format: uuid
-             * @description The host sees it on every row. A signed-in member sees it on their own row and on each other signed-in member's row, to ask them to be friends (requestFriend via plan); never on the row of a guest with no account. A visitor by link never sees it.
+             * @description The planner sees it on every row. A signed-in member sees it on their own row and on each other signed-in member's row, to ask them to be friends (requestFriend via plan); never on the row of a guest with no account. Never on the row of somebody the caller has blocked or who blocked the caller. A visitor by link never sees it.
              */
             memberId?: string;
+            /** @description "A guest" for somebody the caller has blocked or who blocked the caller, here and in every name the plan shows. */
             name: string;
             /** @enum {string} */
-            role?: "host" | "guest";
+            role?: "planner" | "guest";
             reply: components["schemas"]["PlanPersonReply"];
             you: boolean;
-            /** @description Host view only. Whether Yuvoy can email this person. */
+            /** @description Planner view only. Whether Yuvoy can email this person. */
             signedIn?: boolean;
         };
         PlanMeAnswer: {
@@ -5294,10 +7333,10 @@ export interface components {
              * @description visitor opened the link and has not replied.
              * @enum {string}
              */
-            role: "host" | "member" | "visitor";
+            role: "planner" | "member" | "visitor";
             /** @example Asia/Kolkata */
             timeZone: string;
-            host: {
+            planner: {
                 name: string;
             };
             placeText?: string;
@@ -5328,13 +7367,13 @@ export interface components {
              */
             answersCloseAt?: string;
             payeeSet: boolean;
-            /** @description Members see it beside their share; the host sees and edits it. */
+            /** @description Members see it beside their share; the planner sees and edits it. */
             payee?: components["schemas"]["PlanPayee"];
             /** @description After a reply, items somebody took first. Say so; not an error. */
             notClaimed?: string[];
-            /** @description Host view only. Recomputable at any time. */
+            /** @description Planner view only. Recomputable at any time. */
             link?: string;
-            /** @description Host view only. True when copying the link had to make a new one because the old one could not be recomputed (the secret that made it was dropped); the old link has stopped working. */
+            /** @description Planner view only. True when copying the link had to make a new one because the old one could not be recomputed (the secret that made it was dropped); the old link has stopped working. */
             linkRenewed?: boolean;
             /** Format: date-time */
             linkExpiresAt?: string;
@@ -5349,7 +7388,7 @@ export interface components {
             title: string;
             templateKey: components["schemas"]["PlanTemplateKey"];
             /** @enum {string} */
-            role: "host" | "member";
+            role: "planner" | "member";
             state: components["schemas"]["PlanState"];
             /**
              * Format: date-time
@@ -5404,7 +7443,7 @@ export interface components {
             /** @description Defaults to the template's; required for custom. */
             title?: string;
             /** @description Required when the profile has no name, or when its first word is not a valid first name (letters, marks, space, apostrophe, full stop, hyphen). */
-            hostName?: string;
+            plannerName?: string;
             placeText?: string;
             /** @description A Google Maps link. */
             mapUrl?: string;
@@ -5466,6 +7505,230 @@ export interface components {
             /** Format: uuid */
             memberId: string;
             received: boolean;
+        };
+        OrganiserLink: {
+            /** @enum {string} */
+            kind: "website" | "meetup" | "luma" | "other";
+            /**
+             * Format: uri
+             * @description https, and not on a domain the finder blocks (Instagram among them).
+             */
+            url: string;
+        };
+        /** @description An organiser page as its members see it (R11-T2). How staff checked it is never in it, and only an owner is shown its contact email. */
+        Organiser: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: string;
+            destinationKey: components["schemas"]["DestinationKey"];
+            departments: string[];
+            /** @description Absent when there is none. */
+            about?: string;
+            links: components["schemas"]["OrganiserLink"][];
+            /**
+             * @description `not_verified`: staff could not verify it. It posts as a pending organiser does (every event is checked) and may still be verified later. `closed` follows the erasure of its last owner.
+             * @enum {string}
+             */
+            state: "pending" | "verified" | "not_verified" | "suspended" | "closed";
+            /** @description Present while pending or not verified: post it on your public page to be verified faster. */
+            verificationCode?: string;
+            /** @description True when the caller's posts go live without waiting for a check. */
+            selfPublish: boolean;
+            /**
+             * @description The caller's role.
+             * @enum {string}
+             */
+            role: "owner" | "helper";
+            /**
+             * Format: email
+             * @description The email staff use to reach the owner. Present only when the caller is an owner and one is set; send it back on updateOrganiser to keep it.
+             */
+            contactEmail?: string;
+            /**
+             * Format: uuid
+             * @description The R9 group this organiser is, when it was set up from a held claim; null for any other.
+             */
+            clubId: string | null;
+        };
+        OrganiserInput: {
+            name: string;
+            destinationKey: components["schemas"]["DestinationKey"];
+            /** @description Category keys. */
+            departments: string[];
+            /** @description Links, phone numbers and emails are removed. */
+            about?: string;
+            links?: components["schemas"]["OrganiserLink"][];
+            /**
+             * Format: email
+             * @description Private: for staff to reach the owner. Shown to owners only, never public. Left out, it is removed.
+             */
+            contactEmail?: string;
+            /**
+             * @description The ticked line: I run this group or these events, and I am 18 or over.
+             * @constant
+             */
+            runsIt: true;
+        };
+        /** @description An organiser for an R9 group the caller holds. The name and place are the group's, so `name` and `destinationKey` are not sent. */
+        OrganiserFromClubInput: {
+            /**
+             * Format: uuid
+             * @description A group the caller's approved claim holds (R9). The organiser is verified at once, with the group's name and place.
+             */
+            clubId: string;
+            /** @description Category keys. */
+            departments: string[];
+            /** @description Links, phone numbers and emails are removed. */
+            about?: string;
+            links?: components["schemas"]["OrganiserLink"][];
+            /**
+             * Format: email
+             * @description Private: for staff to reach the owner. Shown to owners only, never public. Left out, it is removed.
+             */
+            contactEmail?: string;
+            /**
+             * @description The ticked line: I run this group or these events, and I am 18 or over.
+             * @constant
+             */
+            runsIt: true;
+        };
+        /** @description linkOrganiserToClub's body. The name and place are the group's, so `name` and `destinationKey` are not sent. */
+        OrganiserClubLink: {
+            /**
+             * Format: uuid
+             * @description A group the caller's approved claim holds (R9).
+             */
+            clubId: string;
+        };
+        /** @description createOrganiser's body: a page of its own (OrganiserInput), or one for a group the caller holds (OrganiserFromClubInput, with `clubId`). */
+        OrganiserCreateInput: components["schemas"]["OrganiserInput"] | components["schemas"]["OrganiserFromClubInput"];
+        OrganiserEventInput: {
+            title: string;
+            /** @description A category key. */
+            department: string;
+            /**
+             * Format: date-time
+             * @description From now to 180 days ahead, with its offset. Stored in the place's zone.
+             */
+            startsAt: string;
+            /**
+             * Format: date-time
+             * @description After the start and at most 14 days after it.
+             */
+            endsAt?: string;
+            /**
+             * Format: date
+             * @description The same day and time each week until this date, read in the start's offset: from the start's own day to 26 weeks from today. One card, showing the next date.
+             */
+            repeatsWeeklyUntil?: string;
+            destinationKey: components["schemas"]["DestinationKey"];
+            venueName: string;
+            address?: string;
+            free: boolean;
+            /** @description Required when not free, refused when free. Same cap as event_submissions.price_min_paise (R3-b). */
+            priceFromRupees?: number;
+            /** @description One line about the price, free or paid, such as "Students pay half". */
+            priceNote?: string;
+            /**
+             * Format: uri
+             * @description https, and not on a domain the finder blocks.
+             */
+            link: string;
+            /** @description Links, phone numbers and emails are removed. 500, the submission's summary limit. */
+            about?: string;
+        };
+        /** @description One event as its organiser sees it: what they posted, as last changed, and where it stands. */
+        OrganiserEvent: {
+            /**
+             * Format: uuid
+             * @description The organiser's own id for this event; stable across edits.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The public card's id, once there is one; `state` says whether it is live.
+             */
+            eventId?: string;
+            /** @enum {string} */
+            state: "in_checking" | "live" | "changes_in_checking" | "cancelled" | "not_accepted" | "ended";
+            notAcceptedReason?: string;
+            /** Format: date-time */
+            lastCheckedAt?: string;
+            /** @description The picture on the event's card, as every member sees it: the newest one uploading, in review, published or rejected. Absent when there is none. Any member may replace it (`startMyUpload`) or delete it (`deleteMyUpload` with `uploadId`). */
+            picture?: {
+                /** Format: uuid */
+                uploadId: string;
+                /** @enum {string} */
+                state: "uploading" | "in_review" | "published" | "rejected";
+                /** @description Only when rejected: why, as `CreatorUpload.rejection.code`. */
+                rejectionCode?: string;
+                /**
+                 * Format: uri
+                 * @description Only once published.
+                 */
+                imageUrl?: string;
+            };
+            title: string;
+            department: string;
+            /**
+             * Format: date-time
+             * @description In the place's zone.
+             */
+            startsAt: string;
+            /**
+             * Format: date-time
+             * @description Absent when none was given.
+             */
+            endsAt?: string;
+            /**
+             * Format: date
+             * @description Absent when it does not repeat.
+             */
+            repeatsWeeklyUntil?: string;
+            destinationKey: components["schemas"]["DestinationKey"];
+            venueName: string;
+            /** @description Absent when none was given. */
+            address?: string;
+            free: boolean;
+            /** @description Absent when free. */
+            priceFromRupees?: number;
+            /** @description Absent when none was given. */
+            priceNote?: string;
+            /** Format: uri */
+            link: string;
+            /** @description Absent when none was given. */
+            about?: string;
+        };
+        /** @description Counts only, never a name or an id. */
+        OrganiserEventNumbers: {
+            going: number;
+            /** @description Shown as "at least": taps are counted only with consent, and the last few may not be counted yet. */
+            ticketTapsAtLeast: number;
+            checkedIn: number;
+            went: number;
+            /**
+             * Format: date
+             * @description The date counted, in the event's place. Null only for a card with no date, which counts every date. An event not live yet gives its own start's date.
+             */
+            on: string | null;
+            /** Format: date-time */
+            asOf: string;
+        };
+        OrganiserHelper: {
+            /** Format: uuid */
+            travellerId: string;
+            /** @description The first word of the name they chose; empty when they have none. */
+            firstName: string;
+        };
+        OrganiserHelperListed: {
+            /**
+             * Format: uuid
+             * @description Sent to an owner only.
+             */
+            travellerId?: string;
+            /** @description The first word of the name they chose; empty when they have none. */
+            firstName: string;
         };
     };
     responses: {
@@ -5574,6 +7837,15 @@ export interface components {
         };
         /** @description `plans_unavailable`: plans are paused, not broken. Say so and try again later. */
         PlansUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `organisers_paused`: organiser pages are paused, not broken. Say so and try again later. Cancelling an event still works. */
+        OrganisersPaused: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5723,6 +7995,59 @@ export interface operations {
                      * @description Send `true` and this call **also records the marketing lead and its consent, in the same transaction as the application**. One call, one unit of work: either both rows exist and are linked, or neither does.
                      *
                      *     **Optional, and absent is not `false`.** Omitting it writes the application alone and behaves exactly as this endpoint always has, so a deployed form does not start failing because we grew a field. Sending `false` is a person declining, and is refused with `400` rather than filed — recording a marketing contact for somebody who declined is the one outcome this must not produce.
+                     *
+                     *     Until yuvoy-web sends this, the site calls `/leads` separately. That works and is what it does today; it is simply two independent writes that can half-succeed, and the failure that matters is an application with no consent row on a site whose privacy policy says we hold one.
+                     */
+                    privacyAccepted?: boolean;
+                    /** @description Only meaningful alongside `privacyAccepted`. Defaults false. */
+                    marketingOptIn?: boolean;
+                    /** @description Campaign attribution for the lead. Ignored unless `privacyAccepted` is sent, because without consent there is no lead to attribute. */
+                    utm?: components["schemas"]["Utm"];
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded. `next` tells them how to start without waiting for us. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        received?: boolean;
+                        next?: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    submitHostApplication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    businessName: string;
+                    contactName: string;
+                    /** @description E.164, with the country code. */
+                    phone: string;
+                    email?: string;
+                    market?: string;
+                    destination?: string;
+                    about?: string;
+                    operations?: string;
+                    /** @description Where they heard about us. */
+                    source?: string;
+                    /**
+                     * @description Send `true` and this call **also records the marketing lead and its consent, in the same transaction as the application**. One call, one unit of work: either both rows exist and are linked, or neither does.
+                     *
+                     *     **Optional, and absent is not `false`.** Omitting it writes the application alone and behaves exactly as this endpoint always has, so a deployed form does not start failing because we grew a field. Sending `false` is a person declining, and is refused with `400` rather than filed: recording a marketing contact for somebody who declined is the one outcome this must not produce.
                      *
                      *     Until yuvoy-web sends this, the site calls `/leads` separately. That works and is what it does today; it is simply two independent writes that can half-succeed, and the failure that matters is an application with no consent row on a site whose privacy policy says we hold one.
                      */
@@ -6016,6 +8341,32 @@ export interface operations {
                 };
             };
             503: components["responses"]["CatalogUnavailable"];
+        };
+    };
+    listEventVideos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first, at most 12. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ListingVideo"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     submitEvent: {
@@ -6344,6 +8695,182 @@ export interface operations {
             503: components["responses"]["TablesUnavailable"];
         };
     };
+    listSuppliers: {
+        parameters: {
+            query: {
+                destinationKey: components["schemas"]["DestinationKey"];
+                /** @description An unknown value is a `400`. */
+                category?: components["schemas"]["Category"];
+                limit?: number;
+                /** @description From `nextCursor`, with the same filters. Opaque. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierListingList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["CatalogUnavailable"];
+        };
+    };
+    getSupplier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The business. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierListing"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["CatalogUnavailable"];
+        };
+    };
+    removeSupplierListing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierRemoval"];
+            };
+        };
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `invalid_reason_code` for a reason outside the four, or `invalid_input`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `already_on_yuvoy`: the business has joined Yuvoy, so there is no listing to remove. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `rate_limited`. `Retry-After` is set only past the day limit, to the seconds until it ends. */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: components["responses"]["CatalogUnavailable"];
+        };
+    };
+    checkInAtTheDoor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Eight characters; case, spaces and hyphens ignored. */
+                    code: string;
+                    /**
+                     * @description How the code arrived: the card's link, or typed. typed when left out.
+                     * @enum {string}
+                     */
+                    via?: "portal_link" | "typed";
+                };
+            };
+        };
+        responses: {
+            /** @description Checked in, now or earlier. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The first word of the traveller's name; empty when they have not given one. */
+                        firstName: string;
+                        eventTitle: string;
+                        /**
+                         * Format: date-time
+                         * @description The first time this code was used.
+                         */
+                        checkedInAt: string;
+                        /** @description True when the code had been used before this request. */
+                        alreadyCheckedIn: boolean;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["AdultsOnly"];
+            404: components["responses"]["NotFound"];
+            /** @description `own_code`: the code is the caller's own going, and somebody else at the door checks them in. `check_in_not_today`: the code is for another day, and details.validOn names it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            /** @description `organisers_paused`: organiser pages are paused, not broken. Say so and try again later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     recordOutcomes: {
         parameters: {
             query?: never;
@@ -6431,6 +8958,11 @@ export interface operations {
                          *     This has always been on the `scan_codes` row and has always been written to the analytics table. It was simply not returned, so a jetty card in Havelock and a hotel card in Port Blair sent two travellers to the identical unfiltered feed.
                          */
                         destinationKey?: components["schemas"]["DestinationKey"];
+                        /**
+                         * @description `printed` for a card Yuvoy printed, `creator` for a traveller's own link (R12-T2): arrive at `target` with `src=creator` and the code, and send `source: creator` and `scanCode` with checkout. Absent when the code resolved to nothing.
+                         * @enum {string}
+                         */
+                        kind?: "printed" | "creator";
                     };
                 };
             };
@@ -6610,6 +9142,32 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listListingVideos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first, at most 12. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ListingVideo"][];
+                    };
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getAvailability: {
@@ -6808,7 +9366,57 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The business. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatorProfile"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
     listOperatorReels: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the grid. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReelPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listHostReels: {
         parameters: {
             query?: {
                 limit?: number;
@@ -6990,7 +9598,97 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            /** @description `refund_quote_moved` — re-quote and show the new figure. `refund_requires_finance`: a partial refund of money paid online; route them to support. `conflict` — not in a cancellable state. */
+            /** @description `refund_quote_moved` — re-quote and show the new figure. `refund_requires_finance`: a partial refund of money paid online; route them to support. `conflict` — not in a cancellable state. `stale_availability`: the booking moved to another departure while this was sent; nothing was cancelled, so quote it again. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    moveBooking: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated, 16-128 chars of `A-Za-z0-9_.:-`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingMove"];
+            };
+        };
+        responses: {
+            /** @description Moved. A replay carries `Idempotent-Replay` true. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingChange"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description `booking_not_changeable`, `booking_departed`, `change_needs_a_person` (`details.reason`), `capacity_unavailable`, `cutoff_passed`, `stale_availability`, `action_changed`, `idempotency_key_reuse`, `idempotency_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    addPersonToBooking: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated, 16-128 chars of `A-Za-z0-9_.:-`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingAddPerson"];
+            };
+        };
+        responses: {
+            /** @description Added. A replay carries `Idempotent-Replay` true. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingChange"];
+                };
+            };
+            /** @description `invalid_input`, or `screening_required` when the listing asks a health declaration and none was sent. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description The codes of moveBooking, plus `price_moved`, `screening_needs_a_doctor` and `under_minimum_age`. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7276,6 +9974,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     surface?: "card" | "detail" | "tickets_prompt" | "saved" | "trips" | "other";
+                    visibility?: components["schemas"]["ItemVisibility"];
                 };
             };
         };
@@ -7379,6 +10078,7 @@ export interface operations {
                     tags?: ("people" | "venue" | "organisation" | "value" | "atmosphere" | "would_go_again")[];
                     /** @enum {string} */
                     via?: "trips_card" | "event_page" | "email_link" | "push";
+                    visibility?: components["schemas"]["ItemVisibility"];
                 };
             };
         };
@@ -7406,6 +10106,50 @@ export interface operations {
             };
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    updateMyWentVisibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    visibility: components["schemas"]["ItemVisibility"];
+                };
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        eventId: string;
+                        visibility: components["schemas"]["ItemVisibility"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description No went answer for this event, or the `people` release is closed to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
         };
     };
     listMyBookings: {
@@ -7835,6 +10579,8 @@ export interface operations {
                      * @enum {boolean}
                      */
                     onboarded?: true;
+                    /** @description Shows or hides the tools for adding a video of something the traveller went on (R12-T1). Needs no profile and no name when sent on its own. */
+                    creatorToolsOn?: boolean;
                 };
             };
         };
@@ -7919,6 +10665,8 @@ export interface operations {
                     daySpend?: "under_500" | "500_to_1500" | "over_1500" | null;
                     /** @enum {string|null} */
                     cityTime?: "visiting" | "under_a_year" | "longer" | null;
+                    languages?: ("en" | "hi" | "te" | "kn")[];
+                    showWomenOnlyTables?: boolean;
                 };
             };
         };
@@ -7976,6 +10724,15 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description `age_locked`: the age answer is locked, because the Yuvoy team upheld a report that this person is under 18, and only the team can change it. Nothing is stored. The message is "Your age can only be changed by the Yuvoy team. Write to us from Help." */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     exportMyData: {
@@ -7998,6 +10755,371 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMyUploads: {
+        parameters: {
+            query?: {
+                purpose?: "listing_video" | "went_photo" | "organiser_image";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["CreatorUpload"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    startMyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatorUploadStart"];
+            };
+        };
+        responses: {
+            /** @description A video: send the file to `url` with tus, in chunks of `chunkBytes`. A photo: send it to `url` with one PUT and exactly `headers`. A picture: one multipart form-data POST to `url` with the field name `file`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        upload: components["schemas"]["CreatorUpload"];
+                        /**
+                         * @description `tus` for a video; `put` for a photo; `post` for an organiser's picture.
+                         * @enum {string}
+                         */
+                        protocol: "tus" | "put" | "post";
+                        /**
+                         * Format: uri
+                         * @description The tus upload URL of a video, the signed PUT of a photo, or the POST URL of a picture. Returned once and never stored. Do not log it or send it anywhere else.
+                         */
+                        url: string;
+                        /** @description For put: send exactly these headers with the file. */
+                        headers?: {
+                            [key: string]: string;
+                        };
+                        /** @description Videos only. */
+                        chunkBytes?: number;
+                        /** @description 5242880 for a photo or a picture. */
+                        maxBytes: number;
+                        /** @description Videos only. */
+                        maxSeconds?: number;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_went`: the caller did not go on it, or their trip is still to come. `not_open_yet`: a card the caller said they went to whose event has not ended; they can add one once it is over. `adult_confirmation_required`: confirm the age first (`confirmMyAge`). `not_a_member`: a picture for an event of an organiser the caller is not a member of, or of a card with no organiser. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `video_already_posted`: the caller already has a video here; delete it first. `photo_limit_reached`: the caller already has 3 photos of this; delete one first. `upload_in_progress`: finish sending the one already started; for a picture, another member started one at the same moment. A picture only: `event_has_ended`: the event is over. `conflict` with `details.reason` `not_live`: the card is cancelled, hidden or not live. `conflict` with `details.state`: the organiser is `suspended` or `closed`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            /** @description `uploads_paused`, `photos_unavailable` or `media_unavailable`; for a picture also `organisers_paused`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getMyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatorUpload"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    deleteMyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            /** @description `photos_unavailable` or `media_unavailable`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    editMyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    caption?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatorUpload"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description `caption_locked`: staff approved this video, and what they approved is what shows. Delete it and post it again to say something else. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    completeMyUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `in_review` for a video or a picture, `private` for a photo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatorUpload"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description `not_arrived`: send the whole file, then call again. `media_refused`: Yuvoy will never show this file; `details.reason` says why: for a photo, `not_a_photo` when its bytes or size are not what was started, or `incomplete` when it was not sent in time. Choose another file. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            /** @description `photos_unavailable` or `media_unavailable`. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listMyCreatorLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mine. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["CreatorLink"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getMyCreatorLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description Exactly one of experienceId and eventId.
+                     */
+                    experienceId?: string;
+                    /**
+                     * Format: uuid
+                     * @description Exactly one of experienceId and eventId.
+                     */
+                    eventId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Already yours. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatorLink"];
+                };
+            };
+            /** @description Made. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatorLink"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_went`: the caller did not go on it, or their trip is still to come. `not_open_yet`: a card whose event has not ended. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    reportVideo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    reason: "not_from_this_trip" | "shows_something_unsafe" | "people_did_not_agree" | "offensive" | "other";
+                    note?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Hidden for you now; a person looks. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -8037,6 +11159,8 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     sharing?: "friends" | "only_me";
+                    /** @description When sharing is friends after this call, open the upcoming goings that are only me to friends. Not stored. */
+                    shareUpcomingGoing?: boolean;
                     /** @description Whether a friend request is also told by email. At most one email a day. */
                     requestEmails?: boolean;
                 };
@@ -8116,6 +11240,76 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listFriendsGoing: {
+        parameters: {
+            query: {
+                /** @description Up to 50 event ids, comma separated. */
+                eventIds: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Friends going, per event. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        events: {
+                            /** Format: uuid */
+                            eventId: string;
+                            friends: components["schemas"]["PersonRef"][];
+                            total: number;
+                        }[];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listFriendActivity: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of activity. `nextCursor` null is the end. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["FriendActivity"][];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required` or `people_paused`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             404: components["responses"]["NotFound"];
         };
     };
@@ -8385,6 +11579,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
         };
@@ -8411,6 +11606,921 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["AdultsOnly"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMyCrews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The crews. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrewList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createCrew: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrewInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Crew"];
+                };
+            };
+            /** @description `invalid_input` with `details.name` or `details.memberIds`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required`, or `people_paused` with `details.standing` and `details.until`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `crew_limit_reached` (20 crews already), `not_friends` with `details.personIds` (members who are not the caller's friends now), or `name_required`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deleteCrew: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                crewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted, or nothing of the caller's to delete. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCrew: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                crewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrewPatch"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Crew"];
+                };
+            };
+            /** @description `invalid_input` with `details.name` or `details.memberIds`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required`, or `people_paused` with `details.standing` and `details.until`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `not_friends` with `details.personIds`, or `name_required`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    inviteCrewToPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    crewId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Invited. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        invited: number;
+                        skipped: number;
+                    };
+                };
+            };
+            /** @description `invalid_input` with `details.crewId`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required`, or `people_paused` with `details.standing` and `details.until`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not a plan the caller made, or not their crew. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `plan_closed` with `details.reason`, or `name_required`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: components["responses"]["PlansUnavailable"];
+        };
+    };
+    listClubs: {
+        parameters: {
+            query: {
+                destinationKey: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Groups by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getClub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The group's slug, or its clubId. */
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The group. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Club"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMyClubs: {
+        parameters: {
+            query: {
+                destinationKey: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Groups by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getMyClub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The group's slug, or its clubId. */
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The group. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Club"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    claimClub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubClaimInput"];
+            };
+        };
+        responses: {
+            /** @description Received. A person decides. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubClaimReceipt"];
+                };
+            };
+            /** @description `invalid_input` with `details.roleText`, `details.contactEmail`, `details.proofUrl` or `details.note`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required`, or `people_paused` with `details.standing` and `details.until`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `conflict` with `details.reason` `claim_waiting` (the caller's claim is already waiting) or `already_claimed` (the group has claimed its listing), or `name_required`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    requestClubRemoval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubRemovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Hidden now, or waiting for a person. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubRemovalReceipt"];
+                };
+            };
+            /** @description `invalid_input` with `details.reason` or `details.note`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    reportClub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClubReport"];
+            };
+        };
+        responses: {
+            /** @description Received. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubReportReceipt"];
+                };
+            };
+            /** @description `invalid_input` with `details.reason`, or `details.note` (required for `other`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMyBlocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The people blocked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    blockPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                personId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Blocked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description `conflict` with `details.reason` `block_limit`: 500 blocks is the most. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    unblockPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                personId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unblocked, or was not blocked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reportPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                personId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonReport"];
+            };
+        };
+        responses: {
+            /** @description Received. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonReportReceipt"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["AdultsOnly"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getMyLifeList: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of entries. `nextCursor` null is the end. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entries: components["schemas"]["LifeEntry"][];
+                        didYouGo: {
+                            /** Format: uuid */
+                            eventId: string;
+                            title: string;
+                            /** Format: date-time */
+                            startsAt: string;
+                        }[];
+                        counts: {
+                            /** @description Every entry. */
+                            done: number;
+                            /** @description The entries with a checked record. */
+                            checked: number;
+                        };
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    updateMyLifeEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    visibility: components["schemas"]["ItemVisibility"];
+                };
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifeEntry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["AdultsOnly"];
+            404: components["responses"]["NotFound"];
+            /** @description `conflict`: a plan is always only me, and a went entry is changed on its own route, named in `details.use` (for example "/v1/me/went/{eventId}"). `name_required` when the caller has no name People can show. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getMyBadges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Badges. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        earned: components["schemas"]["Badge"][];
+                        inProgress: components["schemas"]["BadgeProgress"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    markBadgesSeen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    keys: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Marked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getPersonLifeList: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                personId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The shared life list. `nextCursor` null is the end. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        entries: components["schemas"]["LifeEntry"][];
+                        /** @description Badges computed over the same entries, so none reveals a hidden one. Seasons here are evaluated as the entries stand now. */
+                        badges: components["schemas"]["FriendBadge"][];
+                        /** @description Every entry the caller may see here, on all pages. */
+                        checkedCount: number;
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required` or `people_paused`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    cheerLifeEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                personId: string;
+                entryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cheered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required` or `people_paused`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `not_found`: the caller cannot see this entry. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `name_required`: the caller has no name People can show. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    uncheerLifeEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                personId: string;
+                entryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed, or there was none. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMyClubFollows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The followed groups. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        clubIds: string[];
+                        clubs: {
+                            /** Format: uuid */
+                            clubId: string;
+                            slug: string;
+                            name: string;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    followClub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Following. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required`, or `people_paused` with `details.standing` and `details.until`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `follow_limit_reached` (200 groups followed already), or `name_required`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    unfollowClub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clubId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Not following. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
     };
@@ -8703,6 +12813,247 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    confirmTrigoAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the app does next */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrigoActionConfirmation"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description `action_changed` (details.reason), `action_expired`, or `date_alerts_full` (50 date alerts waiting already). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    declineTrigoAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declined */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: components["schemas"]["TrigoMessage"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description `action_expired`: the card was confirmed, used or replaced. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMyDateAlerts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The alerts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        alerts: components["schemas"]["TrigoDateAlert"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    stopMyDateAlert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stopped */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listMyTripDrafts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The drafts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        drafts: components["schemas"]["TrigoTripDraft"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    deleteMyTripDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getTrigoMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What Trigo reads */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrigoMemory"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    hideTrigoMemoryItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                subjectType: "booking" | "going" | "save" | "department";
+                /** @description A reservation id, a found item id, a saved experience id or a Category key. */
+                subjectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Hidden */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_found`: not one of this traveller's items. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    clearTrigoMemory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     setMyStay: {
@@ -9140,7 +13491,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         experience: string;
+                        /**
+                         * @deprecated
+                         * @description The old name of `hostName`; sent beside it until the traveller cut-over (D-049).
+                         */
                         operator: string;
+                        hostName: string;
                         /** Format: date */
                         localDate: string;
                         localTime: string;
@@ -9747,7 +14103,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The plan, host view. */
+            /** @description The plan, planner view. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -10299,7 +14655,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-            /** @description `conflict`: the host cannot leave. */
+            /** @description `conflict`: the planner cannot leave. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10337,7 +14693,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-            /** @description `conflict` with `details.reason` `host`: the host cannot be removed. */
+            /** @description `conflict` with `details.reason` `planner`: the planner cannot be removed. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10588,7 +14944,7 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
-            /** @description `conflict`: the host cannot leave. */
+            /** @description `conflict`: the planner cannot leave. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10674,6 +15030,650 @@ export interface operations {
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
             503: components["responses"]["PlansUnavailable"];
+        };
+    };
+    createOrganiser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganiserCreateInput"];
+            };
+        };
+        responses: {
+            /** @description Created, pending a check; or verified at once when clubId names a group the caller holds. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Organiser"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required`, `not_club_holder`, or `people_paused` with details.standing and details.until. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `club_already_linked`, with details.organiserId: only the group's holder gets this far. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    listMyOrganisers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mine. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Organiser"][];
+                        /** @description Groups the caller's approved claim holds, shown, with no organiser yet; empty when there are none, and for a caller People is not open to. By name, then clubId. Choosing one sends createOrganiser with its clubId. */
+                        clubsToLink: {
+                            /** Format: uuid */
+                            clubId: string;
+                            name: string;
+                            destinationKey: components["schemas"]["DestinationKey"];
+                            /** @description The group's category key, for the form to pre-tick. */
+                            category: string | null;
+                        }[];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    getOrganiser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Organiser"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    updateOrganiser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganiserInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Organiser"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member`, `not_owner` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `conflict`; `details.state` is the organiser's state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    linkOrganiserToClub: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganiserClubLink"];
+            };
+        };
+        responses: {
+            /** @description Linked, now or before: the organiser with the group's name, place and clubId, verified. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Organiser"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member`, `not_owner`, `adult_confirmation_required`, `not_club_holder`, or `people_paused` with details.standing and details.until. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `conflict` with details.state for a suspended or closed organiser; `club_already_linked` with details.organiserId, and details.clubId when this organiser already has another group. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    listOrganiserHelpers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Oldest added first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OrganiserHelperListed"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    addOrganiserHelper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Added. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganiserHelper"];
+                };
+            };
+            /** @description `invalid_input` with `details.email`, or `no_account_with_that_email`: they sign in to Yuvoy once with it first. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member`, `not_owner` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `conflict`; `details.state` is the organiser's state. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    removeOrganiserHelper: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                travellerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member`, `not_owner` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    listOrganiserEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Coming up first, then in checking, then past. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["OrganiserEvent"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    postOrganiserEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganiserEventInput"];
+            };
+        };
+        responses: {
+            /** @description In checking, or live when self-publish is on. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganiserEvent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `organiser_email_required`: Add an email to your account to post events. Or `conflict` with `details.state`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    editOrganiserEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                eventPostId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganiserEventInput"];
+            };
+        };
+        responses: {
+            /** @description changes_in_checking, or live when self-publish is on. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganiserEvent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `event_has_ended`, `organiser_email_required`, or `conflict` with `details.state`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    cancelOrganiserEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                eventPostId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled now; people going are told once. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganiserEvent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `event_has_ended`, or `conflict` with `details.state`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    getOrganiserEventNumbers: {
+        parameters: {
+            query?: {
+                /** @description One of the event's dates up to its current one: the current date or a whole number of weeks before it, back to its first. Anything else is 400 `invalid_input` with `details.on`, as is any `on` for an event with no date. */
+                on?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+                eventPostId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Counts only. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganiserEventNumbers"];
+                };
+            };
+            /** @description `invalid_input` with `details.on`: not one of the event's dates. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["OrganisersPaused"];
+        };
+    };
+    claimEventForOrganiser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: uuid
+                     * @description The event card's id, as getEvent has it.
+                     */
+                    eventId: string;
+                    /** @enum {string} */
+                    proofMethod: "email_domain" | "public_page_code" | "call_to_published_number";
+                };
+            };
+        };
+        responses: {
+            /** @description Claimed; a person checks it. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventClaimReceipt"];
+                };
+            };
+            /** @description `invalid_input` with `details` keyed by the field. `details.proofMethod` `no_website`: the event's page is on a ticket site, so an email does not show it; `email_not_at_event_domain`: none of the owner's proven emails is at the event's website. Choose another way. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description `not_a_member`, `not_owner` or `adult_confirmation_required`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description `claim_already_open`: somebody's claim on this event is with a person already. `conflict` with `details.reason` `already_claimed` (the event has an organiser) or `not_claimable` (post it from the organiser's page instead), or with `details.state` when the organiser is not verified. `organiser_email_required`: the owner has no proven email. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["OrganisersPaused"];
         };
     };
 }
