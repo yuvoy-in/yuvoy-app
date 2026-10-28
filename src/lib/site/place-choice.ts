@@ -70,9 +70,7 @@ const offered = (market: PlaceMarket) => market.destinations.length > 0;
  * the list did not load or has none.
  */
 export function bookableMarket(list: PlaceList | null): PlaceMarket | null {
-  return (
-    list?.markets.find((m) => m.mode === "bookable" && offered(m)) ?? null
-  );
+  return list?.markets.find((m) => m.mode === "bookable" && offered(m)) ?? null;
 }
 
 /** Whether the list holds a place to find things in: the picker's switch. */
@@ -115,7 +113,9 @@ export function placeIn(list: PlaceList | null, key: unknown): Shown | null {
  * `?place=andaman/havelock` remembers the reels, not a filter.
  */
 export function keyOf(shown: Shown): string | null {
-  return shown.kind === "found" ? shown.destination.key : shown.market?.key ?? null;
+  return shown.kind === "found"
+    ? shown.destination.key
+    : (shown.market?.key ?? null);
 }
 
 /** What the gone line calls a place the list no longer names (mobile's `UNNAMED_PLACE`). */
@@ -127,7 +127,10 @@ export const UNNAMED_PLACE = "That place";
  * Andaman Islands." Null with no bookable market to name, since a sentence
  * that ends "so here's" nothing is worse than none.
  */
-export function goneLine(name: string, bookable: PlaceMarket | null): string | null {
+export function goneLine(
+  name: string,
+  bookable: PlaceMarket | null,
+): string | null {
   if (!bookable) return null;
   return `${name} isn't available right now, so here's ${placePhrase(bookable)}.`;
 }
@@ -211,7 +214,9 @@ export function goneAfterAnswer(
 ): PlaceChoice {
   const bookable = bookableMarket(list);
   const name =
-    choice.shown.kind === "found" ? choice.shown.destination.name : UNNAMED_PLACE;
+    choice.shown.kind === "found"
+      ? choice.shown.destination.name
+      : UNNAMED_PLACE;
   return {
     shown: { kind: "reels", market: bookable },
     key: bookable?.key ?? null,

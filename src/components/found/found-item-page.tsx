@@ -177,7 +177,7 @@ export function FoundItemPage({
           )}
           {tag ? (
             <span
-              className="rounded-full border-forest/25 border px-2.5 py-0.5 text-xs font-bold"
+              className="border-forest/25 rounded-full border px-2.5 py-0.5 text-xs font-bold"
               data-testid="found-status"
             >
               {tag}
@@ -205,7 +205,7 @@ export function FoundItemPage({
         ) : null}
       </div>
 
-      <dl className="border-paper-line mt-6 flex flex-col divide-paper-line divide-y border-y">
+      <dl className="border-paper-line divide-paper-line mt-6 flex flex-col divide-y border-y">
         <Fact
           icon={<CalendarIcon />}
           label={FOUND_PAGE_WORDS.when}
@@ -229,10 +229,7 @@ export function FoundItemPage({
       </dl>
 
       {item.summary ? (
-        <p
-          className="text-body mt-6 text-pretty"
-          data-testid="found-summary"
-        >
+        <p className="text-body mt-6 text-pretty" data-testid="found-summary">
           {item.summary}
         </p>
       ) : null}

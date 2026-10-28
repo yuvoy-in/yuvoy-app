@@ -39,7 +39,10 @@ describe("TrustLine", () => {
   it("marks Trigo's find, and a lapsed or re-checked card, with their own looks", () => {
     const found = render(
       <TrustLine
-        check={check({ tier: "found", label: "Found by Trigo · not checked yet" })}
+        check={check({
+          tier: "found",
+          label: "Found by Trigo · not checked yet",
+        })}
       />,
     );
     expect(found.container.querySelector("svg")).toHaveAttribute(
@@ -50,7 +53,10 @@ describe("TrustLine", () => {
 
     const lapsed = render(
       <TrustLine
-        check={check({ lapsed: true, label: "Last checked by Yuvoy 9 days ago" })}
+        check={check({
+          lapsed: true,
+          label: "Last checked by Yuvoy 9 days ago",
+        })}
       />,
     );
     expect(lapsed.container.querySelector("svg")).toHaveAttribute(

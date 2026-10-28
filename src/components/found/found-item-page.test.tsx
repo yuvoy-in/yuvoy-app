@@ -170,9 +170,9 @@ describe("the page", () => {
     expect(screen.getByTestId("found-organiser")).toHaveTextContent(
       "Old Bengaluru Walks",
     );
-    expect(
-      await screen.findByTestId("found-department"),
-    ).toHaveTextContent("Food and drink");
+    expect(await screen.findByTestId("found-department")).toHaveTextContent(
+      "Food and drink",
+    );
     expect(screen.getByTestId("department-art")).toBeInTheDocument();
   });
 
@@ -247,15 +247,18 @@ describe("the page", () => {
     expect(
       endTimeMissing(
         card({
-          when: { startsOn: null, startTime: null, endsOn: null, repeats: null },
+          when: {
+            startsOn: null,
+            startTime: null,
+            endsOn: null,
+            repeats: null,
+          },
         }),
       ),
     ).toBe(false);
     // The page states one.
     expect(
-      endTimeMissing(
-        card({ stated: { ...card().stated, endTime: "10:00" } }),
-      ),
+      endTimeMissing(card({ stated: { ...card().stated, endTime: "10:00" } })),
     ).toBe(false);
 
     renderWithQuery(<FoundItemPage item={card()} signedIn={false} />);
@@ -457,7 +460,12 @@ describe("the route", () => {
       HttpResponse.json(
         card({
           indexable: true,
-          when: { startsOn: null, startTime: null, endsOn: null, repeats: null },
+          when: {
+            startsOn: null,
+            startTime: null,
+            endsOn: null,
+            repeats: null,
+          },
         }),
       ),
     );
@@ -469,9 +477,7 @@ describe("the route", () => {
 
 /** The Event nodes in the JSON-LD on the page. */
 function eventNodes(): Record<string, unknown>[] {
-  return [
-    ...document.querySelectorAll('script[type="application/ld+json"]'),
-  ]
+  return [...document.querySelectorAll('script[type="application/ld+json"]')]
     .map((s) => JSON.parse(s.textContent ?? "{}") as Record<string, unknown>)
     .filter((node) => node["@type"] === "Event");
 }

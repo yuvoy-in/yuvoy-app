@@ -375,13 +375,17 @@ function Foot({
       {line ? (
         <p
           role={failed ? "alert" : "status"}
-          className={failed ? "text-terra-deep text-sm" : "text-forest/70 text-sm"}
+          className={
+            failed ? "text-terra-deep text-sm" : "text-forest/70 text-sm"
+          }
         >
           {line}
         </p>
       ) : (
         <div className="flex flex-col items-center gap-4">
-          <p className="text-body text-forest/70">{foundWords.end(placeName)}</p>
+          <p className="text-body text-forest/70">
+            {foundWords.end(placeName)}
+          </p>
           {action}
         </div>
       )}
@@ -438,7 +442,8 @@ function useReport({
           ) ?? []),
         ];
         if (cards.some((card) => card.dataset.foundId === id)) return;
-        const next = cards[Math.min(index, cards.length - 1)] ?? heading.current;
+        const next =
+          cards[Math.min(index, cards.length - 1)] ?? heading.current;
         next?.focus();
       });
     };

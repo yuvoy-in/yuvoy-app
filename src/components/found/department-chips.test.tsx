@@ -21,7 +21,9 @@ const chipNames = () =>
 
 describe("DepartmentChips", () => {
   it("shows All, then the vocabulary's departments in the order it sent", () => {
-    render(<DepartmentChips terms={TERMS} selected={null} onSelect={vi.fn()} />);
+    render(
+      <DepartmentChips terms={TERMS} selected={null} onSelect={vi.fn()} />,
+    );
     expect(chipNames()).toEqual([
       "All",
       "Food and drink",
@@ -56,7 +58,11 @@ describe("DepartmentChips", () => {
   it("says which was chosen, and All as none", async () => {
     const onSelect = vi.fn();
     render(
-      <DepartmentChips terms={TERMS} selected="adventure" onSelect={onSelect} />,
+      <DepartmentChips
+        terms={TERMS}
+        selected="adventure"
+        onSelect={onSelect}
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Learning" }));
     await userEvent.click(screen.getByRole("button", { name: "All" }));

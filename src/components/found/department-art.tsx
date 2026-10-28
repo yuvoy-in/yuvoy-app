@@ -166,7 +166,10 @@ const NO_DEPARTMENT: { tone: Tone; glyph: ReactNode } = {
 
 /** The art for a department: its own, or the compass. */
 function artFor(department: Category | null | undefined) {
-  if (!department || !Object.prototype.hasOwnProperty.call(GLYPHS, department)) {
+  if (
+    !department ||
+    !Object.prototype.hasOwnProperty.call(GLYPHS, department)
+  ) {
     return NO_DEPARTMENT;
   }
   return GLYPHS[department];

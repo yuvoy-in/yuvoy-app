@@ -21,11 +21,7 @@ import { SHOWN_AFTER_MS } from "@/lib/feed/use-shown-outcome";
  */
 
 export type FoundOutcomeKind =
-  | "shown"
-  | "opened"
-  | "link_out"
-  | "shared"
-  | "problem_reported";
+  "shown" | "opened" | "link_out" | "shared" | "problem_reported";
 
 export type FoundSurface = "found_feed" | "found_detail";
 

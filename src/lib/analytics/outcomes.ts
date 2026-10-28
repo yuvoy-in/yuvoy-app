@@ -49,12 +49,7 @@ export type OutcomeSurface = components["schemas"]["OutcomeSurface"];
 
 /** What the web sends: R0's five, and R2's `problem_reported` for found items. */
 export type OutcomeKind =
-  | "shown"
-  | "opened"
-  | "saved"
-  | "shared"
-  | "link_out"
-  | "problem_reported";
+  "shown" | "opened" | "saved" | "shared" | "link_out" | "problem_reported";
 
 /** What a screen records: the rest is the collector's. */
 export interface Outcome {

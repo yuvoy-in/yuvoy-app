@@ -22,7 +22,12 @@ const KARNATAKA: PlaceMarket = {
       kind: "local",
       visibleTo: "all",
     },
-    { key: "karnataka/mysuru", name: "Mysuru", kind: "local", visibleTo: "all" },
+    {
+      key: "karnataka/mysuru",
+      name: "Mysuru",
+      kind: "local",
+      visibleTo: "all",
+    },
   ],
 };
 
@@ -55,7 +60,10 @@ describe("Near you", () => {
     for (const region of ["TG", "TS"]) {
       expect(
         nearYou(
-          from({ "x-vercel-ip-country": "IN", "x-vercel-ip-country-region": region }),
+          from({
+            "x-vercel-ip-country": "IN",
+            "x-vercel-ip-country-region": region,
+          }),
           LIST,
         ),
       ).toEqual({ key: "telangana/hyderabad", name: "Hyderabad" });
@@ -66,7 +74,10 @@ describe("Near you", () => {
     // Coorg comes first but is a travel place; Mysuru is local but second.
     expect(
       nearYou(
-        from({ "x-vercel-ip-country": "IN", "x-vercel-ip-country-region": "KA" }),
+        from({
+          "x-vercel-ip-country": "IN",
+          "x-vercel-ip-country-region": "KA",
+        }),
         LIST,
       ),
     ).toEqual({ key: "karnataka/bengaluru", name: "Bengaluru" });
@@ -82,7 +93,10 @@ describe("Near you", () => {
     // `KA` is also a region code outside India.
     expect(
       nearYou(
-        from({ "x-vercel-ip-country": "US", "x-vercel-ip-country-region": "KA" }),
+        from({
+          "x-vercel-ip-country": "US",
+          "x-vercel-ip-country-region": "KA",
+        }),
         LIST,
       ),
     ).toBeNull();
@@ -106,7 +120,10 @@ describe("Near you", () => {
     // A state this does not map.
     expect(
       nearYou(
-        from({ "x-vercel-ip-country": "IN", "x-vercel-ip-country-region": "MH" }),
+        from({
+          "x-vercel-ip-country": "IN",
+          "x-vercel-ip-country-region": "MH",
+        }),
         LIST,
       ),
     ).toBeNull();

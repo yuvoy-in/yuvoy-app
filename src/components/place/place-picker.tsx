@@ -107,9 +107,7 @@ export function PlacePicker({
 }) {
   const markets = pickableMarkets(list);
   const [level, setLevel] = useState<string | null>(null);
-  const region = level
-    ? (markets.find((m) => m.key === level) ?? null)
-    : null;
+  const region = level ? (markets.find((m) => m.key === level) ?? null) : null;
 
   const backRef = useRef<HTMLButtonElement | null>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement | null>());
@@ -142,7 +140,10 @@ export function PlacePicker({
       <LoadingState label={PLACE_PICKER_WORDS.loading}>
         <ul className="space-y-2" data-testid="place-picker-loading">
           {[0, 1, 2].map((n) => (
-            <li key={n} className="rounded-card bg-paper-deep space-y-2 px-4 py-4">
+            <li
+              key={n}
+              className="rounded-card bg-paper-deep space-y-2 px-4 py-4"
+            >
               <Skeleton className="h-4 w-1/2 rounded-full" />
               <Skeleton className="h-3 w-3/4 rounded-full" />
             </li>

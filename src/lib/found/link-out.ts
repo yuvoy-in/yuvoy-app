@@ -62,6 +62,9 @@ export function hostOf(url: string | null | undefined): string | null {
   } else {
     host = host.replace(/:\d*$/, "");
   }
-  host = host.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+  host = host
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^www\./, "");
   return host || null;
 }

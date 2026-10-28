@@ -31,9 +31,7 @@ vi.mock("@/lib/found/found-outcomes", () => ({
 
 const URL_AS_STORED = "https://www.venue.example.in:443/night?utm_source=x";
 
-const item = (
-  seeDetailsUrl?: string,
-): components["schemas"]["FoundItem"] => ({
+const item = (seeDetailsUrl?: string): components["schemas"]["FoundItem"] => ({
   id: "card_1",
   kind: "event",
   department: null,
@@ -77,7 +75,9 @@ describe("See details", () => {
   });
 
   it("is a link to the address as stored, saying the host it opens", () => {
-    renderWithQuery(<SeeDetails item={item(URL_AS_STORED)} surface="found_feed" />);
+    renderWithQuery(
+      <SeeDetails item={item(URL_AS_STORED)} surface="found_feed" />,
+    );
     const link = screen.getByRole("link", { name: "See details" });
     expect(link).toHaveAttribute("href", URL_AS_STORED);
     expect(link).toHaveAttribute("target", "_blank");
@@ -88,7 +88,9 @@ describe("See details", () => {
 
   it("warns first, and Stay on Yuvoy opens nothing and counts nothing", async () => {
     const user = userEvent.setup();
-    renderWithQuery(<SeeDetails item={item(URL_AS_STORED)} surface="found_feed" />);
+    renderWithQuery(
+      <SeeDetails item={item(URL_AS_STORED)} surface="found_feed" />,
+    );
 
     await user.click(screen.getByRole("link", { name: "See details" }));
 
@@ -110,7 +112,11 @@ describe("See details", () => {
   it("opens the same link from the sheet and counts link_out there", async () => {
     const user = userEvent.setup();
     renderWithQuery(
-      <SeeDetails item={item(URL_AS_STORED)} surface="found_feed" position={3} />,
+      <SeeDetails
+        item={item(URL_AS_STORED)}
+        surface="found_feed"
+        position={3}
+      />,
     );
 
     await user.click(screen.getByRole("link", { name: "See details" }));
@@ -120,14 +126,18 @@ describe("See details", () => {
     expect(open).toHaveAttribute("rel", "noopener");
 
     await user.click(open);
-    expect(outcomes.recorded).toEqual([["link_out", "card_1", "found_feed", 3]]);
+    expect(outcomes.recorded).toEqual([
+      ["link_out", "card_1", "found_feed", 3],
+    ]);
     // The box was not ticked: the device keeps asking.
     expect(store.set).toEqual([]);
   });
 
   it("goes straight there once the box is ticked", async () => {
     const user = userEvent.setup();
-    renderWithQuery(<SeeDetails item={item(URL_AS_STORED)} surface="found_detail" />);
+    renderWithQuery(
+      <SeeDetails item={item(URL_AS_STORED)} surface="found_detail" />,
+    );
 
     await user.click(screen.getByRole("link", { name: "See details" }));
     await user.click(
@@ -135,7 +145,9 @@ describe("See details", () => {
         name: "Don't show this again on this device",
       }),
     );
-    await user.click(screen.getByRole("link", { name: "Open venue.example.in" }));
+    await user.click(
+      screen.getByRole("link", { name: "Open venue.example.in" }),
+    );
     expect(store.set).toEqual([true]);
     await waitFor(() =>
       expect(screen.queryByText("You're leaving Yuvoy")).toBeNull(),
@@ -152,7 +164,9 @@ describe("See details", () => {
   it("does not ask a device that already said not to", async () => {
     store.off = true;
     const user = userEvent.setup();
-    renderWithQuery(<SeeDetails item={item(URL_AS_STORED)} surface="found_feed" />);
+    renderWithQuery(
+      <SeeDetails item={item(URL_AS_STORED)} surface="found_feed" />,
+    );
 
     // The answer is read as the control mounts; let it land.
     await act(async () => {

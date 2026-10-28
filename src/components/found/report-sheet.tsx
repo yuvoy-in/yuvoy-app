@@ -316,7 +316,9 @@ function ReportForm({
       }
     >
       <fieldset>
-        <legend className="label text-forest/75">{REPORT_WORDS.question}</legend>
+        <legend className="label text-forest/75">
+          {REPORT_WORDS.question}
+        </legend>
         <div className="mt-2 flex flex-col gap-2">
           {REPORT_REASONS.map((option) => {
             const on = reason === option.key;

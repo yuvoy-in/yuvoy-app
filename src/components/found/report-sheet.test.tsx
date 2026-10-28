@@ -44,9 +44,10 @@ beforeEach(() => {
 });
 
 /** Answers the report, and keeps what was sent and how. */
-function answerReports(
-  answer: () => Response,
-): { bodies: unknown[]; auth: (string | null)[] } {
+function answerReports(answer: () => Response): {
+  bodies: unknown[];
+  auth: (string | null)[];
+} {
   const seen = { bodies: [] as unknown[], auth: [] as (string | null)[] };
   server.use(
     http.post(`${BASE}/events/:id/reports`, async ({ request }) => {
@@ -158,7 +159,9 @@ describe("signed out", () => {
     answerReports(receipt("everyone"));
     const { user, onHidden } = open(false);
 
-    await user.click(screen.getByRole("radio", { name: "The link doesn't work" }));
+    await user.click(
+      screen.getByRole("radio", { name: "The link doesn't work" }),
+    );
     await user.click(sendButton());
 
     await screen.findByRole("status");
@@ -201,7 +204,9 @@ describe("signed in", () => {
     answerReports(receipt("you", "SR-1"));
     const { user, onHidden } = open(true);
 
-    await user.click(screen.getByRole("radio", { name: "It shouldn't be on Yuvoy" }));
+    await user.click(
+      screen.getByRole("radio", { name: "It shouldn't be on Yuvoy" }),
+    );
     await user.click(sendButton());
 
     await screen.findByRole("status");
@@ -231,32 +236,26 @@ describe("when it does not go", () => {
     expect(device.hidden).toEqual([]);
   });
 
-  it(
-    "says too fast without Retry-After, and Send rests three seconds",
-    async () => {
-      const seen = answerReports(rateLimited());
-      const { user } = open(false);
+  it("says too fast without Retry-After, and Send rests three seconds", async () => {
+    const seen = answerReports(rateLimited());
+    const { user } = open(false);
 
-      await user.click(
-        screen.getByRole("radio", { name: "The price is wrong" }),
-      );
-      await user.click(sendButton());
+    await user.click(screen.getByRole("radio", { name: "The price is wrong" }));
+    await user.click(sendButton());
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Too many requests. Try again shortly.",
-      );
-      expect(sendButton()).toBeDisabled();
-      await waitFor(() => expect(sendButton()).toBeEnabled(), {
-        timeout: 5_000,
-      });
-      // The same report, still there to send again.
-      expect(
-        screen.getByRole("radio", { name: "The price is wrong" }),
-      ).toBeChecked();
-      expect(seen.bodies).toHaveLength(1);
-    },
-    10_000,
-  );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many requests. Try again shortly.",
+    );
+    expect(sendButton()).toBeDisabled();
+    await waitFor(() => expect(sendButton()).toBeEnabled(), {
+      timeout: 5_000,
+    });
+    // The same report, still there to send again.
+    expect(
+      screen.getByRole("radio", { name: "The price is wrong" }),
+    ).toBeChecked();
+    expect(seen.bodies).toHaveLength(1);
+  }, 10_000);
 
   it("says the card is no longer showing on a 404", async () => {
     answerReports(() =>

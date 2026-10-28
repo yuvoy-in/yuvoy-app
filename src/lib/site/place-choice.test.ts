@@ -35,7 +35,12 @@ const KARNATAKA: PlaceMarket = {
       kind: "local",
       visibleTo: "staff",
     },
-    { key: "karnataka/coorg", name: "Coorg", kind: "travel", visibleTo: "staff" },
+    {
+      key: "karnataka/coorg",
+      name: "Coorg",
+      kind: "travel",
+      visibleTo: "staff",
+    },
   ],
 };
 
@@ -118,7 +123,11 @@ describe("which place / shows", () => {
   });
 
   it("keeps the cookie, and says nothing, when the list failed", () => {
-    const choice = choiceFrom(null, "karnataka/bengaluru", "karnataka/bengaluru");
+    const choice = choiceFrom(
+      null,
+      "karnataka/bengaluru",
+      "karnataka/bengaluru",
+    );
     expect(choice.shown).toEqual({ kind: "reels", market: null });
     expect(choice.gone).toBeNull();
     expect(choice.cookie).toBeNull();
@@ -151,7 +160,9 @@ describe("which place / shows", () => {
     expect(gone.cookie).toBe("clear");
     // A link's place that 404s leaves somebody else's remembered place be.
     const linked = choiceFrom(OPEN, "karnataka/coorg", "karnataka/bengaluru");
-    expect(goneAfterAnswer(OPEN, linked, "karnataka/bengaluru").cookie).toBeNull();
+    expect(
+      goneAfterAnswer(OPEN, linked, "karnataka/bengaluru").cookie,
+    ).toBeNull();
   });
 
   it("offers the picker only when the list holds a discover place", () => {
@@ -159,7 +170,9 @@ describe("which place / shows", () => {
     expect(hasDiscoverPlace(null)).toBe(false);
     expect(hasDiscoverPlace(OPEN)).toBe(true);
     const empty = { ...KARNATAKA, destinations: [] };
-    expect(hasDiscoverPlace({ markets: [...PLACES.markets, empty] })).toBe(false);
+    expect(hasDiscoverPlace({ markets: [...PLACES.markets, empty] })).toBe(
+      false,
+    );
   });
 });
 
@@ -167,7 +180,9 @@ describe("the yv_place cookie (section 6 point 11)", () => {
   it("condition 1: holds the place key alone, checked against the caller's list first", () => {
     const written = recordCookies();
     expect(writePlaceCookie("karnataka/bengaluru", OPEN)).toBe(true);
-    expect(written[0].split(";")[0]).toBe(`${PLACE_COOKIE}=karnataka/bengaluru`);
+    expect(written[0].split(";")[0]).toBe(
+      `${PLACE_COOKIE}=karnataka/bengaluru`,
+    );
 
     // A bookable market's key, and a bookable town kept as its market.
     expect(writePlaceCookie("andaman/havelock", OPEN)).toBe(true);

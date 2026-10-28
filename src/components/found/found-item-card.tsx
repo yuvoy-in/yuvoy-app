@@ -114,7 +114,12 @@ export function FoundItemCard({
             </Link>
           </h2>
         </div>
-        <MoreMenu item={item} position={position} titleId={titleId} onReport={onReport} />
+        <MoreMenu
+          item={item}
+          position={position}
+          titleId={titleId}
+          onReport={onReport}
+        />
       </div>
 
       <ul className="text-forest/90 mt-3 space-y-1.5 text-sm tabular-nums">
@@ -150,7 +155,9 @@ function StatusTag({
     <span
       className={cn(
         "shrink-0 rounded-full px-2.5 py-0.5 text-[11px]/4 font-bold",
-        soldOut ? "bg-forest/8 text-forest" : "bg-terra-deep/10 text-terra-deep",
+        soldOut
+          ? "bg-forest/8 text-forest"
+          : "bg-terra-deep/10 text-terra-deep",
       )}
     >
       {children}

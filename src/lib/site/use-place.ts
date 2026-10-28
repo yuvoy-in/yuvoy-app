@@ -41,11 +41,13 @@ export function usePlaceList({
           });
           if (data) return data;
         } catch (cause) {
-          if (!(cause instanceof YuvoyError && cause.status === 401)) throw cause;
+          if (!(cause instanceof YuvoyError && cause.status === 401))
+            throw cause;
         }
       }
       const { data, error } = await api.GET("/places", { signal });
-      if (error || !data) throw error ?? new Error("GET /places answered no list.");
+      if (error || !data)
+        throw error ?? new Error("GET /places answered no list.");
       return data;
     },
     initialData: initial ?? undefined,

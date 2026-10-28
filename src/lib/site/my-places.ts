@@ -124,7 +124,8 @@ async function readMyPlaces(
       throw new Error(`GET /me/places answered ${answer.status}.`);
     }
     const list = asPlaceList(answer.body);
-    if (!list) throw new Error("GET /me/places answered with no list of markets.");
+    if (!list)
+      throw new Error("GET /me/places answered with no list of markets.");
     return { list, signedIn: true };
   } catch (cause) {
     /*

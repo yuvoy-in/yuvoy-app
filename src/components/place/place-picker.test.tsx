@@ -40,15 +40,30 @@ const KARNATAKA: PlaceMarket = {
       kind: "local",
       visibleTo: "staff",
     },
-    { key: "karnataka/coorg", name: "Coorg", kind: "travel", visibleTo: "staff" },
-    { key: "karnataka/hampi", name: "Hampi", kind: "travel", visibleTo: "staff" },
+    {
+      key: "karnataka/coorg",
+      name: "Coorg",
+      kind: "travel",
+      visibleTo: "staff",
+    },
+    {
+      key: "karnataka/hampi",
+      name: "Hampi",
+      kind: "travel",
+      visibleTo: "staff",
+    },
     {
       key: "karnataka/gokarna",
       name: "Gokarna",
       kind: "travel",
       visibleTo: "staff",
     },
-    { key: "karnataka/mysuru", name: "Mysuru", kind: "local", visibleTo: "staff" },
+    {
+      key: "karnataka/mysuru",
+      name: "Mysuru",
+      kind: "local",
+      visibleTo: "staff",
+    },
   ],
 };
 
@@ -122,7 +137,9 @@ describe("the place picker", () => {
       `${ANDAMAN.name}, ${PLACE_PICKER_WORDS.bookable}, ${placesLine(ANDAMAN.destinations)}`,
       "Telangana, Hyderabad",
     ]);
-    expect(screen.getByRole("dialog", { name: "Pick a place" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Pick a place" }),
+    ).toBeInTheDocument();
   });
 
   it("writes the region line as mobile's placesLine", () => {
@@ -150,7 +167,9 @@ describe("the place picker", () => {
   it("opens a region with more places, then picks a town", async () => {
     const { onPick } = picker();
     await userEvent.click(screen.getByRole("button", { name: /^Karnataka/ }));
-    expect(screen.getByRole("heading", { name: "Karnataka" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Karnataka" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: "Bengaluru, Every card checked by a person",
@@ -204,7 +223,9 @@ describe("the place picker", () => {
 
   it("shows three skeleton rows while loading", () => {
     picker({ list: null, loading: true });
-    expect(screen.getByRole("status", { name: "Loading the places" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "Loading the places" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByTestId("place-picker-loading").querySelectorAll("li"),
     ).toHaveLength(3);
@@ -284,7 +305,9 @@ describe("remembering a link's place", () => {
   });
 
   it("writes nothing the list does not have", () => {
-    render(<RememberPlace write="karnataka/mysore" clear={false} list={LIST} />);
+    render(
+      <RememberPlace write="karnataka/mysore" clear={false} list={LIST} />,
+    );
     expect(cookies).toEqual([]);
     expect(captured).toEqual([]);
   });

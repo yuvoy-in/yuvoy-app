@@ -132,7 +132,9 @@ export function PlaceButton({
 function placeHref(key: string): string {
   const href = `/?place=${key}`;
   if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") return href;
-  const scenario = new URLSearchParams(window.location.search).get("__scenario");
+  const scenario = new URLSearchParams(window.location.search).get(
+    "__scenario",
+  );
   return scenario ? `${href}&__scenario=${encodeURIComponent(scenario)}` : href;
 }
 

@@ -161,7 +161,8 @@ describe("a found card shown", () => {
   it("reaches the collector as an event on the found feed", () => {
     vi.useFakeTimers();
     const t = createShownTracker({
-      record: (id, position) => recordFound("shown", id, "found_feed", position),
+      record: (id, position) =>
+        recordFound("shown", id, "found_feed", position),
       counting: () => true,
       setTimer: (run, ms) => setTimeout(run, ms),
       clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),

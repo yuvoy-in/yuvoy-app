@@ -213,7 +213,9 @@ describe("what a card does not say", () => {
 
   it("has no See details without a link", () => {
     const { card } = renderCard({ seeDetailsUrl: undefined });
-    expect(within(card).queryByRole("link", { name: "See details" })).toBeNull();
+    expect(
+      within(card).queryByRole("link", { name: "See details" }),
+    ).toBeNull();
   });
 });
 

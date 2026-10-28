@@ -78,7 +78,12 @@ const card = (n: number, over: Partial<FoundItem> = {}): FoundItem => ({
   kind: "event",
   department: "food_drink",
   title: `Card ${n}`,
-  when: { startsOn: "2026-11-22", startTime: null, endsOn: null, repeats: null },
+  when: {
+    startsOn: "2026-11-22",
+    startTime: null,
+    endsOn: null,
+    repeats: null,
+  },
   where: { placeText: "Cubbon Park", town: "Bengaluru" },
   price: { kind: "free", from: null, text: "Free" },
   status: "scheduled",
@@ -138,12 +143,17 @@ describe("the found feed", () => {
   it("shows the heading, the place line, the place button and the server's cards", () => {
     renderFeed();
     expect(
-      screen.getByRole("heading", { level: 1, name: "Things to do in Bengaluru" }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Things to do in Bengaluru",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Every card here was checked by a person at Yuvoy."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bengaluru" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bengaluru" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("feed")).toHaveAccessibleName(
       "Things to do in Bengaluru",
     );
@@ -264,14 +274,20 @@ describe("empty", () => {
         return HttpResponse.json(page([card(3)]));
       }),
     );
-    window.history.replaceState(null, "", "/?place=karnataka/bengaluru&category=food_drink");
+    window.history.replaceState(
+      null,
+      "",
+      "/?place=karnataka/bengaluru&category=food_drink",
+    );
     renderFeed({ firstPage: page([]), category: "food_drink" });
     expect(
       await screen.findByText("No food and drink in Bengaluru right now"),
     ).toBeInTheDocument();
     expect(screen.getByText("Try another kind of thing.")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Show everything" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show everything" }),
+    );
     await waitFor(() => expect(titles()).toEqual(["Card 3"]));
     expect(category).toBeNull();
     expect(window.location.search).toBe("?place=karnataka%2Fbengaluru");
@@ -330,7 +346,9 @@ describe("the chips", () => {
       ]),
     );
 
-    await userEvent.click(within(group).getByRole("button", { name: "Adventure" }));
+    await userEvent.click(
+      within(group).getByRole("button", { name: "Adventure" }),
+    );
     await waitFor(() => expect(titles()).toEqual(["Card 7"]));
     expect(category).toBe("adventure");
     expect(window.location.search).toBe("?category=adventure");
@@ -339,9 +357,7 @@ describe("the chips", () => {
 
 describe("hidden cards", () => {
   it("leaves out the cards this browser hides", async () => {
-    idb.store.set("yv.hiddenCards", [
-      { id: card(1).id, at: Date.now() },
-    ]);
+    idb.store.set("yv.hiddenCards", [{ id: card(1).id, at: Date.now() }]);
     renderFeed();
     await waitFor(() => expect(titles()).toEqual(["Card 2"]));
   });

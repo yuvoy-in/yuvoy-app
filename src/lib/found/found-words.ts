@@ -55,14 +55,15 @@ export const FOUND_PAGE_SIZE = 20;
 /** A list on screen longer than this is said to be from earlier. */
 export const FOUND_STALE_AFTER_MS = 30 * 60_000;
 
-const STATUS_WORDS: Readonly<Record<Exclude<FoundStatus, "scheduled">, string>> =
-  Object.freeze({
-    cancelled: "Cancelled",
-    postponed: "Postponed",
-    moved: "Date or place changed",
-    sold_out: "Sold out",
-    ended: "This has ended",
-  });
+const STATUS_WORDS: Readonly<
+  Record<Exclude<FoundStatus, "scheduled">, string>
+> = Object.freeze({
+  cancelled: "Cancelled",
+  postponed: "Postponed",
+  moved: "Date or place changed",
+  sold_out: "Sold out",
+  ended: "This has ended",
+});
 
 const UNDATED = "Check dates on their page";
 const NO_PLACE = "Place on their page";
@@ -186,7 +187,8 @@ export const foundWords = Object.freeze({
    */
   stale: (readAt: number, timezone: string | null | undefined): string => {
     const iso = new Date(readAt).toISOString();
-    const civil = (timezone ? civilInZone(iso, timezone) : null) ?? civilHere(iso);
+    const civil =
+      (timezone ? civilInZone(iso, timezone) : null) ?? civilHere(iso);
     const time = civil ? clockTime(civil) : "earlier";
     return `This list is from ${time}. Refresh for the latest.`;
   },
