@@ -1,10 +1,25 @@
 import type { Metadata } from "next";
+import { cookies, headers } from "next/headers";
 import { pageMetadata } from "@/lib/site/metadata";
 import { Feed } from "@/components/feed/feed";
+import { FoundFeed } from "@/components/found/found-feed";
+import { PlaceButton, RememberPlace } from "@/components/place/place-button";
 import { gatedRoute } from "@/components/auth/gated-route";
 import { firstReelsPage } from "@/lib/feed/first-page";
+import { firstFoundPage } from "@/lib/found/first-page";
+import { readSessionCookie } from "@/lib/auth/session-cookie";
 import { preconnectApi } from "@/lib/site/preconnect";
-import { feedHeading, getPlaces } from "@/lib/site/places";
+import { feedHeading, type PlaceList } from "@/lib/site/places";
+import { myPlaces } from "@/lib/site/my-places";
+import { nearYou } from "@/lib/site/near-you";
+import {
+  PLACE_COOKIE,
+  categoryParam,
+  choiceFrom,
+  goneAfterAnswer,
+  hasDiscoverPlace,
+  type PlaceChoice,
+} from "@/lib/site/place-choice";
 
 /**
  * T2 — the reels feed. The app's front door.
@@ -99,22 +114,159 @@ export default async function FeedPage({
     content: async () => {
       // The cards read their listings from the browser once they are on screen.
       preconnectApi();
+
       /*
-        The places beside the first page, not after it: both are on the way to
-        the HTML, and the list is cached for five minutes, so this is almost
-        always free. A list that did not load names no place in the heading.
+        WHICH PLACE (yuvoy-app#179, R2-T4): `?place=` when the caller's list
+        has it, else the cookie `yv_place`, else the bookable market
+        (`choiceFrom`). Reading the cookie costs nothing here: `/` is
+        rendered per request already.
+
+        With nothing chosen, which is every visitor while `explore` is off,
+        the answer is the reels whatever the list says, so the first page of
+        reels is asked for BESIDE the list, as it always was: the places add
+        no wait to today's feed. With a place in the address or the cookie,
+        the list decides first, and the reels are only asked for if they are
+        what is shown.
       */
-      const [{ page, fetchedAt }, places] = await Promise.all([
-        firstReelsPage({ screen: "feed", scenario }),
-        getPlaces(),
-      ]);
+      const { remembered, visitor, token } = await requestParts();
+      const param = query.place;
+      const choosing = typeof param === "string" || remembered !== null;
+
+      const reelsAhead = choosing
+        ? null
+        : firstReelsPage({ screen: "feed", scenario });
+      const places = await myPlaces(token, scenario);
+      const list = places.list;
+      let choice = choiceFrom(list, param, remembered);
+
+      // A found place is only ever chosen from a list that answered.
+      if (choice.shown.kind === "found" && list) {
+        const { market, destination } = choice.shown;
+        const category = categoryParam(query.category);
+        const first = await firstFoundPage({
+          destinationKey: destination.key,
+          category,
+          token,
+          headers: visitor ?? new Headers(),
+        });
+        if (first.kind !== "gone") {
+          return (
+            <>
+              <Remember choice={choice} list={list} />
+              <FoundFeed
+                /*
+                  The place as the first page names it; when that page
+                  failed, as the list does, which says the same things.
+                */
+                place={
+                  first.kind === "ok"
+                    ? first.page.place
+                    : {
+                        key: destination.key,
+                        name: destination.name,
+                        regionName: market.name,
+                        kind: destination.kind,
+                        timezone: market.timezone,
+                      }
+                }
+                placeName={destination.name}
+                firstPage={first.kind === "ok" ? first.page : null}
+                category={category}
+                signedIn={places.signedIn}
+                trigger={
+                  <PlaceButton
+                    list={list}
+                    current={{ key: destination.key, name: destination.name }}
+                    signedIn={places.signedIn}
+                    nearYou={nearYou(visitor, list)}
+                  />
+                }
+              />
+            </>
+          );
+        }
+        // Answered 404: this caller may not see it now. The reels, said once.
+        choice = goneAfterAnswer(list, choice, remembered);
+      }
+
+      const { page, fetchedAt } = await (reelsAhead ??
+        firstReelsPage({ screen: "feed", scenario }));
+      const market = choice.shown.market;
       return (
-        <Feed
-          initialPage={page}
-          initialFetchedAt={fetchedAt}
-          heading={feedHeading(places)}
-        />
+        <>
+          <Remember choice={choice} list={list} />
+          <Feed
+            initialPage={page}
+            initialFetchedAt={fetchedAt}
+            heading={feedHeading(list)}
+            trigger={
+              /*
+                Only when the list holds a place to find things in: with
+                `explore` off it never does, and the masthead is today's.
+              */
+              market && list && hasDiscoverPlace(list) ? (
+                <PlaceButton
+                  list={list}
+                  current={{ key: market.key, name: market.name }}
+                  signedIn={places.signedIn}
+                  nearYou={nearYou(visitor, list)}
+                  tone="dark"
+                />
+              ) : undefined
+            }
+            gone={choice.gone}
+          />
+        </>
       );
     },
   });
+}
+
+/**
+ * What `/` reads off the request for the place: the remembered key, the
+ * headers (Near you, and the visitor's address for the API's limits) and the
+ * session. Outside a request, as a unit test renders the page, there is no
+ * cookie jar to read, and that is a visitor with nothing remembered.
+ */
+async function requestParts(): Promise<{
+  remembered: string | null;
+  visitor: Headers | undefined;
+  token: string | null;
+}> {
+  try {
+    const [jar, visitor, token] = await Promise.all([
+      cookies(),
+      headers(),
+      readSessionCookie(),
+    ]);
+    return {
+      remembered: jar.get(PLACE_COOKIE)?.value ?? null,
+      visitor,
+      token,
+    };
+  } catch {
+    return { remembered: null, visitor: undefined, token: null };
+  }
+}
+
+/**
+ * The browser's half of the choice: keep the place a link opened, or forget
+ * one that has gone. Nothing at all when there is nothing to do, so `/` with
+ * no place chosen renders exactly the tree it always did.
+ */
+function Remember({
+  choice,
+  list,
+}: {
+  choice: PlaceChoice;
+  list: PlaceList | null;
+}) {
+  if (!choice.cookie) return null;
+  return (
+    <RememberPlace
+      write={choice.cookie === "write" ? choice.key : null}
+      clear={choice.cookie === "clear"}
+      list={list}
+    />
+  );
 }
