@@ -75,6 +75,9 @@ const ALLOWED = {
 const MUST_BE_DYNAMIC = {
   "/": "The feed is the freshest surface in the product.",
   "/search": "Reads the wall clock during render — see the day pills.",
+  "/f/[id]":
+    "A found card (yuvoy-app#179). Its status and trust line change between " +
+    "deploys, and the session decides what the API answers.",
 };
 
 /*

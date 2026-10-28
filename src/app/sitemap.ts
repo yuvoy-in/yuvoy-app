@@ -111,5 +111,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Left empty on purpose. See above.
   }
 
-  return [...stat, ...guides, ...experiences, ...businesses];
+  /*
+    The found cards a search engine may index (yuvoy-app#179), from the
+    index the API keeps for exactly this: checked, live cards in places open
+    to everybody. Empty until `explore` is open to all, so today this adds
+    nothing, and each page it lists says `index` in its own tag, so the two
+    halves agree. The same rule again: a failure leaves them out.
+  */
+  let found: MetadataRoute.Sitemap = [];
+  try {
+    const { data, error } = await api.GET("/events/index", {});
+    if (!error && data) {
+      found = data.entries.map((entry) => ({
+        url: `${BASE}/f/${encodeURIComponent(entry.id)}`,
+        lastModified: new Date(entry.lastModified),
+        changeFrequency: "daily" as const,
+        priority: 0.6,
+      }));
+    }
+  } catch {
+    // Left empty on purpose. See above.
+  }
+
+  return [...stat, ...guides, ...experiences, ...businesses, ...found];
 }
