@@ -6,6 +6,7 @@ import {
   mockNow,
 } from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
+import { exploreStageOf } from "./found-handlers";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -1766,10 +1767,13 @@ export const bookingHandlers = [
         provenEmail: emailDoor ? "asha@example.com" : null,
         /*
           Who sees releases early (R0-T2): nobody, unless
-          `?__scenario=cohort-staff` or `cohort-early` says so.
+          `?__scenario=cohort-staff` or `cohort-early` says so, or one of
+          yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
+          staff tester's world.
         */
         cohort:
-          scenarioOf(request) === "cohort-staff"
+          scenarioOf(request) === "cohort-staff" ||
+          exploreStageOf(scenarioOf(request)) === "staff"
             ? "staff"
             : scenarioOf(request) === "cohort-early"
               ? "early"

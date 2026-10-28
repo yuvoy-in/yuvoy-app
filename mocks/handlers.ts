@@ -16,6 +16,12 @@ import {
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
+import { foundHandlers, exploreStageOf } from "./found-handlers";
+import {
+  KARNATAKA_FOR_ALL,
+  KARNATAKA_MARKET,
+  isFoundId,
+} from "./found-fixtures";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -122,7 +128,26 @@ export type Scenario =
   | "explore-staff"
   /* `POST /outcomes` answering 503 (keep the batch) or 429 (slow down). */
   | "outcomes-down"
-  | "outcomes-slow-down";
+  | "outcomes-slow-down"
+  /*
+    Explore any place (yuvoy-app#179). Each opens `explore` at `staff` with a
+    staff `GET /me`, plus one fault or one shape of answer; `found-handlers.ts`
+    says what each does. `places-error` is `places-unavailable` under a staff
+    world: both lists fail, and `explore` is open to the caller.
+  */
+  | "found-empty"
+  | "found-error"
+  | "found-page-error"
+  | "found-stopped"
+  | "found-long"
+  | "found-slow"
+  | "found-dept-empty"
+  | "places-error"
+  | "report-throttled"
+  | "report-too-fast"
+  | "report-gone"
+  | "item-ended"
+  | "item-merged";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -1019,13 +1044,24 @@ export const handlers = [
   /*
     Markets and their destinations (yuvoy-app#181, `listPlaces`): Andaman
     alone, as production answers. No session, the same for everybody.
+
+    A discover market joins only once `explore` is open to everybody
+    (`explore-all`, yuvoy-app#179): at `staff` the public list stays
+    Andaman's, as the API's does, and staff read `/me/places` instead.
   */
   http.get(url("/places"), async ({ request }) => {
     const failed = await commonFailure(request);
     if (failed) return failed;
     const scenario = scenarioOf(request);
-    if (scenario === "places-unavailable") {
+    if (scenario === "places-unavailable" || scenario === "places-error") {
       return envelope("unavailable", "Places are not answering.", 503);
+    }
+    if (exploreStageOf(scenario) === "all") {
+      // Markets by name, as the API sends them.
+      return HttpResponse.json(
+        { markets: [...PLACES.markets, KARNATAKA_FOR_ALL] },
+        { headers: mockHeaders(requestId()) },
+      );
     }
     return HttpResponse.json(
       scenario === "two-markets"
@@ -1037,12 +1073,32 @@ export const handlers = [
 
   /*
     The places this traveller may see (`listMyPlaces`): the public list until
-    a cohort sees places still opening, which R0 has none of. Signed in only,
-    as the API asks, for yuvoy-app#179 to build on.
+    a cohort sees places still opening. Signed in only, as the API asks.
+
+    Under yuvoy-app#179's scenarios a staff caller also sees Karnataka, its
+    places `visibleTo: staff`; under `explore-all` the same places open to
+    all. Both failure scenarios fail this list too, so a signed-in page meets
+    the same outage a signed-out one does.
   */
   http.get(url("/me/places"), async ({ request }) => {
     if (!request.headers.get("authorization")) {
       return envelope("unauthorized", "Sign in first.", 401);
+    }
+    const scenario = scenarioOf(request);
+    if (scenario === "places-unavailable" || scenario === "places-error") {
+      return envelope("unavailable", "Places are not answering.", 503);
+    }
+    const stage = exploreStageOf(scenario);
+    if (stage) {
+      return HttpResponse.json(
+        {
+          markets: [
+            ...PLACES.markets,
+            stage === "all" ? KARNATAKA_FOR_ALL : KARNATAKA_MARKET,
+          ],
+        },
+        { headers: mockHeaders(requestId()) },
+      );
     }
     return HttpResponse.json(PLACES, { headers: mockHeaders(requestId()) });
   }),
@@ -1056,14 +1112,10 @@ export const handlers = [
     const failed = await commonFailure(request);
     if (failed) return failed;
     const scenario = scenarioOf(request);
+    // yuvoy-app#179's scenarios open `explore` at `staff`, `explore-all` at all.
     const explore =
-      scenario === "explore-all"
-        ? "all"
-        : scenario === "explore-early"
-          ? "early"
-          : scenario === "explore-staff"
-            ? "staff"
-            : "off";
+      exploreStageOf(scenario) ??
+      (scenario === "explore-early" ? "early" : "off");
     return HttpResponse.json(
       {
         minimumVersion: { ios: "0.0.0", android: "0.0.0" },
@@ -1145,6 +1197,15 @@ export const handlers = [
       "found_detail",
     ]);
     const known = new Set(EXPERIENCES.map((experience) => experience.id));
+    /*
+      A found card is a subject too (`subjectType: event`, yuvoy-app#179),
+      known when it is one of the found fixtures' cards. Each kind of subject
+      is looked up only among its own kind, as the API looks it up.
+    */
+    const knownSubject = (event: Record<string, unknown>) =>
+      event.subjectType === "event"
+        ? isFoundId(event.subjectId as string, mockNow())
+        : known.has(event.subjectId as string);
     const uuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const now = mockNow();
@@ -1162,7 +1223,7 @@ export const handlers = [
         !event ||
         typeof event !== "object" ||
         typeof event.subjectId !== "string" ||
-        event.subjectType !== "experience" ||
+        (event.subjectType !== "experience" && event.subjectType !== "event") ||
         typeof event.occurredAt !== "string"
           ? "invalid_event"
           : typeof event.eventId !== "string" || !uuid.test(event.eventId)
@@ -1172,7 +1233,7 @@ export const handlers = [
               : typeof event.surface !== "string" ||
                   !surfaces.has(event.surface)
                 ? "unknown_surface"
-                : !known.has(event.subjectId)
+                : !knownSubject(event)
                   ? "unknown_subject"
                   : position !== undefined &&
                       (!Number.isInteger(position) ||
@@ -1241,4 +1302,5 @@ export const handlers = [
 
   ...bookingHandlers,
   ...savedHandlers,
+  ...foundHandlers,
 ];
