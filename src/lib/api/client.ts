@@ -72,6 +72,7 @@ const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
   "booking_disabled",
   "operator_not_bookable",
+  "host_not_bookable",
   "payments_unavailable",
   "media_unavailable",
   "rate_limited",
