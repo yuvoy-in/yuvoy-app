@@ -1,28 +1,25 @@
 name: CI
 
-# MANUAL ONLY. The same suite runs locally before every push (`pnpm verify`,
-# wired to .husky/pre-push), so running it here on every push and pull request
-# was paying for the same answer twice.
+# Runs on every pull request into `main` or `dev`, and by hand.
 #
-# ## Why (ported from yuvoy-web, 2026-08-14)
+# The `main` and `dev` rulesets require `verify` to pass on the exact
+# head, with the branch level with its base, before a pull request can merge
+# (yuvoy-mobile#403, decision D-052). `main` deploys to production on every
+# push, so this is the check standing between a merge and the live site.
 #
-# The account reached 90% of its 2,000 free Actions minutes with 20 days of the
-# cycle left, and there is no budget to spend past it. Actions does deployments
-# only; correctness moved to the pre-push hook, which runs the identical
-# commands on the identical lockfile before anything leaves the machine.
+# This was manual only from 14 Aug 2026, to save Actions minutes. That budget
+# belongs to the org's private repositories: this repository is public, so its
+# GitHub-hosted runs cost nothing. The pre-push hook (`pnpm verify`) still runs
+# the same suite before anything leaves the machine; this is the second opinion
+# on a machine that is not the author's.
 #
-# This repo repeated the mistake on its first PR: ci.yml ran verify, e2e AND
-# Lighthouse on every pull_request and push, roughly 6 minutes each, while the
-# local `verify` was missing the e2e run that yuvoy-web's includes — a weaker
-# gate and a heavier bill at the same time.
-#
-# **Keep this workflow.** It is the second opinion on a machine that is not the
-# author's, worth the minutes before a release or when a failure smells
-# environmental. Lighthouse lives here for the same reason: it needs a
-# consistent machine to mean anything, and it does not need to run per push.
+# The performance budgets job runs only by hand (`inputs.lighthouse` is empty
+# on a pull request): it needs a consistent machine to mean anything.
 #
 #     gh workflow run CI --ref <branch>
 on:
+  pull_request:
+    branches: [main, dev]
   workflow_dispatch:
     inputs:
       lighthouse:
