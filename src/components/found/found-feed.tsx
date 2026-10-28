@@ -383,7 +383,7 @@ function Foot({
         </p>
       ) : (
         <div className="flex flex-col items-center gap-4">
-          <p className="text-body text-forest/70">
+          <p className="text-body text-forest/70 text-pretty">
             {foundWords.end(placeName)}
           </p>
           {action}
@@ -428,7 +428,6 @@ function useReport({
     setItem({ ...item, open: false });
 
     let done = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const settle = () => {
       if (done) return;
       done = true;
@@ -450,7 +449,7 @@ function useReport({
     // A dialog's `close` does not bubble, but it is seen on the way down.
     document.addEventListener("close", settle, true);
     // And if the sheet leaves some other way, a second is long enough.
-    timer = setTimeout(settle, 1_000);
+    const timer = setTimeout(settle, 1_000);
   };
 
   return { item, open, close };

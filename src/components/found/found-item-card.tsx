@@ -168,7 +168,7 @@ function StatusTag({
 function Line({ icon, children }: { icon: ReactNode; children: string }) {
   return (
     <li className="flex items-start gap-2">
-      <span className="text-forest/60 mt-0.5" aria-hidden="true">
+      <span className="text-forest/70 mt-0.5" aria-hidden="true">
         {icon}
       </span>
       <span className="min-w-0 flex-1">{children}</span>

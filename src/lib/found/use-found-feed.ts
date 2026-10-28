@@ -215,26 +215,23 @@ export function useNextPage({
   useEffect(() => {
     latest.current = { canAsk, ask };
   });
-  const [observer] = useState(() =>
-    typeof IntersectionObserver === "undefined"
-      ? null
-      : new IntersectionObserver(
-          (entries) => {
-            if (!entries.some((entry) => entry.isIntersecting)) return;
-            if (latest.current.canAsk) latest.current.ask();
-          },
-          { rootMargin: "0px 0px 600px 0px" },
-        ),
-  );
-  useEffect(() => () => observer?.disconnect(), [observer]);
   return useCallback(
     (element: HTMLElement | null) => {
-      if (!element || !observer) return;
+      if (!element || typeof IntersectionObserver === "undefined") return;
       // Said on the foot, so a test (and a reader of the DOM) can see why it was observed again.
       element.dataset.pages = String(pageCount);
+      // One observer per foot and page count, made here rather than during
+      // render: its callback reads the ref, which render may not.
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          if (latest.current.canAsk) latest.current.ask();
+        },
+        { rootMargin: "0px 0px 600px 0px" },
+      );
       observer.observe(element);
-      return () => observer.unobserve(element);
+      return () => observer.disconnect();
     },
-    [observer, pageCount],
+    [pageCount],
   );
 }

@@ -258,7 +258,7 @@ export function FoundItemPage({
         className="border-paper-line hover:bg-forest/5 ease-interaction tap-target mt-6 flex items-center gap-3 border-y py-3 text-left transition-colors duration-200"
       >
         <span className="flex-1">{FOUND_PAGE_WORDS.report}</span>
-        <ChevronRightIcon className="text-forest/40 size-4.5" />
+        <ChevronRightIcon className="text-forest/70 size-4.5" />
       </button>
 
       <div className="mt-6">

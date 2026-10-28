@@ -111,7 +111,7 @@ export function PlaceButton({
           onClose={() => setOpen(false)}
           list={shownList}
           loading={places.isPending}
-          failed={places.isError && !places.data}
+          failed={places.isLoadingError}
           retrying={places.isFetching}
           onRetry={() => void places.refetch()}
           currentKey={current.key}
