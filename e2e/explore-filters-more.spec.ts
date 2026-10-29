@@ -67,10 +67,15 @@ test("Budget and Time of day narrow on Show results; no stated price is never un
 
   await filtersButton(page).click();
   await expect(filterSheet(page)).toBeVisible();
-  // One choice per row: radios, with no pressed state of their own.
-  await expect(filterSheet(page).getByRole("radio")).toHaveCount(
-    CHOICES.length,
-  );
+  // One choice per row: radios, with no pressed state of their own. The
+  // sheet has more rows than these two (yuvoy-app#195), so each is counted.
+  for (const row of [UI.budget, UI.timeOfDay]) {
+    await expect(
+      filterSheet(page)
+        .getByRole("group", { name: row, exact: true })
+        .getByRole("radio"),
+    ).toHaveCount(CHOICES.filter(([r]) => r === row).length);
+  }
   await expect(filterSheet(page).locator("[aria-pressed]")).toHaveCount(0);
   await expectNoneChosen(page);
 
