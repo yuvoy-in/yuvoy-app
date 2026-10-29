@@ -283,7 +283,14 @@ test.describe("the reel keeps the screen", () => {
       The redesign's point (traveller A): from a reel to a chosen departure in
       two taps, without a page load in between. Checkout must open on the very
       departure the panel named, by the parameters it already reads.
+
+      Without motion, and only once the row is on screen. On a slow runner the
+      panel was still sliding up when the click came, so Playwright scrolled
+      to reach the row, the strip snapped to the next reel and the panel
+      closed under it (yuvoy-mobile#403, hosted CI only). The two taps are the
+      point here, not the slide.
     */
+    await page.emulateMedia({ reducedMotion: "reduce" });
     const card = page.locator('article[aria-posinset="1"]');
     await card.getByRole("button", { name: /Aug|No dates/ }).click();
 
@@ -292,6 +299,7 @@ test.describe("the reel keeps the screen", () => {
       .getByRole("region", { name: "Coming up" });
     const first = comingUp.getByRole("link").first();
     await expect(first).toHaveAccessibleName(/^Book .+ 07:00 4 seats left$/);
+    await expect(first).toBeInViewport();
     await first.click();
 
     await expect(page).toHaveURL(
