@@ -181,3 +181,38 @@ describe("what it asks, and when", () => {
     ).toBeNull();
   });
 });
+
+/**
+ * The plan link page (yuvoy-mobile#373, case 17). Its address after the `#`
+ * is the plan's secret, so a friend opening it from WhatsApp is not asked
+ * about analytics there, and nothing loads analytics from there.
+ */
+describe("on the plan link page", () => {
+  it("does not ask", async () => {
+    for (const route of ["/p", "/p/"]) {
+      cleanup();
+      pathname = route;
+      vi.resetModules();
+      const { ConsentBanner } = await import("./consent-banner");
+      render(<ConsentBanner />);
+      expect(
+        screen.queryByRole("region", { name: "Analytics choice" }),
+        route,
+      ).toBeNull();
+    }
+  });
+
+  it("loads no analytics for somebody who said yes elsewhere", async () => {
+    pathname = "/p";
+    sessionStorage.setItem("yuvoy.consent.analytics", "granted:2");
+    vi.resetModules();
+    const create = vi.fn(async () => null);
+    vi.doMock("@/lib/analytics/posthog", () => ({ createPostHogReporter: create }));
+    const { ConsentBanner } = await import("./consent-banner");
+    await act(async () => {
+      render(<ConsentBanner />);
+    });
+    expect(create).not.toHaveBeenCalled();
+    vi.doUnmock("@/lib/analytics/posthog");
+  });
+});
