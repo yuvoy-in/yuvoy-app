@@ -1,29 +1,51 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { guestTokenFromHash } from "@/lib/plans/guest-token";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { callGuestRoute } from "@/lib/plans/guest-calls";
-import type { components } from "@/lib/api/schema.gen";
-
-type PlanView = components["schemas"]["PlanView"];
+import { guestActions } from "@/lib/plans/guest-actions";
+import {
+  arrivalTaken,
+  restoreFragment,
+  takeArrival,
+} from "@/lib/plans/guest-return";
+import { guestTokenFromHash } from "@/lib/plans/guest-token";
+import { guestWords } from "@/lib/plans/guest-words";
+import type { PlanView } from "@/lib/plans/types";
+import { planWords } from "@/lib/plans/words";
+import { Button } from "@/components/ui/button";
+import { GuestPlan } from "@/components/plans/guest-plan";
+import { PlanReport } from "@/components/plans/plan-report-sheet";
 
 /**
- * PLACEHOLDER for the guest page (yuvoy-mobile#373). It proves the server
- * side end to end and nothing more: it reads the token, checks its shape,
- * asks `/p/api/view`, and shows the plan's title and who invited the reader,
- * or the line for a link that is not working, for paused plans, or for no
- * answer. The real page, with replies, the bring list, costs and the
- * footer, is built on the shared plan view and replaces this file.
+ * The guest page in the browser (yuvoy-mobile#373): reads the token from
+ * the fragment, asks `/p/api/view` for the plan, and draws it, or the page
+ * for a link that is not working, for plans paused, or for no answer.
  *
- * Its words are the issue's drafts and wait on copy approval like the rest;
- * when the page is built they move to the shared plan words.
+ * ## The fragment
  *
- * Two rules it already keeps, because the real page must:
+ * The token is everything after `#`, and this page never changes it: an
+ * anchor, a `hashchange` of our own or a `replaceState` that rewrote it
+ * would lose the plan. So every error line takes focus by script, and the
+ * skip link moves focus by script on `/p` (`chrome/skip-link.tsx`).
  *
- *   - **It never writes `location.hash`.** The fragment IS the token, and an
- *     anchor or a `replaceState` that touched it would lose the plan.
- *   - **A token of the wrong shape, or none, costs no request.** The "not
- *     working" line is shown straight away (the issue's case 2).
+ * The one write is putting the token BACK, after sign-in: "Link my reply
+ * to my account" keeps it in this tab's storage and sign-in returns to
+ * `/p` with no token in any address (case 15). `restoreFragment` writes it
+ * only into an address with no fragment at all, so it can never replace
+ * one, and only the token that was kept.
+ *
+ * ## A token of the wrong shape, or none, costs no request
+ *
+ * The "not working" page is shown straight away (case 2). A well-formed
+ * token the API does not know is the same page after one request, with
+ * "Report this plan": a guest the planner removed gets a 404 too, and the
+ * report route still takes their key (case 16, with yuvoy-api#434).
+ *
+ * ## Paused, and no answer
+ *
+ * `503 plans_unavailable` is a switch somebody at Yuvoy turned, so it says
+ * so rather than "something went wrong", and both it and a read that never
+ * answered offer Try again, which asks again with the same token.
  */
 
 type Shown =
@@ -46,9 +68,6 @@ function shownFor(status: number, body: unknown): Shown {
   return { kind: "failed" };
 }
 
-const NOT_WORKING =
-  "This plan link is not working. It may have expired, or the person who made the plan may have made a new one. Ask whoever sent it to you for a fresh link.";
-
 export function GuestPage() {
   /*
     `undefined` on the server and through hydration, where there is no
@@ -59,74 +78,162 @@ export function GuestPage() {
     readToken,
     () => undefined,
   );
-  const [answer, setAnswer] = useState<{ token: string; shown: Shown } | null>(
-    null,
-  );
+  const [attempt, setAttempt] = useState(0);
+  const [answer, setAnswer] = useState<{
+    token: string;
+    attempt: number;
+    shown: Shown;
+  } | null>(null);
+
+  // Back from sign-in: the kept token goes back after the `#`.
+  useEffect(() => {
+    if (token) restoreFragment(token);
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
     const controller = new AbortController();
     callGuestRoute("view", { token }, controller.signal).then(
-      ({ status, body }) => setAnswer({ token, shown: shownFor(status, body) }),
+      ({ status, body }) =>
+        setAnswer({ token, attempt, shown: shownFor(status, body) }),
       () => {
         if (!controller.signal.aborted) {
-          setAnswer({ token, shown: { kind: "failed" } });
+          setAnswer({ token, attempt, shown: { kind: "failed" } });
         }
       },
     );
     return () => controller.abort();
-  }, [token]);
+  }, [token, attempt]);
 
   if (token === undefined) return null;
 
   const shown: Shown | null =
     token === null
       ? { kind: "not-working" }
-      : answer?.token === token
+      : answer?.token === token && answer.attempt === attempt
         ? answer.shown
         : null;
 
+  if (token === null || shown === null) {
+    return shown === null ? (
+      <p role="status" className="text-forest/70 text-body py-16 text-center text-pretty">
+        {guestWords.loading}
+      </p>
+    ) : (
+      <GuestStop kind="not-working" token={null} onRetry={() => {}} />
+    );
+  }
+
+  if (shown.kind === "plan") {
+    // Only ever taken by `readToken`, from an address with no fragment.
+    const arrival = arrivalTaken();
+    return (
+      <GuestPlan
+        key={token}
+        token={token}
+        plan={shown.plan}
+        linkOnArrival={arrival !== null && arrival.token === token && arrival.link}
+      />
+    );
+  }
+
   return (
-    <div className="stage flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-      {shown === null ? (
-        <p role="status" className="text-paper/70 text-body text-pretty">
-          Loading the plan
+    <GuestStop
+      key={token}
+      kind={shown.kind}
+      token={token}
+      onRetry={() => setAttempt((n) => n + 1)}
+    />
+  );
+}
+
+/**
+ * The page when there is no plan to draw: its line in an alert that takes
+ * focus by script once drawn, and the one way on from it.
+ */
+function GuestStop({
+  kind,
+  token,
+  onRetry,
+}: {
+  kind: "not-working" | "paused" | "failed";
+  /** The token when it was well formed, so the plan can still be reported. */
+  token: string | null;
+  onRetry: () => void;
+}) {
+  const alertRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    alertRef.current?.focus();
+  }, [kind]);
+
+  /*
+    Reporting needs only the token: the page never learned the plan, so
+    there are no names to offer and the report is about the plan itself.
+    Made once, as the plan page's actions are.
+  */
+  const [actions] = useState(() =>
+    token
+      ? guestActions({
+          token,
+          current: () => null,
+          firstName: () => "",
+          signedIn: () => false,
+          onPlan: () => {},
+          onNameRefused: () => {},
+        })
+      : null,
+  );
+
+  const heading = kind === "paused" ? planWords.paused : planWords.pageTitle;
+  const line =
+    kind === "not-working"
+      ? planWords.linkNotWorking
+      : kind === "paused"
+        ? planWords.pausedNext
+        : guestWords.loadFailed;
+
+  return (
+    <div className="py-16 text-center">
+      <div ref={alertRef} role="alert" tabIndex={-1} className="outline-none">
+        <h1 className="font-display tracking-display leading-display text-3xl text-balance">
+          {heading}
+        </h1>
+        <p className="text-forest/70 text-body mx-auto mt-3 max-w-sm text-pretty">
+          {line}
         </p>
-      ) : shown.kind === "plan" ? (
-        <>
-          <p className="eyebrow text-terra-soft">
-            {`${shown.plan.planner.name} invited you`}
-          </p>
-          <h1 className="font-display tracking-display text-paper leading-display mt-4 text-3xl text-balance">
-            {shown.plan.title}
-          </h1>
-        </>
+      </div>
+      {kind === "not-working" ? (
+        actions ? (
+          <PlanReport
+            plan={NO_PEOPLE}
+            report={actions.report}
+            label={planWords.reportPlan}
+            onGone={() => {}}
+          />
+        ) : null
       ) : (
-        <>
-          <h1 className="font-display tracking-display text-paper leading-display text-3xl text-balance">
-            A plan on Yuvoy
-          </h1>
-          <p
-            role="alert"
-            className="text-paper/70 text-body mt-3 max-w-sm text-pretty"
-          >
-            {shown.kind === "not-working"
-              ? NOT_WORKING
-              : shown.kind === "paused"
-                ? "Plans are paused for a moment. Try again later."
-                : "We could not load this plan. Check your connection and open the link again."}
-          </p>
-        </>
+        <Button className="mt-6" onClick={onRetry}>
+          {guestWords.tryAgain}
+        </Button>
       )}
     </div>
   );
 }
+
+const NO_PEOPLE: Pick<PlanView, "people"> = { people: [] };
 
 function subscribe(onChange: () => void): () => void {
   window.addEventListener("hashchange", onChange);
   return () => window.removeEventListener("hashchange", onChange);
 }
 
+/**
+ * The token after the `#`; with nothing there, the one kept for the way
+ * back from sign-in, if this tab kept one. A fragment that is there but is
+ * not a token is null: it is never swapped for the kept one.
+ */
 function readToken(): string | null {
-  return guestTokenFromHash(window.location.hash);
+  const hash = window.location.hash;
+  if (hash !== "" && hash !== "#") return guestTokenFromHash(hash);
+  return takeArrival()?.token ?? null;
 }

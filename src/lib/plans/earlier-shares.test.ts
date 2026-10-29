@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { PLAN_PAYEE, upiPayLink } from "../../../mocks/plan-fixtures";
-import { earlierPayLink, earlierWeeks, paidForWeek } from "./earlier-shares";
+import {
+  earlierPayLink,
+  earlierPayee,
+  earlierWeeks,
+  paidForWeek,
+} from "./earlier-shares";
 
 /**
  * Earlier weeks' shares (yuvoy-mobile#373 case 11): each pay link is
@@ -30,11 +35,14 @@ describe("an earlier share's pay link", () => {
     const s = share("a", WEEK_2, 40000);
     expect(s.payLink).toContain(encodeURIComponent(PLAN_PAYEE.upiId));
     expect(earlierPayLink(s)).toBeNull();
+    // So the pay panel is handed no payee, and says who to ask.
+    expect(earlierPayee(s)).toBeUndefined();
   });
 
   it("passes when it pays that share's own payee that share's amount", () => {
     const s = { ...share("a", WEEK_2, 40000), payee: { ...PLAN_PAYEE } };
     expect(earlierPayLink(s)).toBe(s.payLink);
+    expect(earlierPayee(s)).toEqual(PLAN_PAYEE);
   });
 
   it("is refused for another payee or another amount than the share's", () => {

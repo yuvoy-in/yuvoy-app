@@ -37,6 +37,12 @@ export interface Arrival {
 
 /** Keeps the token for the way back from sign-in. False when storage refused. */
 export function keepForSignIn(token: string): boolean {
+  /*
+    This page load may already have taken its arrival (nothing, on a first
+    visit with no fragment). Sign-in comes back by a client navigation, in
+    the same page load, so the next `takeArrival` must read again.
+  */
+  forgetTaken();
   try {
     sessionStorage.setItem(STORE_KEY, JSON.stringify({ token, link: true }));
     return true;
@@ -81,9 +87,22 @@ export function takeArrival(): Arrival | null {
   return arrival;
 }
 
+/**
+ * The arrival this page load has already taken, without reading storage:
+ * for a render that must not take one (it would empty the store the moment
+ * "Link my reply" had filled it, before the tab had even left).
+ */
+export function arrivalTaken(): Arrival | null {
+  return arrival ?? null;
+}
+
+function forgetTaken(): void {
+  arrival = undefined;
+}
+
 /** Test-only: the next `takeArrival` reads storage again. */
 export function __forgetArrival(): void {
-  arrival = undefined;
+  forgetTaken();
 }
 
 /**

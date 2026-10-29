@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { GuestPage } from "./guest-page";
+import { planWords } from "@/lib/plans/words";
 import { privateRobotsMeta } from "@/lib/site/indexing";
 import { pageMetadata } from "@/lib/site/metadata";
+import { Screen } from "@/components/chrome/screen";
 
 /**
  * The page a friend opens from a plan's WhatsApp link, `/p/#<token>`
@@ -22,11 +24,15 @@ import { pageMetadata } from "@/lib/site/metadata";
  * Not wrapped in `gatedRoute`: a friend the planner sends the link to need
  * not hold an invitation to Yuvoy, so the page stays open with the invite
  * gate on.
+ *
+ * The usual screen, a tab root's (no back control: somebody opening a link
+ * from WhatsApp came from nowhere in this app). Its sheet is paper, so the
+ * no-script line is in the sheet's ink.
  */
 
-const TITLE = "A plan on Yuvoy";
+const TITLE = planWords.pageTitle;
 // The words WhatsApp shows under the link, the same for every plan.
-const DESCRIPTION = "A plan on Yuvoy. Open the link to reply.";
+const DESCRIPTION = planWords.ogDescription;
 
 export const metadata: Metadata = {
   ...pageMetadata({
@@ -40,14 +46,13 @@ export const metadata: Metadata = {
 
 export default function PlanLinkPage() {
   return (
-    <>
+    <Screen stageLabel="A plan">
       <noscript>
-        <p className="text-paper/70 text-body mx-auto max-w-sm px-6 py-16 text-center text-pretty">
-          Turn on JavaScript to see this plan and reply. Your phone&apos;s own
-          browser works too.
+        <p className="text-forest/70 text-body mx-auto max-w-sm py-16 text-center text-pretty">
+          {planWords.noScript}
         </p>
       </noscript>
       <GuestPage />
-    </>
+    </Screen>
   );
 }

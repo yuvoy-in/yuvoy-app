@@ -1772,6 +1772,10 @@ for (const f of files) {
       "src/components/checkout/screening-fields.tsx",
       "inside checkout, drawn in the browser",
     ],
+    [
+      "src/components/plans/guest-plan.tsx",
+      "the guest's first name, drawn once the plan has loaded in the browser",
+    ],
     ["src/components/support/message-sheet.tsx", "a sheet, opened by a tap"],
     ["src/components/trips/date-filter.tsx", "a sheet, opened by Dates"],
     [

@@ -39,14 +39,25 @@ type EarlierShare = components["schemas"]["PlanEarlierShare"];
 /** A share, with the payee the API may one day send beside it. */
 type ShareWithPayee = EarlierShare & { payee?: PlanPayee };
 
-function payeeOf(share: ShareWithPayee): { upiId: string } | undefined {
-  const upiId = share.payee?.upiId;
-  return typeof upiId === "string" && upiId !== "" ? { upiId } : undefined;
+/**
+ * The payee to pay this share to and check its link against: the share's
+ * own, or none. Never this week's `plan.payee`.
+ */
+export function earlierPayee(share: EarlierShare): PlanPayee | undefined {
+  const payee = (share as ShareWithPayee).payee;
+  return typeof payee?.upiId === "string" &&
+    payee.upiId !== "" &&
+    typeof payee.name === "string"
+    ? payee
+    : undefined;
 }
 
-/** The share's pay link when it pays exactly that week's payee that share; else null. */
-export function earlierPayLink(share: ShareWithPayee): string | null {
-  return checkedPayLink(share.payLink, payeeOf(share), share.amountMinor);
+/**
+ * The share's pay link when it pays exactly its own payee its own amount,
+ * else null: what `UpiPayPanel` works out when handed `earlierPayee`.
+ */
+export function earlierPayLink(share: EarlierShare): string | null {
+  return checkedPayLink(share.payLink, earlierPayee(share), share.amountMinor);
 }
 
 /** The shares, one group per week, in the order the API sent them. */

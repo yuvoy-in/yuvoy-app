@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   __forgetArrival,
+  arrivalTaken,
   keepForSignIn,
   restoreFragment,
   signInHref,
@@ -45,6 +46,22 @@ describe("the way back", () => {
     expect(takeArrival()).toEqual({ token: TOKEN, link: true });
     expect(sessionStorage.getItem("yuvoy.plan-link.return")).toBeNull();
     // The same answer for the rest of this page load.
+    expect(takeArrival()).toEqual({ token: TOKEN, link: true });
+  });
+
+  it("can be looked at without taking it, so a keep is never emptied before the tab leaves", () => {
+    keepForSignIn(TOKEN);
+    expect(arrivalTaken()).toBeNull();
+    expect(sessionStorage.getItem("yuvoy.plan-link.return")).toContain(TOKEN);
+    takeArrival();
+    expect(arrivalTaken()).toEqual({ token: TOKEN, link: true });
+  });
+
+  it("is read again after a new keep in the same page load", () => {
+    // A first visit with no fragment took nothing; sign-in then comes back
+    // by a client navigation, without a new page load.
+    expect(takeArrival()).toBeNull();
+    keepForSignIn(TOKEN);
     expect(takeArrival()).toEqual({ token: TOKEN, link: true });
   });
 
