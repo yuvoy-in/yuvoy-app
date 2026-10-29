@@ -106,21 +106,18 @@ export function GuestPage() {
   }, [token, attempt]);
 
   if (token === undefined) return null;
+  // No token, or not one: nothing to ask, and nothing to report.
+  if (token === null) {
+    return <GuestStop kind="not-working" token={null} onRetry={() => {}} />;
+  }
 
-  const shown: Shown | null =
-    token === null
-      ? { kind: "not-working" }
-      : answer?.token === token && answer.attempt === attempt
-        ? answer.shown
-        : null;
-
-  if (token === null || shown === null) {
-    return shown === null ? (
+  const shown =
+    answer?.token === token && answer.attempt === attempt ? answer.shown : null;
+  if (shown === null) {
+    return (
       <p role="status" className="text-forest/70 text-body py-16 text-center text-pretty">
         {guestWords.loading}
       </p>
-    ) : (
-      <GuestStop kind="not-working" token={null} onRetry={() => {}} />
     );
   }
 
