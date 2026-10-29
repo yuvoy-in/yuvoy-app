@@ -23,9 +23,10 @@ const NAME_FIELD = ["name"] as const;
  * `guestActions` is made once, when this mounts, because it holds the
  * first-reply nonce: every send of this form is the same guest (case 4).
  * What it needs to know at the moment of a send (the plan as last answered,
- * what is in the name box, whether there is a session) it reads through
- * `latest`, which every render brings up to date, so a send never acts on
- * the plan or the name of a render ago.
+ * what is in the name box, whether there is a session) it reads from a value
+ * made with it, which every render brings up to date through `put`, so a
+ * send never acts on the plan or the name of a render ago. A plain value, not
+ * a ref: the actions read it at a send, never during a render.
  *
  * ## The plan, twice
  *
@@ -68,30 +69,43 @@ export function GuestPlan({
   const [linking, setLinking] = useState(false);
   const [linkLine, setLinkLine] = useState<LinkLine | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  // Counts the refusals that move focus to the name box.
+  const [focusName, setFocusName] = useState(0);
 
-  const latest = useRef({ plan: first, name: "", signedIn: false });
+  const [{ actions, now, put }] = useState(() => {
+    let live = { plan: first, name: "", signedIn: false };
+    const put = (next: Partial<typeof live>) => {
+      live = { ...live, ...next };
+    };
+    return {
+      now: () => live,
+      put,
+      actions: guestActions({
+        token,
+        current: () => live.plan,
+        firstName: () => live.name,
+        signedIn: () => live.signedIn,
+        onPlan: (next) => {
+          put({ plan: next });
+          setPlan(next);
+        },
+        onNameRefused: (line) => {
+          setNameError(line);
+          if (!line) return;
+          setNameRefused(true);
+          setFocusName((n) => n + 1);
+        },
+      }),
+    };
+  });
   useEffect(() => {
-    latest.current = { plan, name, signedIn: signedIn === true };
+    put({ plan, name, signedIn: signedIn === true });
   });
 
-  const [actions] = useState(() =>
-    guestActions({
-      token,
-      current: () => latest.current.plan,
-      firstName: () => latest.current.name,
-      signedIn: () => latest.current.signedIn,
-      onPlan: (next) => {
-        latest.current = { ...latest.current, plan: next };
-        setPlan(next);
-      },
-      onNameRefused: (line) => {
-        setNameError(line);
-        if (line) setNameRefused(true);
-        // After the render that draws the line under the box.
-        if (line) requestAnimationFrame(() => nameRef.current?.focus());
-      },
-    }),
-  );
+  // After the render that draws the refusal under the box.
+  useEffect(() => {
+    if (focusName) nameRef.current?.focus();
+  }, [focusName]);
 
   /*
     The link made on arrival is pending from the moment there is a session
@@ -106,15 +120,15 @@ export function GuestPlan({
     arrived.current = true;
     void actions
       .link()
-      .then((result) => setLinkLine(linkLineFor(result, latest.current.plan)));
-  }, [actions, linkOnArrival, signedIn, first.me]);
+      .then((result) => setLinkLine(linkLineFor(result, now().plan)));
+  }, [actions, now, linkOnArrival, signedIn, first.me]);
 
   async function link() {
     if (linking || arriving) return;
     setLinking(true);
     setLinkLine(null);
     try {
-      setLinkLine(linkLineFor(await actions.link(), latest.current.plan));
+      setLinkLine(linkLineFor(await actions.link(), now().plan));
     } finally {
       setLinking(false);
     }
@@ -151,7 +165,7 @@ export function GuestPlan({
             spellCheck={false}
             onChange={(e) => {
               const typed = e.currentTarget.value;
-              latest.current = { ...latest.current, name: typed };
+              put({ name: typed });
               setName(typed);
               if (nameError) setNameError(null);
             }}
