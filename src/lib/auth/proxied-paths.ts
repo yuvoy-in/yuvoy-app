@@ -178,6 +178,18 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   */
   { method: "POST", pattern: "/events/{id}/reports" },
   /*
+    One table at /tables/{id}, where every table email links (yuvoy-app#194,
+    R8-T1). `getTable` and `reportTable` also take no credential in the
+    contract, but this page only ever calls them signed in: the letter's link
+    must open nothing for whoever it is forwarded to, and a session is what
+    adds the caller's own request, the names and the venue. Withdraw is
+    session-only. Asking to join (`POST /tables/{id}/requests`) and the
+    traveller's list (`GET /me/tables`) are not here: no screen calls them yet.
+  */
+  { method: "GET", pattern: "/tables/{id}" },
+  { method: "DELETE", pattern: "/tables/{id}/requests/mine" },
+  { method: "POST", pattern: "/tables/{id}/reports" },
+  /*
     The signed-in plan page (yuvoy-app#193). Session only in the contract,
     and none of the four answers a credential. Planner tools (times, ideas,
     items, costs, the decision, the link) are not built yet and are not here.

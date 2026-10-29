@@ -76,6 +76,11 @@ const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
   "payments_unavailable",
   "media_unavailable",
   "rate_limited",
+  /*
+    Tables paused (yuvoy-app#194): a switch somebody turned, so the table
+    page shows its paused state at once and its own Try again asks again.
+  */
+  "tables_unavailable",
 ]);
 
 const MAX_GET_ATTEMPTS = 3;

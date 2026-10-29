@@ -182,6 +182,12 @@ export const qk = {
   invitedTrips: () => ["listInvitedTrips"] as const,
   /** One invited trip, for `/trips/invited/{id}`. */
   invitedTrip: (id: string) => ["getInvitedTrip", id] as const,
+  /**
+   * One table, for `/tables/{id}` (yuvoy-app#194). Keyed by the reader's
+   * session, like `invitedTrip`: removed on sign-in and sign-out, because the
+   * answer carries the reader's own request, the names and the venue.
+   */
+  table: (id: string) => ["getTable", id] as const,
   /** An invite link's preview, unauthenticated, for `/i/{token}`. */
   invitePreview: (token: string) => ["previewTripInvite", token] as const,
   /** The guests on a booking, as the booker sees them. */

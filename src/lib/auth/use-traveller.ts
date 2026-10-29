@@ -163,6 +163,8 @@ export function useTravellerSession() {
     */
     qc.removeQueries({ queryKey: ["listEvents"] });
     qc.removeQueries({ queryKey: ["getEvent"] });
+    // A table carries the reader's own request, the names and the venue.
+    qc.removeQueries({ queryKey: ["getTable"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -239,6 +241,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listPlaces"] });
     qc.removeQueries({ queryKey: ["listEvents"] });
     qc.removeQueries({ queryKey: ["getEvent"] });
+    qc.removeQueries({ queryKey: ["getTable"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });

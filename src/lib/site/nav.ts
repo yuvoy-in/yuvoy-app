@@ -97,6 +97,11 @@ export const FOCUSED_ROUTE_PREFIXES = [
     centred Decline sat under it (stability audit, 6 Oct 2026).
   */
   "/trips/invited/",
+  /*
+    One table (yuvoy-app#194). Every branch draws a Back to the feed, and
+    the bar would cover the foot of the sheet for the same reason as above.
+  */
+  "/tables/",
   "/guides/",
   "/offline",
   /*

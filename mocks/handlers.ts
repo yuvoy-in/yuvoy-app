@@ -22,6 +22,7 @@ import {
   KARNATAKA_MARKET,
   isFoundId,
 } from "./found-fixtures";
+import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 
 /**
@@ -148,7 +149,23 @@ export type Scenario =
   | "report-too-fast"
   | "report-gone"
   | "item-ended"
-  | "item-merged";
+  | "item-merged"
+  /*
+    One table at `/tables/{id}` (yuvoy-app#194), each a state of the same
+    fixture id (`table-handlers.ts`). `table-requested` is the default read;
+    `table-started` answers withdraw with `409 table_closed`, and
+    `table-report-too-fast` answers the report with a 429.
+  */
+  | "table-requested"
+  | "table-approved"
+  | "table-women-only-requested"
+  | "table-declined"
+  | "table-cancelled"
+  | "table-ended"
+  | "tables-paused"
+  | "table-missing"
+  | "table-started"
+  | "table-report-too-fast";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -1304,6 +1321,7 @@ export const handlers = [
   ...bookingHandlers,
   ...savedHandlers,
   ...foundHandlers,
+  ...tableHandlers,
   // A member's plan: read, reply, leave, report (yuvoy-app#193).
   ...planHandlers,
 ];

@@ -804,3 +804,52 @@ export function availabilityFor(slug: string): Slot[] {
     },
   ];
 }
+
+/* ---------------------------------------------------------------- tables */
+
+type TableView = components["schemas"]["TableView"];
+
+/** The one table the mock serves (yuvoy-app#194). Any other id is a 404. */
+export const TABLE_ID = "7d3f9a2e-4c1b-4e8a-9f60-2b5d8c1e7a40";
+
+/**
+ * A table as somebody who asked to join it reads it, two days after
+ * `FIXTURE_NOW`: Friday 21 August, 18:00 to 20:00 in Kolkata, which is 12:30
+ * to 14:30 UTC, so a page that reads it in the wrong zone shows the wrong
+ * hours. The request is waiting, so there are names and no venue; each
+ * scenario in `table-handlers.ts` moves it from here.
+ */
+export const TABLE_VIEW: TableView = {
+  id: TABLE_ID,
+  title: "Sample table: Friday supper at a café",
+  about:
+    "Six travellers and somebody from Yuvoy, at a long table in a quiet café. Come as you are.",
+  destinationKey: "andaman/havelock",
+  venueKind: "cafe",
+  venueArea: "Govind Nagar",
+  startsAt: "2026-08-21T12:30:00Z",
+  endsAt: "2026-08-21T14:30:00Z",
+  timeZone: TZ,
+  gettingHome:
+    "Autos wait outside until nine. The team walks anyone who wants to the main road.",
+  seatsMax: 6,
+  seatsTaken: 3,
+  full: false,
+  womenOnly: false,
+  leader: { kind: "team", firstName: "Meera" },
+  requestsCloseAt: "2026-08-20T12:30:00Z",
+  myRequest: { state: "requested" },
+  status: "listed",
+  whoIsGoing: ["Asha", "Rohan", "Lena"],
+};
+
+/** What only an approved guest gets: the place and the day's number. */
+export const TABLE_VENUE: NonNullable<TableView["venue"]> = {
+  name: "Sample Café by the Bay",
+  address: "Beach road, Govind Nagar",
+  mapUrl: "https://www.google.com/maps/search/?api=1&query=11.98,92.99",
+  meetingPoint: "The long table at the back, under the fan",
+};
+
+/** The day's number, in E.164, as the API sends it. A sample. */
+export const TABLE_DAY_OF_CONTACT = "+919000000001";

@@ -1781,6 +1781,10 @@ for (const f of files) {
       "the leaving sheet, opened by See details",
     ],
     ["src/components/support/message-sheet.tsx", "a sheet, opened by a tap"],
+    [
+      "src/components/tables/report-table-sheet.tsx",
+      "a sheet, opened by Report a problem",
+    ],
     ["src/components/trips/date-filter.tsx", "a sheet, opened by Dates"],
     [
       "src/components/trips/island-days.tsx",

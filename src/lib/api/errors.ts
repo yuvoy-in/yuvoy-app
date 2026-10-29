@@ -179,10 +179,20 @@ export const ERROR_CODES = [
   "identity_kind_taken",
   "fresh_sign_in_required",
   /*
+    One table at /tables/{id} (yuvoy-app#194, R8-T1). `tables_unavailable` is
+    the 503 every table route but the report answers while tables are paused:
+    "paused, not broken". The page has a state of its own for it, with Try
+    again, so it is not a deliberate stop below: one read is all a retry
+    costs. `table_closed` is withdraw's 409 once the table has started or was
+    cancelled.
+  */
+  "tables_unavailable",
+  "table_closed",
+  /*
     Refusals of routes this app does not call yet: going (R4), Trigo (R5),
     plans (R7), tables (R8) and people (R9). Named because `pnpm qa` refuses a
     declared code this list cannot name; each release that calls a route gives
-    its codes their sentences.
+    its codes their sentences. The two table codes this app meets are above.
   */
   "event_not_open",
   "adult_confirmation_required",
@@ -193,8 +203,6 @@ export const ERROR_CODES = [
   "plan_full",
   "plan_closed",
   "plan_limit_reached",
-  "tables_unavailable",
-  "table_closed",
   "table_full",
   "table_request_limit",
   "table_banned",
