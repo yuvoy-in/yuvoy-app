@@ -1772,6 +1772,14 @@ for (const f of files) {
       "src/components/checkout/screening-fields.tsx",
       "inside checkout, drawn in the browser",
     ],
+    [
+      "src/components/found/report-sheet.tsx",
+      "a sheet, opened by Report a problem",
+    ],
+    [
+      "src/components/found/see-details.tsx",
+      "the leaving sheet, opened by See details",
+    ],
     ["src/components/support/message-sheet.tsx", "a sheet, opened by a tap"],
     ["src/components/trips/date-filter.tsx", "a sheet, opened by Dates"],
     [

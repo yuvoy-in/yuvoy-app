@@ -338,7 +338,7 @@ function ReportForm({
                   value={option.key}
                   checked={on}
                   onChange={() => choose(option.key)}
-                  className="accent-forest size-5 shrink-0"
+                  className="accent-forest size-6 shrink-0"
                 />
                 <span>{option.label}</span>
               </label>

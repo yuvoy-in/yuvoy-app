@@ -215,7 +215,7 @@ function LeaveSheet({
           type="checkbox"
           checked={skip}
           onChange={(e) => setSkip(e.target.checked)}
-          className="accent-forest size-5 shrink-0"
+          className="accent-forest size-6 shrink-0"
         />
         <span className="text-sm">{SEE_DETAILS_WORDS.skip}</span>
       </label>

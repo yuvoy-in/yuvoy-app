@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
@@ -30,6 +31,14 @@ export function usePlaceList({
   signedIn: boolean;
   enabled: boolean;
 }) {
+  /*
+    When the seed was read: on this page's server render, so as near to the
+    mount as the page is. Without it React Query reads the seed as stale at
+    once and asks again the moment the picker opens (qa.mjs rule 9). The
+    public list may be up to its five-minute revalidate older, which for a
+    list of places is nothing a person would notice.
+  */
+  const [seededAt] = useState(() => Date.now());
   return useQuery({
     queryKey: qk.places(signedIn),
     queryFn: async ({ signal }): Promise<PlaceList> => {
@@ -51,6 +60,7 @@ export function usePlaceList({
       return data;
     },
     initialData: initial ?? undefined,
+    initialDataUpdatedAt: initial ? seededAt : undefined,
     staleTime: PLACES_REVALIDATE_SECONDS * 1000,
     enabled,
     // A failed read keeps what was on screen; the picker offers Try again.
