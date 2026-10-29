@@ -177,14 +177,14 @@ test("Free on the chip and in the sheet is one choice, and never goes with an un
     "the address kept Free beside Under ₹500",
   );
 
-  // And the chip replaces the budget again.
-  const before = asked.length;
+  // And the chip replaces the budget again. The free=true page is still in the
+  // feed's cache from the first tap, so this one need not be asked again.
   await chip(page, UI.free).click();
-  await expectAsked(
-    asked,
-    (p) => p.get("free") === "true" && !p.has("budget"),
-    "Free never replaced Under ₹500",
-    before,
+  await expect(chip(page, UI.free)).toHaveAttribute("aria-pressed", "true");
+  await expectAddress(
+    page,
+    (p) => p.get("free") === "1" && !p.has("budget"),
+    "Free never replaced Under ₹500 in the address",
   );
   await expectCards(page, [T.yoga, T.diveClub, T.birds]);
 
