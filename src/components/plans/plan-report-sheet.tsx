@@ -46,7 +46,12 @@ export function PlanReport({
   plan: Pick<PlanView, "people">;
   report: NonNullable<PlanActions["report"]>;
   label: string;
-  onGone: () => void;
+  /**
+   * What the page does when the plan turns out to be gone. Absent where
+   * there is no plan on screen to take away (the guest page's "not working"
+   * state): there, a 404 is a report that was not sent, and says so.
+   */
+  onGone?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -81,7 +86,7 @@ function ReportSheet({
   title: string;
   open: boolean;
   onClose: () => void;
-  onGone: () => void;
+  onGone?: () => void;
 }) {
   const [reason, setReason] = useState<Reason | null>(null);
   const [person, setPerson] = useState("");
@@ -118,7 +123,7 @@ function ReportSheet({
       if (note.trim()) body.note = note.trim().slice(0, NOTE_MAX);
       const result = await report(body);
       if (result.kind === "sent" || result.kind === "ok") setSent(true);
-      else if (result.kind === "gone") {
+      else if (result.kind === "gone" && onGone) {
         onClose();
         onGone();
       } else if (

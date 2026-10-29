@@ -68,6 +68,18 @@ export function PlanViewScreen({
   footer?: ReactNode;
 }) {
   const [plan, setPlan] = useState(first);
+  /*
+    A newer plan from the page wins over the one this view last drew. The
+    guest page answers some actions outside this view (linking a reply, a
+    paid mark on an earlier week) and hands the answer down; without this,
+    the people and "you" above would stay a step behind until the next send
+    of the form. The member page never hands down a new one.
+  */
+  const [given, setGiven] = useState(first);
+  if (first !== given) {
+    setGiven(first);
+    setPlan(first);
+  }
   const [gone, setGone] = useState<"left" | "unavailable" | null>(null);
 
   if (gone) {

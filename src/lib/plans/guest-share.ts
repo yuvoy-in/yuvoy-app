@@ -46,8 +46,11 @@ export type ShareOutcome = "shared" | "closed" | "whatsapp" | "failed";
 /**
  * Shares, and says how it went. A share sheet closed without sending is
  * `closed` and nothing more is done: the person changed their mind. The
- * share sheet refusing for another reason falls through to WhatsApp, as
- * having none does.
+ * share sheet refusing for another reason is `failed`, and the page says to
+ * copy the address: opening WhatsApp then would come after an `await`, no
+ * longer inside the tap, where a browser may block it without a word while
+ * `noopener` still answers null. With no share sheet at all, WhatsApp opens
+ * at once, still inside the tap (nothing is awaited before it).
  */
 export async function sharePlan(
   share: { title: string; message: string; link: string },
@@ -65,6 +68,7 @@ export async function sharePlan(
       if (error instanceof DOMException && error.name === "AbortError") {
         return "closed";
       }
+      return "failed";
     }
   }
   /*

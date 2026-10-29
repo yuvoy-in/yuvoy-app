@@ -205,7 +205,6 @@ function GuestStop({
             plan={NO_PEOPLE}
             report={actions.report}
             label={planWords.reportPlan}
-            onGone={() => {}}
           />
         ) : null
       ) : (

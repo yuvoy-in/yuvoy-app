@@ -30,10 +30,10 @@ const NAME_FIELD = ["name"] as const;
  * ## The plan, twice
  *
  * The view keeps the plan it draws, from each answer to its own form. This
- * keeps the same plan for what it draws around the view: every answer that
- * is the plan reaches both through `onPlan`, whichever control sent it, so
- * the footer's "linked" and last week's paid marks always agree with the
- * form above them.
+ * keeps the same plan for what it draws around the view, and hands it down:
+ * every answer that is the plan reaches both through `onPlan`, whichever
+ * control sent it, so the footer's "linked", last week's paid marks and the
+ * people above always agree.
  *
  * ## The first name
  *
@@ -63,6 +63,8 @@ export function GuestPlan({
   const [plan, setPlan] = useState(first);
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
+  // Set once a name was refused, and never cleared: see `askName`.
+  const [nameRefused, setNameRefused] = useState(false);
   const [linking, setLinking] = useState(false);
   const [linkLine, setLinkLine] = useState<LinkLine | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -84,6 +86,7 @@ export function GuestPlan({
       },
       onNameRefused: (line) => {
         setNameError(line);
+        if (line) setNameRefused(true);
         // After the render that draws the line under the box.
         if (line) requestAnimationFrame(() => nameRef.current?.focus());
       },
@@ -117,11 +120,18 @@ export function GuestPlan({
     }
   }
 
-  const askName = !plan.me && plan.canReply && signedIn !== true;
+  /*
+    Signed in, the profile's first name is used, unless the API refuses it
+    (a first word that is not a name): then the box is drawn after all, with
+    the refusal under it, and what is typed there is sent instead. Kept on
+    screen from then on, as typing clears the line itself.
+  */
+  const askName =
+    !plan.me && plan.canReply && (signedIn !== true || nameRefused);
 
   return (
     <PlanViewScreen
-      plan={first}
+      plan={plan}
       actions={actions}
       mode="guest"
       signedIn={signedIn === true}

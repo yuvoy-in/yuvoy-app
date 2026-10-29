@@ -63,13 +63,18 @@ describe("sharing", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it("opens WhatsApp when there is no share sheet, or it refused", async () => {
+  it("opens WhatsApp when there is no share sheet", async () => {
     const open = vi.fn(() => null);
     expect(await sharePlan(SHARE, undefined, open)).toBe("whatsapp");
+    expect(open).toHaveBeenCalledWith(whatsAppUrl(SHARE.message, LINK));
+  });
+
+  it("says it failed when the share sheet refused, and opens nothing after the tap", async () => {
+    const open = vi.fn(() => null);
     const refused = vi.fn(async () => {
       throw new DOMException("no", "NotAllowedError");
     });
-    expect(await sharePlan(SHARE, { share: refused }, open)).toBe("whatsapp");
-    expect(open).toHaveBeenCalledWith(whatsAppUrl(SHARE.message, LINK));
+    expect(await sharePlan(SHARE, { share: refused }, open)).toBe("failed");
+    expect(open).not.toHaveBeenCalled();
   });
 });

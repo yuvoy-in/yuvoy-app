@@ -76,6 +76,24 @@ describe("a link that is not working", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Report this plan" })).toBeInTheDocument();
   });
+
+  it("says a report was not sent when the API cannot find the plan either", async () => {
+    at(`#${TOKEN}`);
+    const NOT_FOUND = () =>
+      HttpResponse.json({ error: { code: "not_found", message: "x" } }, { status: 404 });
+    watchView(NOT_FOUND);
+    server.use(http.post("*/p/api/report", NOT_FOUND));
+    renderWithQuery(<GuestPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Report this plan" }));
+    await userEvent.click(screen.getByRole("radio", { name: "It is spam or a scam" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send report" }));
+
+    // Not a sheet that closes on nothing: it stays, and says so.
+    expect(
+      await screen.findByText(/We could not send your report\./),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
 });
 
 describe("reading the plan", () => {

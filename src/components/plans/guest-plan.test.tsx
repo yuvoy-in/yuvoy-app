@@ -100,6 +100,50 @@ describe("a first reply", () => {
     expect(screen.getByRole("button", { name: "Update my reply" })).toBeInTheDocument();
   });
 
+  it("signed in, draws the name box after all when the profile's name is refused", async () => {
+    __signInAppRouteMock();
+    const NO_NAME = "Use your first name, in letters only.";
+    const sent = routes({
+      reply: (body) =>
+        (body.reply as { name?: string }).name
+          ? HttpResponse.json(openPlanView("member", guestMe("Meera")))
+          : HttpResponse.json(
+              {
+                error: {
+                  code: "invalid_input",
+                  message: NO_NAME,
+                  details: { name: NO_NAME },
+                },
+              },
+              { status: 400 },
+            ),
+    });
+    draw(openPlanView());
+    await userEvent.click(screen.getAllByRole("radio", { name: "Can" })[0]);
+    await userEvent.click(screen.getByRole("checkbox", { name: "I am 18 or older" }));
+    // A session: the profile's first name is used, so no box at first.
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: "Your first name" })).toBeNull(),
+    );
+    await send();
+
+    // The API could not use it: the box, with the line under it, focused.
+    const box = await screen.findByRole("textbox", { name: "Your first name" });
+    await waitFor(() => expect(box).toHaveFocus());
+    expect(screen.getAllByText(NO_NAME)).toHaveLength(1);
+
+    // Typing clears the line and keeps the box; the typed name is sent.
+    await userEvent.type(box, "Meera");
+    expect(screen.queryByText(NO_NAME)).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Your first name" })).toBe(box);
+    await send();
+    expect(await screen.findByText(/Thanks, Meera\. Your reply is in\./)).toBeInTheDocument();
+    expect(sent.map((s) => (s.body.reply as { name?: string }).name)).toEqual([
+      undefined,
+      "Meera",
+    ]);
+  });
+
   it("sends the same nonce again after no answer, so it is one guest", async () => {
     let fail = true;
     const sent = routes({
