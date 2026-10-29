@@ -68,8 +68,16 @@ export function FiltersButton({
  *
  * The contract sends no words for `budget` or `timeOfDay`: only `category`
  * has a vocabulary. So the rows say what the phone's sheet says, from
- * `foundWords`, and each table is typed against the contract's values, so a
- * value the API adds fails to compile rather than going unoffered.
+ * `foundWords`, keyed by the contract's values. Only a value with a word is
+ * offered, and each table is typed against the contract, so a value the API
+ * adds fails to compile rather than showing with no word.
+ *
+ * ## One choice per row, so radios
+ *
+ * Each row takes one value or none, as the phone's: so its chips are radios
+ * (`aria-checked`) in a group named by the row, not toggles. A second tap on
+ * the chosen one clears the row, which a native radio cannot do, so they
+ * stay buttons.
  *
  * ## Drafted, then applied
  *
@@ -146,6 +154,9 @@ function FoundFilterForm({
             key={budget}
             size="lg"
             pressed={draft.budget === budget}
+            role="radio"
+            aria-pressed={undefined}
+            aria-checked={draft.budget === budget}
             onClick={() =>
               setDraft((d) => ({
                 ...d,
@@ -165,6 +176,9 @@ function FoundFilterForm({
             key={time}
             size="lg"
             pressed={draft.timeOfDay === time}
+            role="radio"
+            aria-pressed={undefined}
+            aria-checked={draft.timeOfDay === time}
             onClick={() =>
               setDraft((d) => ({
                 ...d,

@@ -151,10 +151,12 @@ export const foundWords = Object.freeze({
   /** Filters' name with how many of its rows narrow: the count on its face is not read out. */
   filtersName: (on: number) => (on > 0 ? `Filters, ${on} on` : "Filters"),
   /**
-   * The sheet's rows. The contract sends no words for `budget` or
-   * `timeOfDay` (only `category` has a vocabulary), so these are the copy
-   * table's, the phone's `FOUND_FILTER_ROWS`, typed against the contract's
-   * values so a value it adds fails to compile here.
+   * The sheet's rows. The contract sends no labels for `budget` or
+   * `timeOfDay` (only `category` has a vocabulary), so these are the phone's
+   * words, word for word: yuvoy-mobile `packages/core/src/explore/filters.ts`,
+   * `FOUND_FILTER_ROWS`. Keyed by the contract's values, and the sheet offers
+   * only the keys here, so a value with no word is never shown; typed against
+   * the contract, so a value it adds fails to compile until it has one.
    */
   budget: {
     label: "Budget",

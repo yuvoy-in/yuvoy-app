@@ -30,10 +30,10 @@ function open(filters = f()) {
 }
 
 const row = (name: string) => screen.getByRole("group", { name });
-const pressed = (name: string) =>
+const checked = (name: string) =>
   within(row(name))
-    .getAllByRole("button")
-    .filter((chip) => chip.getAttribute("aria-pressed") === "true")
+    .getAllByRole("radio")
+    .filter((chip) => chip.getAttribute("aria-checked") === "true")
     .map((chip) => chip.textContent);
 
 describe("FoundFilterSheet", () => {
@@ -42,27 +42,30 @@ describe("FoundFilterSheet", () => {
     expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();
     expect(
       within(row("Budget"))
-        .getAllByRole("button")
+        .getAllByRole("radio")
         .map((chip) => chip.textContent),
     ).toEqual(["Free", "Under ₹500", "Under ₹1,500", "Any"]);
     expect(
       within(row("Time of day"))
-        .getAllByRole("button")
+        .getAllByRole("radio")
         .map((chip) => chip.textContent),
     ).toEqual(["Morning", "Afternoon", "Evening"]);
-    expect(pressed("Budget")).toEqual([]);
-    expect(pressed("Time of day")).toEqual([]);
+    expect(checked("Budget")).toEqual([]);
+    expect(checked("Time of day")).toEqual([]);
+    // Radios say they are chosen with aria-checked, never aria-pressed.
+    for (const radio of screen.getAllByRole("radio"))
+      expect(radio).not.toHaveAttribute("aria-pressed");
   });
 
   it("opens on what is applied, one choice a row, and applies only on Show results", async () => {
     const { onApply, onClose } = open(f({ when: "today", budget: "free" }));
-    expect(pressed("Budget")).toEqual(["Free"]);
+    expect(checked("Budget")).toEqual(["Free"]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Under ₹500" }));
-    await userEvent.click(screen.getByRole("button", { name: "Evening" }));
-    await userEvent.click(screen.getByRole("button", { name: "Morning" }));
-    expect(pressed("Budget")).toEqual(["Under ₹500"]);
-    expect(pressed("Time of day")).toEqual(["Morning"]);
+    await userEvent.click(screen.getByRole("radio", { name: "Under ₹500" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Evening" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Morning" }));
+    expect(checked("Budget")).toEqual(["Under ₹500"]);
+    expect(checked("Time of day")).toEqual(["Morning"]);
     expect(onApply).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Show results" }));
@@ -74,8 +77,8 @@ describe("FoundFilterSheet", () => {
 
   it("takes a choice off with a second tap", async () => {
     open(f({ timeOfDay: "evening" }));
-    await userEvent.click(screen.getByRole("button", { name: "Evening" }));
-    expect(pressed("Time of day")).toEqual([]);
+    await userEvent.click(screen.getByRole("radio", { name: "Evening" }));
+    expect(checked("Time of day")).toEqual([]);
   });
 
   it("clears every row with Clear filters, Free too, and keeps the day", async () => {
@@ -85,8 +88,8 @@ describe("FoundFilterSheet", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Clear filters" }),
     );
-    expect(pressed("Budget")).toEqual([]);
-    expect(pressed("Time of day")).toEqual([]);
+    expect(checked("Budget")).toEqual([]);
+    expect(checked("Time of day")).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: "Show results" }));
     expect(onApply).toHaveBeenCalledWith(f({ when: "weekend" }));
   });
