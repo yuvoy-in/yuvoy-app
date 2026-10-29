@@ -1324,6 +1324,8 @@ const routes = [
    *     destination is not used to widen it.
    *   - `ISLAND…`   — a card printed for a place. No specific target, so the
    *     destination opens Search on that place.
+   *   - `C-…`       — a traveller's own link (R12-T2): `kind: creator`, to a
+   *     listing.
    *   - anything else — unknown or market-wide. **No `destinationKey` at
    *     all**, which is the contract's shape for both: absent means "no
    *     destination", and an empty string would have meant "a destination
@@ -1334,14 +1336,16 @@ const routes = [
     const upper = code.toUpperCase();
     const forListing = upper.startsWith("HAVELOCK");
     const forPlace = upper.startsWith("ISLAND");
+    const creator = upper.startsWith("C-");
     return HttpResponse.json(
       {
-        target: forListing ? "/e/try-dive-nemo-reef" : "/",
-        known: forListing || forPlace,
+        target: forListing || creator ? "/e/try-dive-nemo-reef" : "/",
+        known: forListing || forPlace || creator,
         marketKey: "andaman",
         ...(forListing || forPlace
-          ? { destinationKey: "andaman/havelock" }
+          ? { destinationKey: "andaman/havelock", kind: "printed" as const }
           : {}),
+        ...(creator ? { kind: "creator" as const } : {}),
       },
       { headers: mockHeaders(requestId()) },
     );

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
+import { visitorAddressHeaders } from "@/lib/auth/upstream";
 import { filtersToParams } from "@/lib/search/filters";
 import { safeNextPath } from "@/lib/site/next-path";
 
@@ -48,6 +49,15 @@ import { safeNextPath } from "@/lib/site/next-path";
  * (yuvoy-app#37), so a card printed for Havelock opened an unfiltered Search
  * while the e2e, which read only the URL, stayed green (found 6 Oct 2026).
  *
+ * ## A traveller's own link (R12-T2, yuvoy-mobile#389)
+ *
+ * A creator's `/go/C-…` link is a code like a printed card's, and the API
+ * says which it is in `kind`. A `creator` code arrives with `src=creator`,
+ * so checkout sends `source: creator` and the API decides whether it counts.
+ * Anything else, an unknown code or a failed call included, is `src=qr` as
+ * before. The visitor's address goes with the call (`visitorAddressHeaders`),
+ * so the API's per-address limit on scans counts them, not this server.
+ *
  * ## A route handler, not a page
  *
  * It renders nothing, so it answers with a 307 and nothing else. It was a
@@ -64,7 +74,7 @@ export const dynamic = "force-dynamic";
 const CODE_PATTERN = /^[A-Za-z0-9-]{3,32}$/;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ code: string }> },
 ): Promise<never> {
   const { code } = await params;
@@ -74,10 +84,15 @@ export async function GET(
   if (!CODE_PATTERN.test(code)) redirect("/");
 
   let target = "/";
+  let src = "qr";
 
   try {
     const api = createApiClient();
-    const { data } = await api.POST("/scans", { body: { code } });
+    const { data } = await api.POST("/scans", {
+      body: { code },
+      headers: visitorAddressHeaders(request.headers),
+    });
+    if (data?.kind === "creator") src = "creator";
     /*
       A code with no `target_path` set falls through to `/` server-side, so a
       default `target` and an explicit one are indistinguishable here. That is
@@ -113,5 +128,5 @@ export async function GET(
   // the client keeps and sends back is exactly the correlatable token
   // POST /scans refuses to mint. See lib/booking/attribution.
   const separator = target.includes("?") ? "&" : "?";
-  redirect(`${target}${separator}src=qr&code=${encodeURIComponent(code)}`);
+  redirect(`${target}${separator}src=${src}&code=${encodeURIComponent(code)}`);
 }
