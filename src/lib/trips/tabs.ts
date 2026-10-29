@@ -23,6 +23,14 @@ export type InvitedTrip = components["schemas"]["InvitedTrip"];
 export type ServerTrip = components["schemas"]["MyBookingListItem"];
 
 /**
+ * The id of a booked trip's title on its card, so a control beside the card
+ * (Get my link, yuvoy-app#207) can say which trip it is about.
+ */
+export function tripTitleId(trip: Pick<ServerTrip, "reservationId">): string {
+  return `trip-title-${trip.reservationId}`;
+}
+
+/**
  * Which tab a trip belongs in, and what its price line says (yuvoy-app#38).
  *
  * ## Why the tab logic is here and not in the screen

@@ -3,10 +3,10 @@
 import { useRelease } from "@/lib/site/use-release";
 import { useGetMyCreatorLink } from "@/lib/creator/use-creator-links";
 import { CREATOR_WORDS as W } from "@/lib/creator/creator-words";
-import { YuvoyError } from "@/lib/api/errors";
+import { isDeadToken, YuvoyError } from "@/lib/api/errors";
 import { describeError } from "@/components/states";
 import { Button, ButtonLink } from "@/components/ui/button";
-import type { ServerTrip } from "@/lib/trips/tabs";
+import { tripTitleId, type ServerTrip } from "@/lib/trips/tabs";
 import { CreatorLinkActions } from "./creator-link-actions";
 
 /**
@@ -52,21 +52,26 @@ export function GetMyLink({ trip }: { trip: ServerTrip }) {
 
   if (!release.open || !mayGetLink(trip)) return null;
 
-  const signedOut = get.error instanceof YuvoyError && get.error.status === 401;
+  const signedOut = isDeadToken(get.error);
+  const titleId = tripTitleId(trip);
 
   return (
     <div className="mt-2 px-1" data-testid="get-my-link">
       {get.data ? (
-        <>
-          <p role="status" className="text-forest/80 text-sm text-pretty">
-            {get.data.made ? W.made : W.already}
-          </p>
-          <CreatorLinkActions link={get.data.link} className="mt-2" />
-        </>
+        /*
+          In place of the button, and given the focus it had: the button is
+          gone, and a focus left on nothing falls to the page.
+        */
+        <CreatorLinkActions
+          link={get.data.link}
+          describedBy={titleId}
+          focusCopy
+        />
       ) : (
         <Button
           variant="outline"
           size="sm"
+          aria-describedby={titleId}
           pending={get.isPending}
           pendingLabel={W.gettingLink}
           onClick={() => get.mutate(trip.experienceSlug)}
@@ -74,6 +79,20 @@ export function GetMyLink({ trip }: { trip: ServerTrip }) {
           {W.getMyLink}
         </Button>
       )}
+
+      {/*
+        Mounted from the start and written into on the answer. A live region
+        that arrives already holding its sentence is one a screen reader may
+        never read out. Never hidden, for the same reason: empty, it only
+        gives up its margin.
+      */}
+      <p
+        role="status"
+        className="text-forest/80 mt-2 text-sm text-pretty empty:mt-0"
+        data-testid="get-my-link-status"
+      >
+        {get.data ? (get.data.made ? W.made : W.already) : ""}
+      </p>
 
       {signedOut ? (
         <div role="alert" className="mt-2">

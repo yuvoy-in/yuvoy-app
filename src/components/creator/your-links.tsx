@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { useRelease } from "@/lib/site/use-release";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import {
@@ -128,16 +129,20 @@ export function YourLinks({ toolsOn }: { toolsOn: boolean }) {
  */
 function LinkRow({ link }: { link: CreatorLink }) {
   const latest = latestBooking(link);
+  // Every row's buttons are named alike, so each is described by its title.
+  const titleId = useId();
   return (
     <div>
-      <p className="text-sm font-bold text-balance">{link.target.title}</p>
+      <p id={titleId} className="text-sm font-bold text-balance">
+        {link.target.title}
+      </p>
       <p className="text-forest/80 mt-1 text-sm tabular-nums">
         {linkCounts(link)}
       </p>
       {latest ? (
         <p className="text-forest/70 mt-1 text-sm tabular-nums">{latest}</p>
       ) : null}
-      <CreatorLinkActions link={link} className="mt-3" />
+      <CreatorLinkActions link={link} describedBy={titleId} className="mt-3" />
     </div>
   );
 }

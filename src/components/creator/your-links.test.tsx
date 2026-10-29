@@ -3,6 +3,8 @@ import { screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
+import { useRelease } from "@/lib/site/use-release";
+import { useMyCreatorLinks } from "@/lib/creator/use-creator-links";
 import { YourLinks } from "./your-links";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
@@ -86,10 +88,57 @@ function show(toolsOn = true) {
   return renderWithQuery(<YourLinks toolsOn={toolsOn} />);
 }
 
-const section = () => screen.findByRole("region", { name: "Your links" });
+/*
+  Two probes, for the tests that assert an absence. Each reads what the
+  section reads, from the same cache, so once a probe says "known" or
+  "loaded" the section has had that same answer: nothing drawn is then the
+  section's decision, not a read still out.
+*/
+function ReleaseProbe() {
+  const release = useRelease("creator");
+  return (
+    <p data-testid="release">
+      {release.stage} {release.pending ? "pending" : "known"}
+    </p>
+  );
+}
 
-/** Lets every pending read land, for a test that asserts an absence. */
-const settle = () => new Promise((r) => setTimeout(r, 80));
+function ListProbe() {
+  const links = useMyCreatorLinks(true);
+  return (
+    <p data-testid="list">
+      {links.isPending ? "pending" : links.isLoadingError ? "error" : "loaded"}
+    </p>
+  );
+}
+
+/** The section beside both probes. */
+function showProbed(toolsOn = true) {
+  __signInAppRouteMock("sess_test");
+  return renderWithQuery(
+    <>
+      <ReleaseProbe />
+      <ListProbe />
+      <YourLinks toolsOn={toolsOn} />
+    </>,
+  );
+}
+
+/** The section beside the release probe, for a release that asks nothing. */
+function showWithRelease() {
+  __signInAppRouteMock("sess_test");
+  return renderWithQuery(
+    <>
+      <ReleaseProbe />
+      <YourLinks toolsOn />
+    </>,
+  );
+}
+
+const probe = (id: "release" | "list", text: string) =>
+  waitFor(() => expect(screen.getByTestId(id)).toHaveTextContent(text));
+
+const section = () => screen.findByRole("region", { name: "Your links" });
 
 /**
  * "Your links" on Account (yuvoy-app#207; cases from yuvoy-mobile#389).
@@ -150,14 +199,19 @@ describe("your links", () => {
     ).toBeInTheDocument();
     expect(within(rows[1]).queryByText(/Latest booking/)).toBeNull();
 
-    for (const row of rows) {
+    // Named alike in every row, and each described by its own row's title.
+    const titles = [
+      "Snorkel trip to Elephant Beach",
+      "Sunset music on the beach",
+    ];
+    rows.forEach((row, i) => {
       expect(
         within(row).getByRole("button", { name: "Copy link" }),
-      ).toBeInTheDocument();
+      ).toHaveAccessibleDescription(titles[i]);
       expect(
         within(row).getByRole("button", { name: "Share" }),
-      ).toBeInTheDocument();
-    }
+      ).toHaveAccessibleDescription(titles[i]);
+    });
   });
 
   it("keeps a link whose listing is no longer listed, with its counts", async () => {
@@ -188,10 +242,10 @@ describe("your links", () => {
   it("is not drawn with the tools off and no links", async () => {
     // Case 11.
     release("all");
-    const asked = serveLinks(items([]));
-    show(false);
-    await waitFor(() => expect(asked.count).toBe(1));
-    await settle();
+    serveLinks(items([]));
+    showProbed(false);
+    await probe("release", "all known");
+    await probe("list", "loaded");
     expect(screen.queryByRole("region", { name: "Your links" })).toBeNull();
   });
 
@@ -208,8 +262,8 @@ describe("your links", () => {
   it("asks nothing and draws nothing while the release is off", async () => {
     release("off");
     const asked = serveLinks(items([link()]));
-    show();
-    await settle();
+    showWithRelease();
+    await probe("release", "off known");
     expect(asked.count).toBe(0);
     expect(screen.queryByRole("region", { name: "Your links" })).toBeNull();
   });
@@ -217,8 +271,9 @@ describe("your links", () => {
   it("asks nothing for somebody outside a staff release", async () => {
     release("staff", null);
     const asked = serveLinks(items([link()]));
-    show();
-    await settle();
+    showWithRelease();
+    // Known only once the cohort on `GET /me` has answered too.
+    await probe("release", "staff known");
     expect(asked.count).toBe(0);
     expect(screen.queryByRole("region", { name: "Your links" })).toBeNull();
   });
@@ -244,9 +299,10 @@ describe("your links", () => {
         { status: 404 },
       ),
     );
-    show();
-    await waitFor(() => expect(asked.count).toBeGreaterThan(0));
-    await settle();
+    showProbed();
+    await probe("release", "all known");
+    await probe("list", "error");
+    expect(asked.count).toBeGreaterThan(0);
     expect(screen.queryByRole("region", { name: "Your links" })).toBeNull();
     expect(screen.queryByText("We could not find your links.")).toBeNull();
   });

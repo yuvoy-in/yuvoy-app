@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { screen, cleanup, within } from "@testing-library/react";
+import { screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
-import type { ServerTrip } from "@/lib/trips/tabs";
+import { tripTitleId, type ServerTrip } from "@/lib/trips/tabs";
+import { useRelease } from "@/lib/site/use-release";
 import { GetMyLink, mayGetLink } from "./get-my-link";
 import { YourLinks } from "./your-links";
 import { server } from "../../../mocks/server";
@@ -119,6 +120,16 @@ function show(over: Partial<ServerTrip> = {}) {
 
 const button = () => screen.findByRole("button", { name: "Get my link" });
 
+/** The creator release as the button reads it, once it is known. */
+function ReleaseProbe() {
+  const release = useRelease("creator");
+  return (
+    <p data-testid="release">
+      {release.stage} {release.pending ? "pending" : "known"}
+    </p>
+  );
+}
+
 /**
  * "Get my link" on a past trip (yuvoy-app#207; cases from yuvoy-mobile#389).
  */
@@ -144,6 +155,58 @@ describe("get my link", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
+  });
+
+  it("says so in a live region that was there all along, and focuses Copy link", async () => {
+    /*
+      The button that had the focus is replaced, so the focus moves to Copy
+      link rather than falling to the page, and the sentence is written into
+      a status region mounted before the tap: one that arrives already
+      holding its words may never be read out.
+    */
+    release("all");
+    serveListing();
+    serveWrite(() => HttpResponse.json(LINK, { status: 201 }));
+    const user = userEvent.setup();
+    show();
+
+    const tap = await button();
+    const status = screen.getByTestId("get-my-link-status");
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toHaveTextContent("");
+
+    await user.click(tap);
+    const copy = await screen.findByRole("button", { name: "Copy link" });
+    await waitFor(() => expect(copy).toHaveFocus());
+    expect(screen.getByTestId("get-my-link-status")).toBe(status);
+    expect(status).toHaveTextContent(
+      "Your link is ready. It is in Your links on Account too.",
+    );
+  });
+
+  it("describes every button by the trip it is for", async () => {
+    // The names stay as they are; the trip's title is the description.
+    release("all");
+    serveListing();
+    serveWrite(() => HttpResponse.json(LINK, { status: 201 }));
+    const user = userEvent.setup();
+    __signInAppRouteMock("sess_test");
+    const past = trip();
+    renderWithQuery(
+      <>
+        <p id={tripTitleId(past)}>{past.experience}</p>
+        <GetMyLink trip={past} />
+      </>,
+    );
+
+    const tap = await button();
+    expect(tap).toHaveAccessibleDescription("Snorkel trip to Elephant Beach");
+    await user.click(tap);
+    for (const name of ["Copy link", "Share"]) {
+      expect(
+        await screen.findByRole("button", { name }),
+      ).toHaveAccessibleDescription("Snorkel trip to Elephant Beach");
+    }
   });
 
   it("says it is the one they already had on a 200", async () => {
@@ -270,8 +333,17 @@ describe("get my link", () => {
 
   it("is not drawn while the release is off", async () => {
     release("off");
-    show();
-    await new Promise((r) => setTimeout(r, 80));
+    __signInAppRouteMock("sess_test");
+    renderWithQuery(
+      <>
+        <ReleaseProbe />
+        <GetMyLink trip={trip()} />
+      </>,
+    );
+    // The same read the button waits on has answered, and it says off.
+    await waitFor(() =>
+      expect(screen.getByTestId("release")).toHaveTextContent("off known"),
+    );
     expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
   });
 
@@ -279,9 +351,31 @@ describe("get my link", () => {
     "is not drawn on a %s trip",
     async (state) => {
       release("all");
-      show({ state });
-      await new Promise((r) => setTimeout(r, 80));
-      expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
+      __signInAppRouteMock("sess_test");
+      /*
+        Beside a completed trip, whose button proves the release has been
+        read as open: the absence is then this trip's own.
+      */
+      renderWithQuery(
+        <>
+          <div data-testid="went">
+            <GetMyLink trip={trip({ reservationId: "res_went" })} />
+          </div>
+          <div data-testid="not-went">
+            <GetMyLink trip={trip({ reservationId: "res_not", state })} />
+          </div>
+        </>,
+      );
+      expect(
+        await within(screen.getByTestId("went")).findByRole("button", {
+          name: "Get my link",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("not-went")).queryByRole("button", {
+          name: "Get my link",
+        }),
+      ).toBeNull();
     },
   );
 });

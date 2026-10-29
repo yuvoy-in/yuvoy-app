@@ -10,6 +10,7 @@ import {
   unreadLine,
   declineLine,
   isDeclinedRequest,
+  tripTitleId,
   GUEST_STATUS_LABEL,
   type InvitedTrip,
   type ServerTrip,
@@ -98,7 +99,9 @@ export function TripCard({ trip, now }: { trip: ServerTrip; now: number }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
-          <p className="voice-host text-balance">{trip.experience}</p>
+          <p id={tripTitleId(trip)} className="voice-host text-balance">
+            {trip.experience}
+          </p>
           {/*
             A REFUSED REQUEST WAS NEVER PAID FOR, so it is not "Refunded".
 

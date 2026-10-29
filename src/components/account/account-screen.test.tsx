@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { AccountScreen } from "./account-screen";
+import { useRelease } from "@/lib/site/use-release";
 import { server } from "../../../mocks/server";
 import {
   __resetAppRouteMocks,
@@ -901,6 +902,18 @@ describe("your links on the account", () => {
     );
   }
 
+  /** The creator release as Your links reads it, once it is known. */
+  function ReleaseProbe() {
+    const release = useRelease("creator");
+    return (
+      <p data-testid="release">
+        {release.pending
+          ? "pending"
+          : `${release.stage} ${release.open ? "open" : "shut"}`}
+      </p>
+    );
+  }
+
   function links() {
     const asked = { count: 0 };
     server.use(
@@ -929,9 +942,17 @@ describe("your links on the account", () => {
     account({ creatorToolsOn: true, cohort: null });
     const asked = links();
     __signInAppRouteMock();
-    renderWithQuery(<AccountScreen />);
+    renderWithQuery(
+      <>
+        <ReleaseProbe />
+        <AccountScreen />
+      </>,
+    );
     await screen.findByText("Asha Menon");
-    await new Promise((r) => setTimeout(r, 80));
+    // The stage and the cohort have both answered, and it is closed to them.
+    await waitFor(() =>
+      expect(screen.getByTestId("release")).toHaveTextContent("staff shut"),
+    );
     expect(screen.queryByRole("region", { name: "Your links" })).toBeNull();
     expect(asked.count).toBe(0);
   });
