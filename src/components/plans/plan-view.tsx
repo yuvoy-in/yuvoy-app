@@ -53,6 +53,7 @@ export function PlanViewScreen({
   mode,
   signedIn,
   formExtras,
+  extraFields,
   footer,
 }: {
   plan: PlanView;
@@ -61,6 +62,8 @@ export function PlanViewScreen({
   signedIn: boolean;
   /** The guest page's fields inside the reply form (Part C). */
   formExtras?: ReactNode;
+  /** The `invalid_input` fields `formExtras` draws its own line for. */
+  extraFields?: readonly string[];
   /** The guest page's lines under the plan (Part C). */
   footer?: ReactNode;
 }) {
@@ -101,6 +104,7 @@ export function PlanViewScreen({
         actions={actions}
         signedIn={signedIn}
         formExtras={formExtras}
+        extraFields={extraFields}
         onPlan={setPlan}
         onGone={() => setGone("unavailable")}
       />

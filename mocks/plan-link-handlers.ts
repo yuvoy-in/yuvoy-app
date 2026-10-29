@@ -427,8 +427,10 @@ export const planLinkHandlers = [
       );
     }
     if (!isFirstName(name)) {
-      return envelope("invalid_input", "Add your first name.", 400, {
-        name: "Letters only, up to 30.",
+      // The API's own sentence, for the message and the field alike
+      // (`guestNameSentence`, `plans_guest.go`).
+      return envelope("invalid_input", "Use your first name, in letters only.", 400, {
+        name: "Use your first name, in letters only.",
       });
     }
     if (body.adult !== true) {
