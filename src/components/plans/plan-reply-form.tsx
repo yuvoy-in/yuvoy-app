@@ -103,7 +103,9 @@ export function PlanReplyForm({
         onGone();
       } else if (result.kind === "refused") {
         const field =
-          result.code === "invalid_input" && result.reason === "adult"
+          // Under the tick when there is one; a tick this view did not draw
+          // cannot carry a line, so the line goes with the rest.
+          askAdult && result.code === "invalid_input" && result.reason === "adult"
             ? "adult"
             : undefined;
         refuse(refusalLine(result, plan.planner.name), field);
@@ -279,7 +281,7 @@ export function PlanReplyForm({
                         {planWords.havePaid(cost.paidCount, cost.shareCount)}
                       </p>
                     ) : null}
-                    {mine && !cost.split ? (
+                    {!cost.split && plan.role !== "planner" ? (
                       <p className="text-forest/70 mt-2 text-sm">
                         {planWords.shareLater(plan.planner.name)}
                       </p>
@@ -345,7 +347,13 @@ export function PlanReplyForm({
             <span>{planWords.adult}</span>
           </label>
           {adultError ? (
-            <p id="plan-adult-error" className="text-terra-deep mt-2 text-sm">
+            <p
+              id="plan-adult-error"
+              ref={alertRef}
+              role="alert"
+              tabIndex={-1}
+              className="text-terra-deep mt-2 text-sm outline-none"
+            >
               {adultError}
             </p>
           ) : null}
@@ -354,7 +362,8 @@ export function PlanReplyForm({
 
       {formExtras}
 
-      {outcome?.kind === "refused" ? (
+      {/* A field's refusal is drawn under its field, above; this is the rest. */}
+      {outcome?.kind === "refused" && !outcome.field ? (
         <p
           ref={alertRef}
           role="alert"
