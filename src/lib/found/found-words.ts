@@ -114,6 +114,9 @@ export const foundWords = Object.freeze({
   /** Names the row of chips for a screen reader. */
   chipsLabel: "Kinds of things to do",
   loading: (place: string) => `Loading things to do in ${place}`,
+  /** Said politely once a narrowed list lands, as the focus is not on it. */
+  results: (count: number, more: boolean) =>
+    `${count} ${count === 1 ? "thing" : "things"} to do${more ? ", more as you scroll" : ""}.`,
   emptyPlace: {
     title: (place: string) => `Nothing to show in ${place} right now`,
     body: "Everything we had has ended or is being checked. Try another place, or come back soon.",

@@ -249,11 +249,20 @@ function FoundFeedView({
     narrowed. Every other parameter (`place`, a mocked build's `__scenario`)
     stays.
   */
-  const narrow = (next: {
-    category?: Category | null;
-    filters?: FoundFilters;
-    search?: FoundSearch | null;
-  }) => {
+  const narrow = (
+    next: {
+      category?: Category | null;
+      filters?: FoundFilters;
+      search?: FoundSearch | null;
+    },
+    /*
+      "heading" when the control pressed goes as the list is read again (an
+      understood chip, an empty state's button): focus moves to the page's
+      heading, which stays, rather than falling to the body. The new list is
+      said by the live line below.
+    */
+    then?: "heading",
+  ) => {
     const nextCategory = next.category === undefined ? category : next.category;
     const nextFilters = next.filters ?? filters;
     const nextSearch = next.search === undefined ? search : next.search;
@@ -280,12 +289,20 @@ function FoundFeedView({
       "",
       `${window.location.pathname}${query ? `?${query}` : ""}`,
     );
+    if (then === "heading") heading.current?.focus();
   };
   const chooseCategory = (next: Category | null) => narrow({ category: next });
-  // A new search is new words: none of them is kept as plain text yet.
-  const searchFor = (typed: string) => narrow({ search: foundSearch(typed) });
+  /*
+    A new search is new words: none of them is kept as plain text yet. An
+    empty field sent clears the search; words too short to search change
+    nothing, so the applied search and the field's text both stay.
+  */
+  const searchFor = (typed: string) => {
+    const next = foundSearch(typed);
+    if (!next && typed.trim() !== "") return;
+    narrow({ search: next });
+  };
   const clearSearch = () => narrow({ search: null });
-  const showEverything = () => narrow({ filters: NO_FOUND_FILTERS });
 
   /*
     What the words were taken to mean, as the list's first page says it. A
@@ -326,6 +343,23 @@ function FoundFeedView({
   });
   const reporting = report.item;
 
+  /*
+    Said politely once a list narrowed here lands: the focus stays on the
+    control or moves to the heading, never onto the list, so without this a
+    screen reader hears nothing come back. Empty while the new list is read,
+    so the same words twice are still a change; counted from its first page,
+    so scrolling on says nothing more. A count, never the empty state's own
+    line, which is on screen already.
+  */
+  const pageOne = pages?.slice(0, 1);
+  const landed =
+    changed && feed.isSuccess
+      ? foundWords.results(
+          visibleCards(pageOne, hidden.ids).length,
+          foundTail(pageOne) === "more",
+        )
+      : "";
+
   let body: ReactNode;
   if (!asked && !changed) {
     body = <ErrorState error={null} onRetry={() => setAsked(true)} />;
@@ -363,19 +397,27 @@ function FoundFeedView({
         title={emptied.line}
         action={
           emptied.action === "clear-search" ? (
-            <Button variant="outline" size="md" onClick={clearSearch}>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => narrow({ search: null }, "heading")}
+            >
               {foundWords.search.clear}
             </Button>
           ) : emptied.action === "clear-filters" ? (
             <Button
               variant="outline"
               size="md"
-              onClick={() => narrow({ filters: clearRows(filters) })}
+              onClick={() => narrow({ filters: clearRows(filters) }, "heading")}
             >
               {foundWords.clearFilters}
             </Button>
           ) : (
-            <Button variant="outline" size="md" onClick={showEverything}>
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => narrow({ filters: NO_FOUND_FILTERS }, "heading")}
+            >
               {foundWords.showEverything}
             </Button>
           )
@@ -393,7 +435,7 @@ function FoundFeedView({
           <Button
             variant="outline"
             size="md"
-            onClick={() => chooseCategory(null)}
+            onClick={() => narrow({ category: null }, "heading")}
           >
             {foundWords.showEverything}
           </Button>
@@ -508,7 +550,8 @@ function FoundFeedView({
           <UnderstoodRow
             chips={understood}
             onRemove={(chip) => {
-              if (search) narrow({ search: withAsText(search, chip.from) });
+              if (search)
+                narrow({ search: withAsText(search, chip.from) }, "heading");
             }}
             placeHref={searchIn}
           />
@@ -534,6 +577,9 @@ function FoundFeedView({
       ) : null}
 
       <div className="mt-5 flex-1">{body}</div>
+      <p role="status" className="sr-only" data-testid="found-announce">
+        {landed}
+      </p>
 
       {thin ? (
         <div className="mt-2" data-testid="found-coming-up">
@@ -558,6 +604,7 @@ function FoundFeedView({
                     key={item.id}
                     item={item}
                     position={cards.length + index}
+                    posInSet={index}
                     timezone={place.timezone}
                     departmentName={departmentName(item.department, terms)}
                     onReport={(id) => report.open(id, cards.length + index)}

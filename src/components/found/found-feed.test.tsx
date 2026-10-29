@@ -405,6 +405,12 @@ const narrowing = (query: URLSearchParams) =>
     .flatMap((key) => query.getAll(key).map((value) => `${key}=${value}`))
     .join("&");
 
+/** The page's heading, where focus goes when the control pressed goes. */
+const pageHeading = () =>
+  screen.getByRole("heading", { level: 1, name: "Things to do in Bengaluru" });
+/** The polite line that says a narrowed list has landed. */
+const announced = () => screen.getByTestId("found-announce");
+
 /** Each R3 case starts on a bare `/`, as the address it writes is checked. */
 function atHome() {
   window.history.replaceState(null, "", "/");
@@ -492,11 +498,16 @@ describe("R3 open", () => {
     expect(
       screen.getByText("Nothing checked for tomorrow in Bengaluru yet."),
     ).toBeInTheDocument();
+    expect(announced()).toBeEmptyDOMElement();
     await userEvent.click(
       screen.getByRole("button", { name: "Show everything" }),
     );
+    // The button goes with the empty state: focus waits on the heading.
+    expect(pageHeading()).toHaveFocus();
     await waitFor(() => expect(titles()).toEqual(["Card 6"]));
     expect(narrowing(asked.at(-1)!)).toBe("");
+    expect(pageHeading()).toHaveFocus();
+    expect(announced()).toHaveTextContent("1 thing to do.");
   });
 
   it("says nothing is free", () => {
@@ -569,11 +580,15 @@ describe("R3 search", () => {
       expect(narrowing(asked.at(-1)!)).toBe("q=dive saturday&asText=saturday"),
     );
     expect(window.location.search).toBe("?q=dive+saturday&asText=saturday");
+    // The row goes while the list is read again: focus waits on the heading.
+    expect(pageHeading()).toHaveFocus();
     await waitFor(() =>
       expect(
         screen.queryByRole("button", { name: "Remove Saturday" }),
       ).toBeNull(),
     );
+    expect(pageHeading()).toHaveFocus();
+    expect(announced()).toHaveTextContent("1 thing to do.");
   });
 
   it("offers another place the words named as a link, and never narrows by it", () => {
@@ -596,6 +611,24 @@ describe("R3 search", () => {
     expect(link.getAttribute("href")).toContain("place=karnataka%2Fcoorg");
     expect(link.getAttribute("href")).toContain("q=coffee+coorg");
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
+  });
+
+  it("leaves the applied search and the field alone when the words are too short", async () => {
+    const asked = answerEvents(() => page([card(2)]));
+    renderFeed({
+      checkedCities: true,
+      search: { q: "dive", asText: [] },
+      firstPage: page([card(1)]),
+    });
+    window.history.replaceState(null, "", "/?q=dive");
+    const box = screen.getByRole("searchbox", { name: "Search Bengaluru" });
+    await userEvent.clear(box);
+    await userEvent.type(box, "d{Enter}");
+    expect(box).toHaveValue("d");
+    expect(titles()).toEqual(["Card 1"]);
+    expect(asked).toEqual([]);
+    expect(window.location.search).toBe("?q=dive");
+    expect(announced()).toBeEmptyDOMElement();
   });
 
   it("says nothing matches, and Clear search shows the place again", async () => {
@@ -652,6 +685,12 @@ describe("R3 thin weekend", () => {
         .getAllByRole("article")
         .map((article) => within(article).getByRole("heading").textContent),
     ).toEqual(["Card 11"]);
+    // Its own feed counts from 1; the list above is not in it.
+    const [first] = within(coming).getAllByRole("article");
+    expect(first).toHaveAttribute("aria-posinset", "1");
+    expect(first).toHaveAttribute("aria-setsize", "1");
+    // Where it sits on the page, for what is recorded, still runs on.
+    expect(first).toHaveAttribute("data-found-position", "1");
     expect(
       screen.getByText(
         "Not much this weekend yet. Here's what's coming up in the next two weeks.",

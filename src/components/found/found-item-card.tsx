@@ -57,6 +57,7 @@ export function FoundItemCard({
   onReport,
   observe,
   setSize,
+  posInSet,
 }: {
   item: FoundItem;
   /** Its place in the list, from 0. */
@@ -71,6 +72,11 @@ export function FoundItemCard({
   observe?: Ref<HTMLElement>;
   /** How many cards the feed holds, or -1 while more may come. */
   setSize?: number;
+  /**
+   * Its place in its own feed, from 0, when that is not `position`: a card
+   * in Coming up, which counts on from the list above for `position`.
+   */
+  posInSet?: number;
 }) {
   const titleId = useId();
   const status = foundWords.statusTag(item.status);
@@ -79,7 +85,7 @@ export function FoundItemCard({
     <article
       ref={observe}
       aria-labelledby={titleId}
-      aria-posinset={position + 1}
+      aria-posinset={(posInSet ?? position) + 1}
       aria-setsize={setSize ?? -1}
       // Focusable by script, so the feed can move focus to a card; not a tab stop.
       tabIndex={-1}
