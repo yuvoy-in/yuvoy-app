@@ -61,10 +61,15 @@ export function draftFromPlan(plan: PlanView): ReplyDraft {
  * Whether the age tick is asked for: a first reply with no session, and the
  * first reply of a member Yuvoy holds no age for. Both read as "no `me`, or a
  * `me` that has not confirmed". Never on a paid-only reply, which is the only
- * one taken once replies close.
+ * one taken once replies close, and never of the planner, who confirmed it
+ * making the plan and is not a member whose age the contract asks about.
  */
 export function needsAdultTick(plan: PlanView): boolean {
-  return plan.canReply && plan.me?.adultConfirmed !== true;
+  return (
+    plan.canReply &&
+    plan.role !== "planner" &&
+    plan.me?.adultConfirmed !== true
+  );
 }
 
 /** Whether there is anything this reader can send at all. */

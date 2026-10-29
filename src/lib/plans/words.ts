@@ -61,6 +61,8 @@ export const planWords = {
   placeToDecide: "Place to be decided",
   when: (time: string) => `When: ${time}`,
   choosingTime: "Friends are choosing a time",
+  /** new: `replyBy`, while the time is still being chosen. */
+  replyBy: (time: string) => `Reply by ${time}.`,
   /** new: the map link beside the place. */
   openMap: "Open the map",
   /** new: the heading over `gettingHome`. */
