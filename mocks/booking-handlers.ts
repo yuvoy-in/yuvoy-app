@@ -7,10 +7,7 @@ import {
 } from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
-import {
-  creatorStaffCohort,
-  creatorToolsOnFor,
-} from "./creator-link-handlers";
+import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
 
 type Experience = components["schemas"]["Experience"];
 

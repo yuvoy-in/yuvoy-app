@@ -32,10 +32,7 @@ import { checkedClock } from "./checked-clock";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
-import {
-  creatorLinkHandlers,
-  creatorStageOf,
-} from "./creator-link-handlers";
+import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every

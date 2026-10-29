@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import type { components } from "../src/lib/api/schema.gen";
 import { EXPERIENCE_DETAIL, mockHeaders, mockNow } from "./fixtures";
+import { CREATOR_LINKS } from "./creator-link-fixtures";
 
 /**
  * A traveller's share links (yuvoy-app#207, R12-T2): `GET` and
@@ -105,45 +106,6 @@ const TRIP_ONLY_EXPERIENCES: Record<string, Experience> = {
 
 /** The experiences this traveller went on, once over: the completed trip. */
 const WENT_ON = new Set(["exp_sunset_cruise"]);
-
-/**
- * The links the list starts with, newest first, as the API sends them.
- *
- * The first has bookings and a latest one; the second has none, and its
- * listing is no longer listed (no fixture answers its slug), which must not
- * take the row or its counts away. No count is 1, so no row needs a singular.
- */
-export const CREATOR_LINKS: readonly CreatorLink[] = [
-  {
-    code: "C-K7QM2XPA",
-    link: "https://app.yuvoy.in/go/C-K7QM2XPA",
-    target: {
-      kind: "experience",
-      id: "exp_night",
-      slug: "night-fishing-with-a-local-crew",
-      title: "Night fishing with a local crew",
-    },
-    createdAt: "2026-07-20T09:12:00Z",
-    opens30Days: 14,
-    opensTotal: 37,
-    bookings: 2,
-    lastBookingOn: "2026-08-09",
-  },
-  {
-    code: "C-P3WN8RTE",
-    link: "https://app.yuvoy.in/go/C-P3WN8RTE",
-    target: {
-      kind: "experience",
-      id: "exp_glass_bottom",
-      slug: "glass-bottom-boat-at-north-bay",
-      title: "Glass-bottom boat at North Bay",
-    },
-    createdAt: "2026-06-11T05:40:00Z",
-    opens30Days: 3,
-    opensTotal: 11,
-    bookings: 0,
-  },
-];
 
 /** Links made in this process, newest first, by session. */
 const made = new Map<string, CreatorLink[]>();
