@@ -192,6 +192,11 @@ export const planWords = {
   /** new: `conflict` with `nonce` (#373 case 5 says "send again"). */
   sendAgain: "That reply did not go through. Send it again.",
   alreadyAnswered: "This account already answered this plan.",
+  /**
+   * new: `unauthorized` on a signed-in action, a session that ended while the
+   * page was open. Not "check your connection": the connection was fine.
+   */
+  signedOutSince: "You were signed out. Sign in again and send it.",
 
   /* ------------------------------------------------- guest page (Part C) -- */
 
@@ -314,6 +319,8 @@ export function refusalLine(
       return `${planWords.paused} ${planWords.pausedNext}`;
     case "invalid_input":
       return refusal.message || planWords.notSent;
+    case "unauthorized":
+      return planWords.signedOutSince;
     default:
       return planWords.notSent;
   }
