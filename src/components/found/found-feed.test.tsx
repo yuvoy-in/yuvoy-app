@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse, delay } from "msw";
 import { server } from "../../../mocks/server";
+import { mockHeaders, mockNow } from "../../../mocks/fixtures";
 import { renderWithQuery } from "@/test/render";
 import { HIDDEN_CARDS_CHANGED } from "@/lib/found/device-store";
 import { marketDaysFrom } from "@/lib/booking/availability-window";
@@ -378,14 +379,21 @@ describe("hidden cards", () => {
 
 /* ------------------------------------------------- R3 (yuvoy-app#180) -- */
 
-/** Every `GET /events` this test made, as its query, answered by `answer`. */
+/**
+ * Every `GET /events` this test made, as its query, answered by `answer`.
+ * Each answer carries the mock's clock in its `Date` header, as every other
+ * mocked route does, so the feed's clock offset reads one clock whichever
+ * response lands last.
+ */
 function answerEvents(answer: (query: URLSearchParams) => FoundItemList) {
   const asked: URLSearchParams[] = [];
   server.use(
     http.get(`${BASE}/events`, ({ request }) => {
       const query = new URL(request.url).searchParams;
       asked.push(query);
-      return HttpResponse.json(answer(query));
+      return HttpResponse.json(answer(query), {
+        headers: mockHeaders("found-feed-r3"),
+      });
     }),
   );
   return asked;
@@ -616,24 +624,29 @@ describe("R3 thin weekend", () => {
   beforeEach(atHome);
 
   it("also reads the plain list, shows what is coming up in two weeks, and the ask line", async () => {
-    const days = marketDaysFrom(foundToday(Date.now(), "Asia/Kolkata"), 20);
+    // The feed counts from the server's clock (the Date header), which in
+    // the mocks is the fixture morning, not this machine's day.
+    const days = marketDaysFrom(foundToday(mockNow(), "Asia/Kolkata"), 20);
     const on = (n: number, day: string) =>
       card(n, {
         when: { startsOn: day, startTime: null, endsOn: null, repeats: null },
       });
-    const asked = answerEvents(() =>
-      // The plain list: one already shown, one in two weeks, one past them.
-      page([on(1, days[1]), on(11, days[3]), on(12, days[19])]),
+    const weekend = page([on(1, days[1])], {
+      window: { from: days[1], to: days[3] },
+    });
+    const asked = answerEvents((query) =>
+      query.get("when")
+        ? weekend
+        : // The plain list: one already shown, one in two weeks, one past them.
+          page([on(1, days[1]), on(11, days[3]), on(12, days[19])]),
     );
     renderFeed({
       checkedCities: true,
       filters: { when: "weekend", budget: null, timeOfDay: null },
-      firstPage: page([on(1, days[1])], {
-        window: { from: "2026-11-20", to: "2026-11-22" },
-      }),
+      firstPage: weekend,
     });
     const coming = await screen.findByRole("feed", { name: "Coming up" });
-    expect(narrowing(asked[0])).toBe("");
+    expect(asked.map(narrowing)).toContain("");
     expect(
       within(coming)
         .getAllByRole("article")

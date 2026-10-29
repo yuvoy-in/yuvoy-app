@@ -29,6 +29,13 @@ import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydrat
  * one. A word typed in that time and sent after is handed over as the page
  * hydrates (`useChangedBeforeHydration`).
  *
+ * ## Clear search goes with the words
+ *
+ * It shows while the field has words and goes once it is empty, whether
+ * the field was cleared by it or by hand: an empty field has nothing to
+ * clear. Pressed, it empties the field at once and tells the caller, which
+ * drops the applied search.
+ *
  * ## The applied search wins when it changes from outside
  *
  * The text is local, seeded from the applied search, and takes the applied
@@ -106,7 +113,7 @@ export function FoundSearchBox({
       <Button type="submit" variant="outline" className="shrink-0">
         {foundWords.search.submit}
       </Button>
-      {typed.trim() !== "" || search ? (
+      {typed.trim() !== "" ? (
         <Button variant="ghost" className="shrink-0" onClick={clear}>
           {foundWords.search.clear}
         </Button>
