@@ -206,10 +206,7 @@ describe("checkedPayLink: a link the API could not have written", () => {
     // read as something else, so they could name a second payee.
     [
       "a ; that hides a second pa and am",
-      apiLink({ tn: "x" }).replace(
-        "tn=x",
-        "tn=x;pa=ravi@okaxis;am=2500.00",
-      ),
+      apiLink({ tn: "x" }).replace("tn=x", "tn=x;pa=ravi@okaxis;am=2500.00"),
     ],
     [
       "a second ? inside a value",
