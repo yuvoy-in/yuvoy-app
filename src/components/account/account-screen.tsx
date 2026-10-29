@@ -24,6 +24,7 @@ import { FirstSignIn } from "./first-sign-in";
 import { InviteCodeForm } from "@/components/auth/invite-gate";
 import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
+import { YourLinks } from "@/components/creator/your-links";
 
 /**
  * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
@@ -370,6 +371,9 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
           Edit profile
         </Button>
       ) : null}
+
+      {/* Share links and their counts (yuvoy-app#207). */}
+      <YourLinks toolsOn={me?.creatorToolsOn === true} />
 
       {/*
         The same section as the booking page's, with no reference attached:

@@ -165,6 +165,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getEvent"] });
     // A table carries the reader's own request, the names and the venue.
     qc.removeQueries({ queryKey: ["getTable"] });
+    // And share links are the number's own, with their counts.
+    qc.removeQueries({ queryKey: qk.myCreatorLinks() });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -242,6 +244,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listEvents"] });
     qc.removeQueries({ queryKey: ["getEvent"] });
     qc.removeQueries({ queryKey: ["getTable"] });
+    qc.removeQueries({ queryKey: qk.myCreatorLinks() });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });

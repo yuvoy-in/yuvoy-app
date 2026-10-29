@@ -104,6 +104,18 @@ export const CACHE = {
    * and sign out remove it outright rather than letting it age.
    */
   supportRequests: { staleTime: 30_000, gcTime: 5 * 60_000 },
+
+  /**
+   * The traveller's share links and their counts (yuvoy-app#207). "Never
+   * cached" in the contract, so every mount of Your links reads it again and
+   * nothing is kept once the section is gone. A link made on a trip writes
+   * itself into the entry while Account is open; Account opened later asks.
+   */
+  listMyCreatorLinks: {
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+  },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -299,6 +311,12 @@ export const qk = {
    * two numbers on one phone comes from REMOVING this on sign in and sign out.
    */
   supportRequests: () => ["listSupportRequests"] as const,
+  /**
+   * The signed-in traveller's share links (yuvoy-app#207). Not keyed by
+   * anything, for the reason `myBookings` gives, and removed on sign in and
+   * sign out with the rest of what belongs to a number.
+   */
+  myCreatorLinks: () => ["listMyCreatorLinks"] as const,
   /**
    * One help request, by its reference, and by WHICH credential asked.
    *
