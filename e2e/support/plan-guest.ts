@@ -209,7 +209,8 @@ export async function expectAccessible(page: Page) {
   /*
     Let entrances finish first, as `explore-place.spec.ts` does: axe
     measuring a sheet mid-rise reads the page behind its tint, a colour
-    nobody sees. Settled ones only, never an infinite one.
+    nobody sees. Running ones that end only: an infinite or a paused one
+    never finishes.
   */
   await page.evaluate(() =>
     Promise.allSettled(
@@ -217,6 +218,7 @@ export async function expectAccessible(page: Page) {
         .getAnimations()
         .filter(
           (a) =>
+            a.playState === "running" &&
             a.timeline === document.timeline &&
             a.effect?.getTiming().iterations !== Infinity,
         )

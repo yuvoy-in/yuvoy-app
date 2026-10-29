@@ -172,9 +172,9 @@ describe("the reply", () => {
     const plan = openPlanView("member", memberMe({ adultConfirmed: false }));
     const actions = draw(plan);
     await user.click(screen.getByRole("button", { name: "Update my reply" }));
-    expect(
-      await screen.findByText("Tick to say you are 18 or over."),
-    ).toBeInTheDocument();
+    const line = await screen.findByText("Tick to say you are 18 or over.");
+    // Focus goes to the line under the tick, once it is drawn.
+    await waitFor(() => expect(line).toHaveFocus());
     expect(actions.reply).not.toHaveBeenCalled();
 
     await user.click(
@@ -202,6 +202,7 @@ describe("the reply", () => {
     await user.click(screen.getByRole("button", { name: "Update my reply" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Your answers are still filled in.");
+    await waitFor(() => expect(alert).toHaveFocus());
     expect(screen.getAllByRole("radio", { name: "Can't" })[2]).toBeChecked();
   });
 

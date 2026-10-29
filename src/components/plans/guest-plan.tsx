@@ -24,9 +24,9 @@ const NAME_FIELD = ["name"] as const;
  * first-reply nonce: every send of this form is the same guest (case 4).
  * What it needs to know at the moment of a send (the plan as last answered,
  * what is in the name box, whether there is a session) it reads from a value
- * made with it, which every render brings up to date through `put`, so a
- * send never acts on the plan or the name of a render ago. A plain value, not
- * a ref: the actions read it at a send, never during a render.
+ * made with it, which `put` brings up to date where each is set, so a send
+ * never acts on the plan or the name of a render ago. A plain value, not a
+ * ref: the actions read it at a send, never during a render.
  *
  * ## The plan, twice
  *
@@ -98,9 +98,11 @@ export function GuestPlan({
       }),
     };
   });
+  // The plan and the name go in where they are set (`onPlan`, the box's
+  // `onChange`); a render's copy of either may be one behind them.
   useEffect(() => {
-    put({ plan, name, signedIn: signedIn === true });
-  });
+    put({ signedIn: signedIn === true });
+  }, [put, signedIn]);
 
   // After the render that draws the refusal under the box.
   useEffect(() => {
