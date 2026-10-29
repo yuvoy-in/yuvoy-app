@@ -146,7 +146,11 @@ describe("signing out", () => {
     */
     let signOut!: () => Promise<void>;
     let signIn!: () => Promise<void>;
-    function SignIn({ onReady }: { onReady: (fn: () => Promise<void>) => void }) {
+    function SignIn({
+      onReady,
+    }: {
+      onReady: (fn: () => Promise<void>) => void;
+    }) {
       const { signIn } = useTravellerSession();
       onReady(signIn);
       return null;
