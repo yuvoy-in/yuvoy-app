@@ -114,6 +114,12 @@ export const PRIVATE_ROUTES = [
   "/o/*/r/",
   /* A search result, playing — yuvoy-app#37. Same reasons again. */
   "/search/r/",
+  /*
+    A plan by its link (yuvoy-mobile#373). The token is in the fragment, so
+    every plan is the same empty shell to a crawler, and the page is a
+    friend's private plan to everybody else.
+  */
+  "/p/",
 ] as const;
 
 /**
