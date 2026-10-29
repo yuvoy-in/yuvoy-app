@@ -63,7 +63,8 @@ export function EmptyState({
   tone = "paper",
 }: {
   title: string;
-  body: string;
+  /** Left out for a state whose one line says it all (yuvoy-app#180's chip empty lines). */
+  body?: string;
   action?: ReactNode;
   tone?: "paper" | "dark";
 }) {
@@ -77,14 +78,16 @@ export function EmptyState({
       <p className="font-display tracking-display leading-display text-2xl text-balance">
         {title}
       </p>
-      <p
-        className={cn(
-          "text-body mt-3 max-w-sm text-pretty",
-          tone === "dark" ? "text-paper/70" : "text-forest/70",
-        )}
-      >
-        {body}
-      </p>
+      {body ? (
+        <p
+          className={cn(
+            "text-body mt-3 max-w-sm text-pretty",
+            tone === "dark" ? "text-paper/70" : "text-forest/70",
+          )}
+        >
+          {body}
+        </p>
+      ) : null}
       {action ? (
         <div className="mt-6 flex flex-wrap justify-center gap-3">{action}</div>
       ) : null}
