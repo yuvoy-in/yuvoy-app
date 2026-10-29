@@ -32,6 +32,7 @@ import { checkedClock } from "./checked-clock";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
+import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -189,7 +190,18 @@ export type Scenario =
   | "tables-paused"
   | "table-missing"
   | "table-started"
-  | "table-report-too-fast";
+  | "table-report-too-fast"
+  /*
+    A traveller's share links (yuvoy-app#207, R12-T2). Each opens `creator`
+    at `staff`; `creator-link-handlers.ts` says what each does.
+  */
+  | "creator-links"
+  | "creator-links-empty"
+  | "creator-links-not-open-yet"
+  | "creator-links-rate-limited"
+  | "creator-links-down"
+  | "creator-tools-off"
+  | "creator-outside";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -390,6 +402,12 @@ function inRange(
 }
 
 const routes = [
+  /*
+    First, so its two trip-only listings answer before the catalog's
+    `/experiences/:slug` says they do not exist (yuvoy-app#207).
+  */
+  ...creatorLinkHandlers,
+
   /* ------------------------------------------------------------- catalog */
 
   http.get(url("/experiences"), async ({ request }) => {
@@ -1148,7 +1166,8 @@ const routes = [
   /*
     The app's config, with how far each release has reached (R0-T2): every
     release `off`, as on dev and production today, unless a scenario moves
-    `explore` or `checkedCities` (yuvoy-app#180's, at `staff`).
+    `explore`, `checkedCities` (yuvoy-app#180's, at `staff`) or `creator`
+    (yuvoy-app#207's, at `staff`).
   */
   http.get(url("/app-config"), async ({ request }) => {
     const failed = await commonFailure(request);
@@ -1174,6 +1193,7 @@ const routes = [
         releases: {
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
+          creator: creatorStageOf(scenario) ?? "off",
         },
       },
       { headers: mockHeaders(requestId()) },
