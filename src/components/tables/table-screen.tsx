@@ -96,7 +96,7 @@ export function TableScreen({ id }: { id: string }) {
           {W.signedOut.body}
         </p>
         <ButtonLink
-          href={`/account?next=/tables/${id}`}
+          href={`/account?next=/tables/${encodeURIComponent(id)}`}
           size="lg"
           className="mt-6"
         >
