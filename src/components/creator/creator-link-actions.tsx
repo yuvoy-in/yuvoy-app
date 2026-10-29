@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, CopyIcon, ShareIcon } from "@/components/ui/icons";
 import {
@@ -28,16 +28,34 @@ type Notice = "messageCopied" | "copyRefused" | null;
  *
  * Always drawn also means nothing depends on the browser during render, so
  * the server and the first client render agree.
+ *
+ * Both buttons keep the names "Copy link" and "Share" and are described by
+ * the title of what they share (`describedBy`), so a screen reader moving
+ * through a list of them hears which link each one is for.
  */
 export function CreatorLinkActions({
   link,
+  describedBy,
+  focusCopy = false,
   className,
 }: {
   link: CreatorLink;
+  /** The id of the element that names what is shared. */
+  describedBy?: string;
+  /**
+   * Take the focus onto Copy link when drawn: for Get my link, whose button
+   * these replace, so the focus is not dropped onto the page.
+   */
+  focusCopy?: boolean;
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const buttons = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (focusCopy) buttons.current?.querySelector("button")?.focus();
+  }, [focusCopy]);
 
   /*
     "Copied" for two seconds, then back, and a line for four, each clock
@@ -68,6 +86,8 @@ export function CreatorLinkActions({
 
   async function copyLink() {
     setNotice(null);
+    // Back to "Copy link" first, so a second tap starts the two seconds again.
+    setCopied(false);
     if (await copy(link.link)) setCopied(true);
     else setNotice("copyRefused");
   }
@@ -89,8 +109,13 @@ export function CreatorLinkActions({
 
   return (
     <div className={className}>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" onClick={() => void copyLink()}>
+      <div ref={buttons} className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          aria-describedby={describedBy}
+          onClick={() => void copyLink()}
+        >
           {copied ? (
             <CheckIcon className="size-4" />
           ) : (
@@ -98,7 +123,12 @@ export function CreatorLinkActions({
           )}
           {copied ? W.copied : W.copy}
         </Button>
-        <Button variant="outline" size="sm" onClick={() => void share()}>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-describedby={describedBy}
+          onClick={() => void share()}
+        >
           <ShareIcon className="size-4" />
           {W.share}
         </Button>

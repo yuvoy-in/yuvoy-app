@@ -12,6 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { TripsScreen } from "./trips-screen";
+import { useRelease } from "@/lib/site/use-release";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { rememberBooking } from "@/lib/booking/token-store";
@@ -1417,6 +1418,16 @@ describe("a share link from a past trip", () => {
       ),
     );
 
+  /** The creator release as the button reads it, once it is known. */
+  function ReleaseProbe() {
+    const release = useRelease("creator");
+    return (
+      <p data-testid="release">
+        {release.stage} {release.pending ? "pending" : "known"}
+      </p>
+    );
+  }
+
   it("is offered on Past and not on Upcoming", async () => {
     const user = userEvent.setup();
     await signIn();
@@ -1426,16 +1437,29 @@ describe("a share link from a past trip", () => {
 
     renderWithQuery(<TripsScreen />);
     await screen.findByText("Snorkel trip to Elephant Beach");
-    expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
 
+    /*
+      Past first: its button proves the release has been read as open, so
+      its absence on Upcoming afterwards is the tab's decision and not a
+      read still out.
+    */
     await user.click(screen.getByRole("tab", { name: "Past" }));
+    const offered = await screen.findByRole("button", { name: "Get my link" });
+    // Beside the card, never inside the link to the booking, and about it.
+    expect(offered.closest("a")).toBeNull();
+    expect(offered).toHaveAccessibleDescription(
+      "Snorkel trip to Elephant Beach",
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Upcoming" }));
+    await waitFor(() => expect(sent.at(-1)?.get("tab")).toBe("upcoming"));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull(),
+    );
     expect(
-      await screen.findByRole("button", { name: "Get my link" }),
+      await screen.findByText("Snorkel trip to Elephant Beach"),
     ).toBeInTheDocument();
-    // Beside the card, never inside the link to the booking.
-    expect(
-      screen.getByRole("button", { name: "Get my link" }).closest("a"),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
   });
 
   it("is not offered while the release is off", async () => {
@@ -1445,11 +1469,19 @@ describe("a share link from a past trip", () => {
     creator("off");
     server.use(serverBookings([{ state: "completed" }]));
 
-    renderWithQuery(<TripsScreen />);
+    renderWithQuery(
+      <>
+        <ReleaseProbe />
+        <TripsScreen />
+      </>,
+    );
     await user.click(await screen.findByRole("tab", { name: "Past" }));
     await waitFor(() => expect(sent.at(-1)?.get("tab")).toBe("past"));
     await screen.findByText("Snorkel trip to Elephant Beach");
-    await new Promise((r) => setTimeout(r, 80));
+    // The same read the button waits on has answered, and it says off.
+    await waitFor(() =>
+      expect(screen.getByTestId("release")).toHaveTextContent("off known"),
+    );
     expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
   });
 });
