@@ -1,5 +1,10 @@
 import type { components } from "../src/lib/api/schema.gen";
-import { placeDate, type FoundSample } from "./found-fixtures";
+import {
+  multiDay,
+  placeDate,
+  statedOf,
+  type FoundSample,
+} from "./found-fixtures";
 import {
   searchWords,
   textMatches,
@@ -18,9 +23,11 @@ import {
  * decides that, and while it is closed every parameter here is ignored
  * without being checked.
  *
- * The fixtures state no setting, suits or difficulty and no end time, so
- * those filters match nothing, as the API's do on an item that does not say,
- * and `duration` matches only a multi-day item (`longer`).
+ * R3-T6's four (yuvoy-app#195) read what each card's page states, as the
+ * API sends it (`statedOf`): an item that does not state a fact never
+ * matches its filter, and how hard is never sent, so never matched, on a
+ * card no person checked. Only `found-stated-fixtures.ts` states anything,
+ * so elsewhere they match nothing but a multi-day item's `longer`.
  */
 
 type FoundItem = components["schemas"]["FoundItem"];
@@ -269,26 +276,53 @@ function fitsTime(item: FoundItem, time: string): boolean {
   return start >= "17:00";
 }
 
-const multiDay = (item: FoundItem) =>
-  item.when.endsOn !== null &&
-  item.when.startsOn !== null &&
-  item.when.endsOn > item.when.startsOn;
+/** `HH:MM` as minutes into the day, or null. */
+function minutes(time: string | null): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(time ?? "");
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+}
+
+/**
+ * From the stated start to the stated end on a one-day item: under 2 hours
+ * below 120 minutes, half a day 120 to 300, longer above. A multi-day item is
+ * `longer`; one missing either time is none.
+ */
+function fitsDuration(sample: FoundSample, duration: string): boolean {
+  if (multiDay(sample.card)) return duration === "longer";
+  const start = minutes(sample.card.when.startTime);
+  const end = minutes(statedOf(sample).endTime);
+  if (start === null || end === null || end <= start) return false;
+  const long = end - start;
+  if (duration === "under_2h") return long < 120;
+  if (duration === "half_day") return long >= 120 && long <= 300;
+  return long > 300;
+}
 
 function fits(
-  item: FoundItem,
+  sample: FoundSample,
   ask: R3Ask,
   place: ExplorePlace,
   now: number,
 ): boolean {
+  const item = sample.card;
+  const stated = statedOf(sample);
   if (ask.when && !onDay(item, ask.when, place, now)) return false;
   if (!fitsBudget(item, ask)) return false;
   if (ask.timeOfDay && !fitsTime(item, ask.timeOfDay)) return false;
-  // No fixture states an end time, so a multi-day item is the only length known.
-  if (ask.duration && !(ask.duration === "longer" && multiDay(item))) {
+  if (ask.duration && !fitsDuration(sample, ask.duration)) return false;
+  // `indoor` and `outdoor` each match an item stated as both.
+  if (
+    ask.setting &&
+    stated.setting !== ask.setting &&
+    stated.setting !== "both"
+  ) {
     return false;
   }
-  // Nothing states a setting, who it suits or how hard it is.
-  if (ask.setting || ask.suits || ask.difficulty) return false;
+  if (ask.suits && !(stated.suits as string[]).includes(ask.suits)) {
+    return false;
+  }
+  // Checked items only: `statedOf` sends no difficulty on any other.
+  if (ask.difficulty && stated.difficulty !== ask.difficulty) return false;
   return true;
 }
 
@@ -348,8 +382,7 @@ export function narrow(
   const u = ask.q ? understand(ask.q, ask.asText, place.key) : null;
   return {
     samples: samples.filter(
-      (s) =>
-        fits(s.card, ask, place, now) && (!u || searched(s, u, place, now)),
+      (s) => fits(s, ask, place, now) && (!u || searched(s, u, place, now)),
     ),
     understood: u && !u.ownPlaceOnly ? u.chips : [],
   };

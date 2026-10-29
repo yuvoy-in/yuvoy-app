@@ -39,6 +39,7 @@ type PlaceMarket = components["schemas"]["PlaceMarket"];
 type Category = components["schemas"]["Category"];
 type Check = FoundItem["check"];
 type Price = FoundItem["price"];
+type StatedFacts = components["schemas"]["StatedFacts"];
 
 /* ------------------------------------------------------------------ ids */
 
@@ -195,7 +196,7 @@ function confirmed(
 }
 
 /** Trigo's find. `host` null is a source no page may be linked to. */
-function trigo(host: string | null, path = "/"): Check {
+export function trigo(host: string | null, path = "/"): Check {
   return {
     tier: "found",
     label: host
@@ -215,7 +216,12 @@ function trigo(host: string | null, path = "/"): Check {
  * A check that no longer counts: the tier falls back to `found`, and the API
  * has no sentence for its page yet, so the key is absent rather than empty.
  */
-function lapsed(host: string, path: string, ago: number, now: number): Check {
+export function lapsed(
+  host: string,
+  path: string,
+  ago: number,
+  now: number,
+): Check {
   return {
     tier: "found",
     label: `Last checked by Yuvoy ${ago} days ago`,
@@ -259,6 +265,8 @@ export interface FoundSample {
   organiser: string | null;
   /** Other pages it is listed on, by host ("Also listed on"). */
   also?: string[];
+  /** What its own page states, as the finder recorded it (R3-T6); nothing when absent. */
+  stated?: Partial<StatedFacts>;
 }
 
 const at = (offset: number, now: number, startTime: string | null) => ({
@@ -644,21 +652,47 @@ export function foundDetail(
     sources,
     indexable:
       exploreAll && card.check.tier !== "found" && !card.check.lapsed && live,
-    // Nothing stated: `checkedCities` is off, so the web never shows the block.
-    stated: {
-      endTime: null,
-      setting: null,
-      suits: [],
-      difficulty: null,
-      venueType: null,
-      included: null,
-      goodToKnow: null,
-    },
+    stated: statedOf(sample),
     /*
       Required since the ad4fa894 pin. The web offers no claim (the card page
       has no organiser button, R2-T4 notes), so a card never reads as one.
     */
     claimable: false,
+  };
+}
+
+/** Runs over more than one day. */
+export const multiDay = (item: FoundItem) =>
+  item.when.endsOn !== null &&
+  item.when.startsOn !== null &&
+  item.when.endsOn > item.when.startsOn;
+
+const STATED_NONE: StatedFacts = {
+  endTime: null,
+  setting: null,
+  suits: [],
+  difficulty: null,
+  venueType: null,
+  included: null,
+  goodToKnow: null,
+};
+
+/**
+ * What a card's page states, as the API sends it (R3-T6, yuvoy-app#195):
+ * only what the page states; no end time on an item over more than one day;
+ * how hard and the note never on a card no person checked (or one whose
+ * check ran out, whose tier is `found` again), whatever its page says. A
+ * card with no `stated` states nothing, as every R2 fixture.
+ */
+export function statedOf(sample: FoundSample): StatedFacts {
+  const page = { ...STATED_NONE, ...sample.stated };
+  const checkedByPerson = sample.card.check.tier !== "found";
+  return {
+    ...page,
+    suits: [...page.suits],
+    endTime: multiDay(sample.card) ? null : page.endTime,
+    difficulty: checkedByPerson ? page.difficulty : null,
+    goodToKnow: checkedByPerson ? page.goodToKnow : null,
   };
 }
 
