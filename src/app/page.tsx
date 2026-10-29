@@ -167,21 +167,24 @@ export default async function FeedPage({
         const { market, destination } = choice.shown;
         const category = categoryParam(query.category);
         /*
-          `?when=`, `free=1`, `budget=`, `timeOfDay=`, `q=` and `asText=`,
-          only while `checkedCities` is open to this caller. Closed, the
+          `?when=`, `free=1`, `budget=`, `timeOfDay=`, `duration=`,
+          `setting=`, `suits=`, `difficulty=` (a local place's only), `q=`
+          and `asText=`, only while `checkedCities` is open to this caller.
+          Closed, the
           address's filters are not read at all and the page is R2's: the
           API would ignore them, and a list narrowed by a chip nobody can
           see would be worse.
         */
         const checked = await (checkedAhead ??
           requestReleaseOpen("checkedCities", scenario));
+        const local = destination.kind === "local";
         const { filters, search } = checked
-          ? foundStateFrom(paramsOf(query))
+          ? foundStateFrom(paramsOf(query), local)
           : { filters: NO_FOUND_FILTERS, search: null };
         const first = await firstFoundPage({
           destinationKey: destination.key,
           category,
-          narrow: foundListQuery(filters, search),
+          narrow: foundListQuery(filters, local, search),
           /*
             Only a token the API still accepts: after `/me/places` answered
             401 the list is the public one, and a dead token would turn every

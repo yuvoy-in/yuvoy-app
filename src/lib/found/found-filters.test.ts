@@ -6,6 +6,7 @@ import {
   foundEmpty,
   foundFilterKey,
   foundListQuery,
+  foundRows,
   foundRowsOn,
   foundSearch,
   foundSearchText,
@@ -16,6 +17,7 @@ import {
   thinWeekend,
   toggleDay,
   toggleFree,
+  toggleRow,
   understoodRow,
   withAsText,
   withFoundState,
@@ -39,12 +41,11 @@ describe("the address", () => {
       new URLSearchParams(
         "place=karnataka/bengaluru&when=weekend&free=1&timeOfDay=evening&q=dive%20saturday&asText=saturday",
       ),
+      true,
     );
-    expect(state.filters).toEqual({
-      when: "weekend",
-      budget: "free",
-      timeOfDay: "evening",
-    });
+    expect(state.filters).toEqual(
+      f({ when: "weekend", budget: "free", timeOfDay: "evening" }),
+    );
     expect(state.search).toEqual({ q: "dive saturday", asText: ["saturday"] });
   });
 
@@ -53,6 +54,7 @@ describe("the address", () => {
       new URLSearchParams(
         "when=someday&free=yes&budget=cheap&timeOfDay=night&q=a&asText=x",
       ),
+      true,
     );
     expect(state.filters).toEqual(NO_FOUND_FILTERS);
     // One character is not searched, and its words go with it.
@@ -62,11 +64,13 @@ describe("the address", () => {
   it("reads Free over an under-price budget, never both", () => {
     const { filters } = foundStateFrom(
       new URLSearchParams("free=1&budget=under_500"),
+      true,
     );
     expect(filters.budget).toBe("free");
-    expect(foundListQuery(filters, null)).toEqual({ free: true });
+    expect(foundListQuery(filters, true, null)).toEqual({ free: true });
     expect(
-      foundStateFrom(new URLSearchParams("budget=under_1500")).filters.budget,
+      foundStateFrom(new URLSearchParams("budget=under_1500"), true).filters
+        .budget,
     ).toBe("under_1500");
   });
 
@@ -75,6 +79,7 @@ describe("the address", () => {
       new URLSearchParams(
         "q=dive saturday free&asText=Saturday&asText=saturday&asText=goa",
       ),
+      true,
     );
     expect(search?.asText).toEqual(["saturday"]);
     const many = "a1 b2 c3 d4 e5 f6 g7 h8 i9";
@@ -89,7 +94,7 @@ describe("the address", () => {
     });
     expect(params.getAll("asText")).toEqual(["saturday", "free"]);
     expect(params.has("place")).toBe(false);
-    expect(foundStateFrom(params).filters.when).toBe("today");
+    expect(foundStateFrom(params, true).filters.when).toBe("today");
   });
 
   it("writes only what is chosen, and leaves the place, department and scenario be", () => {
@@ -99,6 +104,7 @@ describe("the address", () => {
     const next = withFoundState(
       base,
       f({ when: "weekend", budget: "free", timeOfDay: "morning" }),
+      true,
       { q: "dive saturday", asText: ["saturday"] },
     );
     expect(next.get("place")).toBe("karnataka/bengaluru");
@@ -111,14 +117,15 @@ describe("the address", () => {
     expect(next.get("q")).toBe("dive saturday");
     expect(next.getAll("asText")).toEqual(["saturday"]);
 
-    const cleared = withFoundState(next, NO_FOUND_FILTERS, null);
+    const cleared = withFoundState(next, NO_FOUND_FILTERS, true, null);
     expect(cleared.toString()).toBe(
       "place=karnataka%2Fbengaluru&category=adventure&__scenario=x",
     );
     // Read back, it is what was written.
     expect(
       foundStateFrom(
-        withFoundState(new URLSearchParams(), f({ budget: "any" }), null),
+        withFoundState(new URLSearchParams(), f({ budget: "any" }), true, null),
+        true,
       ).filters.budget,
     ).toBe("any");
   });
@@ -126,36 +133,41 @@ describe("the address", () => {
 
 describe("the request and the key", () => {
   it("sends Free as free=true and an under-price budget as budget, and never any", () => {
-    expect(foundListQuery(f({ budget: "free" }), null)).toEqual({ free: true });
-    expect(foundListQuery(f({ budget: "under_500" }), null)).toEqual({
+    expect(foundListQuery(f({ budget: "free" }), true, null)).toEqual({
+      free: true,
+    });
+    expect(foundListQuery(f({ budget: "under_500" }), true, null)).toEqual({
       budget: "under_500",
     });
-    expect(foundListQuery(f({ budget: "any" }), null)).toEqual({});
+    expect(foundListQuery(f({ budget: "any" }), true, null)).toEqual({});
   });
 
   it("carries the search's words and the ones kept as text", () => {
     expect(
-      foundListQuery(f({ when: "today" }), {
+      foundListQuery(f({ when: "today" }), true, {
         q: "dive saturday",
         asText: ["saturday"],
       }),
     ).toEqual({ when: "today", q: "dive saturday", asText: ["saturday"] });
-    expect(foundListQuery(NO_FOUND_FILTERS, { q: "dive", asText: [] })).toEqual(
-      { q: "dive" },
-    );
+    expect(
+      foundListQuery(NO_FOUND_FILTERS, true, { q: "dive", asText: [] }),
+    ).toEqual({ q: "dive" });
   });
 
   it("is R2's key with nothing chosen, and a different key for every filter set", () => {
-    expect(foundFilterKey(NO_FOUND_FILTERS, null)).toBe("");
-    expect(foundFilterKey(f({ budget: "any" }), null)).toBe("");
+    expect(foundFilterKey(NO_FOUND_FILTERS, true, null)).toBe("");
+    expect(foundFilterKey(f({ budget: "any" }), true, null)).toBe("");
     const keys = [
-      foundFilterKey(f({ when: "today" }), null),
-      foundFilterKey(f({ when: "weekend" }), null),
-      foundFilterKey(f({ when: "weekend", budget: "free" }), null),
-      foundFilterKey(f({ budget: "under_500" }), null),
-      foundFilterKey(f({ timeOfDay: "evening" }), null),
-      foundFilterKey(NO_FOUND_FILTERS, { q: "dive saturday", asText: [] }),
-      foundFilterKey(NO_FOUND_FILTERS, {
+      foundFilterKey(f({ when: "today" }), true, null),
+      foundFilterKey(f({ when: "weekend" }), true, null),
+      foundFilterKey(f({ when: "weekend", budget: "free" }), true, null),
+      foundFilterKey(f({ budget: "under_500" }), true, null),
+      foundFilterKey(f({ timeOfDay: "evening" }), true, null),
+      foundFilterKey(NO_FOUND_FILTERS, true, {
+        q: "dive saturday",
+        asText: [],
+      }),
+      foundFilterKey(NO_FOUND_FILTERS, true, {
         q: "dive saturday",
         asText: ["saturday"],
       }),
@@ -179,17 +191,156 @@ describe("choosing", () => {
   });
 
   it("counts only the sheet's rows that narrow", () => {
-    expect(foundRowsOn(f({ budget: "free" }))).toBe(0);
-    expect(foundRowsOn(f({ budget: "any" }))).toBe(0);
-    expect(foundRowsOn(f({ budget: "under_1500", timeOfDay: "evening" }))).toBe(
-      2,
-    );
+    expect(foundRowsOn(f({ budget: "free" }), true)).toBe(0);
+    expect(foundRowsOn(f({ budget: "any" }), true)).toBe(0);
+    expect(
+      foundRowsOn(f({ budget: "under_1500", timeOfDay: "evening" }), true),
+    ).toBe(2);
   });
 
   it("clears the sheet's rows, Free with them, and keeps the day", () => {
     expect(
       clearRows(f({ when: "today", budget: "free", timeOfDay: "morning" })),
     ).toEqual(f({ when: "today" }));
+  });
+});
+
+describe("R3-T6's four rows (yuvoy-app#195)", () => {
+  const FOUR = f({
+    duration: "half_day",
+    setting: "outdoor",
+    suits: "kids",
+    difficulty: "hard",
+  });
+
+  it("are read from the address under the API's names", () => {
+    const { filters } = foundStateFrom(
+      new URLSearchParams(
+        "duration=half_day&setting=outdoor&suits=kids&difficulty=hard",
+      ),
+      true,
+    );
+    expect(filters).toEqual(FOUR);
+  });
+
+  it("drop a value the API does not take, setting=both among them", () => {
+    const { filters } = foundStateFrom(
+      new URLSearchParams(
+        "duration=all_day&setting=both&suits=pets&difficulty=extreme",
+      ),
+      true,
+    );
+    expect(filters).toEqual(NO_FOUND_FILTERS);
+    expect(foundListQuery(f({ setting: "both" as never }), true, null)).toEqual(
+      {},
+    );
+  });
+
+  it("each go into the request and the key", () => {
+    expect(foundListQuery(FOUR, true, null)).toEqual({
+      duration: "half_day",
+      setting: "outdoor",
+      suits: "kids",
+      difficulty: "hard",
+    });
+    const keys = [
+      foundFilterKey(f({ duration: "under_2h" }), true, null),
+      foundFilterKey(f({ duration: "longer" }), true, null),
+      foundFilterKey(f({ setting: "indoor" }), true, null),
+      foundFilterKey(f({ setting: "outdoor" }), true, null),
+      foundFilterKey(f({ suits: "solo" }), true, null),
+      foundFilterKey(f({ suits: "families" }), true, null),
+      foundFilterKey(f({ difficulty: "easy" }), true, null),
+      foundFilterKey(f({ difficulty: "hard" }), true, null),
+      foundFilterKey(f({ timeOfDay: "evening" }), true, null),
+    ];
+    expect(keys).not.toContain("");
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("go into the address, and come back out of it as written", () => {
+    const written = withFoundState(
+      new URLSearchParams("place=karnataka/bengaluru"),
+      FOUR,
+      true,
+      null,
+    );
+    expect(written.toString()).toBe(
+      "place=karnataka%2Fbengaluru&duration=half_day&setting=outdoor&suits=kids&difficulty=hard",
+    );
+    expect(foundStateFrom(written, true).filters).toEqual(FOUR);
+    expect(
+      withFoundState(written, NO_FOUND_FILTERS, true, null).toString(),
+    ).toBe("place=karnataka%2Fbengaluru");
+  });
+
+  it("never send How hard in a travel place: not in the request, the key, the address or the count", () => {
+    const hard = f({ difficulty: "hard" });
+    expect(foundListQuery(hard, false, null)).toEqual({});
+    expect(foundFilterKey(hard, false, null)).toBe("");
+    expect(
+      withFoundState(new URLSearchParams(), hard, false, null).has(
+        "difficulty",
+      ),
+    ).toBe(false);
+    expect(foundRowsOn(hard, false)).toBe(0);
+    expect(
+      foundStateFrom(new URLSearchParams("difficulty=hard&suits=kids"), false)
+        .filters,
+    ).toEqual(f({ suits: "kids" }));
+    // The other three are sent in a travel place as in a local one.
+    expect(foundListQuery(FOUR, false, null)).toEqual({
+      duration: "half_day",
+      setting: "outdoor",
+      suits: "kids",
+    });
+  });
+
+  it("leave #180's key as it was with nothing chosen, in either kind of place", () => {
+    expect(foundFilterKey(NO_FOUND_FILTERS, true, null)).toBe("");
+    expect(foundFilterKey(NO_FOUND_FILTERS, false, null)).toBe("");
+    expect(foundListQuery(NO_FOUND_FILTERS, true, null)).toEqual({});
+  });
+
+  it("show in the sheet after Budget and Time of day, How hard only in a local place", () => {
+    expect(foundRows(true)).toEqual([
+      "budget",
+      "timeOfDay",
+      "duration",
+      "setting",
+      "suits",
+      "difficulty",
+    ]);
+    expect(foundRows(false)).not.toContain("difficulty");
+    expect(foundRows(false)).toHaveLength(5);
+  });
+
+  it("are one choice a row, and a second tap clears it", () => {
+    const kids = toggleRow(NO_FOUND_FILTERS, "suits", "kids");
+    expect(kids.suits).toBe("kids");
+    expect(toggleRow(kids, "suits", "solo").suits).toBe("solo");
+    expect(toggleRow(kids, "suits", "kids").suits).toBeNull();
+    // A value the row does not have changes nothing.
+    expect(toggleRow(kids, "setting", "both")).toBe(kids);
+  });
+
+  it("count in Filters, and Clear filters clears them with Budget and Time of day", () => {
+    const all = f({
+      when: "today",
+      budget: "under_500",
+      timeOfDay: "morning",
+      ...FOUR,
+    });
+    expect(foundRowsOn(all, true)).toBe(6);
+    expect(foundRowsOn(all, false)).toBe(5);
+    expect(clearRows(all)).toEqual(f({ when: "today" }));
+  });
+
+  it("empty the list with the sheet's line and Clear filters", () => {
+    expect(foundEmpty(f({ setting: "indoor" }), false, null, "Goa")).toEqual({
+      line: "Nothing matches those filters in Goa.",
+      action: "clear-filters",
+    });
   });
 });
 
@@ -268,29 +419,46 @@ describe("the empty lines", () => {
   it("say the narrowest thing first, each with its way out", () => {
     const search = { q: "dive", asText: [] };
     expect(
-      foundEmpty(f({ when: "today", budget: "free" }), search, "Bengaluru"),
+      foundEmpty(
+        f({ when: "today", budget: "free" }),
+        true,
+        search,
+        "Bengaluru",
+      ),
     ).toEqual({
       line: "Nothing in Bengaluru matches “dive”.",
       action: "clear-search",
     });
     expect(
-      foundEmpty(f({ when: "today", timeOfDay: "morning" }), null, "Bengaluru"),
+      foundEmpty(
+        f({ when: "today", timeOfDay: "morning" }),
+        true,
+        null,
+        "Bengaluru",
+      ),
     ).toEqual({
       line: "Nothing matches those filters in Bengaluru.",
       action: "clear-filters",
     });
     expect(
-      foundEmpty(f({ when: "weekend", budget: "free" }), null, "Bengaluru"),
+      foundEmpty(
+        f({ when: "weekend", budget: "free" }),
+        true,
+        null,
+        "Bengaluru",
+      ),
     ).toEqual({
       line: "Nothing checked for this weekend in Bengaluru yet.",
       action: "show-everything",
     });
-    expect(foundEmpty(f({ budget: "free" }), null, "Bengaluru")).toEqual({
+    expect(foundEmpty(f({ budget: "free" }), true, null, "Bengaluru")).toEqual({
       line: "Nothing free in Bengaluru right now.",
       action: "show-everything",
     });
-    expect(foundEmpty(f({ budget: "any" }), null, "Bengaluru")).toBeNull();
-    expect(foundEmpty(NO_FOUND_FILTERS, null, "Bengaluru")).toBeNull();
+    expect(
+      foundEmpty(f({ budget: "any" }), true, null, "Bengaluru"),
+    ).toBeNull();
+    expect(foundEmpty(NO_FOUND_FILTERS, true, null, "Bengaluru")).toBeNull();
   });
 
   it("name each day as the copy table does", () => {

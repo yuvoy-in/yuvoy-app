@@ -97,7 +97,8 @@ import { WhenChips } from "./when-chips";
  * Filters button beside them, the understood row under a search, the
  * heading from the answer's `window` over a chosen day, R3's empty lines, and
  * Coming up on a thin weekend. Closed, none of it is drawn, nothing from the
- * address narrows, and the feed is exactly R2's.
+ * address narrows, and the feed is exactly R2's. The sheet's How hard row
+ * (yuvoy-app#195) is a local place's only (`local`).
  *
  * Every change is written into the address in place, like a department chip,
  * and starts the list again from page one (`useFoundFeed`'s key).
@@ -187,8 +188,11 @@ function FoundFeedView({
   // After a failed server read nothing is asked until Try again.
   const [asked, setAsked] = useState(firstPage !== null);
 
+  // How hard is matched on checked cards only, and a local place's are all checked.
+  const local = place.kind === "local";
   const feed = useFoundFeed({
     placeKey: place.key,
+    local,
     category,
     signedIn,
     seed: !changed && firstPage ? { page: firstPage, receivedAt } : null,
@@ -221,6 +225,7 @@ function FoundFeedView({
   const thin = checkedCities && thinWeekend(filters.when, tail, cards.length);
   const plain = useFoundFeed({
     placeKey: place.key,
+    local,
     category,
     signedIn,
     enabled: thin,
@@ -279,6 +284,7 @@ function FoundFeedView({
     const params = withFoundState(
       new URLSearchParams(window.location.search),
       nextFilters,
+      local,
       nextSearch,
     );
     if (nextCategory) params.set("category", nextCategory);
@@ -319,6 +325,7 @@ function FoundFeedView({
     const query = withFoundState(
       new URLSearchParams({ place: key }),
       NO_FOUND_FILTERS,
+      false,
       search,
     ).toString();
     return `/?${query}`;
@@ -390,7 +397,7 @@ function FoundFeedView({
   } else if (cards.length === 0 && tail !== "more") {
     const named = category ? departmentName(category, terms) : null;
     const emptied = checkedCities
-      ? foundEmpty(filters, search, placeName)
+      ? foundEmpty(filters, local, search, placeName)
       : null;
     body = emptied ? (
       <EmptyState
@@ -515,6 +522,7 @@ function FoundFeedView({
                       : { place: place.key },
                   ),
                   filters,
+                  local,
                   null,
                 ),
               ]}
@@ -529,6 +537,7 @@ function FoundFeedView({
               after={
                 <FiltersButton
                   filters={filters}
+                  local={local}
                   onOpen={() => setFiltering(true)}
                 />
               }
@@ -631,6 +640,7 @@ function FoundFeedView({
       <FoundFilterSheet
         open={filtering}
         filters={filters}
+        local={local}
         // The sheet's rows; the day is the chips', and stays.
         onApply={(next) => narrow({ filters: { ...next, when: filters.when } })}
         onClose={() => setFiltering(false)}

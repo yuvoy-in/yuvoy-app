@@ -51,6 +51,14 @@ export type FoundWhen = NonNullable<EventsQuery["when"]>;
 export type FoundBudget = NonNullable<EventsQuery["budget"]>;
 /** The Filters sheet's Time of day, `timeOfDay` on `GET /events`. */
 export type FoundTimeOfDay = NonNullable<EventsQuery["timeOfDay"]>;
+/** The Filters sheet's How long (yuvoy-app#195, R3-T6), `duration` on `GET /events`. */
+export type FoundDuration = NonNullable<EventsQuery["duration"]>;
+/** Indoors or out, `setting`: the API takes no `both`, which matches either. */
+export type FoundSetting = NonNullable<EventsQuery["setting"]>;
+/** Who it suits, `suits`, one group at a time. */
+export type FoundSuits = NonNullable<EventsQuery["suits"]>;
+/** How hard, `difficulty`: matched on checked cards only, so sent in a local place only. */
+export type FoundDifficulty = NonNullable<EventsQuery["difficulty"]>;
 /** What the words of `q` were taken to mean, as the API says it. */
 export type UnderstoodChip = components["schemas"]["UnderstoodChip"];
 /** The dates a `when` covered, as the API says them back. */
@@ -97,7 +105,7 @@ const DAY_IN_LINE: Readonly<Record<FoundWhen, string>> = Object.freeze({
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
 
 /** `HH:MM`, or null when the API sent no time or one this app cannot read. */
-function clockOf(time: string | null | undefined): string | null {
+export function foundClock(time: string | null | undefined): string | null {
   const match = TIME.exec(time?.trim() ?? "");
   return match ? `${match[1]}:${match[2]}` : null;
 }
@@ -177,6 +185,45 @@ export const foundWords = Object.freeze({
       afternoon: "Afternoon",
       evening: "Evening",
     } satisfies Record<FoundTimeOfDay, string>,
+  },
+  /*
+    R3-T6's four rows (yuvoy-app#195), the phone's words the same way
+    (yuvoy-mobile#361, `FOUND_FILTER_ROWS`). Indoors or out has no "both":
+    an item stated as both matches either, and `setting=both` is a `400`.
+  */
+  duration: {
+    label: "How long",
+    options: {
+      under_2h: "Under 2 hours",
+      half_day: "Half a day",
+      longer: "Longer",
+    } satisfies Record<FoundDuration, string>,
+  },
+  setting: {
+    label: "Indoors or out",
+    options: {
+      indoor: "Indoors",
+      outdoor: "Outdoors",
+    } satisfies Record<FoundSetting, string>,
+  },
+  suits: {
+    label: "Who it suits",
+    options: {
+      solo: "Solo",
+      couples: "Couples",
+      friends: "Friends",
+      families: "Families",
+      kids: "Kids",
+    } satisfies Record<FoundSuits, string>,
+  },
+  /** Only in a local place, where every card is checked. */
+  difficulty: {
+    label: "How hard",
+    options: {
+      easy: "Easy",
+      moderate: "Moderate",
+      hard: "Hard",
+    } satisfies Record<FoundDifficulty, string>,
   },
   /** The line at the top of Filters (the phone's, ours, for Sai Teja). */
   filtersNote:
@@ -268,7 +315,7 @@ export const foundWords = Object.freeze({
     const start = when.startsOn ? civilFromDate(when.startsOn) : null;
     if (!start) return repeats ?? UNDATED;
     const day = weekdayDayMonth(start);
-    const time = clockOf(when.startTime);
+    const time = foundClock(when.startTime);
     let line = repeats ? `${repeats} · next ${day}` : day;
     if (time) line += ` · ${time}`;
     const end = when.endsOn ? civilFromDate(when.endsOn) : null;
