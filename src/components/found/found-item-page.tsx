@@ -298,13 +298,19 @@ function Fact({
 }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-3 py-3.5" data-testid={testId}>
-      <span className="text-forest/70 mt-0.5">{icon}</span>
-      <div className="min-w-0 flex-1">
-        <dt className="label text-forest/70">{label}</dt>
-        <dd className="mt-0.5">{value}</dd>
-        {sub ? <dd className="text-forest/70 mt-0.5 text-sm">{sub}</dd> : null}
-      </div>
+    // A `<dl>` row may hold only `<dt>` and `<dd>` (axe's definition-list
+    // rule), so the icon goes inside the term, where it is aria-hidden, and
+    // the values are indented past it: `pl-8` is the icon's 20px and the
+    // 12px gap.
+    <div className="min-w-0 py-3.5" data-testid={testId}>
+      <dt className="label text-forest/70 flex items-center gap-3">
+        {icon}
+        {label}
+      </dt>
+      <dd className="mt-0.5 pl-8">{value}</dd>
+      {sub ? (
+        <dd className="text-forest/70 mt-0.5 pl-8 text-sm">{sub}</dd>
+      ) : null}
     </div>
   );
 }
