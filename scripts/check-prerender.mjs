@@ -59,6 +59,10 @@ const ALLOWED = {
   "/manifest.webmanifest": "Static PWA manifest.",
   "/offline": "The service worker's fallback. Must be static by definition.",
   "/opengraph-image": "Build asset.",
+  "/p":
+    "A plan by its link (yuvoy-mobile#373). One shell for every plan: the " +
+    "token is in the fragment, which no server sees, and the plan is read " +
+    "by script through /p/api.",
   "/robots.txt": "Static, gated on NEXT_PUBLIC_ALLOW_INDEXING at build time.",
   "/saved":
     "The wishlist. Reads IndexedDB in the browser, same as /trips. The shell " +

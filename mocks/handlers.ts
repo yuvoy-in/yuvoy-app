@@ -24,6 +24,7 @@ import {
 } from "./found-fixtures";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
+import { planLinkHandlers } from "./plan-link-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -1324,4 +1325,6 @@ export const handlers = [
   ...tableHandlers,
   // A member's plan: read, reply, leave, report (yuvoy-app#193).
   ...planHandlers,
+  // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
+  ...planLinkHandlers,
 ];

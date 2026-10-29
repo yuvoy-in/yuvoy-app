@@ -99,6 +99,14 @@ describe("the Login button", () => {
     // Not even the held space: there is no button coming.
     expect(document.querySelector('[aria-hidden="true"]')).toBeNull();
   });
+
+  it("is not drawn on a plan by its link, whose token next= cannot carry", async () => {
+    nav.pathname = "/p";
+    renderWithQuery(<LoginButton />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(login()).toBeNull();
+    expect(document.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
 });
 
 describe("where it sends a traveller back to", () => {

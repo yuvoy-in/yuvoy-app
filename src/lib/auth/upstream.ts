@@ -173,8 +173,19 @@ export async function callUpstream(options: {
    */
   scenario?: string;
   signal?: AbortSignal;
+  /**
+   * Headers this server itself decided to send, by name: the plan guest
+   * routes' `X-Yuvoy-Plan-Key`, read from an httpOnly cookie, and their
+   * `Idempotency-Key`, read from the body rather than the caller's headers
+   * (`lib/plans/guest-route.ts`). Written before everything below, so none of
+   * them can replace the session, the content type or the visitor's address.
+   */
+  headers?: Record<string, string>;
 }): Promise<UpstreamResult> {
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = {
+    ...options.headers,
+    Accept: "application/json",
+  };
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
 

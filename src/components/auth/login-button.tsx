@@ -33,6 +33,11 @@ import { cn } from "@/lib/cn";
  *
  * Not on `/account`, which IS the sign-in form. A button that says Login on
  * the page you log in on is furniture, and the issue says so.
+ *
+ * Not on `/p`, a plan by its link (yuvoy-mobile#373). The plan's token is in
+ * the fragment, which `?next=` cannot carry, so this button would bring a
+ * guest back to a bare `/p` that says the link is not working. The page has
+ * its own sign-in under the plan, which keeps the token first.
  */
 
 function LoginButtonInner({ className }: { className?: string }) {
@@ -41,8 +46,8 @@ function LoginButtonInner({ className }: { className?: string }) {
   const pathname = usePathname();
   const search = useSearchParams();
 
-  // The screen it would send you to. See above.
-  if (pathname === "/account") return null;
+  // The screen it would send you to, and the plan it would lose. See above.
+  if (pathname === "/account" || pathname === "/p") return null;
 
   /*
     Still reading, OR still hydrating, and the second is not the same thing.

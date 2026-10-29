@@ -19,7 +19,7 @@ export function PlanSignIn({ id }: { id: string }) {
         {planWords.signInBody}
       </p>
       <ButtonLink
-        href={`/account?next=/plans/${id}`}
+        href={`/account?next=/plans/${encodeURIComponent(id)}`}
         size="lg"
         className="mt-6"
       >

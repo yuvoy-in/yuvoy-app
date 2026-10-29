@@ -81,7 +81,7 @@ export function declaresJson(contentType: string | null): boolean {
  * `X-Forwarded-Host` to the public domain, and a browser cannot forge either
  * on a cross-origin request.
  */
-function isOwnOrigin(origin: string, request: Request): boolean {
+export function isOwnOrigin(origin: string, request: Request): boolean {
   let host: string;
   try {
     host = new URL(origin).host;
