@@ -7,6 +7,10 @@ import {
 } from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
+import {
+  creatorStaffCohort,
+  creatorToolsOnFor,
+} from "./creator-link-handlers";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -1769,16 +1773,24 @@ export const bookingHandlers = [
           Who sees releases early (R0-T2): nobody, unless
           `?__scenario=cohort-staff` or `cohort-early` says so, or one of
           yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
-          staff tester's world.
+          staff tester's world, or one of yuvoy-app#207's opens `creator`
+          there (all but `creator-outside`).
         */
         cohort:
           scenarioOf(request) === "cohort-staff" ||
-          exploreStageOf(scenarioOf(request)) === "staff"
+          exploreStageOf(scenarioOf(request)) === "staff" ||
+          creatorStaffCohort(scenarioOf(request))
             ? "staff"
             : scenarioOf(request) === "cohort-early"
               ? "early"
               : null,
         interests: fresh ? [] : ["adventure", "scuba-diving"],
+        /*
+          The tools for a traveller's own videos and links (R12-T1): false
+          until they turn them on, true under yuvoy-app#207's scenarios but
+          `creator-tools-off`.
+        */
+        creatorToolsOn: creatorToolsOnFor(scenarioOf(request)),
         onboardingRequired: fresh,
         memberSince: fresh ? null : "2026-07-02T04:30:00Z",
         trips: { total: 3, upcoming: 1, completed: 2 },
@@ -2346,6 +2358,7 @@ export const bookingHandlers = [
         reference: r.state === "pending_request" ? "" : r.reference,
         reservationId: r.reservationId,
         experience: "Try-dive at Nemo Reef",
+        experienceSlug: "try-dive-nemo-reef",
         operator: "Sample Dive Operator",
         localDate: "2026-08-22",
         localTime: "07:00",
@@ -2650,6 +2663,7 @@ const ANOTHER_PHONES_TRIP = {
   reference: "YV-OTHERPH",
   reservationId: "res_other_phone",
   experience: "Snorkel trip to Elephant Beach",
+  experienceSlug: "snorkel-elephant-beach",
   operator: "Sample Boat Operator",
   localDate: "2026-08-24",
   localTime: "09:00",
@@ -2665,6 +2679,7 @@ const WAITING_REQUEST = {
   reference: "",
   reservationId: "res_waiting_request",
   experience: "Mangrove kayak at dawn",
+  experienceSlug: "mangrove-kayak-at-dawn",
   operator: "Sample New Operator",
   localDate: "2026-08-26",
   localTime: "06:30",
@@ -2689,6 +2704,7 @@ const PAST_TRIP = {
   reference: "YV-PASTONE",
   reservationId: "res_past_trip",
   experience: "Sunset cruise off Radhanagar",
+  experienceSlug: "sunset-cruise-off-radhanagar",
   operator: "Sample Boat Operator",
   localDate: "2026-07-02",
   localTime: "16:30",
@@ -2703,6 +2719,7 @@ const MISSED_TRIP = {
   reference: "YV-NOSHOW1",
   reservationId: "res_no_show",
   experience: "Dawn birdwatching at Chidiya Tapu",
+  experienceSlug: "dawn-birdwatching-at-chidiya-tapu",
   operator: "Sample New Operator",
   localDate: "2026-07-11",
   localTime: "05:15",
@@ -2717,6 +2734,7 @@ const CANCELLED_TRIP = {
   reference: "YV-CALLOFF",
   reservationId: "res_cancelled_trip",
   experience: "Try-dive at Nemo Reef",
+  experienceSlug: "try-dive-nemo-reef",
   operator: "Sample Dive Operator",
   localDate: "2026-08-01",
   localTime: "07:00",
@@ -2739,6 +2757,7 @@ const DECLINED_REQUEST = {
   reference: "",
   reservationId: "res_declined_request",
   experience: "Mangrove kayak at dawn",
+  experienceSlug: "mangrove-kayak-at-dawn",
   operator: "Sample New Operator",
   localDate: "2026-08-28",
   localTime: "06:30",
