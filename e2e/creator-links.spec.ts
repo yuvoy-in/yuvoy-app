@@ -154,17 +154,13 @@ async function getMyLink(page: Page, title: string) {
 }
 
 /**
- * The row's counts line, as the issue writes it, with the singular at 1 for
- * opens and bookings ("1 open", "1 booking"); "in all" has no noun.
+ * The row's counts line, word for word as the issue has it at every count,
+ * 1 included ("1 opens", "1 bookings"), as the phone app reads.
  */
 const counts = (
   l: Pick<CreatorLink, "opens30Days" | "opensTotal" | "bookings">,
 ) =>
-  [
-    `${l.opens30Days} ${l.opens30Days === 1 ? "open" : "opens"} in the last 30 days`,
-    `${l.opensTotal} in all`,
-    `${l.bookings} ${l.bookings === 1 ? "booking" : "bookings"}`,
-  ].join(" · ");
+  `${l.opens30Days} opens in the last 30 days · ${l.opensTotal} in all · ${l.bookings} bookings`;
 
 /** The sentence Share hands over. */
 const shareText = (l: CreatorLink) =>

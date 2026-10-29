@@ -13,9 +13,8 @@ type CreatorLink = components["schemas"]["CreatorLink"];
  *
  * The first has bookings and a latest one; the second has none, and its
  * listing is no longer listed (no fixture answers its slug), which must not
- * take the row or its counts away. Each row has one count of 1 and one
- * other, so both the singular and the plural are drawn ("1 booking",
- * "1 open").
+ * take the row or its counts away. Each row has a count of 1, which reads
+ * as the issue's words do at every count ("1 bookings").
  */
 export const CREATOR_LINKS: readonly CreatorLink[] = [
   {
