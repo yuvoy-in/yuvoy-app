@@ -17,6 +17,7 @@ import {
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
 import { tableHandlers } from "./table-handlers";
+import { planHandlers } from "./plan-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -1259,4 +1260,6 @@ export const handlers = [
   ...bookingHandlers,
   ...savedHandlers,
   ...tableHandlers,
+  // A member's plan: read, reply, leave, report (yuvoy-app#193).
+  ...planHandlers,
 ];

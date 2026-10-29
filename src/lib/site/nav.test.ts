@@ -20,6 +20,8 @@ describe("focused routes", () => {
     ["/trips/invited/inv_123", true],
     // One table has a Back to the feed on every branch (yuvoy-app#194).
     ["/tables/7d3f9a2e-4c1b-4e8a-9f60-2b5d8c1e7a40", true],
+    // A plan has its own Back, and its reply button at the foot of the form.
+    ["/plans/8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52", true],
     ["/guides/diving-in-havelock", true],
     ["/offline", true],
     ["/", false],

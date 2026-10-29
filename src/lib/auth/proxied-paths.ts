@@ -165,6 +165,20 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "GET", pattern: "/tables/{id}" },
   { method: "DELETE", pattern: "/tables/{id}/requests/mine" },
   { method: "POST", pattern: "/tables/{id}/reports" },
+  /*
+    The signed-in plan page (yuvoy-app#193). Session only in the contract,
+    and none of the four answers a credential. Planner tools (times, ideas,
+    items, costs, the decision, the link) are not built yet and are not here.
+  */
+  // Re-reading a plan in the browser after Try again; the page's first read
+  // is on the server.
+  { method: "GET", pattern: "/plans/{id}" },
+  // One whole reply: answers, claims and paid marks, complete sets.
+  { method: "PUT", pattern: "/plans/{id}/reply" },
+  // Leaving a plan. The planner is refused (409 `planner_leaves`).
+  { method: "DELETE", pattern: "/plans/{id}/reply" },
+  // Reporting the plan or somebody on it, to a person at Yuvoy.
+  { method: "POST", pattern: "/plans/{id}/reports" },
 ];
 
 /*
