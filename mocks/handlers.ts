@@ -16,6 +16,7 @@ import {
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
+import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 
 /**
@@ -1242,6 +1243,8 @@ export const handlers = [
 
   ...bookingHandlers,
   ...savedHandlers,
+  // A member's plan: read, reply, leave, report (yuvoy-app#193).
+  ...planHandlers,
   // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
   ...planLinkHandlers,
 ];
