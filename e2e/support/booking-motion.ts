@@ -107,7 +107,10 @@ interface TabFrames {
   presses: TabPress[];
 }
 
-type TabFramesWindow = { __tabFrames: () => TabFrames };
+type TabFramesWindow = {
+  __tabFrames: () => TabFrames;
+  __tabAtRest: () => boolean;
+};
 
 /**
  * Starts reading every frame drawn under the Trips tabs, and every press on
@@ -158,6 +161,15 @@ async function readTabFrames(page: Page) {
       requestAnimationFrame(read);
     };
     requestAnimationFrame(read);
+    // The last few frames drawn show the new tab and its trips whole, and no
+    // copy of the old one: the change is over.
+    (window as unknown as TabFramesWindow).__tabAtRest = () => {
+      const last = frames.slice(-5);
+      return (
+        last.length === 5 &&
+        last.every((f) => f.tab === 1 && f.content === 1 && f.leaving === 0)
+      );
+    };
     (window as unknown as TabFramesWindow).__tabFrames = () => {
       on = false;
       document.removeEventListener("click", press, { capture: true });
@@ -175,6 +187,25 @@ async function readTabFrames(page: Page) {
 const tabFrames = (page: Page) =>
   page.evaluate(() => (window as unknown as TabFramesWindow).__tabFrames());
 
+/**
+ * Waits `ms`, and then until the change has come to rest, for at most 5s
+ * more. A slow runner (GitHub's hosted WebKit) can still be fading when a
+ * fixed wait ends, which read as a tab that never settled; every frame drawn
+ * on the way is still read.
+ */
+async function untilAtRest(page: Page, ms: number) {
+  await page.waitForTimeout(ms);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() =>
+          (window as unknown as TabFramesWindow).__tabAtRest(),
+        ),
+      { timeout: 5000 },
+    )
+    .toBe(true);
+}
+
 /** Presses a tab and reads every frame drawn for `ms` after it. */
 async function tabChange(
   page: Page,
@@ -186,7 +217,7 @@ async function tabChange(
     .getByRole("tablist", { name: "Which trips" })
     .getByRole("tab", { name })
     .click();
-  await page.waitForTimeout(ms);
+  await untilAtRest(page, ms);
   return (await tabFrames(page)).frames;
 }
 
@@ -212,7 +243,7 @@ async function twoQuickTabs(
     },
     [first, second, gap] as const,
   );
-  await page.waitForTimeout(ms);
+  await untilAtRest(page, ms);
   return tabFrames(page);
 }
 
