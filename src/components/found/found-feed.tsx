@@ -322,6 +322,7 @@ function FoundFeedView({
         <ReportSheet
           key={reporting.id}
           itemId={reporting.id}
+          surface="found_feed"
           open={reporting.open}
           onOpenChange={(open) => {
             if (!open) report.close();
