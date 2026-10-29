@@ -34,6 +34,13 @@ describe("which addresses a card may open", () => {
     expect(safeExternalUrl("example.in")).toBeNull();
   });
 
+  it("refuses a backslash or a control character, which a browser reads otherwise", () => {
+    // A browser reads a backslash as `/`: this opens evil.test, not trusted.in.
+    expect(safeExternalUrl("https://evil.test\\@trusted.in/")).toBeNull();
+    expect(safeExternalUrl("https://trusted.in/a\\b")).toBeNull();
+    expect(safeExternalUrl("https://trusted.in/\u0000")).toBeNull();
+  });
+
   it("refuses other schemes, whitespace, and nothing at all", () => {
     expect(safeExternalUrl("ftp://example.in/file")).toBeNull();
     expect(safeExternalUrl("mailto:hello@example.in")).toBeNull();
