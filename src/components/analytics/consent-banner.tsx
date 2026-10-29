@@ -94,7 +94,8 @@ export function ConsentBanner() {
   }, [key, host, consent, planLink]);
 
   // Nothing counted, already answered, not yet in a browser, or a plan link.
-  if (!counted || planLink || (ask !== "ask" && ask !== "ask-again")) return null;
+  if (!counted || planLink || (ask !== "ask" && ask !== "ask-again"))
+    return null;
 
   return (
     <div

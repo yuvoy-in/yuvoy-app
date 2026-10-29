@@ -115,7 +115,10 @@ export function GuestPage() {
     answer?.token === token && answer.attempt === attempt ? answer.shown : null;
   if (shown === null) {
     return (
-      <p role="status" className="text-forest/70 text-body py-16 text-center text-pretty">
+      <p
+        role="status"
+        className="text-forest/70 text-body py-16 text-center text-pretty"
+      >
         {guestWords.loading}
       </p>
     );
@@ -129,7 +132,9 @@ export function GuestPage() {
         key={token}
         token={token}
         plan={shown.plan}
-        linkOnArrival={arrival !== null && arrival.token === token && arrival.link}
+        linkOnArrival={
+          arrival !== null && arrival.token === token && arrival.link
+        }
       />
     );
   }

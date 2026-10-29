@@ -42,7 +42,10 @@ const FIRST = {
 };
 
 const created = () =>
-  HttpResponse.json({ ...openPlanView("member", guestMe()), guestKey: KEY }, { status: 201 });
+  HttpResponse.json(
+    { ...openPlanView("member", guestMe()), guestKey: KEY },
+    { status: 201 },
+  );
 
 beforeEach(() => {
   session.token = null;
@@ -94,7 +97,9 @@ describe("a first reply", () => {
 
   it("sends the form's nonce as Idempotency-Key, exactly", async () => {
     const seen = watchApi(created);
-    await POST(guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: FIRST }));
+    await POST(
+      guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: FIRST }),
+    );
     expect(seen[0].method).toBe("PUT");
     expect(seen[0].path).toBe(`/v1/plans/by-token/${TOKEN}/reply`);
     expect(seen[0].headers.get("idempotency-key")).toBe(NONCE);
@@ -103,7 +108,12 @@ describe("a first reply", () => {
   it("sends the reply as it is, and nothing of the envelope around it", async () => {
     const seen = watchApi(created);
     await POST(
-      guestRequest("reply", { token: TOKEN, seriesId: SERIES, nonce: NONCE, reply: FIRST }),
+      guestRequest("reply", {
+        token: TOKEN,
+        seriesId: SERIES,
+        nonce: NONCE,
+        reply: FIRST,
+      }),
     );
     expect(JSON.parse(seen[0].body)).toEqual(FIRST);
   });
@@ -122,7 +132,12 @@ describe("a first reply", () => {
 
   it("refuses a nonce of the wrong shape as the API does, without sending it", async () => {
     const seen = watchApi(created);
-    for (const nonce of ["short", "x".repeat(65), "has spaces in it, twenty-two+", 42]) {
+    for (const nonce of [
+      "short",
+      "x".repeat(65),
+      "has spaces in it, twenty-two+",
+      42,
+    ]) {
       const response = await POST(
         guestRequest("reply", { token: TOKEN, nonce, reply: FIRST }),
       );
@@ -134,7 +149,9 @@ describe("a first reply", () => {
 
   it("refuses a body with no reply in it, without asking", async () => {
     const seen = watchApi(created);
-    const response = await POST(guestRequest("reply", { token: TOKEN, nonce: NONCE }));
+    const response = await POST(
+      guestRequest("reply", { token: TOKEN, nonce: NONCE }),
+    );
     expect(response.status).toBe(400);
     expect(seen).toHaveLength(0);
   });
@@ -161,11 +178,15 @@ describe("a first reply", () => {
 
   it("with a session, belongs to the account: no key, and no cookie", async () => {
     session.token = "sess_919000000042";
-    const seen = watchApi(() => HttpResponse.json(openPlanView("member", guestMe())));
+    const seen = watchApi(() =>
+      HttpResponse.json(openPlanView("member", guestMe())),
+    );
     const response = await POST(
       guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: FIRST }),
     );
-    expect(seen[0].headers.get("authorization")).toBe("Bearer sess_919000000042");
+    expect(seen[0].headers.get("authorization")).toBe(
+      "Bearer sess_919000000042",
+    );
     expect(response.status).toBe(200);
     expect(response.cookies.getAll()).toEqual([]);
   });
@@ -173,11 +194,17 @@ describe("a first reply", () => {
 
 describe("a later reply", () => {
   it("carries the key kept for the series, and refreshes it", async () => {
-    const seen = watchApi(() => HttpResponse.json(openPlanView("member", guestMe())));
+    const seen = watchApi(() =>
+      HttpResponse.json(openPlanView("member", guestMe())),
+    );
     const response = await POST(
       guestRequest(
         "reply",
-        { token: TOKEN, seriesId: SERIES, reply: { paid: [PLAN_IDS.costs[0]] } },
+        {
+          token: TOKEN,
+          seriesId: SERIES,
+          reply: { paid: [PLAN_IDS.costs[0]] },
+        },
         { cookie: keys({ [SERIES]: KEY }) },
       ),
     );
@@ -207,7 +234,9 @@ describe("against the by-link mocks", () => {
   });
 
   it("says send again for the same nonce with another name", async () => {
-    await POST(guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: FIRST }));
+    await POST(
+      guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: FIRST }),
+    );
     const again = await POST(
       guestRequest("reply", {
         token: TOKEN,
@@ -221,11 +250,19 @@ describe("against the by-link mocks", () => {
 
   it("asks for the name and the 18+ tick on a first reply", async () => {
     const noName = await POST(
-      guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: { ...FIRST, name: "" } }),
+      guestRequest("reply", {
+        token: TOKEN,
+        nonce: NONCE,
+        reply: { ...FIRST, name: "" },
+      }),
     );
     expect((await noName.json()).error.details.name).toBeTruthy();
     const noTick = await POST(
-      guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: { ...FIRST, adult: false } }),
+      guestRequest("reply", {
+        token: TOKEN,
+        nonce: NONCE,
+        reply: { ...FIRST, adult: false },
+      }),
     );
     expect((await noTick.json()).error.details.adult).toBeTruthy();
   });

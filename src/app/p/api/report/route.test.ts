@@ -28,7 +28,11 @@ vi.mock("@/lib/auth/session-cookie", async (importOriginal) => ({
 
 const { POST } = await import("./route");
 
-const REPORT = { reason: "harassment", personName: "Kiran", note: "Rude in the group." };
+const REPORT = {
+  reason: "harassment",
+  personName: "Kiran",
+  note: "Rude in the group.",
+};
 const received = () => new HttpResponse(null, { status: 202 });
 
 beforeEach(() => {
@@ -39,7 +43,9 @@ afterEach(() => vi.unstubAllEnvs());
 describe("reporting a plan", () => {
   it("sends the report as it is to reportPlanByLink, and answers 202 empty", async () => {
     const seen = watchApi(received);
-    const response = await POST(guestRequest("report", { token: TOKEN, report: REPORT }));
+    const response = await POST(
+      guestRequest("report", { token: TOKEN, report: REPORT }),
+    );
     expect(seen[0].method).toBe("POST");
     expect(seen[0].path).toBe(`/v1/plans/by-token/${TOKEN}/reports`);
     expect(JSON.parse(seen[0].body)).toEqual(REPORT);
@@ -49,7 +55,9 @@ describe("reporting a plan", () => {
 
   it("takes a visitor's report: no key and no session", async () => {
     const seen = watchApi(received);
-    await POST(guestRequest("report", { token: TOKEN, report: { reason: "spam" } }));
+    await POST(
+      guestRequest("report", { token: TOKEN, report: { reason: "spam" } }),
+    );
     expect(seen[0].headers.get("x-yuvoy-plan-key")).toBeNull();
     expect(seen[0].headers.get("authorization")).toBeNull();
   });
@@ -65,13 +73,19 @@ describe("reporting a plan", () => {
       ),
     );
     expect(seen[0].headers.get("x-yuvoy-plan-key")).toBe(KEY);
-    expect(seen[0].headers.get("authorization")).toBe("Bearer sess_919000000042");
+    expect(seen[0].headers.get("authorization")).toBe(
+      "Bearer sess_919000000042",
+    );
   });
 
   it("from the 404 page, which never learned the series, sends the only key held", async () => {
     const seen = watchApi(received);
     await POST(
-      guestRequest("report", { token: TOKEN, report: REPORT }, { cookie: keys({ [SERIES]: KEY }) }),
+      guestRequest(
+        "report",
+        { token: TOKEN, report: REPORT },
+        { cookie: keys({ [SERIES]: KEY }) },
+      ),
     );
     expect(seen[0].headers.get("x-yuvoy-plan-key")).toBe(KEY);
   });
@@ -90,7 +104,9 @@ describe("reporting a plan", () => {
     [503, "plans_unavailable", undefined],
   ])("passes a %i %s on as the API wrote it", async (status, code, details) => {
     watchApi(() => apiError(status, code, details));
-    const response = await POST(guestRequest("report", { token: TOKEN, report: REPORT }));
+    const response = await POST(
+      guestRequest("report", { token: TOKEN, report: REPORT }),
+    );
     expect(response.status).toBe(status);
     const body = await response.json();
     expect(body.error.code).toBe(code);
@@ -103,11 +119,17 @@ describe("against the by-link mocks", () => {
 
   it("refuses a name that is not on the plan, and a note over 300", async () => {
     const stranger = await POST(
-      guestRequest("report", { token: TOKEN, report: { reason: "other", personName: "Zed" } }),
+      guestRequest("report", {
+        token: TOKEN,
+        report: { reason: "other", personName: "Zed" },
+      }),
     );
     expect((await stranger.json()).error.details.personName).toBeTruthy();
     const long = await POST(
-      guestRequest("report", { token: TOKEN, report: { reason: "other", note: "x".repeat(301) } }),
+      guestRequest("report", {
+        token: TOKEN,
+        report: { reason: "other", note: "x".repeat(301) },
+      }),
     );
     expect(long.status).toBe(400);
   });

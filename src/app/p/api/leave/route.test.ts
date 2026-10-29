@@ -37,7 +37,11 @@ describe("removing a reply", () => {
   it("asks leaveByLink with the key kept for the series", async () => {
     const seen = watchApi(gone);
     await POST(
-      guestRequest("leave", { token: TOKEN, seriesId: SERIES }, { cookie: keys({ [SERIES]: KEY }) }),
+      guestRequest(
+        "leave",
+        { token: TOKEN, seriesId: SERIES },
+        { cookie: keys({ [SERIES]: KEY }) },
+      ),
     );
     expect(seen[0].method).toBe("DELETE");
     expect(seen[0].path).toBe(`/v1/plans/by-token/${TOKEN}/reply`);
@@ -48,7 +52,11 @@ describe("removing a reply", () => {
   it("answers 204 with nothing in it, and forgets the key", async () => {
     watchApi(gone);
     const response = await POST(
-      guestRequest("leave", { token: TOKEN, seriesId: SERIES }, { cookie: keys({ [SERIES]: KEY }) }),
+      guestRequest(
+        "leave",
+        { token: TOKEN, seriesId: SERIES },
+        { cookie: keys({ [SERIES]: KEY }) },
+      ),
     );
     expect(response.status).toBe(204);
     expect(await response.text()).toBe("");
@@ -61,7 +69,11 @@ describe("removing a reply", () => {
   it("keeps a key it only guessed at, which may be another plan's", async () => {
     const seen = watchApi(gone);
     const response = await POST(
-      guestRequest("leave", { token: TOKEN }, { cookie: keys({ [SERIES]: KEY }) }),
+      guestRequest(
+        "leave",
+        { token: TOKEN },
+        { cookie: keys({ [SERIES]: KEY }) },
+      ),
     );
     expect(seen[0].headers.get("x-yuvoy-plan-key")).toBe(KEY);
     expect(response.cookies.getAll()).toEqual([]);
@@ -69,9 +81,15 @@ describe("removing a reply", () => {
 
   it("sends the session, so a signed-in planner is known", async () => {
     session.token = "sess_919000000001";
-    const seen = watchApi(() => apiError(409, "conflict", { reason: "planner_leaves" }));
-    const response = await POST(guestRequest("leave", { token: TOKEN, seriesId: SERIES }));
-    expect(seen[0].headers.get("authorization")).toBe("Bearer sess_919000000001");
+    const seen = watchApi(() =>
+      apiError(409, "conflict", { reason: "planner_leaves" }),
+    );
+    const response = await POST(
+      guestRequest("leave", { token: TOKEN, seriesId: SERIES }),
+    );
+    expect(seen[0].headers.get("authorization")).toBe(
+      "Bearer sess_919000000001",
+    );
     expect(response.status).toBe(409);
     expect((await response.json()).error.details.reason).toBe("planner_leaves");
     expect(response.cookies.getAll()).toEqual([]);
@@ -80,7 +98,11 @@ describe("removing a reply", () => {
   it("passes a 404 on, and keeps the key, which the report route still takes", async () => {
     watchApi(() => apiError(404, "not_found"));
     const response = await POST(
-      guestRequest("leave", { token: TOKEN, seriesId: SERIES }, { cookie: keys({ [SERIES]: KEY }) }),
+      guestRequest(
+        "leave",
+        { token: TOKEN, seriesId: SERIES },
+        { cookie: keys({ [SERIES]: KEY }) },
+      ),
     );
     expect(response.status).toBe(404);
     expect(response.cookies.getAll()).toEqual([]);

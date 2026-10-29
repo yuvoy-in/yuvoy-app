@@ -59,7 +59,9 @@ async function view(call: GuestCall) {
 
   if (call.seriesId !== null || call.held.length <= 1) {
     sent =
-      call.seriesId !== null ? heldFor(call, call.seriesId) : (call.held[0] ?? null);
+      call.seriesId !== null
+        ? heldFor(call, call.seriesId)
+        : (call.held[0] ?? null);
     result = await read(call, sent);
   } else {
     result = await read(call, null);

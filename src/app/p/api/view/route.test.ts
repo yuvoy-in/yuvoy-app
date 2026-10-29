@@ -67,7 +67,11 @@ describe("the read", () => {
     );
     const seen = watchApi();
     await POST(
-      guestRequest("view", { token: TOKEN }, { headers: { "x-real-ip": "203.0.113.9" } }),
+      guestRequest(
+        "view",
+        { token: TOKEN },
+        { headers: { "x-real-ip": "203.0.113.9" } },
+      ),
     );
     expect(seen[0].headers.get("x-yuvoy-client-ip")).toBe("203.0.113.9");
     expect(seen[0].headers.get("x-yuvoy-proxy-secret")).toBeTruthy();
@@ -77,7 +81,9 @@ describe("the read", () => {
     session.token = "sess_919000000042";
     const seen = watchApi(member);
     await POST(guestRequest("view", { token: TOKEN }));
-    expect(seen[0].headers.get("authorization")).toBe("Bearer sess_919000000042");
+    expect(seen[0].headers.get("authorization")).toBe(
+      "Bearer sess_919000000042",
+    );
     expect(session.touched).toBe(1);
   });
 
@@ -117,7 +123,13 @@ describe("which guest key goes with it", () => {
 
   it("the only key held, when the page has not read the plan yet", async () => {
     const seen = watchApi(member);
-    await POST(guestRequest("view", { token: TOKEN }, { cookie: keys({ [SERIES]: KEY }) }));
+    await POST(
+      guestRequest(
+        "view",
+        { token: TOKEN },
+        { cookie: keys({ [SERIES]: KEY }) },
+      ),
+    );
     expect(seen).toHaveLength(1);
     expect(seen[0].headers.get("x-yuvoy-plan-key")).toBe(KEY);
   });
@@ -133,14 +145,19 @@ describe("which guest key goes with it", () => {
         { cookie: keys({ [OTHER_SERIES]: OTHER_KEY, [SERIES]: KEY }) },
       ),
     );
-    expect(seen.map((c) => c.headers.get("x-yuvoy-plan-key"))).toEqual([null, KEY]);
+    expect(seen.map((c) => c.headers.get("x-yuvoy-plan-key"))).toEqual([
+      null,
+      KEY,
+    ]);
     expect((await response.json()).role).toBe("member");
   });
 
   it("with several and a 404 without one, tries each until the API knows one", async () => {
     // After the link expires a visitor is 404 and a member is not.
     const seen = watchApi(({ headers }) =>
-      headers.get("x-yuvoy-plan-key") === KEY ? member() : apiError(404, "not_found"),
+      headers.get("x-yuvoy-plan-key") === KEY
+        ? member()
+        : apiError(404, "not_found"),
     );
     const response = await POST(
       guestRequest(
@@ -163,7 +180,9 @@ describe("which guest key goes with it", () => {
       guestRequest(
         "view",
         { token: TOKEN },
-        { cookie: `ypk_not-a-uuid=${KEY}; ypk_${SERIES}=ypk_short; yv_session=sess_1` },
+        {
+          cookie: `ypk_not-a-uuid=${KEY}; ypk_${SERIES}=ypk_short; yv_session=sess_1`,
+        },
       ),
     );
     expect(seen).toHaveLength(1);
@@ -175,7 +194,11 @@ describe("the key's cookie", () => {
   it("is refreshed for 90 days when the API knew the key", async () => {
     watchApi(member);
     const response = await POST(
-      guestRequest("view", { token: TOKEN, seriesId: SERIES }, { cookie: keys({ [SERIES]: KEY }) }),
+      guestRequest(
+        "view",
+        { token: TOKEN, seriesId: SERIES },
+        { cookie: keys({ [SERIES]: KEY }) },
+      ),
     );
     const cookie = response.cookies.get(KEY_COOKIE);
     expect(cookie?.value).toBe(KEY);
@@ -189,7 +212,11 @@ describe("the key's cookie", () => {
   it("is left alone when the API read the caller as a visitor", async () => {
     watchApi(visitor);
     const response = await POST(
-      guestRequest("view", { token: TOKEN }, { cookie: keys({ [OTHER_SERIES]: OTHER_KEY }) }),
+      guestRequest(
+        "view",
+        { token: TOKEN },
+        { cookie: keys({ [OTHER_SERIES]: OTHER_KEY }) },
+      ),
     );
     expect(response.cookies.get(KEY_COOKIE)).toBeUndefined();
     expect(response.cookies.getAll()).toEqual([]);
@@ -201,7 +228,10 @@ describe("the key's cookie", () => {
       guestRequest(
         "view",
         { token: TOKEN, seriesId: SERIES },
-        { cookie: keys({ [SERIES]: KEY }), url: "http://127.0.0.1:3100/p/api/view" },
+        {
+          cookie: keys({ [SERIES]: KEY }),
+          url: "http://127.0.0.1:3100/p/api/view",
+        },
       ),
     );
     expect(response.cookies.get(KEY_COOKIE)?.secure).toBe(false);
@@ -239,15 +269,18 @@ describe("what comes back", () => {
     [404, "not_found"],
     [429, "rate_limited"],
     [503, "plans_unavailable"],
-  ])("passes a %i %s on with its envelope and request id", async (status, code) => {
-    watchApi(() => apiError(status, code));
-    const response = await POST(guestRequest("view", { token: TOKEN }));
-    expect(response.status).toBe(status);
-    expect(response.headers.get("x-request-id")).toBe("01JAPIREQUEST");
-    const body = await response.json();
-    expect(body.error.code).toBe(code);
-    expect(body.error.message).toBe("From the API.");
-  });
+  ])(
+    "passes a %i %s on with its envelope and request id",
+    async (status, code) => {
+      watchApi(() => apiError(status, code));
+      const response = await POST(guestRequest("view", { token: TOKEN }));
+      expect(response.status).toBe(status);
+      expect(response.headers.get("x-request-id")).toBe("01JAPIREQUEST");
+      const body = await response.json();
+      expect(body.error.code).toBe(code);
+      expect(body.error.message).toBe("From the API.");
+    },
+  );
 
   it("is a 502 in the envelope when the API cannot be reached, logged without the token", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -255,9 +288,13 @@ describe("what comes back", () => {
     const response = await POST(guestRequest("view", { token: TOKEN }));
     expect(response.status).toBe(502);
     expect((await response.json()).error.code).toBe("internal_error");
-    const lines = logged.mock.calls.flat().map((part) =>
-      part instanceof Error ? `${part.name} ${part.message} ${part.stack}` : String(part),
-    );
+    const lines = logged.mock.calls
+      .flat()
+      .map((part) =>
+        part instanceof Error
+          ? `${part.name} ${part.message} ${part.stack}`
+          : String(part),
+      );
     expect(lines.join("\n")).not.toContain(TOKEN);
     expect(lines.join("\n")).toContain("[plan link] view");
   });

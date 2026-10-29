@@ -70,5 +70,7 @@ export async function createPostHogReporter(
 }
 
 function onPlanLink(): boolean {
-  return typeof window !== "undefined" && isPlanLinkPath(window.location.pathname);
+  return (
+    typeof window !== "undefined" && isPlanLinkPath(window.location.pathname)
+  );
 }

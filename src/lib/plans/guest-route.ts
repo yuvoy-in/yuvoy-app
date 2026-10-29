@@ -167,7 +167,11 @@ export function foreignCall(request: Request): NextResponse | null {
 }
 
 function notFromHere(): NextResponse {
-  return refusal(403, "invalid_input", "This request did not come from this site.");
+  return refusal(
+    403,
+    "invalid_input",
+    "This request did not come from this site.",
+  );
 }
 
 /** The API's envelope, for an answer this server gives itself. */
@@ -392,7 +396,10 @@ export function dropKey(
  * error envelope exactly as the API wrote it, since the page branches on
  * `error.code` and `details`.
  */
-export function planAnswer(call: GuestCall, result: UpstreamResult): NextResponse {
+export function planAnswer(
+  call: GuestCall,
+  result: UpstreamResult,
+): NextResponse {
   const headers = new Headers();
   if (result.requestId) headers.set("x-request-id", result.requestId);
   if (result.idempotentReplay) headers.set("Idempotent-Replay", "true");
@@ -404,8 +411,10 @@ export function planAnswer(call: GuestCall, result: UpstreamResult): NextRespons
     // Not JSON: a gateway's page, never a plan. Passed on as text, as the
     // signed-in proxy does, so the status still means what it says.
     headers.set("Content-Type", "text/plain");
-    return guarded(call, result.text, () =>
-      new NextResponse(result.text, { status: result.status, headers }),
+    return guarded(
+      call,
+      result.text,
+      () => new NextResponse(result.text, { status: result.status, headers }),
     );
   }
 

@@ -93,8 +93,12 @@ describe("a plan link", () => {
   const KEY = `ypk_${"K".repeat(40)}b-_`;
 
   it("drops everything after the # on /p and /p/, with or without a host or query", () => {
-    expect(scrubUrl(`https://app.yuvoy.in/p/#${TOKEN}`)).toBe("https://app.yuvoy.in/p/");
-    expect(scrubUrl(`https://app.yuvoy.in/p#${TOKEN}`)).toBe("https://app.yuvoy.in/p");
+    expect(scrubUrl(`https://app.yuvoy.in/p/#${TOKEN}`)).toBe(
+      "https://app.yuvoy.in/p/",
+    );
+    expect(scrubUrl(`https://app.yuvoy.in/p#${TOKEN}`)).toBe(
+      "https://app.yuvoy.in/p",
+    );
     expect(scrubUrl(`/p/#${TOKEN}`)).toBe("/p/");
     expect(scrubUrl(`/p?__scenario=plan-guest-first#${TOKEN}`)).toBe(
       "/p?__scenario=plan-guest-first",
@@ -102,13 +106,15 @@ describe("a plan link", () => {
   });
 
   it("drops a fragment that is not a token too, since the shape is no promise", () => {
-    expect(scrubUrl("https://app.yuvoy.in/p/#yp_mangled")).toBe("https://app.yuvoy.in/p/");
+    expect(scrubUrl("https://app.yuvoy.in/p/#yp_mangled")).toBe(
+      "https://app.yuvoy.in/p/",
+    );
   });
 
   it("drops it inside a sentence and keeps the rest of the sentence", () => {
-    expect(scrubUrl(`Failed to load https://app.yuvoy.in/p/#${TOKEN} after 3s`)).toBe(
-      "Failed to load https://app.yuvoy.in/p/ after 3s",
-    );
+    expect(
+      scrubUrl(`Failed to load https://app.yuvoy.in/p/#${TOKEN} after 3s`),
+    ).toBe("Failed to load https://app.yuvoy.in/p/ after 3s");
   });
 
   it("redacts a token or a guest key by its shape wherever it is", () => {
@@ -142,7 +148,14 @@ describe("isPlanLinkPath", () => {
   it("is the plan link page and nothing that only starts like it", () => {
     expect(isPlanLinkPath("/p")).toBe(true);
     expect(isPlanLinkPath("/p/")).toBe(true);
-    for (const path of ["/", "/plans/x", "/privacy", "/p/api/view", null, undefined]) {
+    for (const path of [
+      "/",
+      "/plans/x",
+      "/privacy",
+      "/p/api/view",
+      null,
+      undefined,
+    ]) {
       expect(isPlanLinkPath(path)).toBe(false);
     }
   });

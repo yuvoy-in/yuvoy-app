@@ -43,9 +43,10 @@ export function EarlierShares({
   actions: GuestActions;
 }) {
   const [sending, setSending] = useState<string | null>(null);
-  const [problem, setProblem] = useState<{ costId: string; line: string } | null>(
-    null,
-  );
+  const [problem, setProblem] = useState<{
+    costId: string;
+    line: string;
+  } | null>(null);
   const weeks = earlierWeeks(plan.earlierShares);
   if (weeks.length === 0) return null;
 
@@ -113,7 +114,10 @@ export function EarlierShares({
                     </>
                   )}
                   {problem?.costId === share.costId ? (
-                    <p role="alert" className="text-terra-deep mt-2 text-sm text-pretty">
+                    <p
+                      role="alert"
+                      className="text-terra-deep mt-2 text-sm text-pretty"
+                    >
                       {problem.line}
                     </p>
                   ) : null}

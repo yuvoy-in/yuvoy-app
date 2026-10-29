@@ -207,7 +207,9 @@ describe("on the plan link page", () => {
     sessionStorage.setItem("yuvoy.consent.analytics", "granted:2");
     vi.resetModules();
     const create = vi.fn(async () => null);
-    vi.doMock("@/lib/analytics/posthog", () => ({ createPostHogReporter: create }));
+    vi.doMock("@/lib/analytics/posthog", () => ({
+      createPostHogReporter: create,
+    }));
     const { ConsentBanner } = await import("./consent-banner");
     await act(async () => {
       render(<ConsentBanner />);

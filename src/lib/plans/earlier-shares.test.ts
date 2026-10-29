@@ -16,7 +16,12 @@ import {
 const WEEK_1 = "2026-08-08T13:30:00.000Z";
 const WEEK_2 = "2026-08-15T13:30:00.000Z";
 
-function share(costId: string, startsAt: string, amountMinor: number, paidMarked = false) {
+function share(
+  costId: string,
+  startsAt: string,
+  amountMinor: number,
+  paidMarked = false,
+) {
   return {
     costId,
     label: "Fish for the grill",
@@ -24,7 +29,10 @@ function share(costId: string, startsAt: string, amountMinor: number, paidMarked
     amountMinor,
     paidBy: "Asha",
     paidMarked,
-    payLink: upiPayLink(amountMinor, "Dinner at the beach shack: Fish for the grill"),
+    payLink: upiPayLink(
+      amountMinor,
+      "Dinner at the beach shack: Fish for the grill",
+    ),
   };
 }
 
@@ -46,9 +54,16 @@ describe("an earlier share's pay link", () => {
   });
 
   it("is refused for another payee or another amount than the share's", () => {
-    const other = { ...share("a", WEEK_2, 40000), payee: { upiId: "meera@okhdfc", name: "Meera" } };
+    const other = {
+      ...share("a", WEEK_2, 40000),
+      payee: { upiId: "meera@okhdfc", name: "Meera" },
+    };
     expect(earlierPayLink(other)).toBeNull();
-    const wrongAmount = { ...share("a", WEEK_2, 40000), amountMinor: 45000, payee: { ...PLAN_PAYEE } };
+    const wrongAmount = {
+      ...share("a", WEEK_2, 40000),
+      amountMinor: 45000,
+      payee: { ...PLAN_PAYEE },
+    };
     expect(earlierPayLink(wrongAmount)).toBeNull();
   });
 });
@@ -60,7 +75,9 @@ describe("weeks", () => {
       share("b", WEEK_2, 200),
       share("c", WEEK_1, 300),
     ]);
-    expect(weeks.map((w) => [w.startsAt, w.shares.map((s) => s.costId)])).toEqual([
+    expect(
+      weeks.map((w) => [w.startsAt, w.shares.map((s) => s.costId)]),
+    ).toEqual([
       [WEEK_1, ["a", "c"]],
       [WEEK_2, ["b"]],
     ]);

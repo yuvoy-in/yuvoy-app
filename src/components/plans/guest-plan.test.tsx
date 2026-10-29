@@ -29,7 +29,9 @@ const START = window.location.href;
 type Sent = { route: string; body: Record<string, unknown> };
 
 /** Stand-ins for `/p/api/<route>` that keep what each was sent. */
-function routes(answers: Partial<Record<string, (body: Record<string, unknown>) => Response>>) {
+function routes(
+  answers: Partial<Record<string, (body: Record<string, unknown>) => Response>>,
+) {
   const sent: Sent[] = [];
   for (const route of ["reply", "leave", "link", "report"]) {
     server.use(
@@ -37,7 +39,9 @@ function routes(answers: Partial<Record<string, (body: Record<string, unknown>) 
         const body = (await request.json()) as Record<string, unknown>;
         sent.push({ route, body });
         const answer = answers[route];
-        return answer ? answer(body) : HttpResponse.json({ error: { code: "x" } }, { status: 500 });
+        return answer
+          ? answer(body)
+          : HttpResponse.json({ error: { code: "x" } }, { status: 500 });
       }),
     );
   }
@@ -50,7 +54,8 @@ function draw(plan: PlanView, linkOnArrival = false) {
   );
 }
 
-const send = () => userEvent.click(screen.getByRole("button", { name: "Send my reply" }));
+const send = () =>
+  userEvent.click(screen.getByRole("button", { name: "Send my reply" }));
 
 beforeEach(() => {
   __forgetArrival();
@@ -65,13 +70,17 @@ describe("a first reply", () => {
     const sent = routes({});
     draw(openPlanView());
     await userEvent.click(screen.getAllByRole("radio", { name: "Can" })[0]);
-    await userEvent.click(screen.getByRole("checkbox", { name: "I am 18 or older" }));
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "I am 18 or older" }),
+    );
     await send();
 
     const box = screen.getByRole("textbox", { name: "Your first name" });
     await waitFor(() => expect(box).toHaveFocus());
     expect(box).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getAllByText("Use your first name, in letters only.")).toHaveLength(1);
+    expect(
+      screen.getAllByText("Use your first name, in letters only."),
+    ).toHaveLength(1);
     expect(box.getAttribute("aria-describedby")).toContain(
       screen.getByText("Use your first name, in letters only.").id,
     );
@@ -86,18 +95,33 @@ describe("a first reply", () => {
     });
     draw(openPlanView());
     await userEvent.click(screen.getAllByRole("radio", { name: "Can" })[0]);
-    await userEvent.click(screen.getByRole("checkbox", { name: "I am 18 or older" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Your first name" }), "Meera");
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "I am 18 or older" }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Your first name" }),
+      "Meera",
+    );
     await send();
 
-    expect(await screen.findByText(/Thanks, Meera\. Your reply is in\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Thanks, Meera\. Your reply is in\./),
+    ).toBeInTheDocument();
     expect(sent).toHaveLength(1);
-    const body = sent[0].body as { token: string; nonce: string; reply: { name: string } };
+    const body = sent[0].body as {
+      token: string;
+      nonce: string;
+      reply: { name: string };
+    };
     expect(body.token).toBe(TOKEN);
     expect(body.nonce).toMatch(/^[A-Za-z0-9_-]{22,64}$/);
     expect(body.reply.name).toBe("Meera");
-    expect(screen.queryByRole("textbox", { name: "Your first name" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Update my reply" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Your first name" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Update my reply" }),
+    ).toBeInTheDocument();
   });
 
   it("signed in, draws the name box after all when the profile's name is refused", async () => {
@@ -120,10 +144,14 @@ describe("a first reply", () => {
     });
     draw(openPlanView());
     await userEvent.click(screen.getAllByRole("radio", { name: "Can" })[0]);
-    await userEvent.click(screen.getByRole("checkbox", { name: "I am 18 or older" }));
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "I am 18 or older" }),
+    );
     // A session: the profile's first name is used, so no box at first.
     await waitFor(() =>
-      expect(screen.queryByRole("textbox", { name: "Your first name" })).toBeNull(),
+      expect(
+        screen.queryByRole("textbox", { name: "Your first name" }),
+      ).toBeNull(),
     );
     await send();
 
@@ -137,7 +165,9 @@ describe("a first reply", () => {
     expect(screen.queryByText(NO_NAME)).toBeNull();
     expect(screen.getByRole("textbox", { name: "Your first name" })).toBe(box);
     await send();
-    expect(await screen.findByText(/Thanks, Meera\. Your reply is in\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Thanks, Meera\. Your reply is in\./),
+    ).toBeInTheDocument();
     expect(sent.map((s) => (s.body.reply as { name?: string }).name)).toEqual([
       undefined,
       "Meera",
@@ -148,13 +178,22 @@ describe("a first reply", () => {
     let fail = true;
     const sent = routes({
       reply: () =>
-        fail ? HttpResponse.error() : HttpResponse.json(openPlanView("member", guestMe("Meera"))),
+        fail
+          ? HttpResponse.error()
+          : HttpResponse.json(openPlanView("member", guestMe("Meera"))),
     });
     draw(openPlanView());
-    await userEvent.click(screen.getByRole("checkbox", { name: "I am 18 or older" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Your first name" }), "Meera");
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "I am 18 or older" }),
+    );
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Your first name" }),
+      "Meera",
+    );
     await send();
-    expect(await screen.findByText(/Check your connection and send again/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Check your connection and send again/),
+    ).toBeInTheDocument();
     fail = false;
     await send();
     await screen.findByText(/Thanks, Meera/);
@@ -169,16 +208,26 @@ describe("a returning guest", () => {
   it("sees their own answers and Update my reply, with no name box", () => {
     routes({});
     draw(returning());
-    expect(screen.getByRole("button", { name: "Update my reply" })).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Your first name" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Update my reply" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Your first name" }),
+    ).toBeNull();
     expect(screen.getAllByRole("radio", { name: "Can" })[0]).toBeChecked();
   });
 
   it("signed out, goes to sign-in to link, keeping the token in this tab and out of the address", async () => {
     routes({});
-    window.history.replaceState(null, "", `/p?__scenario=plan-guest-returning#${TOKEN}`);
+    window.history.replaceState(
+      null,
+      "",
+      `/p?__scenario=plan-guest-returning#${TOKEN}`,
+    );
     draw(returning());
-    const link = screen.getByRole("link", { name: "Link my reply to my account" });
+    const link = screen.getByRole("link", {
+      name: "Link my reply to my account",
+    });
     expect(link.getAttribute("href")).toBe(
       "/account?next=%2Fp%3F__scenario%3Dplan-guest-returning",
     );
@@ -190,12 +239,19 @@ describe("a returning guest", () => {
   it("back from sign-in, links the reply with no tap", async () => {
     __signInAppRouteMock();
     const sent = routes({
-      link: () => HttpResponse.json(openPlanView("member", guestMe("Ravi", { linked: true }))),
+      link: () =>
+        HttpResponse.json(
+          openPlanView("member", guestMe("Ravi", { linked: true })),
+        ),
     });
     draw(returning(), true);
-    expect(await screen.findByText("Your reply is linked to your account.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Your reply is linked to your account."),
+    ).toBeInTheDocument();
     expect(sent.map((s) => s.route)).toEqual(["link"]);
-    expect(screen.queryByRole("button", { name: "Link my reply to my account" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Link my reply to my account" }),
+    ).toBeNull();
   });
 
   it("says this account already answered, when it has", async () => {
@@ -215,7 +271,9 @@ describe("a returning guest", () => {
     });
     draw(returning());
     await userEvent.click(
-      await screen.findByRole("button", { name: "Link my reply to my account" }),
+      await screen.findByRole("button", {
+        name: "Link my reply to my account",
+      }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This account already answered this plan.",
@@ -226,9 +284,16 @@ describe("a returning guest", () => {
 describe("share", () => {
   it("offers the plan's own link to the share sheet, never the page's query", async () => {
     routes({});
-    window.history.replaceState(null, "", `/p?__scenario=plan-guest-first#${TOKEN}`);
+    window.history.replaceState(
+      null,
+      "",
+      `/p?__scenario=plan-guest-first#${TOKEN}`,
+    );
     const share = vi.fn(async () => {});
-    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+    Object.defineProperty(navigator, "share", {
+      value: share,
+      configurable: true,
+    });
     try {
       draw(openPlanView());
       await userEvent.click(screen.getByRole("button", { name: "Share" }));
@@ -247,16 +312,24 @@ describe("the footer", () => {
   it("says who sees what, how long it is kept, and where safety questions go", () => {
     routes({});
     draw(openPlanView());
-    expect(screen.getByText(/never asks guests for a phone number/)).toBeInTheDocument();
-    expect(screen.getByText(/kept until 90 days after the plan/)).toBeInTheDocument();
     expect(
-      screen.getByText("Asha and the others on this plan see your name and replies."),
+      screen.getByText(/never asks guests for a phone number/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/kept until 90 days after the plan/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Asha and the others on this plan see your name and replies.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "info@yuvoy.in" })).toHaveAttribute(
       "href",
       "mailto:info@yuvoy.in",
     );
-    expect(screen.getAllByRole("button", { name: "Report this plan" })).toHaveLength(1);
+    expect(
+      screen.getAllByRole("button", { name: "Report this plan" }),
+    ).toHaveLength(1);
   });
 });
 
@@ -270,7 +343,10 @@ describe("earlier weeks", () => {
       amountMinor: 40000,
       paidBy: "Asha",
       paidMarked: true,
-      payLink: upiPayLink(40000, "Dinner at the beach shack: Fish for the grill"),
+      payLink: upiPayLink(
+        40000,
+        "Dinner at the beach shack: Fish for the grill",
+      ),
     },
     {
       costId: "4a4b4c4d-0004-4a00-8a00-0000000000e2",
@@ -279,7 +355,10 @@ describe("earlier weeks", () => {
       amountMinor: 15000,
       paidBy: "Asha",
       paidMarked: false,
-      payLink: upiPayLink(15000, "Dinner at the beach shack: Boat to the beach"),
+      payLink: upiPayLink(
+        15000,
+        "Dinner at the beach shack: Boat to the beach",
+      ),
     },
   ];
   const started = (): PlanView => ({
@@ -291,11 +370,17 @@ describe("earlier weeks", () => {
   it("draws no pay button for a share with no payee of its own, and says who to ask", () => {
     routes({});
     draw(started());
-    expect(screen.getByRole("heading", { name: "Earlier weeks" })).toBeInTheDocument();
-    expect(screen.getByText(/Boat to the beach\. Your share: ₹150, paid by Asha\./)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Earlier weeks" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Boat to the beach\. Your share: ₹150, paid by Asha\./),
+    ).toBeInTheDocument();
     // This week's share has its pay button; last week's has none.
     expect(screen.queryByRole("link", { name: "Pay ₹150 by UPI" })).toBeNull();
-    expect(screen.getAllByText("Ask Asha for their UPI ID.").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Ask Asha for their UPI ID.").length,
+    ).toBeGreaterThan(0);
   });
 
   it("marks one paid with that week's whole set and nothing of this week's", async () => {
@@ -307,8 +392,12 @@ describe("earlier weeks", () => {
         }),
     });
     draw(started());
-    await userEvent.click(screen.getByRole("button", { name: "I've paid this share" }));
-    await waitFor(() => expect(screen.getAllByText("You marked this paid.")).toHaveLength(2));
+    await userEvent.click(
+      screen.getByRole("button", { name: "I've paid this share" }),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText("You marked this paid.")).toHaveLength(2),
+    );
     expect(sent).toHaveLength(1);
     expect(sent[0].body.reply).toEqual({
       paid: [earlier[0].costId, earlier[1].costId],

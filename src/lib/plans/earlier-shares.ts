@@ -86,7 +86,9 @@ export function paidForWeek(
   if (!share || !shares) return [];
   const week = shares.filter((s) => s.startsAt === share.startsAt);
   return [
-    ...week.filter((s) => s.paidMarked && s.costId !== costId).map((s) => s.costId),
+    ...week
+      .filter((s) => s.paidMarked && s.costId !== costId)
+      .map((s) => s.costId),
     costId,
   ];
 }

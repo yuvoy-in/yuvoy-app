@@ -48,7 +48,10 @@ test.describe("case 1: plans off and paused", () => {
     const calls = guestCalls(page);
     await page.goto(planLink("plans-paused"));
     await expect(
-      page.getByRole("heading", { level: 1, name: "Plans are paused for a moment." }),
+      page.getByRole("heading", {
+        level: 1,
+        name: "Plans are paused for a moment.",
+      }),
     ).toBeVisible();
     await expect(page.getByText("Try again later.")).toBeVisible();
     await expectAccessible(page);
@@ -84,7 +87,9 @@ test.describe("a first reply", () => {
     await page.getByRole("button", SEND).click();
     const tick = page.getByRole("checkbox", { name: "I am 18 or older" });
     await expect(tick).toHaveAttribute("aria-invalid", "true");
-    await expect(page.getByText("Tick to say you are 18 or over.")).toBeVisible();
+    await expect(
+      page.getByText("Tick to say you are 18 or over."),
+    ).toBeVisible();
     await expectAccessible(page);
 
     await tick.check();
@@ -92,8 +97,12 @@ test.describe("a first reply", () => {
     const name = page.getByRole("textbox", { name: "Your first name" });
     await expect(name).toBeFocused();
     await expect(name).toHaveAttribute("aria-invalid", "true");
-    await expect(page.getByText("Use your first name, in letters only.")).toHaveCount(1);
-    await expect(page.getByRole("radio", { name: "Maybe" }).first()).toBeChecked();
+    await expect(
+      page.getByText("Use your first name, in letters only."),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("radio", { name: "Maybe" }).first(),
+    ).toBeChecked();
     await expect(tick).toBeChecked();
     expect(calls).toEqual([]);
     await expectAccessible(page);
@@ -111,9 +120,13 @@ test.describe("a first reply", () => {
     // The first send reaches the server, and its answer never reaches the page.
     await dropNextReplyAnswer(page);
     await page.getByRole("button", SEND).dblclick();
-    await expect(page.getByText(/Check your connection and send again/)).toBeVisible();
+    await expect(
+      page.getByText(/Check your connection and send again/),
+    ).toBeVisible();
     await page.getByRole("button", SEND).click();
-    await expect(page.getByText(/Thanks, Meera\. Your reply is in\./)).toBeVisible();
+    await expect(
+      page.getByText(/Thanks, Meera\. Your reply is in\./),
+    ).toBeVisible();
 
     const replies = calls.filter((c) => c.route === "reply");
     // A double tap is one send.
@@ -124,7 +137,8 @@ test.describe("a first reply", () => {
     await expect(page.getByRole("button", UPDATE)).toBeVisible();
 
     // Case 6: the key is in an httpOnly cookie, and in nothing the page read.
-    for (const body of await Promise.all(answers)) expect(body).not.toContain("ypk_");
+    for (const body of await Promise.all(answers))
+      expect(body).not.toContain("ypk_");
     expect(await page.evaluate(() => document.cookie)).not.toContain("ypk_");
     const cookie = (await context.cookies()).find((c) => c.name === KEY_COOKIE);
     expect(cookie?.httpOnly).toBe(true);
@@ -144,12 +158,16 @@ test.describe("a first reply", () => {
 
     await page.getByRole("textbox", { name: "Your first name" }).fill("Mira");
     await page.getByRole("button", SEND).click();
-    await expect(page.getByText("That reply did not go through. Send it again.")).toBeVisible();
+    await expect(
+      page.getByText("That reply did not go through. Send it again."),
+    ).toBeVisible();
     await expectAccessible(page);
     await page.getByRole("button", SEND).click();
     await expect(page.getByText(/Thanks, Mira\./)).toBeVisible();
 
-    const nonces = calls.filter((c) => c.route === "reply").map((c) => c.body.nonce);
+    const nonces = calls
+      .filter((c) => c.route === "reply")
+      .map((c) => c.body.nonce);
     expect(nonces).toHaveLength(3);
     expect(nonces[1]).toBe(nonces[0]);
     expect(nonces[2]).not.toBe(nonces[0]);
@@ -166,15 +184,21 @@ test.describe("a guest who replied before", () => {
     await asReturningGuest(context, baseURL);
     await openPlan(page, "plan-guest-returning");
     await expect(page.getByRole("button", UPDATE)).toBeVisible();
-    await expect(page.getByRole("radio", { name: "Can", exact: true }).first()).toBeChecked();
-    await expect(page.getByRole("textbox", { name: "Your first name" })).toHaveCount(0);
+    await expect(
+      page.getByRole("radio", { name: "Can", exact: true }).first(),
+    ).toBeChecked();
+    await expect(
+      page.getByRole("textbox", { name: "Your first name" }),
+    ).toHaveCount(0);
     await expectAccessible(page);
 
     const other = await browser.newContext({ baseURL });
     const phone = await other.newPage();
     await openPlan(phone, "plan-guest-returning");
     await expect(phone.getByRole("button", SEND)).toBeVisible();
-    await expect(phone.getByRole("textbox", { name: "Your first name" })).toBeVisible();
+    await expect(
+      phone.getByRole("textbox", { name: "Your first name" }),
+    ).toBeVisible();
     await other.close();
   });
 
@@ -194,14 +218,17 @@ test.describe("a guest who replied before", () => {
 
     await asReturningGuest(context, baseURL);
     await openPlan(page, "plan-guest-decided");
-    await expect(page.getByRole("link", { name: "Pay ₹450 by UPI" })).toHaveAttribute(
-      "href",
-      /^upi:\/\/pay\?pa=asha%40okaxis&/,
-    );
     await expect(
-      page.getByText(`Button not working? Send ₹450 to ${PLAN_PAYEE.upiId} from any UPI app.`),
+      page.getByRole("link", { name: "Pay ₹450 by UPI" }),
+    ).toHaveAttribute("href", /^upi:\/\/pay\?pa=asha%40okaxis&/);
+    await expect(
+      page.getByText(
+        `Button not working? Send ₹450 to ${PLAN_PAYEE.upiId} from any UPI app.`,
+      ),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Copy UPI ID" }).first()).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Copy UPI ID" }).first(),
+    ).toBeVisible();
     await expectAccessible(page);
   });
 
@@ -221,7 +248,9 @@ test.describe("a guest who replied before", () => {
     await openPlan(page, "plan-guest-returning");
     await page.getByRole("checkbox", { name: /Charcoal/ }).check();
     await page.getByRole("button", UPDATE).click();
-    await expect(page.getByText("Charcoal was taken by someone else first.")).toBeVisible();
+    await expect(
+      page.getByText("Charcoal was taken by someone else first."),
+    ).toBeVisible();
     await expect(page.getByText("Kiran is bringing it")).toBeVisible();
     await expectAccessible(page);
   });
@@ -238,7 +267,9 @@ test.describe("a guest who replied before", () => {
     await page.getByRole("radio", { name: "Can't make it" }).check();
     await page.getByRole("button", UPDATE).click();
     await expect(page.getByText(/Your reply is in\./)).toBeVisible();
-    await expect(page.getByRole("checkbox", { name: /Speaker/ })).not.toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: /Speaker/ }),
+    ).not.toBeChecked();
     await expectAccessible(page);
   });
 
@@ -250,20 +281,34 @@ test.describe("a guest who replied before", () => {
     const calls = guestCalls(page);
     await asReturningGuest(context, baseURL);
     await openPlan(page, "plan-guest-started");
-    await expect(page.getByText("Replies are closed because the plan has started.")).toBeVisible();
+    await expect(
+      page.getByText("Replies are closed because the plan has started."),
+    ).toBeVisible();
     await expect(page.getByRole("radio", { name: "Going" })).toBeDisabled();
 
-    await page.getByRole("checkbox", { name: /I've paid my share/ }).first().check();
+    await page
+      .getByRole("checkbox", { name: /I've paid my share/ })
+      .first()
+      .check();
     await page.getByRole("button", UPDATE).click();
     await expect(page.getByText(/Your reply is in\./)).toBeVisible();
     expect(Object.keys(calls.at(-1)?.body.reply as object)).toEqual(["paid"]);
 
-    await expect(page.getByRole("heading", { name: "Earlier weeks" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Earlier weeks" }),
+    ).toBeVisible();
     // No payee comes with last week's share, so no button pays one.
-    await expect(page.getByRole("link", { name: "Pay ₹400 by UPI" })).toHaveCount(0);
-    await page.getByRole("button", { name: "I've paid this share" }).first().click();
+    await expect(
+      page.getByRole("link", { name: "Pay ₹400 by UPI" }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "I've paid this share" })
+      .first()
+      .click();
     await expect(page.getByText("You marked this paid.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "I've paid this share" })).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "I've paid this share" }),
+    ).toHaveCount(1);
     await expectAccessible(page);
   });
 
@@ -280,7 +325,9 @@ test.describe("a guest who replied before", () => {
     await page.getByRole("button", { name: "Remove my reply" }).click();
     const sheet = page.getByRole("dialog", { name: "Remove my reply" });
     await expect(
-      sheet.getByText("Your name and answers will be deleted, and your items freed for others."),
+      sheet.getByText(
+        "Your name and answers will be deleted, and your items freed for others.",
+      ),
     ).toBeVisible();
     await expectAccessible(page);
     await sheet.getByRole("button", { name: "Remove my reply" }).click();
@@ -288,9 +335,13 @@ test.describe("a guest who replied before", () => {
 
     await page.reload();
     await expect(page.getByRole("button", SEND)).toBeVisible();
-    await expect(page.getByText("Replied: Asha, Meera and Kiran")).toBeVisible();
+    await expect(
+      page.getByText("Replied: Asha, Meera and Kiran"),
+    ).toBeVisible();
     await expect(page.getByText(/Priya/)).toHaveCount(0);
-    await expect(page.getByRole("checkbox", { name: /Paper plates/ })).not.toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: /Paper plates/ }),
+    ).not.toBeChecked();
     await expectAccessible(page);
   });
 });
@@ -302,7 +353,9 @@ test.describe("signed in", () => {
     await signIn(page, PLANNER_NUMBER);
     await openPlan(page);
     await expect(page.getByText("You're planning this")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Remove my reply" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Remove my reply" }),
+    ).toHaveCount(0);
     const answer = await page.evaluate(async (token) => {
       const response = await fetch("/p/api/leave", {
         method: "POST",
@@ -324,12 +377,20 @@ test.describe("signed in", () => {
     const seen = everythingSent(page);
     await asReturningGuest(context, baseURL);
     await openPlan(page, "plan-guest-returning");
-    await page.getByRole("link", { name: "Link my reply to my account" }).click();
-    await expect(page).toHaveURL(/\/account\?next=%2Fp%3F__scenario%3Dplan-guest-returning$/);
+    await page
+      .getByRole("link", { name: "Link my reply to my account" })
+      .click();
+    await expect(page).toHaveURL(
+      /\/account\?next=%2Fp%3F__scenario%3Dplan-guest-returning$/,
+    );
 
     await signInHere(page, freshNumber());
-    await expect(page).toHaveURL(new RegExp(`/p\\?__scenario=plan-guest-returning#${TOKEN}$`));
-    await expect(page.getByText("Your reply is linked to your account.")).toBeVisible();
+    await expect(page).toHaveURL(
+      new RegExp(`/p\\?__scenario=plan-guest-returning#${TOKEN}$`),
+    );
+    await expect(
+      page.getByText("Your reply is linked to your account."),
+    ).toBeVisible();
     for (const url of seen.urls) expect(url).not.toContain(TOKEN);
     await expectAccessible(page);
   });
@@ -349,19 +410,27 @@ test.describe("signed in", () => {
       }),
     );
     await openPlan(page, "plan-guest-returning");
-    await page.getByRole("button", { name: "Link my reply to my account" }).click();
-    await expect(page.getByRole("alert")).toHaveText("This account already answered this plan.");
+    await page
+      .getByRole("button", { name: "Link my reply to my account" })
+      .click();
+    await expect(page.getByRole("alert")).toHaveText(
+      "This account already answered this plan.",
+    );
     await expectAccessible(page);
   });
 });
 
 test.describe("refusals", () => {
-  test("case 14: plan_full on a first reply, from the API", async ({ page }) => {
+  test("case 14: plan_full on a first reply, from the API", async ({
+    page,
+  }) => {
     await openPlan(page, "plan-guest-full");
     await fillFirstReply(page, "Meera");
     await page.getByRole("button", SEND).click();
     await expect(
-      page.getByText("This plan has as many people as Yuvoy allows. Ask Asha if there is room."),
+      page.getByText(
+        "This plan has as many people as Yuvoy allows. Ask Asha if there is room.",
+      ),
     ).toBeVisible();
     await expect(page.getByRole("alert")).toBeFocused();
     await expectAccessible(page);
@@ -373,24 +442,55 @@ test.describe("refusals", () => {
     baseURL,
   }) => {
     await asReturningGuest(context, baseURL);
-    const refusals: [number, string, Record<string, unknown> | undefined, string][] = [
-      [409, "plan_closed", { reason: "started" }, "Replies are closed because the plan has started."],
-      [409, "plan_closed", { reason: "cancelled" }, "Asha cancelled this plan."],
+    const refusals: [
+      number,
+      string,
+      Record<string, unknown> | undefined,
+      string,
+    ][] = [
+      [
+        409,
+        "plan_closed",
+        { reason: "started" },
+        "Replies are closed because the plan has started.",
+      ],
+      [
+        409,
+        "plan_closed",
+        { reason: "cancelled" },
+        "Asha cancelled this plan.",
+      ],
       [409, "plan_closed", { reason: "done" }, "This plan has happened."],
-      [409, "plan_closed", { reason: "closed" }, "This plan is no longer available."],
-      [429, "rate_limited", undefined, "Lots of replies at once. Wait a minute and send again."],
+      [
+        409,
+        "plan_closed",
+        { reason: "closed" },
+        "This plan is no longer available.",
+      ],
+      [
+        429,
+        "rate_limited",
+        undefined,
+        "Lots of replies at once. Wait a minute and send again.",
+      ],
     ];
     let next = 0;
     await page.route("**/p/api/reply", (route) => {
       const [status, code, details] = refusals[next++];
-      return route.fulfill({ status, contentType: "application/json", body: envelope(code, details) });
+      return route.fulfill({
+        status,
+        contentType: "application/json",
+        body: envelope(code, details),
+      });
     });
     await openPlan(page, "plan-guest-returning");
     for (const [, , , line] of refusals) {
       await page.getByRole("button", UPDATE).click();
       await expect(page.getByRole("alert")).toHaveText(line);
     }
-    await expect(page.getByRole("radio", { name: "Can", exact: true }).first()).toBeChecked();
+    await expect(
+      page.getByRole("radio", { name: "Can", exact: true }).first(),
+    ).toBeChecked();
     await expectAccessible(page);
   });
 
@@ -429,7 +529,9 @@ test.describe("what leaves the page", () => {
     for (const url of seen.urls) expect(url).not.toContain(TOKEN);
     for (const line of seen.console) expect(line).not.toContain(TOKEN);
     // Analytics never starts on /p, so nothing goes to it at all.
-    expect(seen.urls.filter((url) => /posthog|\/ingest\//.test(url))).toEqual([]);
+    expect(seen.urls.filter((url) => /posthog|\/ingest\//.test(url))).toEqual(
+      [],
+    );
     await expectAccessible(page);
   });
 });
@@ -440,14 +542,22 @@ test.describe("case 18: the page itself", () => {
     await asReturningGuest(context, baseURL);
     await openPlan(page, "plan-guest-decided");
     const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
     );
     expect(overflow).toBe(false);
     await expectAccessible(page);
   });
 
-  test("with no JavaScript, the no-script line", async ({ browser, baseURL }) => {
-    const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  test("with no JavaScript, the no-script line", async ({
+    browser,
+    baseURL,
+  }) => {
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      baseURL,
+    });
     const page = await context.newPage();
     await page.goto(planLink());
     await expect(

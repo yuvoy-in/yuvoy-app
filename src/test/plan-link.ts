@@ -15,7 +15,8 @@ import { PLAN_IDS, openPlanView } from "../../mocks/plan-fixtures";
  * the answer, both of which a plain `Request` and `NextResponse` carry.
  */
 
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+export const API =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 export const APP = "https://app.yuvoy.in";
 
 export const TOKEN = `yp_${"T".repeat(40)}a-_`;

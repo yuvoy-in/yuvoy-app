@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  APP,
-  TOKEN,
-  guestRequest,
-  watchApi,
-} from "../../../test/plan-link";
+import { APP, TOKEN, guestRequest, watchApi } from "../../../test/plan-link";
 
 /**
  * What every plan guest route refuses before it asks the API anything
@@ -47,8 +42,10 @@ beforeEach(() => {
 
 describe.each(NAMES)("/p/api/%s", (name) => {
   const POST = ROUTES[name];
-  const send = (options: Parameters<typeof guestRequest>[2], body = BODIES[name]) =>
-    POST(guestRequest(name, body, options));
+  const send = (
+    options: Parameters<typeof guestRequest>[2],
+    body = BODIES[name],
+  ) => POST(guestRequest(name, body, options));
 
   async function refusedWith(response: Response, status: number) {
     expect(response.status).toBe(status);
@@ -58,15 +55,24 @@ describe.each(NAMES)("/p/api/%s", (name) => {
   }
 
   it("refuses another site, by Fetch Metadata", async () => {
-    await refusedWith(await send({ headers: { "sec-fetch-site": "cross-site" } }), 403);
+    await refusedWith(
+      await send({ headers: { "sec-fetch-site": "cross-site" } }),
+      403,
+    );
   });
 
   it("refuses a sibling on the same site, which is not the same origin", async () => {
-    await refusedWith(await send({ headers: { "sec-fetch-site": "same-site" } }), 403);
+    await refusedWith(
+      await send({ headers: { "sec-fetch-site": "same-site" } }),
+      403,
+    );
   });
 
   it("refuses a link followed to it", async () => {
-    await refusedWith(await send({ headers: { "sec-fetch-mode": "navigate" } }), 403);
+    await refusedWith(
+      await send({ headers: { "sec-fetch-mode": "navigate" } }),
+      403,
+    );
   });
 
   it("without Fetch Metadata, refuses another Origin", async () => {
@@ -84,7 +90,10 @@ describe.each(NAMES)("/p/api/%s", (name) => {
   });
 
   it("without Fetch Metadata, takes an Origin that is this host", async () => {
-    const response = await send({ omit: ["sec-fetch-site"], headers: { origin: APP } });
+    const response = await send({
+      omit: ["sec-fetch-site"],
+      headers: { origin: APP },
+    });
     expect(response.status).not.toBe(403);
   });
 
@@ -116,8 +125,14 @@ describe.each(NAMES)("/p/api/%s", (name) => {
   });
 
   it("answers a token of the wrong shape as the API would, without asking it", async () => {
-    await refusedWith(await send({}, { ...(BODIES[name] as object), token: "yp_short" }), 404);
-    await refusedWith(await send({}, { ...(BODIES[name] as object), token: undefined }), 404);
+    await refusedWith(
+      await send({}, { ...(BODIES[name] as object), token: "yp_short" }),
+      404,
+    );
+    await refusedWith(
+      await send({}, { ...(BODIES[name] as object), token: undefined }),
+      404,
+    );
   });
 
   it("reads the token from the body only, never the address", async () => {

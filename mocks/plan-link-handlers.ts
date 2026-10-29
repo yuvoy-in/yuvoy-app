@@ -99,7 +99,9 @@ type PlanLinkScenario =
 function scenarioOf(request: Request): PlanLinkScenario | string {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
   if (fromHeader) return fromHeader;
-  return new URL(request.url).searchParams.get("__scenario") ?? "plan-guest-first";
+  return (
+    new URL(request.url).searchParams.get("__scenario") ?? "plan-guest-first"
+  );
 }
 
 let seq = 0;
@@ -114,7 +116,12 @@ function envelope(
 ) {
   return HttpResponse.json(
     {
-      error: { code, message, ...(details ? { details } : {}), requestId: rid() },
+      error: {
+        code,
+        message,
+        ...(details ? { details } : {}),
+        requestId: rid(),
+      },
     },
     { status, headers: mockHeaders(rid()) },
   );
@@ -287,7 +294,13 @@ function viewFor(scenario: string, reader: Reader): PlanView {
     return {
       ...view,
       canReply: false,
-      ...(key ? { earlierShares: earlierShares(earlierPaidByKey.get(key) ?? new Set()) } : {}),
+      ...(key
+        ? {
+            earlierShares: earlierShares(
+              earlierPaidByKey.get(key) ?? new Set(),
+            ),
+          }
+        : {}),
     };
   }
   return view;
@@ -297,7 +310,9 @@ function ok(view: PlanView, status = 200) {
   return HttpResponse.json(view, { status, headers: mockHeaders(rid()) });
 }
 
-async function jsonBody(request: Request): Promise<Record<string, unknown> | null> {
+async function jsonBody(
+  request: Request,
+): Promise<Record<string, unknown> | null> {
   try {
     const body: unknown = await request.json();
     return typeof body === "object" && body !== null && !Array.isArray(body)
@@ -309,7 +324,9 @@ async function jsonBody(request: Request): Promise<Record<string, unknown> | nul
 }
 
 const strings = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+  Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
 
 /**
  * A reply applied to what this person had: complete sets, so anything left
@@ -327,7 +344,9 @@ function applyReply(
     : [];
   const cantGo =
     isDecided(scenario) &&
-    answers.some((a) => a.optionId === PLAN_IDS.times[0] && a.answer === "cant");
+    answers.some(
+      (a) => a.optionId === PLAN_IDS.times[0] && a.answer === "cant",
+    );
   const claims = cantGo ? [] : strings(body.claims);
   // A paid-only reply moves the paid marks and nothing else.
   if (paidOnly(body)) {
@@ -350,7 +369,12 @@ function applyReply(
  * claims is a reply that clears them, not a paid-only one.
  */
 function paidOnly(body: Record<string, unknown>): boolean {
-  return !("answers" in body) && !("claims" in body) && !("name" in body) && !("adult" in body);
+  return (
+    !("answers" in body) &&
+    !("claims" in body) &&
+    !("name" in body) &&
+    !("adult" in body)
+  );
 }
 
 export const planLinkHandlers = [
@@ -393,7 +417,11 @@ export const planLinkHandlers = [
     */
     const paid = strings(body.paid);
     const earlierIds = new Set<string>(EARLIER_COST_IDS);
-    if (paidOnly(body) && paid.length > 0 && paid.some((id) => earlierIds.has(id))) {
+    if (
+      paidOnly(body) &&
+      paid.length > 0 &&
+      paid.some((id) => earlierIds.has(id))
+    ) {
       if (!paid.every((id) => earlierIds.has(id))) return NOT_FOUND();
       if (reader.role !== "member" || !reader.key) return NOT_FOUND();
       earlierPaidByKey.set(reader.key, new Set(paid));
@@ -420,7 +448,11 @@ export const planLinkHandlers = [
     const session = sessionOf(request);
     if (session) {
       // Belongs to the account: no key, 200.
-      const first = applyReply(guestMe(name || "Ravi", { linked: true }), body, scenario);
+      const first = applyReply(
+        guestMe(name || "Ravi", { linked: true }),
+        body,
+        scenario,
+      );
       membersBySession.set(session, first.me);
       return ok(
         viewFor(scenario, { role: "member", me: first.me, key: null, session }),
@@ -429,9 +461,14 @@ export const planLinkHandlers = [
     if (!isFirstName(name)) {
       // The API's own sentence, for the message and the field alike
       // (`guestNameSentence`, `plans_guest.go`).
-      return envelope("invalid_input", "Use your first name, in letters only.", 400, {
-        name: "Use your first name, in letters only.",
-      });
+      return envelope(
+        "invalid_input",
+        "Use your first name, in letters only.",
+        400,
+        {
+          name: "Use your first name, in letters only.",
+        },
+      );
     }
     if (body.adult !== true) {
       return envelope("invalid_input", "Tick that you are 18 or older.", 400, {
@@ -453,7 +490,12 @@ export const planLinkHandlers = [
       const me = guestsByKey.get(earlier.key) ?? guestMe(name);
       return ok(
         {
-          ...viewFor(scenario, { role: "member", me, key: earlier.key, session: null }),
+          ...viewFor(scenario, {
+            role: "member",
+            me,
+            key: earlier.key,
+            session: null,
+          }),
           guestKey: earlier.key,
         },
         201,
@@ -487,60 +529,83 @@ export const planLinkHandlers = [
     return new HttpResponse(null, { status: 204, headers: mockHeaders(rid()) });
   }),
 
-  http.post(url("/plans/by-token/:token/link-account"), ({ request, params }) => {
-    const scenario = scenarioOf(request);
-    const refused = gate(request, String(params.token), scenario, "write");
-    if (refused) return refused;
-    const session = sessionOf(request);
-    if (!session) {
-      return envelope(
-        "unauthorized",
-        "Sign in to link your reply to your account.",
-        401,
-      );
-    }
-    const reader = readerOf(request, scenario);
-    if (reader.role !== "member" || !reader.key) return NOT_FOUND();
-    if (membersBySession.has(session)) {
-      return envelope(
-        "conflict",
-        "This account already answered this plan.",
-        409,
-        { reason: "already_answered" },
-      );
-    }
-    const me = { ...reader.me, linked: true };
-    guestsByKey.set(reader.key, me);
-    membersBySession.set(session, me);
-    return ok(viewFor(scenario, { ...reader, me }));
-  }),
+  http.post(
+    url("/plans/by-token/:token/link-account"),
+    ({ request, params }) => {
+      const scenario = scenarioOf(request);
+      const refused = gate(request, String(params.token), scenario, "write");
+      if (refused) return refused;
+      const session = sessionOf(request);
+      if (!session) {
+        return envelope(
+          "unauthorized",
+          "Sign in to link your reply to your account.",
+          401,
+        );
+      }
+      const reader = readerOf(request, scenario);
+      if (reader.role !== "member" || !reader.key) return NOT_FOUND();
+      if (membersBySession.has(session)) {
+        return envelope(
+          "conflict",
+          "This account already answered this plan.",
+          409,
+          { reason: "already_answered" },
+        );
+      }
+      const me = { ...reader.me, linked: true };
+      guestsByKey.set(reader.key, me);
+      membersBySession.set(session, me);
+      return ok(viewFor(scenario, { ...reader, me }));
+    },
+  ),
 
-  http.post(url("/plans/by-token/:token/reports"), async ({ request, params }) => {
-    const scenario = scenarioOf(request);
-    const refused = gate(request, String(params.token), scenario, "report");
-    if (refused) return refused;
-    const body = await jsonBody(request);
-    if (!body || typeof body.reason !== "string" || !REPORT_REASONS.has(body.reason)) {
-      return envelope("invalid_input", "Pick what is wrong.", 400, {
-        reason: "Pick what is wrong.",
-      });
-    }
-    if (typeof body.note === "string" && body.note.length > 300) {
-      return envelope("invalid_input", "Keep the note to 300 characters.", 400, {
-        note: "Keep the note to 300 characters.",
-      });
-    }
-    if (typeof body.personName === "string") {
-      const wanted = body.personName.trim().toLowerCase();
-      const names = viewFor(scenario, { role: "visitor" }).people.map((p) =>
-        p.name.toLowerCase(),
-      );
-      if (!names.includes(wanted)) {
-        return envelope("invalid_input", "That name is not on this plan.", 400, {
-          personName: "That name is not on this plan.",
+  http.post(
+    url("/plans/by-token/:token/reports"),
+    async ({ request, params }) => {
+      const scenario = scenarioOf(request);
+      const refused = gate(request, String(params.token), scenario, "report");
+      if (refused) return refused;
+      const body = await jsonBody(request);
+      if (
+        !body ||
+        typeof body.reason !== "string" ||
+        !REPORT_REASONS.has(body.reason)
+      ) {
+        return envelope("invalid_input", "Pick what is wrong.", 400, {
+          reason: "Pick what is wrong.",
         });
       }
-    }
-    return new HttpResponse(null, { status: 202, headers: mockHeaders(rid()) });
-  }),
+      if (typeof body.note === "string" && body.note.length > 300) {
+        return envelope(
+          "invalid_input",
+          "Keep the note to 300 characters.",
+          400,
+          {
+            note: "Keep the note to 300 characters.",
+          },
+        );
+      }
+      if (typeof body.personName === "string") {
+        const wanted = body.personName.trim().toLowerCase();
+        const names = viewFor(scenario, { role: "visitor" }).people.map((p) =>
+          p.name.toLowerCase(),
+        );
+        if (!names.includes(wanted)) {
+          return envelope(
+            "invalid_input",
+            "That name is not on this plan.",
+            400,
+            {
+              personName: "That name is not on this plan.",
+            },
+          );
+        }
+      }
+      return new HttpResponse(null, {
+        status: 202,
+        headers: mockHeaders(rid()),
+      });
+    },
+  ),
 ];

@@ -10,7 +10,9 @@ import { guestWords } from "./guest-words";
 function everyLine(): string[] {
   return Object.values(guestWords).map((value) =>
     typeof value === "function"
-      ? String((value as (...a: string[]) => string)("Asha", "Fish", "₹450", "Asha"))
+      ? String(
+          (value as (...a: string[]) => string)("Asha", "Fish", "₹450", "Asha"),
+        )
       : value,
   );
 }
@@ -34,8 +36,8 @@ describe("the guest page's words", () => {
   });
 
   it("share the mobile app's text, ready for the link after it", () => {
-    expect(guestWords.shareMessage("Dinner", "Friends are choosing a time")).toBe(
-      "Dinner. Friends are choosing a time. Reply here, no app needed:",
-    );
+    expect(
+      guestWords.shareMessage("Dinner", "Friends are choosing a time"),
+    ).toBe("Dinner. Friends are choosing a time. Reply here, no app needed:");
   });
 });

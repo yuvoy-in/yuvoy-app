@@ -21,7 +21,10 @@ export const KEY_COOKIE = `ypk_${PLAN_IDS.series}`;
 
 /** A guest key of its own for one test: `ypk_` and 43 characters. */
 export function freshKey(): string {
-  const random = Math.random().toString(36).slice(2).replace(/[^a-z0-9]/g, "");
+  const random = Math.random()
+    .toString(36)
+    .slice(2)
+    .replace(/[^a-z0-9]/g, "");
   return `ypk_${`e2e${random}`.padEnd(43, "k").slice(0, 43)}`;
 }
 
@@ -99,7 +102,10 @@ export function guestAnswers(page: Page): Promise<string>[] {
  * fragment, so what is after `#` is cut off here as it is on the wire: the
  * check is that the token is in nothing BEFORE it, a query or a path.
  */
-export function everythingSent(page: Page): { urls: string[]; console: string[] } {
+export function everythingSent(page: Page): {
+  urls: string[];
+  console: string[];
+} {
   const seen = { urls: [] as string[], console: [] as string[] };
   const sent = (url: string) => url.split("#")[0];
   page.on("request", (request) => {
@@ -167,7 +173,12 @@ export function freshNumber(): string {
 /** The API's error envelope, as the route handlers pass it on. */
 export function envelope(code: string, details?: Record<string, unknown>) {
   return JSON.stringify({
-    error: { code, message: "Refused.", requestId: "01JE2E", ...(details ? { details } : {}) },
+    error: {
+      code,
+      message: "Refused.",
+      requestId: "01JE2E",
+      ...(details ? { details } : {}),
+    },
   });
 }
 

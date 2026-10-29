@@ -32,7 +32,9 @@ export function SkipLink() {
   );
 }
 
-export function focusMainOnPlanLink(event: MouseEvent<HTMLAnchorElement>): void {
+export function focusMainOnPlanLink(
+  event: MouseEvent<HTMLAnchorElement>,
+): void {
   if (!isPlanLinkPath(window.location.pathname)) return;
   event.preventDefault();
   const main = document.getElementById("main");

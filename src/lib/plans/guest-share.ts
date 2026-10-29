@@ -62,7 +62,11 @@ export async function sharePlan(
 ): Promise<ShareOutcome> {
   if (nav && typeof nav.share === "function") {
     try {
-      await nav.share({ title: share.title, text: share.message, url: share.link });
+      await nav.share({
+        title: share.title,
+        text: share.message,
+        url: share.link,
+      });
       return "shared";
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {

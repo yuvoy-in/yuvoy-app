@@ -68,7 +68,10 @@ describe("the way back", () => {
   it("is nothing when nothing was kept, or something that is not a token", () => {
     expect(takeArrival()).toBeNull();
     __forgetArrival();
-    sessionStorage.setItem("yuvoy.plan-link.return", JSON.stringify({ token: "yp_x" }));
+    sessionStorage.setItem(
+      "yuvoy.plan-link.return",
+      JSON.stringify({ token: "yp_x" }),
+    );
     expect(takeArrival()).toBeNull();
     __forgetArrival();
     sessionStorage.setItem("yuvoy.plan-link.return", "not json");

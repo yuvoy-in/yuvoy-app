@@ -29,7 +29,9 @@ afterEach(() => {
 describe("the skip link", () => {
   it("on the plan link page, focuses main and leaves the token in the address", () => {
     const main = page(`/p#${TOKEN}`);
-    const followed = fireEvent.click(screen.getByRole("link", { name: "Skip to content" }));
+    const followed = fireEvent.click(
+      screen.getByRole("link", { name: "Skip to content" }),
+    );
     expect(followed).toBe(false);
     expect(window.location.hash).toBe(`#${TOKEN}`);
     expect(document.activeElement).toBe(main);

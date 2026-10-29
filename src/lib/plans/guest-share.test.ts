@@ -15,7 +15,11 @@ import {
 
 const TOKEN = `yp_${"T".repeat(40)}a-_`;
 const LINK = planLinkFor("https://app.yuvoy.in", TOKEN);
-const SHARE = { title: "Dinner at the beach shack", message: "Dinner. Soon.", link: LINK };
+const SHARE = {
+  title: "Dinner at the beach shack",
+  message: "Dinner. Soon.",
+  link: LINK,
+};
 
 describe("what is shared", () => {
   it("is the plan's link on this origin, the token after the #", () => {

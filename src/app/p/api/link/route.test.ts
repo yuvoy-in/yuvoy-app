@@ -51,7 +51,9 @@ describe("linking a reply", () => {
   it("is a 401 with no session, without asking", async () => {
     session.token = null;
     const seen = watchApi(linked);
-    const response = await POST(guestRequest("link", { token: TOKEN, seriesId: SERIES }, held));
+    const response = await POST(
+      guestRequest("link", { token: TOKEN, seriesId: SERIES }, held),
+    );
     expect(response.status).toBe(401);
     expect((await response.json()).error.code).toBe("unauthorized");
     expect(seen).toHaveLength(0);
@@ -59,17 +61,23 @@ describe("linking a reply", () => {
 
   it("is a 404 with no key, since there is no reply here to link", async () => {
     const seen = watchApi(linked);
-    const response = await POST(guestRequest("link", { token: TOKEN, seriesId: SERIES }));
+    const response = await POST(
+      guestRequest("link", { token: TOKEN, seriesId: SERIES }),
+    );
     expect(response.status).toBe(404);
     expect(seen).toHaveLength(0);
   });
 
   it("sends the session and the key to linkPlanReplyToAccount", async () => {
     const seen = watchApi(linked);
-    const response = await POST(guestRequest("link", { token: TOKEN, seriesId: SERIES }, held));
+    const response = await POST(
+      guestRequest("link", { token: TOKEN, seriesId: SERIES }, held),
+    );
     expect(seen[0].method).toBe("POST");
     expect(seen[0].path).toBe(`/v1/plans/by-token/${TOKEN}/link-account`);
-    expect(seen[0].headers.get("authorization")).toBe("Bearer sess_919000000042");
+    expect(seen[0].headers.get("authorization")).toBe(
+      "Bearer sess_919000000042",
+    );
     expect(seen[0].headers.get("x-yuvoy-plan-key")).toBe(KEY);
     expect(response.status).toBe(200);
     expect((await response.json()).me.linked).toBe(true);
@@ -77,21 +85,29 @@ describe("linking a reply", () => {
 
   it("keeps the key and the session alive once linked", async () => {
     watchApi(linked);
-    const response = await POST(guestRequest("link", { token: TOKEN, seriesId: SERIES }, held));
+    const response = await POST(
+      guestRequest("link", { token: TOKEN, seriesId: SERIES }, held),
+    );
     expect(response.cookies.get(KEY_COOKIE)?.value).toBe(KEY);
     expect(session.touched).toBe(1);
   });
 
   it("passes already_answered on as the API wrote it", async () => {
     watchApi(() => apiError(409, "conflict", { reason: "already_answered" }));
-    const response = await POST(guestRequest("link", { token: TOKEN, seriesId: SERIES }, held));
+    const response = await POST(
+      guestRequest("link", { token: TOKEN, seriesId: SERIES }, held),
+    );
     expect(response.status).toBe(409);
-    expect((await response.json()).error.details.reason).toBe("already_answered");
+    expect((await response.json()).error.details.reason).toBe(
+      "already_answered",
+    );
   });
 
   it("clears a session the API says is finished", async () => {
     watchApi(() => apiError(401, "unauthorized"));
-    const response = await POST(guestRequest("link", { token: TOKEN, seriesId: SERIES }, held));
+    const response = await POST(
+      guestRequest("link", { token: TOKEN, seriesId: SERIES }, held),
+    );
     expect(response.status).toBe(401);
     expect(session.cleared).toBe(1);
     expect(session.touched).toBe(0);

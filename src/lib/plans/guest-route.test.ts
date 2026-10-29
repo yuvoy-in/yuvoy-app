@@ -36,7 +36,9 @@ describe("takeGuestKey", () => {
   });
 
   it("still takes out a key of the wrong shape, and hands back none", () => {
-    const { result, guestKey } = takeGuestKey(answer(201, { id: "p", guestKey: "x" }));
+    const { result, guestKey } = takeGuestKey(
+      answer(201, { id: "p", guestKey: "x" }),
+    );
     expect(guestKey).toBeNull();
     expect(result.text).not.toContain("guestKey");
   });

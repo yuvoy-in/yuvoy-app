@@ -113,10 +113,14 @@ export function GuestPlan({
     effect that sends it sets no state of its own before the answer.
   */
   const arriving =
-    linkOnArrival && signedIn === true && first.me !== undefined && linkLine === null;
+    linkOnArrival &&
+    signedIn === true &&
+    first.me !== undefined &&
+    linkLine === null;
   const arrived = useRef(false);
   useEffect(() => {
-    if (!linkOnArrival || arrived.current || signedIn !== true || !first.me) return;
+    if (!linkOnArrival || arrived.current || signedIn !== true || !first.me)
+      return;
     arrived.current = true;
     void actions
       .link()
@@ -192,7 +196,8 @@ function linkLineFor(result: PlanActionResult, plan: PlanView): LinkLine {
   if (result.kind === "ok" || result.kind === "sent") {
     return { tone: "done", text: guestWords.linked };
   }
-  if (result.kind === "gone") return { tone: "problem", text: planWords.closed };
+  if (result.kind === "gone")
+    return { tone: "problem", text: planWords.closed };
   if (result.code === "unauthorized") {
     return { tone: "problem", text: guestWords.signInAgain };
   }

@@ -68,7 +68,10 @@ describe("the PostHog reporter", () => {
   it("sends nothing at all from the plan link page", async () => {
     sdk.capture.mockClear();
     sdk.init.mockClear();
-    const reporter = await createPostHogReporter("phc_test", "https://eu.i.posthog.com");
+    const reporter = await createPostHogReporter(
+      "phc_test",
+      "https://eu.i.posthog.com",
+    );
     const before = window.location.href;
     window.history.replaceState(null, "", "/p");
     try {

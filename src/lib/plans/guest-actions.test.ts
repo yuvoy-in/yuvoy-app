@@ -1,7 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { decidedPlanView, guestMe, openPlanView, PLAN_IDS } from "../../../mocks/plan-fixtures";
+import {
+  decidedPlanView,
+  guestMe,
+  openPlanView,
+  PLAN_IDS,
+} from "../../../mocks/plan-fixtures";
 import type { GuestAnswer, GuestBodies, GuestRoute } from "./guest-calls";
-import { guestActions, type GuestActionsInput, type SendGuest } from "./guest-actions";
+import {
+  guestActions,
+  type GuestActionsInput,
+  type SendGuest,
+} from "./guest-actions";
 import type { PlanView } from "./types";
 
 /**
@@ -13,19 +22,31 @@ import type { PlanView } from "./types";
  */
 
 const TOKEN = `yp_${"T".repeat(40)}a-_`;
-const REPLY = { answers: [{ optionId: PLAN_IDS.times[0], answer: "can" as const }], claims: [], paid: [] };
+const REPLY = {
+  answers: [{ optionId: PLAN_IDS.times[0], answer: "can" as const }],
+  claims: [],
+  paid: [],
+};
 
 type Sent = { route: GuestRoute; body: GuestBodies[GuestRoute] };
 
 function setup(
-  over: Partial<GuestActionsInput> & { answers?: GuestAnswer[]; throws?: boolean } = {},
+  over: Partial<GuestActionsInput> & {
+    answers?: GuestAnswer[];
+    throws?: boolean;
+  } = {},
 ) {
   const sent: Sent[] = [];
   const answers = [...(over.answers ?? [])];
   const send: SendGuest = async (route, body) => {
     sent.push({ route, body });
     if (over.throws) throw new TypeError("Failed to fetch");
-    return answers.shift() ?? { status: 200, body: openPlanView("member", guestMe()) };
+    return (
+      answers.shift() ?? {
+        status: 200,
+        body: openPlanView("member", guestMe()),
+      }
+    );
   };
   let plan: PlanView | null = over.current ? over.current() : openPlanView();
   let n = 0;
@@ -50,7 +71,9 @@ function setup(
 
 const conflict = (reason: string): GuestAnswer => ({
   status: 409,
-  body: { error: { code: "conflict", message: "Send again.", details: { reason } } },
+  body: {
+    error: { code: "conflict", message: "Send again.", details: { reason } },
+  },
 });
 
 describe("a first reply", () => {
@@ -78,7 +101,11 @@ describe("a first reply", () => {
   it("makes a new nonce after send again, for the next send", async () => {
     const { actions, sent } = setup({ answers: [conflict("nonce")] });
     const refused = await actions.reply(REPLY);
-    expect(refused).toMatchObject({ kind: "refused", code: "conflict", reason: "nonce" });
+    expect(refused).toMatchObject({
+      kind: "refused",
+      code: "conflict",
+      reason: "nonce",
+    });
     await actions.reply(REPLY);
     const nonces = sent.map((s) => (s.body as GuestBodies["reply"]).nonce);
     expect(nonces[1]).not.toBe(nonces[0]);
@@ -95,7 +122,9 @@ describe("a first reply", () => {
       message: "Use your first name, in letters only.",
     });
     expect(sent).toHaveLength(0);
-    expect(onNameRefused).toHaveBeenLastCalledWith("Use your first name, in letters only.");
+    expect(onNameRefused).toHaveBeenLastCalledWith(
+      "Use your first name, in letters only.",
+    );
   });
 
   it("puts the API's own name sentence under the box", async () => {
@@ -116,18 +145,28 @@ describe("a first reply", () => {
     });
     const result = await actions.reply(REPLY);
     expect(result).toMatchObject({ kind: "refused", reason: "name" });
-    expect(onNameRefused).toHaveBeenLastCalledWith("Use your first name, in letters only.");
+    expect(onNameRefused).toHaveBeenLastCalledWith(
+      "Use your first name, in letters only.",
+    );
   });
 
   it("lets a signed-in guest leave the name out: the API uses the profile's", async () => {
-    const { actions, sent } = setup({ firstName: () => "", signedIn: () => true });
+    const { actions, sent } = setup({
+      firstName: () => "",
+      signedIn: () => true,
+    });
     await actions.reply(REPLY);
     expect((sent[0].body as GuestBodies["reply"]).reply).toEqual(REPLY);
   });
 
   it("hands the answered plan to the page, and no key with it", async () => {
-    const answered = { ...openPlanView("member", guestMe()), guestKey: `ypk_${"K".repeat(43)}` };
-    const { actions, onPlan } = setup({ answers: [{ status: 201, body: answered }] });
+    const answered = {
+      ...openPlanView("member", guestMe()),
+      guestKey: `ypk_${"K".repeat(43)}`,
+    };
+    const { actions, onPlan } = setup({
+      answers: [{ status: 201, body: answered }],
+    });
     const result = await actions.reply(REPLY);
     expect(result.kind).toBe("ok");
     expect(onPlan).toHaveBeenCalledTimes(1);
@@ -142,13 +181,19 @@ describe("a later reply", () => {
       firstName: () => "",
     });
     await actions.reply(REPLY);
-    expect(sent[0].body).toEqual({ token: TOKEN, seriesId: PLAN_IDS.series, reply: REPLY });
+    expect(sent[0].body).toEqual({
+      token: TOKEN,
+      seriesId: PLAN_IDS.series,
+      reply: REPLY,
+    });
   });
 });
 
 describe("the other actions", () => {
   it("removes the reply, and a 204 is gone", async () => {
-    const { actions, sent } = setup({ answers: [{ status: 204, body: undefined }] });
+    const { actions, sent } = setup({
+      answers: [{ status: 204, body: undefined }],
+    });
     expect(await actions.leave()).toEqual({ kind: "gone" });
     expect(sent[0]).toEqual({
       route: "leave",
@@ -167,7 +212,9 @@ describe("the other actions", () => {
 
   it("links the reply to the account", async () => {
     const linked = openPlanView("member", guestMe("Ravi", { linked: true }));
-    const { actions, sent, onPlan } = setup({ answers: [{ status: 200, body: linked }] });
+    const { actions, sent, onPlan } = setup({
+      answers: [{ status: 200, body: linked }],
+    });
     expect((await actions.link()).kind).toBe("ok");
     expect(sent[0].route).toBe("link");
     expect(onPlan).toHaveBeenCalledWith(linked);
