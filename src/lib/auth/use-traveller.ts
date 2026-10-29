@@ -155,6 +155,14 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getInvitedTrip"] });
     // A staff number's places are its own, never the next person's.
     qc.removeQueries({ queryKey: ["listPlaces"] });
+    /*
+      And what it found there. The feed and card keys carry no session, and
+      while a release is open to staff only, a staff-only place's cards are
+      somebody's private view: dropped, so the next person reads them again
+      as themselves (a 404 while the place is closed to them).
+    */
+    qc.removeQueries({ queryKey: ["listEvents"] });
+    qc.removeQueries({ queryKey: ["getEvent"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -226,8 +234,11 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     qc.removeQueries({ queryKey: ["getInvitedTrip"] });
-    // A staff number's places are its own, never the next person's.
+    // A staff number's places are its own, never the next person's, and so
+    // is what it found there: see `refresh`.
     qc.removeQueries({ queryKey: ["listPlaces"] });
+    qc.removeQueries({ queryKey: ["listEvents"] });
+    qc.removeQueries({ queryKey: ["getEvent"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
