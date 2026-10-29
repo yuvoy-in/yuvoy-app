@@ -1671,7 +1671,9 @@ for (const f of files) {
  * And "the email on your latest booking" goes (yuvoy-api#303): a booking's
  * email gets no code since the address typed at a guest checkout stopped
  * counting, so a screen that says so has a guest wait for a code that never
- * comes. Comments may tell that history; shown copy may not.
+ * comes. Comments may tell that history; shown copy may not. Only an email
+ * on a latest booking counts: a share link's "Latest booking 9 Aug"
+ * (yuvoy-app#207) is a date, not where a code goes.
  *
  * Lift the WhatsApp half when the API sends codes by WhatsApp and its
  * sentence says so. The other two halves stay.
@@ -1703,7 +1705,7 @@ for (const f of files) {
         `("Check your email") or what it is ("Sign-in code") instead.`,
     );
   }
-  if (/\b(latest|newest)\s+booking\b/i.test(s)) {
+  if (/\bemail\b[^"'`\n]{0,40}\b(latest|newest)\s+booking\b/i.test(s)) {
     problems.push(
       `${rel(f)}: says a code goes to a booking's email. Since ` +
         `yuvoy-api#303 a code goes only to an email given while signed in, ` +
