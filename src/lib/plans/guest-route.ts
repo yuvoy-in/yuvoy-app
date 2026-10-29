@@ -114,12 +114,6 @@ export function guestRoute(
   where: string,
   handler: (call: GuestCall) => Promise<NextResponse>,
 ): (request: Request) => Promise<NextResponse> {
-  return async (request) => {
-    const response = foreignCall(request) ?? (await serve(request));
-    response.headers.set("Cache-Control", "private, no-store");
-    return response;
-  };
-
   async function serve(request: Request): Promise<NextResponse> {
     const call = await readCall(request);
     if (call instanceof NextResponse) return call;
@@ -147,6 +141,12 @@ export function guestRoute(
     }
     return response;
   }
+
+  return async (request) => {
+    const response = foreignCall(request) ?? (await serve(request));
+    response.headers.set("Cache-Control", "private, no-store");
+    return response;
+  };
 }
 
 /** 403 for anything this site's own page did not send. See the header. */
