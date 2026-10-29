@@ -1324,7 +1324,7 @@ const routes = [
    *     destination is not used to widen it.
    *   - `ISLAND…`   — a card printed for a place. No specific target, so the
    *     destination opens Search on that place.
-   *   - `C-…`       — a traveller's own link (R12-T2): `kind: creator`, to a
+   *   - `C-…`: a traveller's own link (R12-T2), `kind: creator`, to a
    *     listing.
    *   - anything else — unknown or market-wide. **No `destinationKey` at
    *     all**, which is the contract's shape for both: absent means "no
