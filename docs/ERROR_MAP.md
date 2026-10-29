@@ -145,6 +145,16 @@ because the API's gate and this app's are two switches and the API's can be turn
 | `invite_code_used`    | One code admits one person, once. Ask for another.                                                       |
 | `invite_code_expired` | Past its expiry. Ask for a new one.                                                                      |
 
+## Join a table
+
+The two codes the table page at `/tables/{id}` meets (yuvoy-app#194). The other four table codes
+belong to asking to join, which this app does not call yet.
+
+| Code                 | Treatment                                                                                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tables_unavailable` | 503 on every table route but the report: tables are paused, not broken. The page draws its own paused state with Try again and Report a problem. Not a deliberate stop: one read is all a retry costs, and the API client does not replay it. |
+| `table_closed`       | 409 from withdraw: the table has started, or it was cancelled. The page says the seat cannot be given back here and to write to us, then reads the table again. No retry.                                                                     |
+
 ## Reviewing a trip
 
 `POST /bookings/review` answered `conflict` for all three of these until **2026-09-13**, when the

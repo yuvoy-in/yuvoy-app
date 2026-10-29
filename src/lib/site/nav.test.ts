@@ -18,6 +18,8 @@ describe("focused routes", () => {
     ["/trips/recover", true],
     // An invited trip has a Back to Trips, so no bar floating over Decline.
     ["/trips/invited/inv_123", true],
+    // One table has a Back to the feed on every branch (yuvoy-app#194).
+    ["/tables/7d3f9a2e-4c1b-4e8a-9f60-2b5d8c1e7a40", true],
     ["/guides/diving-in-havelock", true],
     ["/offline", true],
     ["/", false],

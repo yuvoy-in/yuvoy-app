@@ -16,6 +16,7 @@ import {
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
+import { tableHandlers } from "./table-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -122,7 +123,23 @@ export type Scenario =
   | "explore-staff"
   /* `POST /outcomes` answering 503 (keep the batch) or 429 (slow down). */
   | "outcomes-down"
-  | "outcomes-slow-down";
+  | "outcomes-slow-down"
+  /*
+    One table at `/tables/{id}` (yuvoy-app#194), each a state of the same
+    fixture id (`table-handlers.ts`). `table-requested` is the default read;
+    `table-started` answers withdraw with `409 table_closed`, and
+    `table-report-too-fast` answers the report with a 429.
+  */
+  | "table-requested"
+  | "table-approved"
+  | "table-women-only-requested"
+  | "table-declined"
+  | "table-cancelled"
+  | "table-ended"
+  | "tables-paused"
+  | "table-missing"
+  | "table-started"
+  | "table-report-too-fast";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -1241,4 +1258,5 @@ export const handlers = [
 
   ...bookingHandlers,
   ...savedHandlers,
+  ...tableHandlers,
 ];

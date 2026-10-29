@@ -70,6 +70,8 @@ export const PRIVATE_ROUTES = [
   */
   "/i/",
   "/trips/invited/",
+  // One table (yuvoy-app#194): signed in only, keyed by the reader's session.
+  "/tables/",
   // Checkout. A URL with a `?slot=` on it, holding an idempotency key.
   // Wildcards are matched by every crawler that matters, and the page carries
   // `privateRobotsMeta` for the ones that ignore robots.txt entirely.
