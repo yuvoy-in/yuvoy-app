@@ -31,8 +31,8 @@
 // No backslash and no control character anywhere: a browser reads `\` as
 // `/`, so `https://evil.test\@trusted.in/` would read as trusted.in here and
 // open evil.test.
-// eslint-disable-next-line no-control-regex
-const HTTP_URL = /^(https?):\/\/([^/?#\s\\\x00-\x1f]+)([/?#][^\s\\\x00-\x1f]*)?$/i;
+const HTTP_URL =
+  /^(https?):\/\/([^/?#\s\\\x00-\x1f]+)([/?#][^\s\\\x00-\x1f]*)?$/i;
 
 /**
  * A link a card may open, returned exactly as stored, or null.
