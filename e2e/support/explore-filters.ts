@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   CHECKED_NOW,
@@ -13,78 +13,64 @@ import {
  *
  * ## The words
  *
- * Copied from the issue, the R3 copy table (still waiting for the owner's
- * approval). Every name either spec finds a control or a line by is in `UI`
- * below, so a change of words is one edit here.
+ * Copied from `src/lib/found/found-words.ts` (the R3 copy table, still
+ * waiting for the owner's approval), since no spec imports app code. Every
+ * name either spec finds a control or a line by is in `UI` below, so a change
+ * of words is one edit here.
  *
  * ## What was asked
  *
- * Page one is fetched by the server render, which the browser never sees,
- * and a later page or a refetch by the browser, through the proxy when signed
- * in. So "the page asked for X" is either a request the browser made to
- * `/v1/events` or `/api/v1/events`, or the address the server rendered from,
- * and `expectAsked` accepts both. What the mock then answered (a chip gone,
- * a card in or out) is asserted beside it, which only the server reading the
- * same parameter can explain.
+ * Page one is the server render's. Every change after it (a chip, the sheet,
+ * a search, a removed chip) is written into the address in place, with
+ * `replaceState`, and read by the browser, through the proxy while signed
+ * in. So `expectAsked` watches the browser's requests to `/v1/events` or
+ * `/api/v1/events`, and `expectAddress` polls the address. What the mock then
+ * answered (a chip gone, a card in or out) is asserted beside it.
  */
 
 /* ------------------------------------------------------------- the words */
 
-/** Every name and line the specs look for. Adjust here if the app's words differ. */
+/** Every name and line the specs look for (`found-words.ts`). */
 export const UI = {
   chipGroup: "Filter by day and price",
   today: "Today",
   tomorrow: "Tomorrow",
   weekend: "This weekend",
   free: "Free",
-  /** The search field's role: a `type="search"` input is a searchbox. */
-  searchRole: "searchbox" as const,
   search: (place: string) => `Search ${place}`,
   clearSearch: "Clear search",
   showing: "Showing",
   remove: (label: string) => `Remove ${label}`,
   searchIn: (place: string) => `Search in ${place}`,
-  filters: "Filters",
-  /** The sheet, as a dialog named by its title. */
+  /** "Filters", or "Filters, 2 on" once rows of the sheet narrow. */
+  filters: /^Filters/,
+  filtersOn: (on: number) => (on > 0 ? `Filters, ${on} on` : "Filters"),
   filterSheet: "Filters",
-  /** The sheet's rows, as the report sheet's: a group of radios. */
-  groupRole: "group" as const,
-  optionRole: "radio" as const,
   budget: "Budget",
   timeOfDay: "Time of day",
   under500: "Under ₹500",
   morning: "Morning",
+  afternoon: "Afternoon",
   clearFilters: "Clear filters",
+  showResults: "Show results",
   showEverything: "Show everything",
-  /** The weekend's heading, from the answer's `window`. */
+  /** The window's heading, from the answer's `window`. */
+  dayHeading: (day: string, on: string) => `${day} · ${on}`,
   weekendHeading: (from: string, to: string) =>
     `This weekend · ${from} to ${to}`,
   emptyDay: (day: string, place: string) =>
     `Nothing checked for ${day} in ${place} yet.`,
   emptyFree: (place: string) => `Nothing free in ${place} right now.`,
-  /** Straight or curly quotes around the words. */
+  emptyFilters: (place: string) => `Nothing matches those filters in ${place}.`,
   emptySearch: (place: string, q: string) =>
-    new RegExp(`^Nothing in ${place} matches [“"]${q}[”"]\\.$`),
+    `Nothing in ${place} matches “${q}”.`,
   comingUp: "Coming up",
   thinLine:
     "Not much this weekend yet. Here's what's coming up in the next two weeks.",
   askLine: "Looking for something specific? Ask the Yuvoy team.",
-  askLink: /Ask the Yuvoy team/,
-  /** Straight or curly apostrophe. */
-  freeFootnote: /^Free means the organiser says there.s no ticket price\.$/,
+  askLink: "Ask the Yuvoy team.",
+  freeFootnote: "Free means the organiser says there's no ticket price.",
 };
-
-/** The URL state the chips keep (`?when=&free=1&q=`), read on the server. */
-export const URL_STATE = { when: "when", free: "free", q: "q" };
-
-/**
- * Closes the filter sheet once its choices are made. The issue names no
- * button for it, so Escape, which every sheet here answers.
- */
-export async function closeFilters(page: Page) {
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: UI.filterSheet })).toBeHidden();
-}
 
 /* ------------------------------------------------------------- helpers */
 
@@ -124,7 +110,27 @@ export async function signIn(page: Page) {
 export const feedOf = (key: string, scenario: string, extra = "") =>
   `/?place=${key}${extra}&__scenario=${scenario}`;
 
-export const cards = (page: Page) => page.locator('[role="feed"] article');
+/**
+ * Opens a place's found feed and waits until React has claimed the search
+ * field. Before then a chip press does nothing and Enter in the field is the
+ * form's own GET, which keeps no `__scenario` and so leaves the mocked world.
+ */
+export async function openFeed(
+  page: Page,
+  key: string,
+  scenario: string,
+  extra = "",
+) {
+  await page.goto(feedOf(key, scenario, extra));
+  await page.waitForFunction(() => {
+    const box = document.querySelector('[role="search"] input[type="search"]');
+    return !!box && Object.keys(box).some((k) => k.startsWith("__reactProps$"));
+  });
+}
+
+/** The place's own list: the first feed, never a thin weekend's Coming up. */
+export const cards = (page: Page) =>
+  page.locator('[role="feed"]').first().locator("article");
 
 export const card = (page: Page, title: string) =>
   page.getByRole("article", { name: title, exact: true });
@@ -138,19 +144,83 @@ export const heading = (page: Page, place: string) =>
 
 export const chip = (page: Page, name: string) =>
   page
-    .getByRole("group", { name: UI.chipGroup })
+    .getByRole("group", { name: UI.chipGroup, exact: true })
     .getByRole("button", { name, exact: true });
 
 export const searchBox = (page: Page, place: string) =>
-  page.getByRole(UI.searchRole, { name: UI.search(place), exact: true });
+  page
+    .getByRole("search")
+    .getByRole("searchbox", { name: UI.search(place), exact: true });
 
 export const filtersButton = (page: Page) =>
-  page.getByRole("button", { name: UI.filters, exact: true });
+  page.getByRole("button", { name: UI.filters });
+
+export const filterSheet = (page: Page) =>
+  page.getByRole("dialog", { name: UI.filterSheet, exact: true });
+
+/**
+ * A choice in one of the sheet's rows: a radio (`aria-checked`) in a group
+ * named by the row. A second tap on the checked one clears the row.
+ */
+export const option = (page: Page, row: string, name: string) =>
+  filterSheet(page)
+    .getByRole("group", { name: row, exact: true })
+    .getByRole("radio", { name, exact: true });
+
+/** Taps a choice in the sheet; it shows as checked in the draft. */
+export async function pick(page: Page, row: string, name: string) {
+  await option(page, row, name).click();
+  await expect(option(page, row, name)).toBeChecked();
+}
+
+/** Show results: the sheet's choices apply then, and never on Escape. */
+export async function applyFilters(page: Page) {
+  await filterSheet(page)
+    .getByRole("button", { name: UI.showResults, exact: true })
+    .click();
+  await expect(filterSheet(page)).toBeHidden();
+}
+
+/** The row of what a search was taken to mean (`found-understood`). */
+export const understood = (page: Page) =>
+  page.getByRole("group", { name: UI.showing, exact: true });
+
+export const removeChip = (page: Page, label: string) =>
+  understood(page).getByRole("button", {
+    name: UI.remove(label),
+    exact: true,
+  });
+
+/** The heading over a chosen day's cards (`found-window`). */
+export const windowHeading = (page: Page) => page.getByTestId("found-window");
+
+/** An empty state, found by its line, holding its own way back. */
+export const emptyState = (page: Page, line: string): Locator =>
+  page.getByText(line, { exact: true }).locator("xpath=..");
+
+/** A thin weekend's Coming up list. */
+export const comingUp = (page: Page) =>
+  page
+    .getByTestId("found-coming-up")
+    .getByRole("feed", { name: UI.comingUp, exact: true });
 
 /** The feed shows exactly these cards, in any order. */
 export async function expectCards(page: Page, titles: string[]) {
   await expect(cards(page)).toHaveCount(titles.length);
-  for (const title of titles) await expect(card(page, title)).toBeVisible();
+  for (const title of titles) {
+    await expect(cards(page).and(card(page, title))).toBeVisible();
+  }
+}
+
+/** The address says what `want` says; written in place, so polled. */
+export async function expectAddress(
+  page: Page,
+  want: (p: URLSearchParams) => boolean,
+  message: string,
+) {
+  await expect
+    .poll(() => want(new URL(page.url()).searchParams), { message })
+    .toBe(true);
 }
 
 /** Every `GET /events` list request the browser makes, from now on. */
@@ -165,26 +235,26 @@ export function eventsAsked(page: Page): URLSearchParams[] {
   return asked;
 }
 
-/** The page asked for what `want` says: from the browser, or by its own address. */
+/** The browser asked `GET /events` for what `want` says, from request `from` on. */
 export async function expectAsked(
-  page: Page,
   asked: URLSearchParams[],
   want: (p: URLSearchParams) => boolean,
   message: string,
+  from = 0,
 ) {
-  await expect
-    .poll(() => asked.some(want) || want(new URL(page.url()).searchParams), {
-      message,
-    })
-    .toBe(true);
+  await expect.poll(() => asked.slice(from).some(want), { message }).toBe(true);
 }
 
-/** Searches the place from its own field. */
+/** Searches the place from its own field, sent with Enter. */
 export async function search(page: Page, place: string, q: string) {
   const box = searchBox(page, place);
   await box.fill(q);
   await box.press("Enter");
-  await page.waitForURL((u) => u.searchParams.get(URL_STATE.q) === q);
+  await expectAddress(
+    page,
+    (p) => p.get("q") === q && p.has("__scenario"),
+    `q=${q} never reached the address, or the scenario was lost`,
+  );
 }
 
 /** The whole week, as `checked-staff` answers Bengaluru with nothing chosen. */

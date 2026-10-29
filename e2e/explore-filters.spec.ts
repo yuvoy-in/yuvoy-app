@@ -3,15 +3,22 @@ import { BENGALURU, COORG } from "../mocks/found-fixtures";
 import { CHECKED_TITLES as T } from "../mocks/found-checked-fixtures";
 import {
   UI,
-  URL_STATE,
   expectAccessible,
   feedOf,
+  openFeed,
+  cards,
   card,
   heading,
   chip,
   searchBox,
   filtersButton,
+  understood,
+  removeChip,
+  windowHeading,
+  emptyState,
+  comingUp,
   expectCards,
+  expectAddress,
   eventsAsked,
   expectAsked,
   search,
@@ -37,14 +44,19 @@ import {
  * ## The clock
  *
  * Under those scenarios the found routes stand at Friday 21 August 2026,
- * 17:30 in Kolkata (`CHECKED_NOW`), and the browser is put on the same
- * instant, so whatever the page counts on the device agrees with the API.
- * The cards and what each is for are in `mocks/found-checked-fixtures.ts`.
+ * 17:30 in Kolkata (`CHECKED_NOW`), and say so in their `Date` header, and
+ * the browser is put on the same instant, so whatever the page counts on the
+ * device agrees with the API. The cards and what each is for are in
+ * `mocks/found-checked-fixtures.ts`.
  */
 
 test.beforeEach(async ({ page }) => {
   await openSignedIn(page);
 });
+
+/** True when the address or a request carries none of the sheet's rows. */
+const noFilters = (p: URLSearchParams) =>
+  ["when", "free", "budget", "timeOfDay"].every((key) => !p.has(key));
 
 /* ---------------------------------------------------------------- case 1 */
 
@@ -68,10 +80,11 @@ test("with checkedCities off, there are no chips, search or Filters, and the fee
       0,
     );
     await expect(
-      page.getByRole(UI.searchRole, { name: UI.search("Bengaluru") }),
+      page.getByRole("searchbox", { name: UI.search("Bengaluru") }),
     ).toHaveCount(0);
     await expect(filtersButton(page)).toHaveCount(0);
-    await expect(page.getByText(UI.showing, { exact: true })).toHaveCount(0);
+    await expect(understood(page)).toHaveCount(0);
+    await expect(windowHeading(page)).toHaveCount(0);
   }
   await expectAccessible(page);
 });
@@ -81,26 +94,41 @@ test("with checkedCities off, there are no chips, search or Filters, and the fee
 test("one day chip at a time, Free beside it, and the address keeps both", async ({
   page,
 }) => {
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff");
   await expectCards(page, WHOLE_WEEK);
   for (const name of [UI.today, UI.tomorrow, UI.weekend, UI.free]) {
     await expect(chip(page, name)).toHaveAttribute("aria-pressed", "false");
   }
-  await expect(filtersButton(page)).toBeVisible();
+  // Filters is outside the group, a button that opens a dialog.
+  await expect(filtersButton(page)).toHaveAccessibleName(UI.filtersOn(0));
+  await expect(filtersButton(page)).toHaveAttribute("aria-haspopup", "dialog");
   await expect(searchBox(page, "Bengaluru")).toBeVisible();
+  await expect(windowHeading(page)).toHaveCount(0);
   await expectAccessible(page);
 
   await chip(page, UI.today).click();
   await expect(chip(page, UI.today)).toHaveAttribute("aria-pressed", "true");
-  await page.waitForURL((u) => u.searchParams.get(URL_STATE.when) === "today");
+  await expectAddress(
+    page,
+    (p) => p.get("when") === "today",
+    "Today never reached the address",
+  );
+  await expect(windowHeading(page)).toHaveText(
+    UI.dayHeading(UI.today, "Fri, 21 Aug"),
+  );
   await expectCards(page, [T.fair, T.pottery, T.jazz]);
 
   // Tomorrow replaces Today: one day at a time.
   await chip(page, UI.tomorrow).click();
   await expect(chip(page, UI.tomorrow)).toHaveAttribute("aria-pressed", "true");
   await expect(chip(page, UI.today)).toHaveAttribute("aria-pressed", "false");
-  await page.waitForURL(
-    (u) => u.searchParams.get(URL_STATE.when) === "tomorrow",
+  await expectAddress(
+    page,
+    (p) => p.get("when") === "tomorrow",
+    "Tomorrow never replaced Today in the address",
+  );
+  await expect(windowHeading(page)).toHaveText(
+    UI.dayHeading(UI.tomorrow, "Sat, 22 Aug"),
   );
   await expectCards(page, [T.fair, T.tryDive, T.flea, T.yoga]);
 
@@ -108,12 +136,14 @@ test("one day chip at a time, Free beside it, and the address keeps both", async
   await chip(page, UI.free).click();
   await expect(chip(page, UI.free)).toHaveAttribute("aria-pressed", "true");
   await expect(chip(page, UI.tomorrow)).toHaveAttribute("aria-pressed", "true");
-  await page.waitForURL(
-    (u) =>
-      u.searchParams.get(URL_STATE.when) === "tomorrow" &&
-      u.searchParams.get(URL_STATE.free) === "1",
+  await expectAddress(
+    page,
+    (p) => p.get("when") === "tomorrow" && p.get("free") === "1",
+    "Free never joined the day in the address",
   );
   await expectCards(page, [T.yoga]);
+  // Free is the chip's to say, so Filters counts nothing.
+  await expect(filtersButton(page)).toHaveAccessibleName(UI.filtersOn(0));
   await expectAccessible(page);
 
   // A reload is read on the server from the address alone.
@@ -129,19 +159,19 @@ test("one day chip at a time, Free beside it, and the address keeps both", async
 test("This weekend on a Friday at 17:30 is Friday 17:00 to Sunday, and the heading says the window", async ({
   page,
 }) => {
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff");
   await chip(page, UI.weekend).click();
-  await page.waitForURL(
-    (u) => u.searchParams.get(URL_STATE.when) === "weekend",
+  await expectAddress(
+    page,
+    (p) => p.get("when") === "weekend",
+    "This weekend never reached the address",
   );
 
   // The API's window, Friday 21 to Sunday 23 August; the page computes none.
-  await expect(
-    page.getByRole("heading", {
-      name: UI.weekendHeading("Fri, 21 Aug", "Sun, 23 Aug"),
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(windowHeading(page)).toHaveText(
+    UI.weekendHeading("Fri, 21 Aug", "Sun, 23 Aug"),
+  );
+  await expect(windowHeading(page)).toHaveRole("heading");
   // The fair runs Thursday to Saturday; the jazz starts Friday at 18:00.
   await expectCards(page, [
     T.fair,
@@ -156,9 +186,7 @@ test("This weekend on a Friday at 17:30 is Friday 17:00 to Sunday, and the headi
   await expect(card(page, T.pottery)).toHaveCount(0);
   await expect(card(page, T.comedy)).toHaveCount(0);
   // Seven cards is not thin.
-  await expect(
-    page.getByRole("heading", { name: UI.comingUp, exact: true }),
-  ).toHaveCount(0);
+  await expect(page.getByTestId("found-coming-up")).toHaveCount(0);
   await expectAccessible(page);
 });
 
@@ -168,28 +196,56 @@ test("a thin weekend adds Coming up from the next two weeks, and the ask-the-tea
   page,
 }) => {
   // `found-weekend-thin`: This weekend answers one card, complete.
-  await page.goto(feedOf(BENGALURU, "found-weekend-thin"));
+  await openFeed(page, BENGALURU, "found-weekend-thin");
   await chip(page, UI.weekend).click();
-  await expect(card(page, T.fair)).toBeVisible();
+  await expectCards(page, [T.fair]);
 
+  const thin = page.getByTestId("found-coming-up");
   await expect(
-    page.getByRole("heading", { name: UI.comingUp, exact: true }),
+    thin.getByRole("heading", { level: 2, name: UI.comingUp, exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(UI.thinLine, { exact: true })).toBeVisible();
-  await expect(page.getByText(UI.askLine)).toBeVisible();
-  await expect(page.getByRole("link", { name: UI.askLink })).toHaveAttribute(
-    "href",
-    /^\/help(\?|$)/,
-  );
+  await expect(thin.getByText(UI.thinLine, { exact: true })).toBeVisible();
+  await expect(thin.getByText(UI.askLine, { exact: true })).toBeVisible();
+  await expect(
+    thin.getByRole("link", { name: UI.askLink, exact: true }),
+  ).toHaveAttribute("href", /^\/help(\?|$)/);
 
-  // From the plain feed: starting in the next 14 days, and not shown already.
-  for (const title of [T.jazz, T.comedy, T.heritage, T.birds]) {
-    await expect(card(page, title)).toBeVisible();
+  /*
+    The plain feed with the day dropped, from the API's today (Friday 21) to
+    13 days on, less what is on screen: the fair started on Thursday and is
+    shown already, and Monday 7 September is 17 days on.
+  */
+  await expect(comingUp(page).locator("article")).toHaveCount(10);
+  for (const title of [T.pottery, T.jazz, T.comedy, T.heritage, T.birds]) {
+    await expect(
+      comingUp(page).getByRole("article", { name: title, exact: true }),
+    ).toBeVisible();
   }
   await expect(card(page, T.fair)).toHaveCount(1);
-  // Monday 7 September is 17 days on.
   await expect(card(page, T.craft)).toHaveCount(0);
   await expectAccessible(page);
+});
+
+test("Coming up keeps the other choices: a thin free weekend comes up free", async ({
+  page,
+}) => {
+  const asked = eventsAsked(page);
+  await openFeed(page, BENGALURU, "found-weekend-thin", "&when=weekend&free=1");
+  await expect(cards(page)).toHaveCount(1);
+  await expect(comingUp(page)).toBeVisible();
+  await expectAsked(
+    asked,
+    (p) => !p.has("when") && p.get("free") === "true",
+    "Coming up was not asked with Free and without the day",
+  );
+  /*
+    Free in the next two weeks is the yoga, the dive club and the bird walk;
+    one of the first two is the weekend's card already, so two come up.
+  */
+  await expect(comingUp(page).locator("article")).toHaveCount(2);
+  await expect(
+    comingUp(page).getByRole("article", { name: T.birds, exact: true }),
+  ).toBeVisible();
 });
 
 /* ---------------------------------------------------------------- case 5 */
@@ -197,36 +253,36 @@ test("a thin weekend adds Coming up from the next two weeks, and the ask-the-tea
 test("dive saturday shows Adventure and Saturday; removing Saturday searches it as text", async ({
   page,
 }) => {
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff");
   const asked = eventsAsked(page);
   await search(page, "Bengaluru", "dive saturday");
 
-  await expect(page.getByText(UI.showing, { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: UI.remove("Adventure"), exact: true }),
-  ).toBeVisible();
-  const saturday = page.getByRole("button", {
-    name: UI.remove("Saturday"),
-    exact: true,
-  });
-  await expect(saturday).toBeVisible();
+  await expect(understood(page)).toBeVisible();
+  await expect(understood(page)).toHaveAttribute(
+    "data-testid",
+    "found-understood",
+  );
+  await expect(removeChip(page, "Adventure")).toBeVisible();
+  await expect(removeChip(page, "Saturday")).toBeVisible();
   // Adventure on Saturday 22 August, with "dive" in it.
   await expectCards(page, [T.tryDive]);
   await expectAccessible(page);
 
-  await saturday.click();
+  await removeChip(page, "Saturday").click();
   await expectAsked(
-    page,
     asked,
     (p) =>
-      p.get(URL_STATE.q) === "dive saturday" &&
-      p.getAll("asText").includes("saturday"),
+      p.get("q") === "dive saturday" && p.getAll("asText").includes("saturday"),
     "removing Saturday never sent asText=saturday with the same q",
   );
-  await expect(saturday).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: UI.remove("Adventure"), exact: true }),
-  ).toBeVisible();
+  await expectAddress(
+    page,
+    (p) =>
+      p.get("q") === "dive saturday" && p.getAll("asText").includes("saturday"),
+    "removing Saturday never kept q and added asText in the address",
+  );
+  await expect(removeChip(page, "Saturday")).toHaveCount(0);
+  await expect(removeChip(page, "Adventure")).toBeVisible();
   /*
     "saturday" as plain words finds the Saturday Dive Club, which meets on
     Sunday, and no longer finds the try-dive, which is on Saturday. Only the
@@ -234,6 +290,45 @@ test("dive saturday shows Adventure and Saturday; removing Saturday searches it 
   */
   await expectCards(page, [T.diveClub]);
   await expectAccessible(page);
+
+  // A new search is new words: none is kept as plain text.
+  await search(page, "Bengaluru", "dive club");
+  await expectAddress(
+    page,
+    (p) => p.get("q") === "dive club" && !p.has("asText"),
+    "a new search kept the old asText",
+  );
+});
+
+test("a search needs two characters, and Clear search shows only with words", async ({
+  page,
+}) => {
+  await openFeed(page, BENGALURU, "checked-staff");
+  const box = searchBox(page, "Bengaluru");
+  const clear = page
+    .getByRole("search")
+    .getByRole("button", { name: UI.clearSearch, exact: true });
+  await expect(
+    page
+      .getByRole("search")
+      .getByRole("button", { name: "Search", exact: true }),
+  ).toBeVisible();
+  await expect(clear).toHaveCount(0);
+
+  const asked = eventsAsked(page);
+  await box.fill("d");
+  await expect(clear).toBeVisible();
+  await box.press("Enter");
+  await expectCards(page, WHOLE_WEEK);
+  expect(
+    asked.filter((p) => p.has("q")),
+    "one character was sent as a search",
+  ).toEqual([]);
+
+  await clear.click();
+  await expect(box).toHaveValue("");
+  await expect(box).toBeFocused();
+  await expect(clear).toHaveCount(0);
 });
 
 /* ---------------------------------------------------------------- case 6 */
@@ -241,28 +336,38 @@ test("dive saturday shows Adventure and Saturday; removing Saturday searches it 
 test("a search naming another place offers Search in that place", async ({
   page,
 }) => {
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff", "&budget=under_500");
   await search(page, "Bengaluru", "rafting in coorg");
 
   // Nothing in Bengaluru is rafting, and Coorg is a link, never a filter.
+  const line = UI.emptySearch("Bengaluru", "rafting in coorg");
+  await expect(page.getByText(line, { exact: true })).toBeVisible();
   await expect(
-    page.getByText(UI.emptySearch("Bengaluru", "rafting in coorg")),
+    emptyState(page, line).getByRole("button", {
+      name: UI.clearSearch,
+      exact: true,
+    }),
   ).toBeVisible();
-  const searchIn = page.getByRole("link", {
+  const searchIn = understood(page).getByRole("link", {
     name: UI.searchIn("Coorg"),
     exact: true,
   });
   await expect(searchIn).toBeVisible();
-  await expect(searchIn).toHaveAttribute(
-    "href",
-    /place=karnataka(%2F|\/)coorg/,
-  );
-  await expect(
-    page.getByRole("button", { name: UI.remove("Coorg"), exact: true }),
-  ).toHaveCount(0);
+  await expect(removeChip(page, "Coorg")).toHaveCount(0);
   await expectAccessible(page);
 
-  await searchIn.click();
-  await page.waitForURL((u) => u.searchParams.get("place") === COORG);
+  // The place and the words, and none of this place's filters.
+  const href = (await searchIn.getAttribute("href")) ?? "";
+  const target = new URL(href, page.url()).searchParams;
+  expect(target.get("place")).toBe(COORG);
+  expect(target.get("q")).toBe("rafting in coorg");
+  expect(noFilters(target), `${href} carried a filter`).toBe(true);
+
+  /*
+    The link keeps no `__scenario`, as no page link in a real build would, so
+    the mocked world is added by hand rather than followed with a click.
+  */
+  await page.goto(`${href}&__scenario=checked-staff`);
   await expect(heading(page, "Coorg")).toBeVisible();
+  await expect(card(page, "White water rafting on the Barapole")).toBeVisible();
 });

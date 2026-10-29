@@ -6,15 +6,21 @@ import {
 } from "../mocks/found-checked-fixtures";
 import {
   UI,
-  closeFilters,
   expectAccessible,
-  feedOf,
+  openFeed,
   cards,
   card,
   chip,
   searchBox,
   filtersButton,
+  filterSheet,
+  option,
+  pick,
+  applyFilters,
+  removeChip,
+  emptyState,
   expectCards,
+  expectAddress,
   eventsAsked,
   expectAsked,
   search,
@@ -34,40 +40,61 @@ test.beforeEach(async ({ page }) => {
   await openSignedIn(page);
 });
 
+/** Every choice in the sheet, Budget's and Time of day's. */
+const CHOICES: [string, string][] = [
+  [UI.budget, "Free"],
+  [UI.budget, UI.under500],
+  [UI.budget, "Under ₹1,500"],
+  [UI.budget, "Any"],
+  [UI.timeOfDay, UI.morning],
+  [UI.timeOfDay, UI.afternoon],
+  [UI.timeOfDay, "Evening"],
+];
+
+async function expectNoneChosen(page: Parameters<typeof option>[0]) {
+  for (const [row, name] of CHOICES) {
+    await expect(option(page, row, name)).not.toBeChecked();
+  }
+}
+
 /* ---------------------------------------------------------------- case 7 */
 
-test("Budget and Time of day narrow; no stated price is never under ₹500, and a date-only item is never Morning", async ({
+test("Budget and Time of day narrow on Show results; no stated price is never under ₹500, and a date-only item is never Morning", async ({
   page,
 }) => {
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff");
   const asked = eventsAsked(page);
 
   await filtersButton(page).click();
-  const sheet = page.getByRole("dialog", { name: UI.filterSheet });
-  await expect(sheet).toBeVisible();
-  await expect(
-    sheet.getByRole(UI.groupRole, { name: UI.budget }),
-  ).toBeVisible();
-  await expect(
-    sheet.getByRole(UI.groupRole, { name: UI.timeOfDay }),
-  ).toBeVisible();
-  // Nothing chosen to begin with.
-  for (const option of await sheet.getByRole(UI.optionRole).all()) {
-    await expect(option).not.toBeChecked();
-  }
+  await expect(filterSheet(page)).toBeVisible();
+  // One choice per row: radios, with no pressed state of their own.
+  await expect(filterSheet(page).getByRole("radio")).toHaveCount(
+    CHOICES.length,
+  );
+  await expect(filterSheet(page).locator("[aria-pressed]")).toHaveCount(0);
+  await expectNoneChosen(page);
+
+  // A second tap on the checked choice clears its row.
+  await pick(page, UI.timeOfDay, UI.afternoon);
+  await option(page, UI.timeOfDay, UI.afternoon).click();
+  await expectNoneChosen(page);
   await expectAccessible(page);
 
-  await sheet
-    .getByRole(UI.groupRole, { name: UI.budget })
-    .getByRole(UI.optionRole, { name: UI.under500, exact: true })
-    .check();
-  await closeFilters(page);
+  await pick(page, UI.budget, UI.under500);
+  // Nothing is asked until Show results.
+  expect(asked.filter((p) => p.has("budget"))).toEqual([]);
+  await applyFilters(page);
   await expectAsked(
-    page,
     asked,
     (p) => p.get("budget") === "under_500",
     "Under ₹500 never sent budget=under_500",
   );
+  await expectAddress(
+    page,
+    (p) => p.get("budget") === "under_500",
+    "Under ₹500 never reached the address",
+  );
+  await expect(filtersButton(page)).toHaveAccessibleName(UI.filtersOn(1));
   // Free counts; the theatre states no price, so it fits no budget.
   await expectCards(page, [
     T.fair,
@@ -81,54 +108,93 @@ test("Budget and Time of day narrow; no stated price is never under ₹500, and 
   ]);
   await expect(card(page, T.theatre)).toHaveCount(0);
 
+  // The sheet opens on what is applied.
   await filtersButton(page).click();
-  await sheet
-    .getByRole(UI.groupRole, { name: UI.timeOfDay })
-    .getByRole(UI.optionRole, { name: UI.morning, exact: true })
-    .check();
-  await closeFilters(page);
+  await expect(option(page, UI.budget, UI.under500)).toBeChecked();
+  await pick(page, UI.timeOfDay, UI.morning);
+  await applyFilters(page);
   await expectAsked(
-    page,
     asked,
     (p) => p.get("budget") === "under_500" && p.get("timeOfDay") === "morning",
     "Morning never sent timeOfDay=morning beside the budget",
   );
+  await expect(filtersButton(page)).toHaveAccessibleName(UI.filtersOn(2));
   // The flea market is under ₹500 and has no time, so it is no time of day.
   await expectCards(page, [T.yoga, T.diveClub, T.birds, T.craft]);
   await expect(card(page, T.flea)).toHaveCount(0);
   await expectAccessible(page);
 
   await filtersButton(page).click();
-  await sheet
+  await filterSheet(page)
     .getByRole("button", { name: UI.clearFilters, exact: true })
     .click();
-  for (const option of await sheet.getByRole(UI.optionRole).all()) {
-    await expect(option).not.toBeChecked();
-  }
-  await closeFilters(page);
+  await expectNoneChosen(page);
+  await applyFilters(page);
+  await expect(filtersButton(page)).toHaveAccessibleName(UI.filtersOn(0));
+  await expectAddress(
+    page,
+    (p) => !p.has("budget") && !p.has("timeOfDay"),
+    "Clear filters left a row in the address",
+  );
   await expectCards(page, WHOLE_WEEK);
 });
 
-test("Free and an under budget never go in one request", async ({ page }) => {
+test("Free on the chip and in the sheet is one choice, and never goes with an under budget", async ({
+  page,
+}) => {
   // The API answers free=true with under_500 or under_1500 with a 400.
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff");
   const asked = eventsAsked(page);
   await chip(page, UI.free).click();
   await expect(chip(page, UI.free)).toHaveAttribute("aria-pressed", "true");
+  await expectAsked(
+    asked,
+    (p) => p.get("free") === "true" && !p.has("budget"),
+    "the Free chip never sent free=true",
+  );
+  await expectAddress(
+    page,
+    (p) => p.get("free") === "1",
+    "the Free chip never wrote free=1",
+  );
 
+  // The sheet's Free is the chip's.
   await filtersButton(page).click();
-  const sheet = page.getByRole("dialog", { name: UI.filterSheet });
-  const under500 = sheet
-    .getByRole(UI.groupRole, { name: UI.budget })
-    .getByRole(UI.optionRole, { name: UI.under500, exact: true });
-  // Held while Free is on is one honest answer; choosing it and dropping Free is another.
-  if (await under500.isEnabled()) await under500.check();
-  await closeFilters(page);
+  await expect(option(page, UI.budget, "Free")).toBeChecked();
+  // An under budget replaces it.
+  await pick(page, UI.budget, UI.under500);
+  await expect(option(page, UI.budget, "Free")).not.toBeChecked();
+  await applyFilters(page);
+  await expect(chip(page, UI.free)).toHaveAttribute("aria-pressed", "false");
+  await expectAsked(
+    asked,
+    (p) => p.get("budget") === "under_500" && !p.has("free"),
+    "Under ₹500 never replaced Free",
+  );
+  await expectAddress(
+    page,
+    (p) => p.get("budget") === "under_500" && !p.has("free"),
+    "the address kept Free beside Under ₹500",
+  );
+
+  // And the chip replaces the budget again.
+  const before = asked.length;
+  await chip(page, UI.free).click();
+  await expectAsked(
+    asked,
+    (p) => p.get("free") === "true" && !p.has("budget"),
+    "Free never replaced Under ₹500",
+    before,
+  );
+  await expectCards(page, [T.yoga, T.diveClub, T.birds]);
 
   const both = (p: URLSearchParams) =>
     p.get("free") === "true" && /^under_/.test(p.get("budget") ?? "");
-  await expect(cards(page).first()).toBeVisible();
   expect(asked.filter(both), "free=true went with an under budget").toEqual([]);
+  expect(
+    asked.filter((p) => p.get("budget") === "any"),
+    "budget=any was sent",
+  ).toEqual([]);
   // No refusal reached the page (`main`: Next's route announcer is an alert too).
   await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
 });
@@ -140,15 +206,14 @@ test("each empty state says what it is and offers its way back", async ({
 }) => {
   await test.step("a day with nothing checked", async () => {
     // Coorg's cards start on Saturday, so its today is empty.
-    await page.goto(feedOf(COORG, "checked-staff"));
+    await openFeed(page, COORG, "checked-staff");
     await chip(page, UI.today).click();
-    await expect(
-      page.getByText(UI.emptyDay("today", "Coorg"), { exact: true }),
-    ).toBeVisible();
+    const line = UI.emptyDay("today", "Coorg");
+    await expect(page.getByText(line, { exact: true })).toBeVisible();
     await expect(cards(page)).toHaveCount(0);
     await expectAccessible(page);
 
-    await page
+    await emptyState(page, line)
       .getByRole("button", { name: UI.showEverything, exact: true })
       .click();
     await expect(
@@ -158,34 +223,54 @@ test("each empty state says what it is and offers its way back", async ({
   });
 
   await test.step("nothing free", async () => {
-    await page.goto(feedOf(BENGALURU, "found-free-empty"));
+    await openFeed(page, BENGALURU, "found-free-empty");
     await chip(page, UI.free).click();
-    await expect(
-      page.getByText(UI.emptyFree("Bengaluru"), { exact: true }),
-    ).toBeVisible();
+    const line = UI.emptyFree("Bengaluru");
+    await expect(page.getByText(line, { exact: true })).toBeVisible();
     await expect(cards(page)).toHaveCount(0);
     await expectAccessible(page);
 
-    await page
+    await emptyState(page, line)
       .getByRole("button", { name: UI.showEverything, exact: true })
       .click();
     await expect(card(page, T.pottery)).toBeVisible();
     await expect(chip(page, UI.free)).toHaveAttribute("aria-pressed", "false");
   });
 
-  await test.step("a search that finds nothing", async () => {
-    await page.goto(feedOf(BENGALURU, "found-search-empty"));
-    await search(page, "Bengaluru", "jazz");
-    await expect(
-      page.getByText(UI.emptySearch("Bengaluru", "jazz")),
-    ).toBeVisible();
+  await test.step("filters that match nothing", async () => {
+    // Every free card is a morning one.
+    await openFeed(page, BENGALURU, "checked-staff");
+    await filtersButton(page).click();
+    await pick(page, UI.budget, "Free");
+    await pick(page, UI.timeOfDay, UI.afternoon);
+    await applyFilters(page);
+    const line = UI.emptyFilters("Bengaluru");
+    await expect(page.getByText(line, { exact: true })).toBeVisible();
     await expect(cards(page)).toHaveCount(0);
     await expectAccessible(page);
 
-    // The empty state's own Clear search, after the field's.
-    await page
+    await emptyState(page, line)
+      .getByRole("button", { name: UI.clearFilters, exact: true })
+      .click();
+    await expectCards(page, WHOLE_WEEK);
+    await expect(chip(page, UI.free)).toHaveAttribute("aria-pressed", "false");
+    await expect(filtersButton(page)).toHaveAccessibleName(UI.filtersOn(0));
+  });
+
+  await test.step("a search that finds nothing", async () => {
+    await openFeed(page, BENGALURU, "found-search-empty");
+    await search(page, "Bengaluru", "jazz");
+    const line = UI.emptySearch("Bengaluru", "jazz");
+    await expect(page.getByText(line, { exact: true })).toBeVisible();
+    await expect(cards(page)).toHaveCount(0);
+    // The field's Clear search and the empty state's.
+    await expect(
+      page.getByRole("button", { name: UI.clearSearch, exact: true }),
+    ).toHaveCount(2);
+    await expectAccessible(page);
+
+    await emptyState(page, line)
       .getByRole("button", { name: UI.clearSearch, exact: true })
-      .last()
       .click();
     await expect(searchBox(page, "Bengaluru")).toHaveValue("");
     await expect(card(page, T.jazz)).toBeVisible();
@@ -197,7 +282,7 @@ test("each empty state says what it is and offers its way back", async ({
 test("the chips, a remove control and Filters work from the keyboard", async ({
   page,
 }) => {
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff");
   const today = chip(page, UI.today);
   const tomorrow = chip(page, UI.tomorrow);
   const free = chip(page, UI.free);
@@ -221,24 +306,34 @@ test("the chips, a remove control and Filters work from the keyboard", async ({
   await expectCards(page, [T.yoga]);
   await expectAccessible(page);
 
-  // Filters opens on Enter, and Escape gives the focus back to it.
+  // Filters opens on Enter; Escape closes it, applies nothing and gives the focus back.
   const filters = filtersButton(page);
   await filters.focus();
   await page.keyboard.press("Enter");
-  await expect(
-    page.getByRole("dialog", { name: UI.filterSheet }),
-  ).toBeVisible();
+  await expect(filterSheet(page)).toBeVisible();
   await expectAccessible(page);
-  await closeFilters(page);
+  await pick(page, UI.timeOfDay, UI.morning);
+  await page.keyboard.press("Escape");
+  await expect(filterSheet(page)).toBeHidden();
   await expect(filters).toBeFocused();
+  await expect(filters).toHaveAccessibleName(UI.filtersOn(0));
+  await expectAddress(
+    page,
+    (p) => !p.has("timeOfDay"),
+    "Escape applied the sheet's choice",
+  );
+  await expectCards(page, [T.yoga]);
+
+  // And the next opening starts from what is applied.
+  await page.keyboard.press("Enter");
+  await expect(option(page, UI.timeOfDay, UI.morning)).not.toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(filterSheet(page)).toBeHidden();
 
   // A remove control is a button like any other.
-  await page.goto(feedOf(BENGALURU, "checked-staff"));
+  await openFeed(page, BENGALURU, "checked-staff");
   await search(page, "Bengaluru", "dive saturday");
-  const saturday = page.getByRole("button", {
-    name: UI.remove("Saturday"),
-    exact: true,
-  });
+  const saturday = removeChip(page, "Saturday");
   await saturday.focus();
   await page.keyboard.press("Enter");
   await expect(saturday).toHaveCount(0);
@@ -254,7 +349,9 @@ test("a free card's page says what Free means, and a paid one does not", async (
   for (const id of [CHECKED_IDS.yoga, FOUND_IDS.free]) {
     await page.goto(`/f/${id}?__scenario=checked-staff`);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByText(UI.freeFootnote)).toBeVisible();
+    await expect(
+      page.getByText(UI.freeFootnote, { exact: true }),
+    ).toBeVisible();
     await expectAccessible(page);
   }
 
@@ -262,5 +359,5 @@ test("a free card's page says what Free means, and a paid one does not", async (
   await expect(
     page.getByRole("heading", { level: 1, name: T.jazz, exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(UI.freeFootnote)).toHaveCount(0);
+  await expect(page.getByText(UI.freeFootnote, { exact: true })).toHaveCount(0);
 });
