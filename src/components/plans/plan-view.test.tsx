@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   PLAN_IDS,
@@ -114,6 +114,26 @@ describe("the reply", () => {
     });
     expect(await screen.findByText(/Thanks, Ravi\. Your reply is in\./)).toBeInTheDocument();
     expect(screen.getByText(/You can change it until/)).toBeInTheDocument();
+  });
+
+  it("sends one reply for two presses before the first answers", async () => {
+    const plan = openPlanView("member", memberMe());
+    let answer: (r: PlanActionResult) => void = () => {};
+    const reply = vi.fn(
+      () => new Promise<PlanActionResult>((resolve) => (answer = resolve)),
+    );
+    draw(plan, actionsFor(plan, { reply }));
+
+    // Two submits in one frame, before React draws the button as busy.
+    const form = screen
+      .getByRole("button", { name: "Update my reply" })
+      .closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+    expect(reply).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer({ kind: "ok", plan }));
+    expect(await screen.findByText(/Your reply is in\./)).toBeInTheDocument();
   });
 
   it("says when an item was taken first", async () => {

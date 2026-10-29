@@ -67,7 +67,13 @@ export const PLAN_PAYEE = { upiId: "asha@okaxis", name: "Asha R" } as const;
  * checker whatever the checker did.
  */
 export function upiPayLink(amountMinor: number, note: string): string {
-  const enc = (s: string) => encodeURIComponent(s);
+  // As Go's `url.QueryEscape` writes it: `encodeURIComponent` leaves `!'()*`
+  // raw, which the API never sends and the pay-link check refuses.
+  const enc = (s: string) =>
+    encodeURIComponent(s).replace(
+      /[!'()*]/g,
+      (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
   const rupees = `${Math.floor(amountMinor / 100)}.${String(amountMinor % 100).padStart(2, "0")}`;
   return (
     `upi://pay?pa=${enc(PLAN_PAYEE.upiId)}&pn=${enc(PLAN_PAYEE.name)}` +

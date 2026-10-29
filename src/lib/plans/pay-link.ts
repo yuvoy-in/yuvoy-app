@@ -63,6 +63,14 @@
 const SCHEME = "upi://pay?";
 const NAMES: ReadonlySet<string> = new Set(["pa", "pn", "am", "cu", "tn"]);
 const PRINTABLE = /^[\x21-\x7E]+$/;
+/*
+  A value exactly as the API writes it: Go's `url.QueryEscape` (with `+` made
+  `%20`, `internal/upi/upi.go`), so the unreserved characters and upper-case
+  `%XX` and nothing else. A raw `;`, `?`, `+`, `'` or `/` is something the API
+  never sends, and some parsers split on `;` or read `+` as a space, so a value
+  carrying one could name a second payee to them (independent review, #193).
+*/
+const ENCODED_VALUE = /^(?:[A-Za-z0-9_.~-]|%[0-9A-F]{2})*$/;
 
 /**
  * Paise as the UPI link writes rupees: `250.00`. Digits are cut rather than
@@ -96,6 +104,7 @@ export function checkedPayLink(
     if (at <= 0) return null;
     const name = part.slice(0, at);
     if (!NAMES.has(name) || params.has(name)) return null;
+    if (!ENCODED_VALUE.test(part.slice(at + 1))) return null;
     let value: string;
     try {
       value = decodeURIComponent(part.slice(at + 1));

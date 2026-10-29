@@ -62,6 +62,9 @@ export function PlanReplyForm({
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLParagraphElement>(null);
+  // `sending` is state, so a second press in the same frame still reads it
+  // as false; this flag is set at once, so a double click sends one reply.
+  const inFlight = useRef(false);
 
   // Ticks and radios chosen while the server's copy was on screen and the
   // script was still on its way: taken into the draft, as a tap would be.
@@ -88,9 +91,10 @@ export function PlanReplyForm({
   };
 
   async function send() {
-    if (sending) return;
+    if (inFlight.current) return;
     const ready = bodyFromDraft(plan, draft);
     if ("problem" in ready) return refuse(ready.problem.message, "adult");
+    inFlight.current = true;
     setSending(true);
     setOutcome(null);
     try {
@@ -113,6 +117,7 @@ export function PlanReplyForm({
         refuse(planWords.notSent);
       }
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   }
