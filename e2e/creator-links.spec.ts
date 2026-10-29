@@ -128,6 +128,30 @@ async function openPast(page: Page, scenario?: string) {
   await expect(page.getByText(WENT).first()).toBeVisible();
 }
 
+/**
+ * Waits until the app knows whether the creator release is open to this
+ * caller: the browser's `GET /app-config`, and at `staff` the caller's
+ * cohort from `GET /me`. Then two frames, so a gate that opened would have
+ * rendered and asked for the list. `networkidle` never comes on these pages.
+ */
+function releaseKnown(page: Page, scenario?: string) {
+  const config = page.waitForResponse((r) =>
+    new URL(r.url()).pathname.endsWith("/app-config"),
+  );
+  const me = scenario
+    ? page.waitForResponse((r) => new URL(r.url()).pathname === "/api/v1/me")
+    : Promise.resolve(null);
+  return async () => {
+    await Promise.all([config, me]);
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+  };
+}
+
 const isList = (r: Response) =>
   new URL(r.url()).pathname === "/api/v1/me/creator-links" &&
   r.request().method() === "GET";
@@ -567,18 +591,20 @@ for (const { world, scenario } of [
       }
     });
 
+    const onAccount = releaseKnown(page, scenario);
     await page.goto(account(scenario));
     await expect(
       page.getByRole("button", { name: "Sign out on this device" }),
     ).toBeVisible();
-    await page.waitForLoadState("networkidle");
+    await onAccount();
     await expect(page.getByRole("heading", { name: "Your links" })).toHaveCount(
       0,
     );
     await expect(page.getByText(INTRO)).toHaveCount(0);
 
+    const onTrips = releaseKnown(page, scenario);
     await openPast(page, scenario);
-    await page.waitForLoadState("networkidle");
+    await onTrips();
     await expect(page.getByRole("button", { name: "Get my link" })).toHaveCount(
       0,
     );
