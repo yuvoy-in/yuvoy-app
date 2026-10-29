@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "../../../mocks/server";
-import { PLAN_IDS, decidedPlanView, memberMe } from "../../../mocks/plan-fixtures";
+import {
+  PLAN_IDS,
+  decidedPlanView,
+  memberMe,
+} from "../../../mocks/plan-fixtures";
 import { readPlanForPage } from "./read-plan";
 
 /**
@@ -47,7 +51,9 @@ const envelope = (code: string) => ({
 describe("readPlanForPage", () => {
   it("asks nothing with no session", async () => {
     const seen = answer(200, decidedPlanView("member", memberMe()));
-    expect(await readPlanForPage(PLAN_IDS.decided)).toEqual({ kind: "signed-out" });
+    expect(await readPlanForPage(PLAN_IDS.decided)).toEqual({
+      kind: "signed-out",
+    });
     expect(seen).toEqual([]);
   });
 
@@ -63,9 +69,15 @@ describe("readPlanForPage", () => {
     jar.token = "sess_abc";
     const plan = decidedPlanView("member", memberMe());
     const seen = answer(200, plan);
-    expect(await readPlanForPage(PLAN_IDS.decided)).toEqual({ kind: "plan", plan });
+    expect(await readPlanForPage(PLAN_IDS.decided)).toEqual({
+      kind: "plan",
+      plan,
+    });
     expect(seen).toEqual([
-      { auth: "Bearer sess_abc", path: expect.stringContaining(`/plans/${PLAN_IDS.decided}`) },
+      {
+        auth: "Bearer sess_abc",
+        path: expect.stringContaining(`/plans/${PLAN_IDS.decided}`),
+      },
     ]);
   });
 
@@ -79,13 +91,17 @@ describe("readPlanForPage", () => {
   it("reads 404 as not found, which is also plans closed to this reader", async () => {
     jar.token = "sess_abc";
     answer(404, envelope("not_found"));
-    expect(await readPlanForPage(PLAN_IDS.unknown)).toEqual({ kind: "not-found" });
+    expect(await readPlanForPage(PLAN_IDS.unknown)).toEqual({
+      kind: "not-found",
+    });
   });
 
   it("reads 401 as signed out", async () => {
     jar.token = "sess_old";
     answer(401, envelope("unauthorized"));
-    expect(await readPlanForPage(PLAN_IDS.decided)).toEqual({ kind: "signed-out" });
+    expect(await readPlanForPage(PLAN_IDS.decided)).toEqual({
+      kind: "signed-out",
+    });
   });
 
   it("reads 503 plans_unavailable as paused", async () => {
@@ -107,7 +123,9 @@ describe("readPlanForPage", () => {
     });
     // A 200 that is not a plan.
     answer(200, { id: PLAN_IDS.decided });
-    expect(await readPlanForPage(PLAN_IDS.decided)).toMatchObject({ kind: "failed" });
+    expect(await readPlanForPage(PLAN_IDS.decided)).toMatchObject({
+      kind: "failed",
+    });
   });
 
   it("reads no answer as failed", async () => {

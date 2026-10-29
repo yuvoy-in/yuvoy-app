@@ -67,7 +67,13 @@ export const PLAN_PAYEE = { upiId: "asha@okaxis", name: "Asha R" } as const;
  * checker whatever the checker did.
  */
 export function upiPayLink(amountMinor: number, note: string): string {
-  const enc = (s: string) => encodeURIComponent(s);
+  // As Go's `url.QueryEscape` writes it: `encodeURIComponent` leaves `!'()*`
+  // raw, which the API never sends and the pay-link check refuses.
+  const enc = (s: string) =>
+    encodeURIComponent(s).replace(
+      /[!'()*]/g,
+      (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
   const rupees = `${Math.floor(amountMinor / 100)}.${String(amountMinor % 100).padStart(2, "0")}`;
   return (
     `upi://pay?pa=${enc(PLAN_PAYEE.upiId)}&pn=${enc(PLAN_PAYEE.name)}` +
@@ -104,7 +110,10 @@ function common(id: string, role: Role) {
 }
 
 /** The guest's own reply, once there is one. `name` is the first name they typed. */
-export function guestMe(name = "Ravi", overrides: Partial<PlanMe> = {}): PlanMe {
+export function guestMe(
+  name = "Ravi",
+  overrides: Partial<PlanMe> = {},
+): PlanMe {
   return {
     name,
     answers: [
@@ -193,7 +202,12 @@ export function openPlanView(
       },
     ],
     items: [
-      { id: PLAN_IDS.items[0], label: "Charcoal", claimedBy: "Kiran", mine: false },
+      {
+        id: PLAN_IDS.items[0],
+        label: "Charcoal",
+        claimedBy: "Kiran",
+        mine: false,
+      },
       {
         id: PLAN_IDS.items[1],
         label: "Speaker",
@@ -204,11 +218,23 @@ export function openPlanView(
     ],
     costs: [cost],
     people: [
-      { name: "Asha", role: "planner", reply: "answered", you: role === "planner" },
+      {
+        name: "Asha",
+        role: "planner",
+        reply: "answered",
+        you: role === "planner",
+      },
       { name: "Meera", role: "guest", reply: "answered", you: false },
       { name: "Kiran", role: "guest", reply: "answered", you: false },
       ...(iAmIn
-        ? [{ name: myName, role: "guest" as const, reply: "answered" as const, you: true }]
+        ? [
+            {
+              name: myName,
+              role: "guest" as const,
+              reply: "answered" as const,
+              you: true,
+            },
+          ]
         : []),
     ],
     canReply: true,
@@ -277,11 +303,23 @@ export function decidedPlanView(
     times: [open.times[0]],
     costs,
     people: [
-      { name: "Asha", role: "planner", reply: "going", you: role === "planner" },
+      {
+        name: "Asha",
+        role: "planner",
+        reply: "going",
+        you: role === "planner",
+      },
       { name: "Meera", role: "guest", reply: "going", you: false },
       { name: "Kiran", role: "guest", reply: "maybe", you: false },
       ...(iAmIn
-        ? [{ name: myName, role: "guest" as const, reply: "going" as const, you: true }]
+        ? [
+            {
+              name: myName,
+              role: "guest" as const,
+              reply: "going" as const,
+              you: true,
+            },
+          ]
         : []),
     ],
     answersCloseAt: TIMES[0],
@@ -413,7 +451,9 @@ export function withReply(view: PlanView, reply: PlanReply): PlanView {
   if (reply.adult) me.adultConfirmed = true;
 
   // Decided, the answer for the decided time; before, answered or none.
-  const decided = next.decidedTimeId ? answerFor(next.decidedTimeId) : undefined;
+  const decided = next.decidedTimeId
+    ? answerFor(next.decidedTimeId)
+    : undefined;
   const reading: PlanPersonReply = next.decidedTimeId
     ? decided === "can"
       ? "going"

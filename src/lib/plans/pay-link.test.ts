@@ -12,9 +12,16 @@ const SHARE = 25000; // ₹250
 
 /**
  * The link as the API writes it (internal/upi/upi.go): Go's
- * `url.QueryEscape` with spaces as `%20`. `encodeURIComponent` escapes the
- * same characters for every value used here.
+ * `url.QueryEscape` with spaces as `%20`. `encodeURIComponent` leaves
+ * `!'()*` raw where Go escapes them, so those four are escaped after it: the
+ * honest note "Asha's" carries `%27`, as the API sends it.
  */
+const goEscape = (s: string) =>
+  encodeURIComponent(s).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
 function apiLink(
   over: Partial<Record<"pa" | "pn" | "am" | "cu" | "tn", string>> = {},
 ): string {
@@ -26,7 +33,7 @@ function apiLink(
     tn: "Board games at Asha's: Pizza",
     ...over,
   };
-  const enc = encodeURIComponent;
+  const enc = goEscape;
   return `upi://pay?pa=${enc(v.pa)}&pn=${enc(v.pn)}&am=${v.am}&cu=${v.cu}&tn=${enc(v.tn)}`;
 }
 
@@ -195,6 +202,23 @@ describe("checkedPayLink: a link the API could not have written", () => {
     ["a fragment", `${apiLink()}#pa=ravi`],
     ["a non-ASCII letter", apiLink().replace("pn=Asha%20K", "pn=Āsha")],
     ["a look-alike in pa", apiLink().replace("asha.k", "аsha.k")],
+    // Raw characters the API never writes, which some parsers split on or
+    // read as something else, so they could name a second payee.
+    [
+      "a ; that hides a second pa and am",
+      apiLink({ tn: "x" }).replace("tn=x", "tn=x;pa=ravi@okaxis;am=2500.00"),
+    ],
+    [
+      "a second ? inside a value",
+      apiLink({ tn: "x" }).replace("tn=x", "tn=x?pa=ravi"),
+    ],
+    ["a raw + in pa", apiLink().replace("pa=asha.k", "pa=asha+k")],
+    ["a raw ' in tn", apiLink({ tn: "x" }).replace("tn=x", "tn=Asha's")],
+    // Go writes upper-case hex, so `%3a` for a colon came from somewhere else.
+    [
+      "a lower-case escape",
+      apiLink({ tn: "Asha: Pizza" }).replace("%3A", "%3a"),
+    ],
   ])("refuses %s", (_, link) => {
     expect(checkedPayLink(link, payee, SHARE)).toBeNull();
   });

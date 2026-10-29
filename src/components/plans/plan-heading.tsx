@@ -66,9 +66,13 @@ export function PlanHeading({ plan }: { plan: PlanView }) {
         </li>
       </ul>
 
-      {idea ? <p className="mt-3 text-sm">{planWords.doing(idea.title)}</p> : null}
+      {idea ? (
+        <p className="mt-3 text-sm">{planWords.doing(idea.title)}</p>
+      ) : null}
       {replyBy && !decided && plan.canReply ? (
-        <p className="text-forest/70 mt-2 text-sm">{planWords.replyBy(replyBy)}</p>
+        <p className="text-forest/70 mt-2 text-sm">
+          {planWords.replyBy(replyBy)}
+        </p>
       ) : null}
 
       {plan.note ? (
@@ -76,7 +80,7 @@ export function PlanHeading({ plan }: { plan: PlanView }) {
           <h2 className="label text-forest/75">
             {planWords.noteFrom(plan.planner.name)}
           </h2>
-          <p className="text-body mt-1 whitespace-pre-line text-pretty">
+          <p className="text-body mt-1 text-pretty whitespace-pre-line">
             {plan.note}
           </p>
         </section>
@@ -84,7 +88,7 @@ export function PlanHeading({ plan }: { plan: PlanView }) {
       {plan.gettingHome ? (
         <section className="mt-4">
           <h2 className="label text-forest/75">{planWords.gettingHome}</h2>
-          <p className="text-body mt-1 whitespace-pre-line text-pretty">
+          <p className="text-body mt-1 text-pretty whitespace-pre-line">
             {plan.gettingHome}
           </p>
         </section>

@@ -46,7 +46,9 @@ async function expectAccessible(page: Page) {
 }
 
 test.describe("a plan, signed out", () => {
-  test("asks to sign in and comes back, asking the API nothing", async ({ page }) => {
+  test("asks to sign in and comes back, asking the API nothing", async ({
+    page,
+  }) => {
     const calls = planCalls(page);
     await page.goto(DECIDED);
 
@@ -69,28 +71,42 @@ test.describe("a plan, signed in as a member", () => {
     await signIn(page);
   });
 
-  test("draws the plan, with the pay button, the UPI ID and the share", async ({ page }) => {
+  test("draws the plan, with the pay button, the UPI ID and the share", async ({
+    page,
+  }) => {
     await page.goto(DECIDED);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Dinner at the beach shack" }),
+      page.getByRole("heading", {
+        level: 1,
+        name: "Dinner at the beach shack",
+      }),
     ).toBeVisible();
     await expect(page.getByText("Asha invited you")).toBeVisible();
 
     const pay = page.getByRole("link", { name: "Pay ₹450 by UPI" });
-    await expect(pay).toHaveAttribute("href", /^upi:\/\/pay\?pa=asha%40okaxis&/);
+    await expect(pay).toHaveAttribute(
+      "href",
+      /^upi:\/\/pay\?pa=asha%40okaxis&/,
+    );
     await expect(
-      page.getByText(`Button not working? Send ₹450 to ${PLAN_PAYEE.upiId} from any UPI app.`),
+      page.getByText(
+        `Button not working? Send ₹450 to ${PLAN_PAYEE.upiId} from any UPI app.`,
+      ),
     ).toBeVisible();
     await expectAccessible(page);
   });
 
-  test("sends one request for a changed answer, and draws the answer", async ({ page }) => {
+  test("sends one request for a changed answer, and draws the answer", async ({
+    page,
+  }) => {
     const calls = planCalls(page);
     await page.goto(DECIDED);
     await page.getByRole("radio", { name: "Maybe" }).check();
     await page.getByRole("button", { name: "Update my reply" }).click();
 
-    await expect(page.getByText(/Thanks, Ravi\. Your reply is in\./)).toBeVisible();
+    await expect(
+      page.getByText(/Thanks, Ravi\. Your reply is in\./),
+    ).toBeVisible();
     expect(calls).toEqual([`PUT /plans/${PLAN_IDS.decided}/reply`]);
     await expectAccessible(page);
   });
@@ -102,7 +118,9 @@ test.describe("a plan, signed in as a member", () => {
     await page.getByRole("button", { name: "Update my reply" }).click();
 
     await expect(page.getByText(/Your reply is in\./)).toBeVisible();
-    await expect(page.getByRole("checkbox", { name: /Paper plates/ })).toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: /Paper plates/ }),
+    ).toBeChecked();
     expect(calls).toEqual([`PUT /plans/${PLAN_IDS.open}/reply`]);
     await expectAccessible(page);
   });
@@ -110,7 +128,10 @@ test.describe("a plan, signed in as a member", () => {
   test("sends one request for a paid mark", async ({ page }) => {
     const calls = planCalls(page);
     await page.goto(DECIDED);
-    await page.getByRole("checkbox", { name: /I've paid my share/ }).first().check();
+    await page
+      .getByRole("checkbox", { name: /I've paid my share/ })
+      .first()
+      .check();
     await page.getByRole("button", { name: "Update my reply" }).click();
 
     await expect(page.getByText(/Your reply is in\./)).toBeVisible();
@@ -125,7 +146,9 @@ test.describe("a plan, signed in as a member", () => {
     await page.getByRole("button", { name: "Leave this plan" }).click();
     const sheet = page.getByRole("dialog", { name: "Leave this plan" });
     await expect(
-      sheet.getByText("Your name and answers will be deleted, and your items freed for others."),
+      sheet.getByText(
+        "Your name and answers will be deleted, and your items freed for others.",
+      ),
     ).toBeVisible();
     expect(calls).toEqual([]);
     await expectAccessible(page);
@@ -136,10 +159,15 @@ test.describe("a plan, signed in as a member", () => {
     await expectAccessible(page);
   });
 
-  test("offers no pay button for a link that pays somebody else", async ({ page }) => {
+  test("offers no pay button for a link that pays somebody else", async ({
+    page,
+  }) => {
     await page.goto(`${DECIDED}?__scenario=plan-paylink-bad`);
     await expect(
-      page.getByRole("heading", { level: 1, name: "Dinner at the beach shack" }),
+      page.getByRole("heading", {
+        level: 1,
+        name: "Dinner at the beach shack",
+      }),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: /by UPI/ })).toHaveCount(0);
     await expect(page.locator('a[href^="upi:"]')).toHaveCount(0);
@@ -157,14 +185,18 @@ test.describe("a plan, signed in as its planner", () => {
     await signIn(page);
     await page.goto(`${DECIDED}?__scenario=plan-planner`);
     await expect(page.getByText("You're planning this")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Leave this plan" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Leave this plan" }),
+    ).toHaveCount(0);
     await expect(page.locator('a[href^="upi:"]')).toHaveCount(0);
     await expectAccessible(page);
   });
 });
 
 test.describe("a plan that is not there", () => {
-  test("is the app's own not-found page, for the API's 404", async ({ page }) => {
+  test("is the app's own not-found page, for the API's 404", async ({
+    page,
+  }) => {
     await signIn(page);
     const response = await page.goto(`${DECIDED}?__scenario=plan-404`);
     expect(response?.status()).toBe(404);
@@ -172,7 +204,9 @@ test.describe("a plan that is not there", () => {
     await expectAccessible(page);
   });
 
-  test("is the same page for an id that is not a plan id, signed in or not", async ({ page }) => {
+  test("is the same page for an id that is not a plan id, signed in or not", async ({
+    page,
+  }) => {
     const calls = planCalls(page);
     const response = await page.goto("/plans/not-a-plan");
     expect(response?.status()).toBe(404);
@@ -186,7 +220,9 @@ test.describe("plans paused", () => {
   test("says so, with Try again", async ({ page }) => {
     await signIn(page);
     await page.goto(`${DECIDED}?__scenario=plan-unavailable`);
-    await expect(page.getByText("Plans are paused for a moment.")).toBeVisible();
+    await expect(
+      page.getByText("Plans are paused for a moment."),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
     await expectAccessible(page);
   });

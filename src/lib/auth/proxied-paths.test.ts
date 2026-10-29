@@ -123,7 +123,9 @@ describe("what the proxy will forward", () => {
     */
     const id = "8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52";
     expect(allowedProxyPath("GET", `/plans/${id}`)).toBe("/plans/{id}");
-    expect(allowedProxyPath("PUT", `/plans/${id}/reply`)).toBe("/plans/{id}/reply");
+    expect(allowedProxyPath("PUT", `/plans/${id}/reply`)).toBe(
+      "/plans/{id}/reply",
+    );
     expect(allowedProxyPath("DELETE", `/plans/${id}/reply`)).toBe(
       "/plans/{id}/reply",
     );

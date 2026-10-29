@@ -111,7 +111,10 @@ describe("needsAdultTick and canSendReply", () => {
   });
 
   it("still lets a member mark a share paid after replies close", () => {
-    const closed = { ...decidedPlanView("member", memberMe()), canReply: false };
+    const closed = {
+      ...decidedPlanView("member", memberMe()),
+      canReply: false,
+    };
     expect(canSendReply(closed)).toBe(true);
     const nothing = { ...openPlanView("member", memberMe()), canReply: false };
     expect(canSendReply(nothing)).toBe(false);

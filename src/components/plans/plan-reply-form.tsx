@@ -69,6 +69,9 @@ export function PlanReplyForm({
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const alertRef = useRef<HTMLParagraphElement>(null);
+  // `sending` is state, so a second press in the same frame still reads it
+  // as false; this flag is set at once, so a double click sends one reply.
+  const inFlight = useRef(false);
 
   // Ticks and radios chosen while the server's copy was on screen and the
   // script was still on its way: taken into the draft, as a tap would be.
@@ -95,9 +98,10 @@ export function PlanReplyForm({
   };
 
   async function send() {
-    if (sending) return;
+    if (inFlight.current) return;
     const ready = bodyFromDraft(plan, draft);
     if ("problem" in ready) return refuse(ready.problem.message, "adult");
+    inFlight.current = true;
     setSending(true);
     setOutcome(null);
     try {
@@ -123,6 +127,7 @@ export function PlanReplyForm({
         refuse(planWords.notSent);
       }
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   }
@@ -147,13 +152,21 @@ export function PlanReplyForm({
           <legend className="font-display tracking-display leading-display text-2xl text-balance">
             {decided && times[0]
               ? planWords.areYouGoing(
-                  planTimeRange(times[0].startsAt, times[0].endsAt, plan.timeZone) ?? "",
+                  planTimeRange(
+                    times[0].startsAt,
+                    times[0].endsAt,
+                    plan.timeZone,
+                  ) ?? "",
                 )
               : planWords.canYouMakeIt}
           </legend>
           <div className="mt-4 space-y-4">
             {times.map((time) => {
-              const range = planTimeRange(time.startsAt, time.endsAt, plan.timeZone);
+              const range = planTimeRange(
+                time.startsAt,
+                time.endsAt,
+                plan.timeZone,
+              );
               return (
                 <Panel key={time.id} tone="outline">
                   <fieldset>
@@ -245,7 +258,10 @@ export function PlanReplyForm({
                       disabled={!open}
                       onChange={(e) => {
                         const on = e.currentTarget.checked;
-                        setDraft((d) => ({ ...d, claims: toggled(d.claims, item.id, on) }));
+                        setDraft((d) => ({
+                          ...d,
+                          claims: toggled(d.claims, item.id, on),
+                        }));
                       }}
                       className="accent-terra-deep size-6 shrink-0"
                     />
@@ -284,7 +300,11 @@ export function PlanReplyForm({
                 <li key={cost.id}>
                   <Panel tone="outline">
                     <p>
-                      {planWords.costLine(cost.label, rupees(cost.amountMinor), cost.paidBy)}
+                      {planWords.costLine(
+                        cost.label,
+                        rupees(cost.amountMinor),
+                        cost.paidBy,
+                      )}
                     </p>
                     {cost.split ? (
                       <p className="text-forest/70 mt-1 text-sm tabular-nums">
@@ -315,7 +335,10 @@ export function PlanReplyForm({
                             checked={draft.paid.includes(cost.id)}
                             onChange={(e) => {
                               const on = e.currentTarget.checked;
-                              setDraft((d) => ({ ...d, paid: toggled(d.paid, cost.id, on) }));
+                              setDraft((d) => ({
+                                ...d,
+                                paid: toggled(d.paid, cost.id, on),
+                              }));
                             }}
                             className="accent-terra-deep size-6 shrink-0"
                           />
@@ -327,7 +350,9 @@ export function PlanReplyForm({
                           </span>
                         </label>
                         {mine.receivedMarked ? (
-                          <p className="mt-2 text-sm">{planWords.received(cost.paidBy)}</p>
+                          <p className="mt-2 text-sm">
+                            {planWords.received(cost.paidBy)}
+                          </p>
                         ) : null}
                       </>
                     ) : null}
@@ -430,8 +455,10 @@ function applyField(draft: ReplyDraft, field: FormField): ReplyDraft {
     return { ...draft, answers: { ...draft.answers, [name.slice(7)]: answer } };
   }
   if (name === "vote" && checked) return { ...draft, vote: value };
-  if (name === "claim") return { ...draft, claims: toggled(draft.claims, value, checked) };
-  if (name === "paid") return { ...draft, paid: toggled(draft.paid, value, checked) };
+  if (name === "claim")
+    return { ...draft, claims: toggled(draft.claims, value, checked) };
+  if (name === "paid")
+    return { ...draft, paid: toggled(draft.paid, value, checked) };
   if (name === "adult") return { ...draft, adult: checked };
   return draft;
 }

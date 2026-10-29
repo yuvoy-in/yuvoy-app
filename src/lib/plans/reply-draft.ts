@@ -66,9 +66,7 @@ export function draftFromPlan(plan: PlanView): ReplyDraft {
  */
 export function needsAdultTick(plan: PlanView): boolean {
   return (
-    plan.canReply &&
-    plan.role !== "planner" &&
-    plan.me?.adultConfirmed !== true
+    plan.canReply && plan.role !== "planner" && plan.me?.adultConfirmed !== true
   );
 }
 
