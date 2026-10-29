@@ -130,6 +130,15 @@ function ReleaseProbe() {
   );
 }
 
+/** Past trips the API's check refuses: only a completed one counts. */
+const NOT_COMPLETED = [
+  "confirmed",
+  "paid_pending_ops",
+  "cancelled",
+  "declined",
+  "no_show",
+] as const;
+
 /**
  * "Get my link" on a past trip (yuvoy-app#207; cases from yuvoy-mobile#389).
  */
@@ -347,44 +356,41 @@ describe("get my link", () => {
     expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
   });
 
-  it.each(["cancelled", "declined", "no_show"] as const)(
-    "is not drawn on a %s trip",
-    async (state) => {
-      release("all");
-      __signInAppRouteMock("sess_test");
-      /*
-        Beside a completed trip, whose button proves the release has been
-        read as open: the absence is then this trip's own.
-      */
-      renderWithQuery(
-        <>
-          <div data-testid="went">
-            <GetMyLink trip={trip({ reservationId: "res_went" })} />
-          </div>
-          <div data-testid="not-went">
-            <GetMyLink trip={trip({ reservationId: "res_not", state })} />
-          </div>
-        </>,
-      );
-      expect(
-        await within(screen.getByTestId("went")).findByRole("button", {
-          name: "Get my link",
-        }),
-      ).toBeInTheDocument();
-      expect(
-        within(screen.getByTestId("not-went")).queryByRole("button", {
-          name: "Get my link",
-        }),
-      ).toBeNull();
-    },
-  );
+  it.each(NOT_COMPLETED)("is not drawn on a %s trip", async (state) => {
+    release("all");
+    __signInAppRouteMock("sess_test");
+    /*
+      Beside a completed trip, whose button proves the release has been
+      read as open: the absence is then this trip's own.
+    */
+    renderWithQuery(
+      <>
+        <div data-testid="went">
+          <GetMyLink trip={trip({ reservationId: "res_went" })} />
+        </div>
+        <div data-testid="not-went">
+          <GetMyLink trip={trip({ reservationId: "res_not", state })} />
+        </div>
+      </>,
+    );
+    expect(
+      await within(screen.getByTestId("went")).findByRole("button", {
+        name: "Get my link",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("not-went")).queryByRole("button", {
+        name: "Get my link",
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("which past trips may ask", () => {
-  it("is a trip that ran, and not one that did not", () => {
+  it("is a completed trip, and no other", () => {
     expect(mayGetLink({ state: "completed" })).toBe(true);
-    expect(mayGetLink({ state: "confirmed" })).toBe(true);
-    expect(mayGetLink({ state: "paid_pending_ops" })).toBe(true);
+    expect(mayGetLink({ state: "confirmed" })).toBe(false);
+    expect(mayGetLink({ state: "paid_pending_ops" })).toBe(false);
     expect(mayGetLink({ state: "no_show" })).toBe(false);
     expect(mayGetLink({ state: "cancelled" })).toBe(false);
     expect(mayGetLink({ state: "declined" })).toBe(false);

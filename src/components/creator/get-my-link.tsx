@@ -10,15 +10,14 @@ import { tripTitleId, type ServerTrip } from "@/lib/trips/tabs";
 import { CreatorLinkActions } from "./creator-link-actions";
 
 /**
- * The states of a booked trip that mean the traveller went, or may have: a
- * trip on the Past tab that was completed, or confirmed and not yet closed
- * off. A `no_show` did not go, and a cancelled or declined one never ran, so
- * none of those is offered a button the API would only refuse.
+ * The states of a booked trip that mean the traveller went: only `completed`,
+ * as the API's own check takes only a completed booking (yuvoy-api
+ * `creator_uploads.go`, `WentFor`) and the phone shows the button only there.
+ * A trip still confirmed or paid and not yet closed off, a `no_show`, and a
+ * cancelled or declined one would each get a button the API only refuses.
  */
 const WENT: ReadonlySet<ServerTrip["state"]> = new Set<ServerTrip["state"]>([
   "completed",
-  "confirmed",
-  "paid_pending_ops",
 ]);
 
 /** Whether a past trip is one a link can be asked for. */
