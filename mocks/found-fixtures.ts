@@ -654,6 +654,11 @@ export function foundDetail(
       included: null,
       goodToKnow: null,
     },
+    /*
+      Required since the ad4fa894 pin. The web offers no claim (the card page
+      has no organiser button, R2-T4 notes), so a card never reads as one.
+    */
+    claimable: false,
   };
 }
 

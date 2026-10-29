@@ -142,6 +142,7 @@ function card(over: Partial<FoundItemDetail> = {}): FoundItemDetail {
       included: null,
       goodToKnow: null,
     },
+    claimable: false,
     ...over,
   };
 }
