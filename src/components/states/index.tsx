@@ -273,6 +273,8 @@ export function describeError(
           canRetry: false,
         };
       case "operator_not_bookable":
+      // Its D-049 name, sent after the traveller cut-over: the same stop.
+      case "host_not_bookable":
         return {
           ...base,
           title: "This operator is paused",

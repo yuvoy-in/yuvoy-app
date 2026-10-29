@@ -46,6 +46,12 @@ export const ERROR_CODES = [
   // Deliberately stopped. 503, but NOT an outage.
   "booking_disabled",
   "operator_not_bookable",
+  /*
+    `operator_not_bookable` under its D-049 name (the host rename). The API
+    sends the old one until the traveller cut-over (P7) and this one after, so
+    every place that knows the old code knows this one too.
+  */
+  "host_not_bookable",
   "payments_unavailable",
   "media_unavailable",
   /*
@@ -200,6 +206,46 @@ export const ERROR_CODES = [
   "friend_link_full",
   "crew_limit_reached",
   "not_friends",
+  /*
+    More refusals of routes this app does not call yet, declared by the
+    contract between a2aec936 and ad4fa894: a traveller's own change to a
+    booking (R6-T2), Trigo's cards (R6), a traveller's own video and photos
+    (R12), the directory (R11-T3), the age answer (R9-T2b), organiser pages,
+    the club link and the door (R11-T2), and following a group (R10-T2).
+    Named for the same reason as the block above; each release that calls a
+    route gives its codes their sentences.
+  */
+  "booking_not_changeable",
+  "booking_departed",
+  "change_needs_a_person",
+  "action_changed",
+  "action_expired",
+  "date_alerts_full",
+  "uploads_paused",
+  "photos_unavailable",
+  "caption_has_contact",
+  "not_went",
+  "not_open_yet",
+  "video_already_posted",
+  "upload_in_progress",
+  "not_arrived",
+  "media_refused",
+  "caption_locked",
+  "photo_limit_reached",
+  "already_on_yuvoy",
+  "age_locked",
+  "organisers_paused",
+  "not_a_member",
+  "not_owner",
+  "no_account_with_that_email",
+  "event_has_ended",
+  "organiser_email_required",
+  "not_club_holder",
+  "club_already_linked",
+  "own_code",
+  "check_in_not_today",
+  "claim_already_open",
+  "follow_limit_reached",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -221,6 +267,7 @@ export function isErrorCode(value: unknown): value is ErrorCode {
 export const DELIBERATE_STOPS = [
   "booking_disabled",
   "operator_not_bookable",
+  "host_not_bookable",
   "payments_unavailable",
   "media_unavailable",
   "sign_in_unavailable",
@@ -289,6 +336,7 @@ export function isClientBug(code: ErrorCode): boolean {
  */
 export const CHECKOUT_DEAD_ENDS = [
   "operator_not_bookable",
+  "host_not_bookable",
   "reservation_not_payable",
 ] as const satisfies readonly ErrorCode[];
 
