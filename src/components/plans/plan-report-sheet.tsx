@@ -123,9 +123,13 @@ function ReportSheet({
       if (note.trim()) body.note = note.trim().slice(0, NOTE_MAX);
       const result = await report(body);
       if (result.kind === "sent" || result.kind === "ok") setSent(true);
-      else if (result.kind === "gone" && onGone) {
-        onClose();
-        onGone();
+      else if (result.kind === "gone") {
+        if (onGone) {
+          onClose();
+          onGone();
+        } else {
+          setProblem(planWords.reportNotSent);
+        }
       } else if (
         result.code === "invalid_input" &&
         result.reason === "personName"

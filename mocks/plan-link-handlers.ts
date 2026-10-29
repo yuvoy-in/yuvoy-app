@@ -392,9 +392,9 @@ export const planLinkHandlers = [
       404, as the API answers them.
     */
     const paid = strings(body.paid);
-    const earlier = new Set<string>(EARLIER_COST_IDS);
-    if (paidOnly(body) && paid.length > 0 && paid.some((id) => earlier.has(id))) {
-      if (!paid.every((id) => earlier.has(id))) return NOT_FOUND();
+    const earlierIds = new Set<string>(EARLIER_COST_IDS);
+    if (paidOnly(body) && paid.length > 0 && paid.some((id) => earlierIds.has(id))) {
+      if (!paid.every((id) => earlierIds.has(id))) return NOT_FOUND();
       if (reader.role !== "member" || !reader.key) return NOT_FOUND();
       earlierPaidByKey.set(reader.key, new Set(paid));
       return ok(viewFor(scenario, reader));
