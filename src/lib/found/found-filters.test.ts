@@ -326,10 +326,10 @@ describe("R3-T6's four rows (yuvoy-app#195)", () => {
 
   it("count in Filters, and Clear filters clears them with Budget and Time of day", () => {
     const all = f({
+      ...FOUR,
       when: "today",
       budget: "under_500",
       timeOfDay: "morning",
-      ...FOUR,
     });
     expect(foundRowsOn(all, true)).toBe(6);
     expect(foundRowsOn(all, false)).toBe(5);
