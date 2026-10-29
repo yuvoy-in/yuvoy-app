@@ -6,13 +6,17 @@
  *
  * On R3's clock (`CHECKED_NOW`, Friday 21 August 2026, 17:30 in Kolkata), as
  * `found-checked-fixtures.ts` is, and beside its cards: Bengaluru answers
- * the week there plus the ten below, 22 cards, so the list has a page two
+ * the week there plus the nine below, 21 cards, so the list has a page two
  * and a cursor; Coorg answers its R2 cards plus the two below. None of the
  * week's or R2's cards states a fact, so each is an item that states
  * nothing, except that the week's fair runs over three days and so is
  * `longer`, as the API counts a multi-day item.
  *
- * ## Bengaluru (`local`, every card checked but the lapsed one)
+ * ## Bengaluru (`local`, every card checked)
+ *
+ * A home city lists only cards whose check counts, and answers 404 for any
+ * other (yuvoy-api `found_items_public.go`), so no card here is found or
+ * lapsed.
  *
  * Each states the fact it is here for, with a start time of 10:00 where its
  * length is the point:
@@ -30,14 +34,14 @@
  *     families; easy;
  *   - science museum, start time only: indoors; kids;
  *   - evening walk: states nothing;
- *   - calligraphy: states only what is included;
- *   - climbing, its check run out (tier `found`, `lapsed`): outdoors, and
- *     hard and a note on its page, neither of which the API sends.
+ *   - calligraphy: states only what is included.
  *
  * ## Coorg (`travel`)
  *
  *   - river kayaking, found by Trigo and checked by nobody: the kayaking
- *     card's facts, so its page shows them without how hard and the note.
+ *     card's facts, so its page shows them without how hard and the note;
+ *   - climbing, its check run out (tier `found`, `lapsed`): outdoors, and
+ *     hard and a note on its page, neither of which the API sends.
  *
  * Samples, as everything in `found-fixtures.ts` is: "Sample" organisers and
  * `.example` hosts.
@@ -93,7 +97,7 @@ export const STATED_TITLES = Object.freeze({
   museum: "Hands-on hour at the science museum",
   walk: "Evening walk in Lalbagh",
   calligraphy: "Kannada calligraphy workshop",
-  climbing: "Bouldering at Turahalli",
+  climbing: "Bouldering at Mandalpatti",
   riverKayak: "River kayaking taster on the Kaveri",
 });
 
@@ -101,7 +105,7 @@ export const STATED_TITLES = Object.freeze({
 export const STATED_SOURCES = Object.freeze({
   kayak: "hebbalkayak.example",
   calligraphy: "akshara.example",
-  climbing: "turahalliclimbs.example",
+  climbing: "mandalpattiboulders.example",
   riverKayak: "kaverikayak.example",
 });
 
@@ -281,26 +285,10 @@ function statedLocal(): FoundSample[] {
       by(STATED_SOURCES.calligraphy, "calligraphy", ORGANISER, 2),
       { included: CALLIGRAPHY_INCLUDED },
     ),
-    card(
-      "climbing",
-      "adventure",
-      11,
-      "07:00",
-      paid(700),
-      "Sample Boulder Crew, Turahalli forest",
-      STATED_SOURCES.climbing,
-      lapsed(STATED_SOURCES.climbing, "/climbing", 12, CHECKED_NOW),
-      {
-        setting: "outdoor",
-        difficulty: "hard",
-        venueType: "boulders",
-        goodToKnow: "Bring shoes with a good grip.",
-      },
-    ),
   ];
 }
 
-/** Coorg's card that states facts: the kayaking facts, checked by nobody. */
+/** Coorg's cards that state facts: the kayaking facts, and the lapsed climbing. */
 function statedTravel(): FoundSample[] {
   const river = card(
     "riverKayak",
@@ -315,7 +303,24 @@ function statedTravel(): FoundSample[] {
   );
   river.card.where.town = "Kushalnagar";
   river.organiser = null;
-  return [river];
+  const climbing = card(
+    "climbing",
+    "adventure",
+    11,
+    "07:00",
+    paid(700),
+    "Sample Boulder Crew, Mandalpatti road",
+    STATED_SOURCES.climbing,
+    lapsed(STATED_SOURCES.climbing, "/climbing", 12, CHECKED_NOW),
+    {
+      setting: "outdoor",
+      difficulty: "hard",
+      venueType: "boulders",
+      goodToKnow: "Bring shoes with a good grip.",
+    },
+  );
+  climbing.card.where.town = "Madikeri";
+  return [river, climbing];
 }
 
 /** A place's list under the stated scenarios, in the API's order, or null. */

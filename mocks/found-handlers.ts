@@ -425,8 +425,17 @@ export const foundHandlers = [
       ask,
       now,
     );
-    let narrowed =
-      scenario === "found-dept-empty" && category ? [] : found.samples;
+    /*
+      A home city lists only cards whose check counts: never a found card,
+      nor one whose check lapsed (yuvoy-api `found_items_public.go`). So
+      #195's "an unchecked card stating hard is never Hard" in a local place
+      can only hold this way, by no such card being listed there at all.
+    */
+    const listed =
+      place.kind === "local"
+        ? found.samples.filter((s) => s.card.check.tier !== "found")
+        : found.samples;
+    let narrowed = scenario === "found-dept-empty" && category ? [] : listed;
     // R3's scenarios, each one shape of answer (see above).
     if (scenario === "found-weekend-thin" && ask.when === "weekend") {
       narrowed = narrowed.slice(0, 1);

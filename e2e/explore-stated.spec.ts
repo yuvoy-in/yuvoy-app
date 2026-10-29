@@ -195,8 +195,6 @@ test("How hard shows in a local place and lists checked cards only", async ({
     await expectCards(page, titles);
     await expect(card(page, S.walk)).toHaveCount(0);
   }
-  // Its page states hard, and its check ran out, so it is never Hard.
-  await expect(card(page, S.climbing)).toHaveCount(0);
   await expectAccessible(page);
 });
 
@@ -229,7 +227,8 @@ test("How hard is absent in a travel place, and never sent from there", async ({
     (p) => p.get("setting") === "outdoor" && !p.has("difficulty"),
     "a travel place's address kept difficulty",
   );
-  await expectCards(page, [S.riverKayak]);
+  // The climbing card's check ran out; Coorg, a trip place, still lists it.
+  await expectCards(page, [S.riverKayak, S.climbing]);
   expect(
     asked.filter((p) => p.has("difficulty")),
     "difficulty was sent for a travel place",
