@@ -62,7 +62,7 @@ async function expectNoneChosen(page: Parameters<typeof option>[0]) {
 test("Budget and Time of day narrow on Show results; no stated price is never under ₹500, and a date-only item is never Morning", async ({
   page,
 }) => {
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   const asked = eventsAsked(page);
 
   await filtersButton(page).click();
@@ -143,7 +143,7 @@ test("Free on the chip and in the sheet is one choice, and never goes with an un
   page,
 }) => {
   // The API answers free=true with under_500 or under_1500 with a 400.
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   const asked = eventsAsked(page);
   await chip(page, UI.free).click();
   await expect(chip(page, UI.free)).toHaveAttribute("aria-pressed", "true");
@@ -206,7 +206,7 @@ test("each empty state says what it is and offers its way back", async ({
 }) => {
   await test.step("a day with nothing checked", async () => {
     // Coorg's cards start on Saturday, so its today is empty.
-    await openFeed(page, COORG, "checked-staff");
+    await openFeed(page, COORG, "found-checked");
     await chip(page, UI.today).click();
     const line = UI.emptyDay("today", "Coorg");
     await expect(page.getByText(line, { exact: true })).toBeVisible();
@@ -239,7 +239,7 @@ test("each empty state says what it is and offers its way back", async ({
 
   await test.step("filters that match nothing", async () => {
     // Every free card is a morning one.
-    await openFeed(page, BENGALURU, "checked-staff");
+    await openFeed(page, BENGALURU, "found-checked");
     await filtersButton(page).click();
     await pick(page, UI.budget, "Free");
     await pick(page, UI.timeOfDay, UI.afternoon);
@@ -282,7 +282,7 @@ test("each empty state says what it is and offers its way back", async ({
 test("the chips, a remove control and Filters work from the keyboard", async ({
   page,
 }) => {
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   const today = chip(page, UI.today);
   const tomorrow = chip(page, UI.tomorrow);
   const free = chip(page, UI.free);
@@ -331,7 +331,7 @@ test("the chips, a remove control and Filters work from the keyboard", async ({
   await expect(filterSheet(page)).toBeHidden();
 
   // A remove control is a button like any other.
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   await search(page, "Bengaluru", "dive saturday");
   const saturday = removeChip(page, "Saturday");
   await saturday.focus();
@@ -347,7 +347,7 @@ test("a free card's page says what Free means, and a paid one does not", async (
   page,
 }) => {
   for (const id of [CHECKED_IDS.yoga, FOUND_IDS.free]) {
-    await page.goto(`/f/${id}?__scenario=checked-staff`);
+    await page.goto(`/f/${id}?__scenario=found-checked`);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(
       page.getByText(UI.freeFootnote, { exact: true }),
@@ -355,7 +355,7 @@ test("a free card's page says what Free means, and a paid one does not", async (
     await expectAccessible(page);
   }
 
-  await page.goto(`/f/${CHECKED_IDS.jazz}?__scenario=checked-staff`);
+  await page.goto(`/f/${CHECKED_IDS.jazz}?__scenario=found-checked`);
   await expect(
     page.getByRole("heading", { level: 1, name: T.jazz, exact: true }),
   ).toBeVisible();

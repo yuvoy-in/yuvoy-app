@@ -27,6 +27,7 @@ import {
   isFoundId,
 } from "./found-fixtures";
 import { checkedSampleById } from "./found-checked-fixtures";
+import { checkedClock } from "./checked-clock";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
@@ -161,7 +162,7 @@ export type Scenario =
     well as `explore`, on R3's clock (Friday 21 August, 17:30 in Kolkata);
     `found-handlers.ts` says what each does.
   */
-  | "checked-staff"
+  | "found-checked"
   | "found-weekend-thin"
   | "found-free-empty"
   | "found-search-empty"
@@ -380,7 +381,7 @@ function inRange(
   );
 }
 
-export const handlers = [
+const routes = [
   /* ------------------------------------------------------------- catalog */
 
   http.get(url("/experiences"), async ({ request }) => {
@@ -1346,3 +1347,6 @@ export const handlers = [
   // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
   ...planLinkHandlers,
 ];
+
+// Under R3's scenarios every answer is dated by their clock (`checked-clock.ts`).
+export const handlers = [checkedClock(routes), ...routes];

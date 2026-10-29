@@ -68,10 +68,12 @@ import { NO_R3, askKey, narrow, readR3, refused, windowOf } from "./found-r3";
  * ## Checked cities (yuvoy-app#180, R3-T2)
  *
  * `checkedCities` is `off` with no scenario, exactly as on dev and
- * production. Four scenarios open it at `staff` as well as `explore` (the
- * names are mobile's twin's, yuvoy-mobile `explore-scenarios.ts`):
+ * production. Four scenarios open it at `staff` as well as `explore`. Each
+ * starts `found-`, since the server render reads places only under the
+ * prefixes `src/lib/site/my-places.ts` lists (`PLACE_SCENARIO`), so mobile's
+ * `checked-staff` is `found-checked` here:
  *
- *   - `checked-staff`: the healthy staff world. Bengaluru answers its week
+ *   - `found-checked`: the healthy staff world. Bengaluru answers its week
  *     (`found-checked-fixtures.ts`), and `GET /events` narrows by `when`,
  *     `free`, `q`, `asText`, `budget`, `timeOfDay` and R3-T6's four, says
  *     what `q` was taken to mean ("dive saturday" is an Adventure chip and a
@@ -83,7 +85,8 @@ import { NO_R3, askKey, narrow, readR3, refused, windowOf } from "./found-r3";
  *     still said.
  *
  * Under all four every found route reads `CHECKED_NOW`, Friday 21 August
- * 2026 at 17:30 in Kolkata, and says it in its `Date` header. While
+ * 2026 at 17:30 in Kolkata, and every mocked answer says it in its `Date`
+ * header (`checked-clock.ts`), so the app's measured offset is one clock. While
  * `checkedCities` is closed to the caller, every R3 parameter is ignored
  * without being checked and the answer is R2's, `understood: []`.
  *
@@ -108,7 +111,7 @@ const url = (p: string) => `${BASE}${p}`;
 
 /** The scenarios that open `checkedCities` at `staff`, with `explore`. */
 export const CHECKED_STAFF_SCENARIOS: ReadonlySet<string> = new Set([
-  "checked-staff",
+  "found-checked",
   "found-weekend-thin",
   "found-free-empty",
   "found-search-empty",

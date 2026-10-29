@@ -37,7 +37,7 @@ import {
  *
  * `checkedCities` is `off` with no scenario, as on dev and production. Four
  * scenarios open it at `staff`, with `explore` (`mocks/found-handlers.ts`):
- * `checked-staff`, and that plus one shape of answer each in
+ * `found-checked`, and that plus one shape of answer each in
  * `found-weekend-thin`, `found-free-empty` and `found-search-empty`. At
  * `staff` it is open to a signed-in caller only, so every test signs in.
  *
@@ -94,7 +94,7 @@ test("with checkedCities off, there are no chips, search or Filters, and the fee
 test("one day chip at a time, Free beside it, and the address keeps both", async ({
   page,
 }) => {
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   await expectCards(page, WHOLE_WEEK);
   for (const name of [UI.today, UI.tomorrow, UI.weekend, UI.free]) {
     await expect(chip(page, name)).toHaveAttribute("aria-pressed", "false");
@@ -159,7 +159,7 @@ test("one day chip at a time, Free beside it, and the address keeps both", async
 test("This weekend on a Friday at 17:30 is Friday 17:00 to Sunday, and the heading says the window", async ({
   page,
 }) => {
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   await chip(page, UI.weekend).click();
   await expectAddress(
     page,
@@ -253,7 +253,7 @@ test("Coming up keeps the other choices: a thin free weekend comes up free", asy
 test("dive saturday shows Adventure and Saturday; removing Saturday searches it as text", async ({
   page,
 }) => {
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   const asked = eventsAsked(page);
   await search(page, "Bengaluru", "dive saturday");
 
@@ -303,7 +303,7 @@ test("dive saturday shows Adventure and Saturday; removing Saturday searches it 
 test("a search needs two characters, and Clear search shows only with words", async ({
   page,
 }) => {
-  await openFeed(page, BENGALURU, "checked-staff");
+  await openFeed(page, BENGALURU, "found-checked");
   const box = searchBox(page, "Bengaluru");
   const clear = page
     .getByRole("search")
@@ -336,7 +336,7 @@ test("a search needs two characters, and Clear search shows only with words", as
 test("a search naming another place offers Search in that place", async ({
   page,
 }) => {
-  await openFeed(page, BENGALURU, "checked-staff", "&budget=under_500");
+  await openFeed(page, BENGALURU, "found-checked", "&budget=under_500");
   await search(page, "Bengaluru", "rafting in coorg");
 
   // Nothing in Bengaluru is rafting, and Coorg is a link, never a filter.
@@ -367,7 +367,7 @@ test("a search naming another place offers Search in that place", async ({
     The link keeps no `__scenario`, as no page link in a real build would, so
     the mocked world is added by hand rather than followed with a click.
   */
-  await page.goto(`${href}&__scenario=checked-staff`);
+  await page.goto(`${href}&__scenario=found-checked`);
   await expect(heading(page, "Coorg")).toBeVisible();
   await expect(card(page, "White water rafting on the Barapole")).toBeVisible();
 });

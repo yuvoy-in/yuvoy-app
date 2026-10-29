@@ -257,7 +257,7 @@ export async function search(page: Page, place: string, q: string) {
   );
 }
 
-/** The whole week, as `checked-staff` answers Bengaluru with nothing chosen. */
+/** The whole week, as `found-checked` answers Bengaluru with nothing chosen. */
 export const WHOLE_WEEK = Object.values(T);
 
 /**
