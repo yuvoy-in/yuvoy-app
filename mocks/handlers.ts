@@ -197,6 +197,7 @@ export type Scenario =
   */
   | "creator-links"
   | "creator-links-empty"
+  | "creator-links-not-went"
   | "creator-links-not-open-yet"
   | "creator-links-rate-limited"
   | "creator-links-down"

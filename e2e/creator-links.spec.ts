@@ -6,7 +6,10 @@ import {
   type TestInfo,
 } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import type { components } from "../src/lib/api/schema.gen";
 import { CREATOR_LINKS } from "../mocks/creator-link-fixtures";
+
+type CreatorLink = components["schemas"]["CreatorLink"];
 
 /**
  * A traveller's share links (yuvoy-app#207, R12-T2, the web half of
@@ -79,6 +82,10 @@ async function signIn(page: Page, info: TestInfo) {
 const INTRO =
   "Share a link to something you went on. We count opens and bookings through it. The counts are indicative. Yuvoy does not pay for links yet.";
 const EMPTY = "No links yet. Get one from a trip you went on.";
+const FAILED = "Your links did not load";
+const MADE = "Your link is ready. It is in Your links on Account too.";
+const ALREADY = "You already have this link. It is in Your links on Account.";
+const MESSAGE_COPIED = "Message copied. Paste it where you want to send it.";
 
 /* The API's sentences (yuvoy-mobile#389), shown as sent. */
 const NOT_WENT =
@@ -90,8 +97,8 @@ const UNAVAILABLE = "Links cannot be made on this service right now.";
 const NOT_FOUND = "We could not find your links.";
 
 /* The past trips (`PAST_TRIP`, `MISSED_TRIP` in `booking-handlers.ts`). */
-const WENT = "Sunset cruise off Radhanagar"; // completed: gets a link
-const MISSED = "Dawn birdwatching at Chidiya Tapu"; // no_show: not_went
+const WENT = "Sunset cruise off Radhanagar"; // completed: offered a link
+const MISSED = "Dawn birdwatching at Chidiya Tapu"; // no_show: no button
 
 /* The two links the list starts with. */
 const [BOOKED, UNLISTED] = CREATOR_LINKS;
@@ -104,8 +111,11 @@ const account = (scenario?: string) =>
 const yourLinks = (page: Page) =>
   page.getByRole("region", { name: "Your links" });
 
+/* One row per link (`your-links.tsx`). */
+const linkRows = (page: Page) => yourLinks(page).getByTestId("creator-link");
+
 const linkRow = (page: Page, title: string) =>
-  yourLinks(page).getByRole("listitem").filter({ hasText: title });
+  linkRows(page).filter({ hasText: title });
 
 const tripRow = (page: Page, title: string) =>
   page.getByRole("listitem").filter({ hasText: title });
@@ -143,9 +153,22 @@ async function getMyLink(page: Page, title: string) {
   };
 }
 
-/** The row's counts line, as the issue writes it. */
-const counts = (l: (typeof CREATOR_LINKS)[number]) =>
-  `${l.opens30Days} opens in the last 30 days · ${l.opensTotal} in all · ${l.bookings} bookings`;
+/**
+ * The row's counts line, as the issue writes it, with the singular at 1 for
+ * opens and bookings ("1 open", "1 booking"); "in all" has no noun.
+ */
+const counts = (
+  l: Pick<CreatorLink, "opens30Days" | "opensTotal" | "bookings">,
+) =>
+  [
+    `${l.opens30Days} ${l.opens30Days === 1 ? "open" : "opens"} in the last 30 days`,
+    `${l.opensTotal} in all`,
+    `${l.bookings} ${l.bookings === 1 ? "booking" : "bookings"}`,
+  ].join(" · ");
+
+/** The sentence Share hands over. */
+const shareText = (l: CreatorLink) =>
+  `I went on ${l.target.title} with Yuvoy. Have a look: ${l.link}`;
 
 /**
  * Records what Copy and Share hand over. `share` false leaves the browser
@@ -203,7 +226,7 @@ test("Your links: the intro, one row per link newest first, with its counts and 
   ).toBeVisible();
   await expect(section.getByText(INTRO, { exact: true })).toBeVisible();
 
-  const rows = section.getByRole("listitem");
+  const rows = linkRows(page);
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText(BOOKED.target.title);
   await expect(rows.nth(1)).toContainText(UNLISTED.target.title);
@@ -243,7 +266,7 @@ test("case 13: no amount, earnings, name or other person's trip date anywhere in
   await signIn(page, testInfo);
   await page.goto(account("creator-links"));
   const section = yourLinks(page);
-  await expect(section.getByRole("listitem")).toHaveCount(2);
+  await expect(linkRows(page)).toHaveCount(2);
 
   const text = (await section.innerText()).replace(/\s+/g, " ");
   // Money of any kind.
@@ -259,6 +282,9 @@ test("case 13: no amount, earnings, name or other person's trip date anywhere in
     ) ?? [];
   expect(dates).toEqual(["9 Aug"]);
   expect(text).not.toMatch(/\b20\d\d-\d\d-\d\d\b/);
+  // The address is handed over by Copy and Share, never drawn.
+  expect(text).not.toContain("/go/");
+  for (const link of CREATOR_LINKS) expect(text).not.toContain(link.code);
 });
 
 test("Your links: empty, with tools on and no link yet", async ({
@@ -269,7 +295,7 @@ test("Your links: empty, with tools on and no link yet", async ({
 
   const section = yourLinks(page);
   await expect(section.getByText(EMPTY, { exact: true })).toBeVisible();
-  await expect(section.getByRole("listitem")).toHaveCount(0);
+  await expect(linkRows(page)).toHaveCount(0);
   await expectAccessible(page);
 });
 
@@ -304,14 +330,16 @@ test("Your links: an error offers Try again, and Try again reads the list", asyn
   });
 
   await page.goto(account("creator-links"));
-  const tryAgain = yourLinks(page).getByRole("button", { name: "Try again" });
+  const failed = yourLinks(page).getByRole("alert");
+  await expect(failed.getByText(FAILED, { exact: true })).toBeVisible();
+  const tryAgain = failed.getByRole("button", { name: "Try again" });
   await expect(tryAgain).toBeVisible();
   await expectAccessible(page);
 
   failing = false;
   await tryAgain.click();
-  await expect(yourLinks(page).getByRole("listitem")).toHaveCount(2);
-  await expect(tryAgain).toHaveCount(0);
+  await expect(linkRows(page)).toHaveCount(2);
+  await expect(failed).toHaveCount(0);
 });
 
 /* ------------------------------------------------------ Get my link, case 1 */
@@ -327,20 +355,24 @@ test("case 1: Get my link on a past trip makes the link (201), Your links lists 
   expect(first.body.target?.title).toBe(WENT);
   const link = first.body.link!;
   expect(link).toMatch(/\/go\/C-[A-Z0-9]{8}$/);
-  // Then Copy link and Share, on the trip itself.
+  // Then Copy link and Share, on the trip itself, in place of the button.
   const trip = tripRow(page, WENT);
+  await expect(trip.getByText(MADE, { exact: true })).toBeVisible();
+  await expect(trip.getByRole("button", { name: "Get my link" })).toHaveCount(
+    0,
+  );
   await expect(trip.getByRole("button", { name: "Copy link" })).toBeVisible();
   await expect(trip.getByRole("button", { name: "Share" })).toBeVisible();
   await expectAccessible(page);
 
   // Newest first: the new link heads the list, with nothing counted yet.
   await page.goto(account("creator-links"));
-  const rows = yourLinks(page).getByRole("listitem");
+  const rows = linkRows(page);
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText(WENT);
   await expect(
     linkRow(page, WENT).getByText(
-      "0 opens in the last 30 days · 0 in all · 0 bookings",
+      counts({ opens30Days: 0, opensTotal: 0, bookings: 0 }),
       { exact: true },
     ),
   ).toBeVisible();
@@ -350,9 +382,12 @@ test("case 1: Get my link on a past trip makes the link (201), Your links lists 
   const again = await getMyLink(page, WENT);
   expect(again.status).toBe(200);
   expect(again.body.link).toBe(link);
+  await expect(
+    tripRow(page, WENT).getByText(ALREADY, { exact: true }),
+  ).toBeVisible();
 
   await page.goto(account("creator-links"));
-  await expect(yourLinks(page).getByRole("listitem")).toHaveCount(3);
+  await expect(linkRows(page)).toHaveCount(3);
   await expect(linkRow(page, WENT)).toHaveCount(1);
 });
 
@@ -370,18 +405,17 @@ test("case 2: Copy link and Share hand over the link as sent, and the share text
   await expect
     .poll(async () => (await handedOver(page)).copied)
     .toEqual([BOOKED.link]);
+  // "Copied" for two seconds, then back.
+  await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Copy link" })).toBeVisible({
+    timeout: 5_000,
+  });
 
+  // The whole sentence, the link in it as sent, and nothing else.
   await row.getByRole("button", { name: "Share" }).click();
-  await expect.poll(async () => (await handedOver(page)).shared.length).toBe(1);
-  const [shared] = (await handedOver(page)).shared as {
-    text?: string;
-    url?: string;
-  }[];
-  expect(shared.text ?? "").toContain(
-    `I went on ${BOOKED.target.title} with Yuvoy. Have a look:`,
-  );
-  // The link as sent, in the text or beside it.
-  expect(`${shared.text ?? ""} ${shared.url ?? ""}`).toContain(BOOKED.link);
+  await expect
+    .poll(async () => (await handedOver(page)).shared)
+    .toEqual([{ text: shareText(BOOKED) }]);
   // Sharing copies nothing when the browser can share.
   expect((await handedOver(page)).copied).toEqual([BOOKED.link]);
 });
@@ -393,32 +427,43 @@ test("case 2: with no Web Share API, Share copies instead", async ({
   await signIn(page, testInfo);
   await page.goto(account("creator-links"));
 
-  await linkRow(page, UNLISTED.target.title)
-    .getByRole("button", { name: "Share" })
-    .click();
-  await expect.poll(async () => (await handedOver(page)).copied.length).toBe(1);
-  const [copied] = (await handedOver(page)).copied;
-  expect(copied).toContain(UNLISTED.link);
+  const row = linkRow(page, UNLISTED.target.title);
+  await row.getByRole("button", { name: "Share" }).click();
+  // The whole sentence goes to the clipboard, and the line says so.
+  await expect
+    .poll(async () => (await handedOver(page)).copied)
+    .toEqual([shareText(UNLISTED)]);
+  await expect(
+    row.getByRole("status").filter({ hasText: MESSAGE_COPIED }),
+  ).toHaveText(MESSAGE_COPIED);
+  await expectAccessible(page);
 });
 
 /* ---------------------------------------------------------------- refusals */
 
-test("case 6: someone who did not go is refused with the API's sentence (403 not_went)", async ({
+test("a trip the traveller missed (no_show) is offered no Get my link", async ({
   page,
 }, testInfo) => {
   await signIn(page, testInfo);
   await openPast(page, "creator-links");
 
-  // The missed trip is in Past, and the API knows they did not go.
-  const answer = await getMyLink(page, MISSED);
-  expect(answer.status).toBe(403);
+  // The release is open: the trip they went on has the button.
   await expect(
-    tripRow(page, MISSED).getByText(NOT_WENT, { exact: true }),
+    tripRow(page, WENT).getByRole("button", { name: "Get my link" }),
   ).toBeVisible();
-  await expectAccessible(page);
+  await expect(page.getByText(MISSED).first()).toBeVisible();
+  await expect(
+    tripRow(page, MISSED).getByRole("button", { name: "Get my link" }),
+  ).toHaveCount(0);
 });
 
 for (const { name, scenario, status, sentence } of [
+  {
+    name: "case 6: someone who did not go (403 not_went)",
+    scenario: "creator-links-not-went",
+    status: 403,
+    sentence: NOT_WENT,
+  },
   {
     name: "case 7: not over yet (403 not_open_yet)",
     scenario: "creator-links-not-open-yet",
@@ -448,15 +493,52 @@ for (const { name, scenario, status, sentence } of [
     expect(answer.status).toBe(status);
     expect(answer.body.error?.message).toBe(sentence);
     await expect(
-      tripRow(page, WENT).getByText(sentence, { exact: true }),
+      tripRow(page, WENT).getByRole("alert").filter({ hasText: sentence }),
+    ).toHaveText(sentence);
+    // No link was made, so nothing to copy, and the button stays.
+    await expect(
+      tripRow(page, WENT).getByRole("button", { name: "Get my link" }),
     ).toBeVisible();
-    // No link was made, so nothing to copy.
     await expect(
       tripRow(page, WENT).getByRole("button", { name: "Copy link" }),
     ).toHaveCount(0);
     await expectAccessible(page);
   });
 }
+
+test("a sign-in that has ended gets the sign-in answer on the trip (401)", async ({
+  page,
+  context,
+}, testInfo) => {
+  await signIn(page, testInfo);
+  // The API's 401, answered before the proxy so the cookie stays for the page.
+  await context.route("**/api/v1/me/creator-links", (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    return route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "unauthorized",
+          message: "Sign in with your WhatsApp number to see your trips.",
+          requestId: "01JE2EMOCK",
+        },
+      }),
+    });
+  });
+  await openPast(page, "creator-links");
+
+  const answer = await getMyLink(page, WENT);
+  expect(answer.status).toBe(401);
+  const alert = tripRow(page, WENT).getByRole("alert");
+  await expect(
+    alert.getByText("Your sign-in has expired", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    alert.getByRole("link", { name: "Sign in again" }),
+  ).toHaveAttribute("href", "/account?next=/trips");
+  await expectAccessible(page);
+});
 
 /* ------------------------------------------------------------------ hidden */
 
@@ -481,6 +563,14 @@ for (const { world, scenario } of [
       ((await listed.json()) as { error: { message: string } }).error,
     ).toMatchObject({ message: NOT_FOUND });
 
+    // And the app never asks: both pieces wait for the release to be open.
+    const asked: string[] = [];
+    page.context().on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/v1/me/creator-links") {
+        asked.push(request.method());
+      }
+    });
+
     await page.goto(account(scenario));
     await expect(
       page.getByRole("button", { name: "Sign out on this device" }),
@@ -496,6 +586,7 @@ for (const { world, scenario } of [
     await expect(page.getByRole("button", { name: "Get my link" })).toHaveCount(
       0,
     );
+    expect(asked).toEqual([]);
   });
 }
 
@@ -518,5 +609,6 @@ test("case 11: creator tools off and no links, the section is hidden", async ({
     0,
   );
   await expect(page.getByText(EMPTY)).toHaveCount(0);
+  await expect(page.getByText(INTRO)).toHaveCount(0);
   await expectAccessible(page);
 });

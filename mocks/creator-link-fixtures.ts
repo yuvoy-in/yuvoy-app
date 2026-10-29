@@ -13,7 +13,9 @@ type CreatorLink = components["schemas"]["CreatorLink"];
  *
  * The first has bookings and a latest one; the second has none, and its
  * listing is no longer listed (no fixture answers its slug), which must not
- * take the row or its counts away. No count is 1, so no row needs a singular.
+ * take the row or its counts away. Each row has one count of 1 and one
+ * other, so both the singular and the plural are drawn ("1 booking",
+ * "1 open").
  */
 export const CREATOR_LINKS: readonly CreatorLink[] = [
   {
@@ -28,7 +30,7 @@ export const CREATOR_LINKS: readonly CreatorLink[] = [
     createdAt: "2026-07-20T09:12:00Z",
     opens30Days: 14,
     opensTotal: 37,
-    bookings: 2,
+    bookings: 1,
     lastBookingOn: "2026-08-09",
   },
   {
@@ -41,7 +43,7 @@ export const CREATOR_LINKS: readonly CreatorLink[] = [
       title: "Glass-bottom boat at North Bay",
     },
     createdAt: "2026-06-11T05:40:00Z",
-    opens30Days: 3,
+    opens30Days: 1,
     opensTotal: 11,
     bookings: 0,
   },

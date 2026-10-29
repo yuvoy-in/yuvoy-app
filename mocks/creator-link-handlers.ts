@@ -16,12 +16,14 @@ import { CREATOR_LINKS } from "./creator-link-fixtures";
  *     no longer listed. A new link is `201` and the same experience again is
  *     `200` with the same link. Only the trip the traveller went on
  *     (`PAST_TRIP`, the completed sunset cruise) gets one: anything else,
- *     the missed birdwatching trip included, is `403 not_went`.
+ *     the missed birdwatching trip included, is `403 not_went`. The web
+ *     offers no button on a `no_show`, so that refusal has a scenario too.
  *   - `creator-links-empty`: the same, with no links yet.
- *   - `creator-links-not-open-yet`, `creator-links-rate-limited`,
- *     `creator-links-down`: `creator-links`, except that a new link is
- *     refused with `403 not_open_yet`, `429 rate_limited` or `503`. Down
- *     fails the list as well.
+ *   - `creator-links-not-went`, `creator-links-not-open-yet`,
+ *     `creator-links-rate-limited`, `creator-links-down`: `creator-links`,
+ *     except that a new link is refused with `403 not_went`,
+ *     `403 not_open_yet`, `429 rate_limited` or `503`. Down fails the list
+ *     as well.
  *   - `creator-tools-off`: the caller is staff with `creatorToolsOn` false
  *     and no links, so Your links has nothing to show.
  *   - `creator-outside`: `creator` at `staff` and the caller is not staff,
@@ -60,6 +62,7 @@ function scenarioOf(request: Request): string {
 export const CREATOR_SCENARIOS: ReadonlySet<string> = new Set([
   "creator-links",
   "creator-links-empty",
+  "creator-links-not-went",
   "creator-links-not-open-yet",
   "creator-links-rate-limited",
   "creator-links-down",
@@ -251,7 +254,11 @@ export const creatorLinkHandlers = [
         429,
       );
     }
-    if (!experienceId || !WENT_ON.has(experienceId)) {
+    if (
+      scenario === "creator-links-not-went" ||
+      !experienceId ||
+      !WENT_ON.has(experienceId)
+    ) {
       return envelope(
         "not_went",
         "You can get a link only to something you went on, once it is over.",
