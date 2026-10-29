@@ -86,3 +86,30 @@ test.describe("arriving from a QR code", () => {
     expect(url.searchParams.get("src")).toBe("qr");
   });
 });
+
+/**
+ * A traveller's own link (R12-T2, yuvoy-mobile#389). The API answers
+ * `kind: creator` for a `C-` code, and the visit carries `src=creator` and
+ * the code to checkout, where the API decides whether it counts.
+ */
+test.describe("arriving from a creator's link", () => {
+  test("opens the listing as a creator arrival, and the visit keeps the code for checkout", async ({
+    page,
+  }) => {
+    await page.goto("/go/C-K7QM2XPA");
+    await page.waitForURL(/\/e\/try-dive-nemo-reef/);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("src")).toBe("creator");
+    expect(url.searchParams.get("code")).toBe("C-K7QM2XPA");
+    // What `readAttribution` hands checkout for `attribution`.
+    await expect
+      .poll(() =>
+        page.evaluate(() => sessionStorage.getItem("yuvoy.attribution")),
+      )
+      .not.toBeNull();
+    const kept = JSON.parse(
+      (await page.evaluate(() => sessionStorage.getItem("yuvoy.attribution")))!,
+    );
+    expect(kept).toMatchObject({ source: "creator", scanCode: "C-K7QM2XPA" });
+  });
+});
