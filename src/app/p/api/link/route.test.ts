@@ -10,7 +10,7 @@ import {
   keys,
   watchApi,
 } from "../../../../test/plan-link";
-import { guestMe, openPlanView } from "../../../../../mocks/plan-link-fixtures";
+import { guestMe, openPlanView } from "../../../../../mocks/plan-fixtures";
 
 /**
  * "Link my reply to my account" (yuvoy-mobile#373): both the session and the

@@ -7,9 +7,10 @@ import {
   planIdentity,
   refusal,
   sendToPlan,
+  takeGuestKey,
   type GuestCall,
 } from "@/lib/plans/guest-route";
-import { isGuestKey, isReplyNonce } from "@/lib/plans/guest-token";
+import { isReplyNonce } from "@/lib/plans/guest-token";
 
 /**
  * A first reply, or a change to one: `replyByLink` (yuvoy-mobile#373).
@@ -58,7 +59,7 @@ async function reply(call: GuestCall) {
   }
 
   const key = keyFor(call);
-  const result = await sendToPlan(call, {
+  const sent = await sendToPlan(call, {
     method: "PUT",
     rest: "/reply",
     key,
@@ -66,13 +67,12 @@ async function reply(call: GuestCall) {
     nonce,
   });
 
+  // The key comes out first, before the answer is read for anything else.
+  const { result, guestKey } = takeGuestKey(sent);
   const response = planAnswer(call, result);
   const plan = planIdentity(result);
-  if (result.status === 201 && plan && isGuestKey(plan.guestKey)) {
-    keepKey(response, call.request, {
-      seriesId: plan.seriesId,
-      key: plan.guestKey,
-    });
+  if (result.status === 201 && plan && guestKey) {
+    keepKey(response, call.request, { seriesId: plan.seriesId, key: guestKey });
   } else if (keyWasKnown(result, key)) {
     keepKey(response, call.request, key);
   }

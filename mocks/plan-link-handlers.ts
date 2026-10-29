@@ -6,10 +6,13 @@ import {
   decidedPlanView,
   guestMe,
   openPlanView,
-} from "./plan-link-fixtures";
+  upiPayLink,
+  withReply,
+} from "./plan-fixtures";
 
 type PlanView = components["schemas"]["PlanView"];
 type PlanMe = components["schemas"]["PlanMe"];
+type PlanEarlierShare = components["schemas"]["PlanEarlierShare"];
 
 /**
  * A plan by its link (yuvoy-mobile#373): `getPlanByLink`, `replyByLink`,
@@ -37,6 +40,14 @@ type PlanMe = components["schemas"]["PlanMe"];
  *     itself and lands on "Update my reply".
  *   - `plan-guest-decided`: the time is picked, shares are frozen, and a
  *     member's own share carries a pay link. Any key reads as Ravi here too.
+ *     A Can't for the picked time keeps no claims, as the API's reply does
+ *     (`plans_members.go`: "whose answer to the picked time is cant keeps
+ *     none").
+ *   - `plan-guest-started`: the same plan once it has started: `canReply`
+ *     false, so answers and claims are `409 plan_closed` (`started`) and a
+ *     paid-only reply is still taken. A member found by key also has two
+ *     unsettled shares on last week's plan (`earlierShares`), which a
+ *     paid-only reply naming only their cost ids marks paid there.
  *   - `plan-guest-full`: a first reply is `409 plan_full`.
  *   - `plan-guest-closed`: the planner cancelled. The plan still reads, with
  *     `canReply` false; answers and claims are `409 plan_closed`
@@ -77,6 +88,7 @@ type PlanLinkScenario =
   | "plan-guest-first"
   | "plan-guest-returning"
   | "plan-guest-decided"
+  | "plan-guest-started"
   | "plan-guest-full"
   | "plan-guest-closed"
   | "plan-guest-404"
@@ -111,8 +123,38 @@ function envelope(
 const NOT_FOUND = () =>
   envelope("not_found", "This plan link is not working.", 404);
 
+/**
+ * Last week's plan in the started scenario: its two costs, so a paid-only
+ * reply can tell its ids from this week's, and the shares a member has
+ * there. Each share's `payLink` is the API's, built from that week's payee,
+ * which the contract does not send beside it.
+ */
+export const EARLIER_COST_IDS = [
+  "4a4b4c4d-0004-4a00-8a00-0000000000e1",
+  "4a4b4c4d-0004-4a00-8a00-0000000000e2",
+] as const;
+
+function earlierShares(paid: ReadonlySet<string>): PlanEarlierShare[] {
+  const week = "2026-08-15T13:30:00.000Z";
+  const share = (costId: string, label: string, amountMinor: number) => ({
+    costId,
+    label,
+    startsAt: week,
+    amountMinor,
+    paidBy: "Asha",
+    paidMarked: paid.has(costId),
+    payLink: upiPayLink(amountMinor, `Dinner at the beach shack: ${label}`),
+  });
+  return [
+    share(EARLIER_COST_IDS[0], "Fish for the grill", 40000),
+    share(EARLIER_COST_IDS[1], "Boat to the beach", 15000),
+  ];
+}
+
 /** Guests this mock has made, by key: what they answered. */
 const guestsByKey = new Map<string, PlanMe>();
+/** Last week's paid marks, by key: a complete set for that week. */
+const earlierPaidByKey = new Map<string, Set<string>>();
 /** Replies that belong to an account, by session token. */
 const membersBySession = new Map<string, PlanMe>();
 /** First-reply nonces: the name sent with each, the key it made, and when. */
@@ -123,6 +165,7 @@ let minted = 0;
 /** Test-only: every reply and nonce is forgotten between cases. */
 export function __resetPlanLinkMocks(): void {
   guestsByKey.clear();
+  earlierPaidByKey.clear();
   membersBySession.clear();
   nonces.clear();
   minted = 0;
@@ -199,7 +242,11 @@ function readerOf(request: Request, scenario: string): Reader {
   if (key) {
     const me = guestsByKey.get(key);
     if (me) return { role: "member", me, key, session: null };
-    if (scenario === "plan-guest-returning" || scenario === "plan-guest-decided") {
+    if (
+      scenario === "plan-guest-returning" ||
+      scenario === "plan-guest-decided" ||
+      scenario === "plan-guest-started"
+    ) {
       const earlier = guestMe("Ravi");
       guestsByKey.set(key, earlier);
       return { role: "member", me: earlier, key, session: null };
@@ -212,15 +259,38 @@ function readerOf(request: Request, scenario: string): Reader {
   return { role: "visitor" };
 }
 
-/** The plan as this reader sees it, in this scenario. */
+function isDecided(scenario: string): boolean {
+  return scenario === "plan-guest-decided" || scenario === "plan-guest-started";
+}
+
+/**
+ * The plan as this reader sees it, in this scenario.
+ *
+ * A member's view is the fixture's, with what they last sent laid over it
+ * by `withReply`, so their answers, the items they hold and their paid marks
+ * are what this browser sent, not the fixture's own Ravi. That is what lets
+ * a spec change a claim and see it freed on the next read.
+ */
 function viewFor(scenario: string, reader: Reader): PlanView {
   const me = reader.role === "member" ? reader.me : null;
-  if (scenario === "plan-guest-decided") return decidedPlanView(reader.role, me);
-  const open = openPlanView(reader.role, me);
+  const base = isDecided(scenario)
+    ? decidedPlanView(reader.role, me)
+    : openPlanView(reader.role, me);
+  const view = me
+    ? withReply(base, { answers: me.answers, claims: me.claims, paid: me.paid })
+    : base;
   if (scenario === "plan-guest-closed") {
-    return { ...open, state: "cancelled", canReply: false };
+    return { ...view, state: "cancelled", canReply: false };
   }
-  return open;
+  if (scenario === "plan-guest-started") {
+    const key = reader.role === "member" ? reader.key : null;
+    return {
+      ...view,
+      canReply: false,
+      ...(key ? { earlierShares: earlierShares(earlierPaidByKey.get(key) ?? new Set()) } : {}),
+    };
+  }
+  return view;
 }
 
 function ok(view: PlanView, status = 200) {
@@ -246,12 +316,23 @@ const strings = (value: unknown): string[] =>
  * out is cleared. An item somebody else already brings is not claimed and is
  * named in `notClaimed`, which is not an error.
  */
-function applyReply(me: PlanMe, body: Record<string, unknown>): { me: PlanMe; notClaimed: string[] } {
+function applyReply(
+  me: PlanMe,
+  body: Record<string, unknown>,
+  scenario: string,
+): { me: PlanMe; notClaimed: string[] } {
   const taken = new Set<string>([PLAN_IDS.items[0]]);
-  const claims = strings(body.claims);
   const answers = Array.isArray(body.answers)
     ? (body.answers as PlanMe["answers"])
     : [];
+  const cantGo =
+    isDecided(scenario) &&
+    answers.some((a) => a.optionId === PLAN_IDS.times[0] && a.answer === "cant");
+  const claims = cantGo ? [] : strings(body.claims);
+  // A paid-only reply moves the paid marks and nothing else.
+  if (paidOnly(body)) {
+    return { me: { ...me, paid: strings(body.paid) }, notClaimed: [] };
+  }
   return {
     me: {
       ...me,
@@ -263,9 +344,13 @@ function applyReply(me: PlanMe, body: Record<string, unknown>): { me: PlanMe; no
   };
 }
 
-/** Only `paid`: what a closed plan still takes. */
+/**
+ * Only `paid`: what a closed plan still takes. Read as the API reads it,
+ * by which fields were sent at all: a reply that sends empty answers and
+ * claims is a reply that clears them, not a paid-only one.
+ */
 function paidOnly(body: Record<string, unknown>): boolean {
-  return strings(body.claims).length === 0 && !(Array.isArray(body.answers) && body.answers.length > 0);
+  return !("answers" in body) && !("claims" in body) && !("name" in body) && !("adult" in body);
 }
 
 export const planLinkHandlers = [
@@ -288,11 +373,35 @@ export const planLinkHandlers = [
         reason: "cancelled",
       });
     }
+    if (scenario === "plan-guest-started" && !paidOnly(body)) {
+      return envelope(
+        "plan_closed",
+        "Replies are closed because the plan has started.",
+        409,
+        { reason: "started" },
+      );
+    }
 
     const reader = readerOf(request, scenario);
     if (reader.role === "planner") return ok(viewFor(scenario, reader));
+
+    /*
+      A paid-only reply naming only last week's costs is for last week's
+      plan (the API's `paidElsewhere`): a complete set there, and this
+      week's marks stay as they were. Costs from both weeks at once are a
+      404, as the API answers them.
+    */
+    const paid = strings(body.paid);
+    const earlier = new Set<string>(EARLIER_COST_IDS);
+    if (paidOnly(body) && paid.length > 0 && paid.some((id) => earlier.has(id))) {
+      if (!paid.every((id) => earlier.has(id))) return NOT_FOUND();
+      if (reader.role !== "member" || !reader.key) return NOT_FOUND();
+      earlierPaidByKey.set(reader.key, new Set(paid));
+      return ok(viewFor(scenario, reader));
+    }
+
     if (reader.role === "member") {
-      const { me, notClaimed } = applyReply(reader.me, body);
+      const { me, notClaimed } = applyReply(reader.me, body, scenario);
       if (reader.key) guestsByKey.set(reader.key, me);
       if (reader.session) membersBySession.set(reader.session, me);
       const view = viewFor(scenario, { ...reader, me });
@@ -311,7 +420,7 @@ export const planLinkHandlers = [
     const session = sessionOf(request);
     if (session) {
       // Belongs to the account: no key, 200.
-      const first = applyReply(guestMe(name || "Ravi", { linked: true }), body);
+      const first = applyReply(guestMe(name || "Ravi", { linked: true }), body, scenario);
       membersBySession.set(session, first.me);
       return ok(
         viewFor(scenario, { role: "member", me: first.me, key: null, session }),
@@ -350,7 +459,7 @@ export const planLinkHandlers = [
     }
 
     const key = mintKey();
-    const { me, notClaimed } = applyReply(guestMe(name), body);
+    const { me, notClaimed } = applyReply(guestMe(name), body, scenario);
     guestsByKey.set(key, me);
     nonces.set(nonce, { name, key, at: mockNow() });
     const view = viewFor(scenario, { role: "member", me, key, session: null });

@@ -14,7 +14,7 @@ import {
   PLAN_IDS,
   guestMe,
   openPlanView,
-} from "../../../../../mocks/plan-link-fixtures";
+} from "../../../../../mocks/plan-fixtures";
 
 /**
  * A reply by link (yuvoy-mobile#373): the first one's guest key goes into an
@@ -76,6 +76,20 @@ describe("a first reply", () => {
     expect(text).not.toContain("ypk_");
     expect(text).not.toContain("guestKey");
     expect(JSON.parse(text).me.name).toBe("Ravi");
+  });
+
+  it("keeps no cookie and sends no key for a 201 whose key is not of the contract's shape", async () => {
+    watchApi(() =>
+      HttpResponse.json(
+        { ...openPlanView("member", guestMe()), guestKey: "not-a-key" },
+        { status: 201 },
+      ),
+    );
+    const response = await POST(
+      guestRequest("reply", { token: TOKEN, nonce: NONCE, reply: FIRST }),
+    );
+    expect(response.cookies.getAll()).toEqual([]);
+    expect(await response.text()).not.toContain("guestKey");
   });
 
   it("sends the form's nonce as Idempotency-Key, exactly", async () => {

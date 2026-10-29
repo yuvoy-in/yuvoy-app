@@ -12,7 +12,7 @@ import {
   keys,
   watchApi,
 } from "../../../../test/plan-link";
-import { openPlanView, guestMe } from "../../../../../mocks/plan-link-fixtures";
+import { openPlanView, guestMe } from "../../../../../mocks/plan-fixtures";
 
 /**
  * Reading a plan by its link (yuvoy-mobile#373): which guest key goes with

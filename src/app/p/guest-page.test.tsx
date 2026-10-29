@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "../../../mocks/server";
-import { openPlanView } from "../../../mocks/plan-link-fixtures";
+import { openPlanView } from "../../../mocks/plan-fixtures";
 import { GuestPage } from "./guest-page";
 
 /**

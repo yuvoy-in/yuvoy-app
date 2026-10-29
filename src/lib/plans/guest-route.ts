@@ -312,6 +312,32 @@ export function planIdentity(
 }
 
 /**
+ * A first reply's answer, split in two: the answer with `guestKey` taken out
+ * of its body and its text, and the key itself, or null when it had none of
+ * the contract's shape.
+ *
+ * Done to the API's answer before anything else reads it, so the only thing
+ * that ever holds the key afterwards is the cookie `keepKey` writes. The
+ * answer the page gets, and the action result it makes of it, are built
+ * from an answer that no longer has a key in it to leak, rather than from
+ * one that had it and was trusted to drop it on the way out.
+ */
+export function takeGuestKey(result: UpstreamResult): {
+  result: UpstreamResult;
+  guestKey: string | null;
+} {
+  const body = result.body;
+  if (!isJson(body) || !("guestKey" in body)) {
+    return { result, guestKey: null };
+  }
+  const { guestKey, ...rest } = body;
+  return {
+    result: { ...result, body: rest, text: JSON.stringify(rest) },
+    guestKey: isGuestKey(guestKey) ? guestKey : null,
+  };
+}
+
+/**
  * Whether the key that was sent is the one the API knew: the answer is the
  * plan of the series the key was kept for, and the reader is somebody on it
  * rather than a visitor. Only then is its cookie refreshed, so a key sent

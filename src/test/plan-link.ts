@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import { server } from "../../mocks/server";
-import { PLAN_IDS, openPlanView } from "../../mocks/plan-link-fixtures";
+import { PLAN_IDS, openPlanView } from "../../mocks/plan-fixtures";
 
 /**
  * What the plan guest route tests share (yuvoy-mobile#373): a request as the
