@@ -16,12 +16,17 @@ import {
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
-import { foundHandlers, exploreStageOf } from "./found-handlers";
+import {
+  foundHandlers,
+  exploreStageOf,
+  checkedStageOf,
+} from "./found-handlers";
 import {
   KARNATAKA_FOR_ALL,
   KARNATAKA_MARKET,
   isFoundId,
 } from "./found-fixtures";
+import { checkedSampleById } from "./found-checked-fixtures";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
@@ -151,6 +156,15 @@ export type Scenario =
   | "report-gone"
   | "item-ended"
   | "item-merged"
+  /*
+    Checked cities (yuvoy-app#180). Each opens `checkedCities` at `staff` as
+    well as `explore`, on R3's clock (Friday 21 August, 17:30 in Kolkata);
+    `found-handlers.ts` says what each does.
+  */
+  | "checked-staff"
+  | "found-weekend-thin"
+  | "found-free-empty"
+  | "found-search-empty"
   /*
     One table at `/tables/{id}` (yuvoy-app#194), each a state of the same
     fixture id (`table-handlers.ts`). `table-requested` is the default read;
@@ -1125,7 +1139,7 @@ export const handlers = [
   /*
     The app's config, with how far each release has reached (R0-T2): every
     release `off`, as on dev and production today, unless a scenario moves
-    `explore`.
+    `explore` or `checkedCities` (yuvoy-app#180's, at `staff`).
   */
   http.get(url("/app-config"), async ({ request }) => {
     const failed = await commonFailure(request);
@@ -1148,7 +1162,10 @@ export const handlers = [
           hours: "9am to 7pm, every day",
         },
         deliveryHost: null,
-        releases: { explore, checkedCities: "off" },
+        releases: {
+          explore,
+          checkedCities: checkedStageOf(scenario) ?? "off",
+        },
       },
       { headers: mockHeaders(requestId()) },
     );
@@ -1223,7 +1240,8 @@ export const handlers = [
     */
     const knownSubject = (event: Record<string, unknown>) =>
       event.subjectType === "event"
-        ? isFoundId(event.subjectId as string, mockNow())
+        ? isFoundId(event.subjectId as string, mockNow()) ||
+          checkedSampleById(event.subjectId as string) !== null
         : known.has(event.subjectId as string);
     const uuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
