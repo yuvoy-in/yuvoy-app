@@ -18,6 +18,7 @@ import {
   checkedSampleById,
   checkedWeek,
 } from "./found-checked-fixtures";
+import { statedSampleById, statedSamples } from "./found-stated-fixtures";
 import { NO_R3, askKey, narrow, readR3, refused, windowOf } from "./found-r3";
 
 /**
@@ -68,7 +69,7 @@ import { NO_R3, askKey, narrow, readR3, refused, windowOf } from "./found-r3";
  * ## Checked cities (yuvoy-app#180, R3-T2)
  *
  * `checkedCities` is `off` with no scenario, exactly as on dev and
- * production. Four scenarios open it at `staff` as well as `explore`. Each
+ * production. Five scenarios open it at `staff` as well as `explore`. Each
  * starts `found-`, since the server render reads places only under the
  * prefixes `src/lib/site/my-places.ts` lists (`PLACE_SCENARIO`), so mobile's
  * `checked-staff` is `found-checked` here:
@@ -82,9 +83,17 @@ import { NO_R3, askKey, narrow, readR3, refused, windowOf } from "./found-r3";
  *   - `found-weekend-thin`: This weekend finds one card, so Coming up follows;
  *   - `found-free-empty`: Free (`free=true` or `budget=free`) finds nothing;
  *   - `found-search-empty`: a search finds nothing, and what it understood is
- *     still said.
+ *     still said;
+ *   - `found-stated-facts` (yuvoy-app#195, R3-T6): Bengaluru and Coorg add
+ *     cards whose pages state facts (`found-stated-fixtures.ts`), which
+ *     `duration`, `setting`, `suits` and `difficulty` narrow, and whose pages
+ *     send them in `stated`.
  *
- * Under all four every found route reads `CHECKED_NOW`, Friday 21 August
+ * `found-stated-closed` is that last world with `checkedCities` left `off`:
+ * the same cards and pages, `stated` included, and every R3 parameter
+ * ignored, so the app's own gate is what hides the rows and "As listed".
+ *
+ * Under all six every found route reads `CHECKED_NOW`, Friday 21 August
  * 2026 at 17:30 in Kolkata, and every mocked answer says it in its `Date`
  * header (`checked-clock.ts`), so the app's measured offset is one clock. While
  * `checkedCities` is closed to the caller, every R3 parameter is ignored
@@ -115,11 +124,19 @@ export const CHECKED_STAFF_SCENARIOS: ReadonlySet<string> = new Set([
   "found-weekend-thin",
   "found-free-empty",
   "found-search-empty",
+  "found-stated-facts",
+]);
+
+/** The scenarios whose places carry cards that state facts (yuvoy-app#195). */
+const STATED_SCENARIOS: ReadonlySet<string> = new Set([
+  "found-stated-facts",
+  "found-stated-closed",
 ]);
 
 /** The scenarios that open `explore` at `staff`. See above for each. */
 export const EXPLORE_STAFF_SCENARIOS: ReadonlySet<string> = new Set([
   ...CHECKED_STAFF_SCENARIOS,
+  "found-stated-closed",
   "explore-staff",
   "found-empty",
   "found-error",
@@ -155,9 +172,22 @@ export function checkedStageOf(scenario: string): "staff" | null {
   return CHECKED_STAFF_SCENARIOS.has(scenario) ? "staff" : null;
 }
 
+/** Whether a scenario runs on R3's clock (`CHECKED_NOW`), as R3's fixtures are dated. */
+export function onR3Clock(scenario: string): boolean {
+  return checkedStageOf(scenario) !== null || STATED_SCENARIOS.has(scenario);
+}
+
 /** The found routes' clock: R3's stands still on a Friday evening. */
 function foundNow(scenario: string): number {
-  return checkedStageOf(scenario) ? CHECKED_NOW : mockNow();
+  return onR3Clock(scenario) ? CHECKED_NOW : mockNow();
+}
+
+/** A card of R3's worlds by id, with its place, or null outside them. */
+function r3SampleById(scenario: string, id: string) {
+  if (STATED_SCENARIOS.has(scenario)) {
+    return statedSampleById(id) ?? checkedSampleById(id);
+  }
+  return checkedStageOf(scenario) ? checkedSampleById(id) : null;
 }
 
 /** A sign-in session, as the mocks mint them (`sess_<digits>`). */
@@ -361,9 +391,11 @@ export const foundHandlers = [
     const all =
       scenario === "found-empty"
         ? []
-        : checkedStageOf(scenario) && key === BENGALURU
-          ? checkedWeek()
-          : foundSamples(key, now, shape)!;
+        : STATED_SCENARIOS.has(scenario)
+          ? statedSamples(key)!
+          : checkedStageOf(scenario) && key === BENGALURU
+            ? checkedWeek()
+            : foundSamples(key, now, shape)!;
 
     let offset = 0;
     if (cursor !== null) {
@@ -393,8 +425,17 @@ export const foundHandlers = [
       ask,
       now,
     );
-    let narrowed =
-      scenario === "found-dept-empty" && category ? [] : found.samples;
+    /*
+      A home city lists only cards whose check counts: never a found card,
+      nor one whose check lapsed (yuvoy-api `found_items_public.go`). So
+      #195's "an unchecked card stating hard is never Hard" in a local place
+      can only hold this way, by no such card being listed there at all.
+    */
+    const listed =
+      place.kind === "local"
+        ? found.samples.filter((s) => s.card.check.tier !== "found")
+        : found.samples;
+    let narrowed = scenario === "found-dept-empty" && category ? [] : listed;
     // R3's scenarios, each one shape of answer (see above).
     if (scenario === "found-weekend-thin" && ask.when === "weekend") {
       narrowed = narrowed.slice(0, 1);
@@ -482,7 +523,7 @@ export const foundHandlers = [
       asked === FOUND_IDS.merged ||
       (scenario === "item-merged" && sampleById(asked, now) !== null);
     const found =
-      (checkedStageOf(scenario) && checkedSampleById(asked)) ||
+      r3SampleById(scenario, asked) ??
       sampleById(merged ? FOUND_IDS.mergedInto : asked, now);
     if (!found) return envelope("not_found", EVENT_NOT_FOUND, 404);
 
@@ -610,8 +651,7 @@ export const foundHandlers = [
     }
 
     const found =
-      (checkedStageOf(scenario) && checkedSampleById(id)) ||
-      sampleById(id, foundNow(scenario));
+      r3SampleById(scenario, id) ?? sampleById(id, foundNow(scenario));
     if (!found) return envelope("not_found", CARD_NOT_SHOWING, 404);
 
     const unchecked = found.sample.card.check.tier === "found";

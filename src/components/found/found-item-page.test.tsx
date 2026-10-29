@@ -367,6 +367,94 @@ describe("the page", () => {
   });
 });
 
+/* ------------------------------------- what the page states (#195) -- */
+
+describe("what the card's own page states", () => {
+  const STATED: FoundItemDetail["stated"] = {
+    endTime: "09:30",
+    setting: "indoor",
+    suits: ["friends"],
+    difficulty: "easy",
+    venueType: "coffee house",
+    included: "Three cups of filter coffee.",
+    goodToKnow: "Starts on time.",
+  };
+
+  it("draws As listed after when, where and the price, then its two sections, while checkedCities is open", () => {
+    renderWithQuery(
+      <FoundItemPage
+        item={card({ stated: STATED })}
+        signedIn={false}
+        checkedCities
+      />,
+    );
+    const block = screen.getByRole("region", { name: "As listed" });
+    // After the price, before the summary.
+    expect(
+      screen.getByTestId("found-price").compareDocumentPosition(block) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      block.compareDocumentPosition(screen.getByTestId("found-summary")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(block).toHaveTextContent("Venue: coffee house");
+    expect(
+      screen.getByRole("heading", { level: 2, name: "What's included" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Good to know" }),
+    ).toBeInTheDocument();
+  });
+
+  it("What's included shows only when stated, with no empty heading", () => {
+    const { unmount } = renderWithQuery(
+      <FoundItemPage
+        item={card({ stated: { ...STATED, included: null } })}
+        signedIn={false}
+        checkedCities
+      />,
+    );
+    expect(
+      screen.queryByRole("heading", { name: "What's included" }),
+    ).toBeNull();
+    expect(screen.queryByTestId("found-included")).toBeNull();
+    unmount();
+
+    renderWithQuery(
+      <FoundItemPage
+        item={card({
+          stated: {
+            endTime: null,
+            setting: null,
+            suits: [],
+            difficulty: null,
+            venueType: null,
+            included: "Three cups of filter coffee.",
+            goodToKnow: null,
+          },
+        })}
+        signedIn={false}
+        checkedCities
+      />,
+    );
+    expect(screen.getByTestId("found-included")).toHaveTextContent(
+      "Three cups of filter coffee.",
+    );
+    expect(screen.queryByRole("region", { name: "As listed" })).toBeNull();
+  });
+
+  it("draws no block and no sections while checkedCities is closed, though stated is in the answer", () => {
+    renderWithQuery(
+      <FoundItemPage item={card({ stated: STATED })} signedIn={false} />,
+    );
+    expect(screen.queryByTestId("found-as-listed")).toBeNull();
+    for (const name of ["As listed", "What's included", "Good to know"])
+      expect(screen.queryByRole("heading", { name })).toBeNull();
+    expect(screen.queryByText("Venue: coffee house")).toBeNull();
+  });
+});
+
 /* ---------------------------------------------------------------- route */
 
 type PageArgs = {
@@ -479,6 +567,33 @@ describe("the route", () => {
     expect(event).not.toHaveProperty("endDate");
     // No price and no offer: Yuvoy does not sell these tickets.
     expect(JSON.stringify(event)).not.toMatch(/"offers"|"price"/);
+  });
+
+  it("draws As listed only while checkedCities is open to the caller", async () => {
+    const stated: FoundItemDetail["stated"] = {
+      ...card().stated,
+      venueType: "coffee house",
+    };
+    serveCard(() => HttpResponse.json(card({ stated })));
+    let { page } = await route();
+    // The mocks answer checkedCities off with no scenario.
+    const { unmount } = renderWithQuery(await page(args(ID)));
+    expect(screen.queryByRole("heading", { name: "As listed" })).toBeNull();
+    unmount();
+
+    server.use(
+      http.get(`${BASE}/app-config`, () =>
+        HttpResponse.json({
+          releases: { explore: "all", checkedCities: "all" },
+        }),
+      ),
+    );
+    ({ page } = await route());
+    renderWithQuery(await page(args(ID)));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "As listed" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Venue: coffee house")).toBeInTheDocument();
   });
 
   it("gives an undated card no Event, indexable or not", async () => {

@@ -90,6 +90,8 @@ export const FOUND_FEED_CACHE = {
  */
 export function useFoundFeed(options: {
   placeKey: string;
+  /** Whether the place is local (`kind` is `local`): How hard is sent there only. */
+  local: boolean;
   category: Category | null;
   signedIn: boolean;
   /**
@@ -106,6 +108,7 @@ export function useFoundFeed(options: {
 }) {
   const {
     placeKey,
+    local,
     category,
     signedIn,
     seed,
@@ -113,9 +116,13 @@ export function useFoundFeed(options: {
     filters = NO_FOUND_FILTERS,
     search = null,
   } = options;
-  const narrow = foundListQuery(filters, search);
+  const narrow = foundListQuery(filters, local, search);
   return useInfiniteQuery({
-    queryKey: qk.foundFeed(placeKey, category, foundFilterKey(filters, search)),
+    queryKey: qk.foundFeed(
+      placeKey,
+      category,
+      foundFilterKey(filters, local, search),
+    ),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }): Promise<FoundItemList> => {
       const client = signedIn ? createProxyClient() : api;

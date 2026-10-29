@@ -27,6 +27,7 @@ import {
   isFoundId,
 } from "./found-fixtures";
 import { checkedSampleById } from "./found-checked-fixtures";
+import { statedSampleById } from "./found-stated-fixtures";
 import { checkedClock } from "./checked-clock";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
@@ -166,6 +167,13 @@ export type Scenario =
   | "found-weekend-thin"
   | "found-free-empty"
   | "found-search-empty"
+  /*
+    What found cards' pages state (yuvoy-app#195, R3-T6), on R3's clock:
+    `found-stated-facts` with `checkedCities` at `staff`, and
+    `found-stated-closed`, the same cards with it `off`.
+  */
+  | "found-stated-facts"
+  | "found-stated-closed"
   /*
     One table at `/tables/{id}` (yuvoy-app#194), each a state of the same
     fixture id (`table-handlers.ts`). `table-requested` is the default read;
@@ -1242,7 +1250,8 @@ const routes = [
     const knownSubject = (event: Record<string, unknown>) =>
       event.subjectType === "event"
         ? isFoundId(event.subjectId as string, mockNow()) ||
-          checkedSampleById(event.subjectId as string) !== null
+          checkedSampleById(event.subjectId as string) !== null ||
+          statedSampleById(event.subjectId as string) !== null
         : known.has(event.subjectId as string);
     const uuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

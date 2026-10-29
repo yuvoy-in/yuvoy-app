@@ -7,7 +7,7 @@ import { mockHeaders, mockNow } from "../../../mocks/fixtures";
 import { renderWithQuery } from "@/test/render";
 import { HIDDEN_CARDS_CHANGED } from "@/lib/found/device-store";
 import { marketDaysFrom } from "@/lib/booking/availability-window";
-import { foundToday } from "@/lib/found/found-filters";
+import { NO_FOUND_FILTERS, foundToday } from "@/lib/found/found-filters";
 import type {
   ExplorePlace,
   FoundItem,
@@ -401,7 +401,19 @@ function answerEvents(answer: (query: URLSearchParams) => FoundItemList) {
 
 /** The R3 parameters of a request, in a fixed order, to compare. */
 const narrowing = (query: URLSearchParams) =>
-  ["when", "free", "budget", "timeOfDay", "q", "asText", "cursor"]
+  [
+    "when",
+    "free",
+    "budget",
+    "timeOfDay",
+    "duration",
+    "setting",
+    "suits",
+    "difficulty",
+    "q",
+    "asText",
+    "cursor",
+  ]
     .flatMap((key) => query.getAll(key).map((value) => `${key}=${value}`))
     .join("&");
 
@@ -422,7 +434,13 @@ describe("R3 closed: checkedCities is not open to this caller", () => {
   it("draws no chips, no search and no Filters, and the address narrows nothing", () => {
     renderFeed({
       checkedCities: false,
-      filters: { when: "weekend", budget: "free", timeOfDay: null },
+      filters: {
+        ...NO_FOUND_FILTERS,
+        when: "weekend",
+        budget: "free",
+        suits: "kids",
+        difficulty: "hard",
+      },
       search: { q: "dive", asText: [] },
     });
     expect(
@@ -466,7 +484,7 @@ describe("R3 open", () => {
     io.fire = true;
     renderFeed({
       checkedCities: true,
-      filters: { when: "today", budget: "free", timeOfDay: null },
+      filters: { ...NO_FOUND_FILTERS, when: "today", budget: "free" },
       search: { q: "dive saturday", asText: ["saturday"] },
       firstPage: page([card(3)], { complete: false, nextCursor: "c2" }),
     });
@@ -492,7 +510,7 @@ describe("R3 open", () => {
     );
     renderFeed({
       checkedCities: true,
-      filters: { when: "tomorrow", budget: null, timeOfDay: null },
+      filters: { ...NO_FOUND_FILTERS, when: "tomorrow" },
       firstPage: page([]),
     });
     expect(
@@ -513,7 +531,7 @@ describe("R3 open", () => {
   it("says nothing is free", () => {
     renderFeed({
       checkedCities: true,
-      filters: { when: null, budget: "free", timeOfDay: null },
+      filters: { ...NO_FOUND_FILTERS, budget: "free" },
       firstPage: page([]),
     });
     expect(
@@ -536,6 +554,62 @@ describe("R3 open", () => {
     expect(
       screen.getByRole("button", { name: "Filters, 2 on" }),
     ).toBeInTheDocument();
+  });
+
+  it("narrows by How long, Indoors or out, Who it suits and How hard in a local place, from page one", async () => {
+    const asked = answerEvents(() => page([card(8)]));
+    window.history.replaceState(null, "", "/?place=karnataka/bengaluru");
+    renderFeed({
+      checkedCities: true,
+      firstPage: page([card(3)], { complete: false, nextCursor: "c2" }),
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Half a day" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Indoors" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Kids" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Hard" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show results" }));
+    await waitFor(() => expect(titles()).toEqual(["Card 8"]));
+    // Page one of a new list: the old cursor never goes with new filters.
+    expect(narrowing(asked.at(-1)!)).toBe(
+      "duration=half_day&setting=indoor&suits=kids&difficulty=hard",
+    );
+    expect(window.location.search).toBe(
+      "?place=karnataka%2Fbengaluru&duration=half_day&setting=indoor&suits=kids&difficulty=hard",
+    );
+    expect(
+      screen.getByRole("button", { name: "Filters, 4 on" }),
+    ).toBeInTheDocument();
+  });
+
+  it("has no How hard in a travel place, and never sends difficulty there", async () => {
+    const goa: ExplorePlace = {
+      key: "goa/panaji",
+      name: "Panaji",
+      regionName: "Goa",
+      kind: "travel",
+      timezone: "Asia/Kolkata",
+    };
+    const asked = answerEvents(() => page([card(9)], { place: goa }));
+    renderFeed({
+      place: goa,
+      placeName: "Panaji",
+      checkedCities: true,
+      // Handed in all the same, as a hand-edited address might.
+      filters: { ...NO_FOUND_FILTERS, difficulty: "hard" },
+      firstPage: page([card(1)], { place: goa }),
+    });
+    expect(screen.getByRole("button", { name: "Filters" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.queryByRole("group", { name: "How hard" })).toBeNull();
+    expect(
+      screen.getByRole("group", { name: "Who it suits" }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "Outdoors" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show results" }));
+    await waitFor(() => expect(titles()).toEqual(["Card 9"]));
+    expect(narrowing(asked.at(-1)!)).toBe("setting=outdoor");
+    expect(window.location.search).toBe("?setting=outdoor");
   });
 });
 
@@ -675,7 +749,7 @@ describe("R3 thin weekend", () => {
     );
     renderFeed({
       checkedCities: true,
-      filters: { when: "weekend", budget: null, timeOfDay: null },
+      filters: { ...NO_FOUND_FILTERS, when: "weekend" },
       firstPage: weekend,
     });
     const coming = await screen.findByRole("feed", { name: "Coming up" });
