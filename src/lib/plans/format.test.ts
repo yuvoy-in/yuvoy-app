@@ -60,7 +60,7 @@ describe("planTimeRange", () => {
 
   it("has no dash in it", () => {
     const line = planTimeRange("2026-08-22T13:30:00Z", "2026-08-22T17:30:00Z", tz);
-    expect(line).not.toMatch(/[‒-―−]|\s-\s/);
+    expect(line).not.toMatch(/[\u2012-\u2015\u2212]|\s-\s/);
   });
 });
 
@@ -89,7 +89,7 @@ describe("mapLink", () => {
     ["data", "data:text/html,<b>x</b>"],
     ["plain http", "http://maps.google.com/?q=x"],
     ["another site", "https://example.com/maps"],
-    ["a look-alike host", "https://maps.google.com.example.com/"],
+    ["a look-alike domain", "https://maps.google.com.example.com/"],
     ["google, not maps", "https://www.google.com/search?q=x"],
     ["a path that only starts with maps", "https://www.google.com/mapsevil"],
     ["a user in the link", "https://me@maps.google.com/"],

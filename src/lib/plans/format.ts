@@ -76,14 +76,14 @@ export function rupees(amountMinor: number): string {
  * would run on click, and a link to any other site would open whatever the
  * planner pasted under "Open the map". The contract does not say the API
  * checks it, so the page does: anything else is dropped and the place text
- * still shows. The hosts are the ones Google Maps' own share button writes.
+ * still shows. The domains are the ones Google Maps' own share button writes.
  */
-const MAP_HOSTS: ReadonlyArray<{ host: string; path?: string }> = [
-  { host: "maps.google.com" },
-  { host: "maps.app.goo.gl" },
-  { host: "www.google.com", path: "/maps" },
-  { host: "google.com", path: "/maps" },
-  { host: "goo.gl", path: "/maps" },
+const MAP_SITES: ReadonlyArray<{ domain: string; path?: string }> = [
+  { domain: "maps.google.com" },
+  { domain: "maps.app.goo.gl" },
+  { domain: "www.google.com", path: "/maps" },
+  { domain: "google.com", path: "/maps" },
+  { domain: "goo.gl", path: "/maps" },
 ];
 
 export function mapLink(url: string | undefined): string | null {
@@ -98,9 +98,9 @@ export function mapLink(url: string | undefined): string | null {
     return null;
   }
   if (parsed.port !== "") return null;
-  const allowed = MAP_HOSTS.some(
-    ({ host, path }) =>
-      parsed.hostname === host &&
+  const allowed = MAP_SITES.some(
+    ({ domain, path }) =>
+      parsed.hostname === domain &&
       (path === undefined ||
         parsed.pathname === path ||
         parsed.pathname.startsWith(`${path}/`)),
