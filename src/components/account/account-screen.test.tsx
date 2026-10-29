@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { AccountScreen } from "./account-screen";
+import { useRelease } from "@/lib/site/use-release";
 import { server } from "../../../mocks/server";
 import {
   __resetAppRouteMocks,
@@ -864,5 +865,95 @@ describe("what the code step says (yuvoy-api#254, #303)", () => {
       screen.getByRole("link", { name: "Call us on +91 81216 57657" }),
     ).toHaveAttribute("href", "tel:+918121657657");
     expect(screen.queryByText("We could not connect")).toBeNull();
+  });
+});
+
+/**
+ * Your links on Account (yuvoy-app#207): drawn for a traveller with creator
+ * tools on while the `creator` release is open to them, and not otherwise.
+ * The section's own states are tested in `creator/your-links.test.tsx`.
+ */
+describe("your links on the account", () => {
+  function account(over: { creatorToolsOn: boolean; cohort: string | null }) {
+    server.use(
+      http.get(`${BASE}/me`, () =>
+        HttpResponse.json({
+          phone: "+919000000000",
+          name: "Asha Menon",
+          email: null,
+          interests: [],
+          onboardingRequired: false,
+          memberSince: null,
+          trips: { total: 1, upcoming: 0, completed: 1 },
+          reviews: { count: 0 },
+          support: { whatsappE164: null, hours: "" },
+          ...over,
+        }),
+      ),
+      http.get(`${BASE}/app-config`, () =>
+        HttpResponse.json({
+          minimumVersion: { ios: "0.0.0", android: "0.0.0" },
+          features: { payments: "coming_soon", inviteOnly: false },
+          support: { whatsappE164: null, hours: "" },
+          deliveryHost: null,
+          releases: { creator: "staff" },
+        }),
+      ),
+    );
+  }
+
+  /** The creator release as Your links reads it, once it is known. */
+  function ReleaseProbe() {
+    const release = useRelease("creator");
+    return (
+      <p data-testid="release">
+        {release.pending
+          ? "pending"
+          : `${release.stage} ${release.open ? "open" : "shut"}`}
+      </p>
+    );
+  }
+
+  function links() {
+    const asked = { count: 0 };
+    server.use(
+      http.get(`${BASE}/me/creator-links`, () => {
+        asked.count += 1;
+        return HttpResponse.json({ items: [] });
+      }),
+    );
+    return asked;
+  }
+
+  it("is drawn for staff with the tools on", async () => {
+    account({ creatorToolsOn: true, cohort: "staff" });
+    links();
+    __signInAppRouteMock();
+    renderWithQuery(<AccountScreen />);
+    expect(
+      await screen.findByRole("region", { name: "Your links" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("No links yet. Get one from a trip you went on."),
+    ).toBeInTheDocument();
+  });
+
+  it("is not drawn, and asks nothing, outside the release", async () => {
+    account({ creatorToolsOn: true, cohort: null });
+    const asked = links();
+    __signInAppRouteMock();
+    renderWithQuery(
+      <>
+        <ReleaseProbe />
+        <AccountScreen />
+      </>,
+    );
+    await screen.findByText("Asha Menon");
+    // The stage and the cohort have both answered, and it is closed to them.
+    await waitFor(() =>
+      expect(screen.getByTestId("release")).toHaveTextContent("staff shut"),
+    );
+    expect(screen.queryByRole("region", { name: "Your links" })).toBeNull();
+    expect(asked.count).toBe(0);
   });
 });

@@ -39,6 +39,7 @@ import { useListMotion } from "@/lib/motion/use-list-motion";
 import { useDelayedFlag } from "@/lib/motion/use-delayed-flag";
 import { cn } from "@/lib/cn";
 import { TripTabs } from "./trip-tabs";
+import { GetMyLink } from "@/components/creator/get-my-link";
 import {
   DateFilterSheet,
   DateFilterButton,
@@ -390,6 +391,8 @@ function TabTrips({
             {listed.map((trip) => (
               <li key={trip.reference || trip.reservationId}>
                 <TripCard trip={trip} now={now} />
+                {/* A share link, for a trip that is over (yuvoy-app#207). */}
+                {tab === "past" ? <GetMyLink trip={trip} /> : null}
               </li>
             ))}
             {invited.map((trip) => (

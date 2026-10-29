@@ -162,6 +162,22 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("POST", "/plans")).toBeNull();
   });
 
+  it("forwards reading and getting share links, and no other verb", () => {
+    /*
+      yuvoy-app#207. The list and the one write, both session only. There is
+      no route for one link by code, and none to delete one.
+    */
+    expect(allowedProxyPath("GET", "/me/creator-links")).toBe(
+      "/me/creator-links",
+    );
+    expect(allowedProxyPath("POST", "/me/creator-links")).toBe(
+      "/me/creator-links",
+    );
+    expect(allowedProxyPath("DELETE", "/me/creator-links")).toBeNull();
+    expect(allowedProxyPath("PATCH", "/me/creator-links")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/creator-links/C-K7QM2XPA")).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

@@ -203,6 +203,13 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "DELETE", pattern: "/plans/{id}/reply" },
   // Reporting the plan or somebody on it, to a person at Yuvoy.
   { method: "POST", pattern: "/plans/{id}/reports" },
+  /*
+    Share links to something the traveller went on (yuvoy-app#207, R12-T2):
+    Your links on Account reads them, and Get my link on a past trip makes
+    one or gives back the one already made. Session only in the contract.
+  */
+  { method: "GET", pattern: "/me/creator-links" },
+  { method: "POST", pattern: "/me/creator-links" },
 ];
 
 /*
