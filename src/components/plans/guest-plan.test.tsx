@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "../../../mocks/server";
@@ -370,16 +370,19 @@ describe("earlier weeks", () => {
   it("draws no pay button for a share with no payee of its own, and says who to ask", () => {
     routes({});
     draw(started());
+    const weeks = screen.getByRole("region", { name: "Earlier weeks" });
     expect(
-      screen.getByRole("heading", { name: "Earlier weeks" }),
+      within(weeks).getByText(
+        /Boat to the beach\. Your share: ₹150, paid by Asha\./,
+      ),
     ).toBeInTheDocument();
+    // This week's share has its pay button, for ₹150 too; last week's has none.
     expect(
-      screen.getByText(/Boat to the beach\. Your share: ₹150, paid by Asha\./),
+      screen.getByRole("link", { name: "Pay ₹150 by UPI" }),
     ).toBeInTheDocument();
-    // This week's share has its pay button; last week's has none.
-    expect(screen.queryByRole("link", { name: "Pay ₹150 by UPI" })).toBeNull();
+    expect(within(weeks).queryByRole("link", { name: /by UPI/ })).toBeNull();
     expect(
-      screen.getAllByText("Ask Asha for their UPI ID.").length,
+      within(weeks).getAllByText("Ask Asha for their UPI ID.").length,
     ).toBeGreaterThan(0);
   });
 

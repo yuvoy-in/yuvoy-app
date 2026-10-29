@@ -134,13 +134,11 @@ export function routeGuest(
 }
 
 /**
- * The page's own alerts, without the empty one Next.js keeps for route
- * announcements, which is `role="alert"` too.
+ * The page's own alerts, inside `main`: the empty one Next.js keeps for
+ * route announcements is `role="alert"` too, and sits outside it.
  */
 export function pageAlert(page: Page) {
-  return page
-    .getByRole("alert")
-    .and(page.locator(":not(#__next-route-announcer__)"));
+  return page.getByRole("main").getByRole("alert");
 }
 
 /**
