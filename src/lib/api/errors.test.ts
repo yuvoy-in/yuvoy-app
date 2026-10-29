@@ -13,6 +13,8 @@ describe("error classification", () => {
     // traveller Yuvoy is broken when a human stopped sales on purpose.
     expect(isDeliberateStop("booking_disabled")).toBe(true);
     expect(isDeliberateStop("operator_not_bookable")).toBe(true);
+    // Its D-049 name, which the API sends after the traveller cut-over.
+    expect(isDeliberateStop("host_not_bookable")).toBe(true);
     expect(isDeliberateStop("payments_unavailable")).toBe(true);
     expect(isDeliberateStop("capacity_unavailable")).toBe(false);
   });
