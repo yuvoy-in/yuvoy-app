@@ -16,6 +16,7 @@ import {
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
 import { savedHandlers } from "./saved-handlers";
+import { planLinkHandlers } from "./plan-link-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -1241,4 +1242,6 @@ export const handlers = [
 
   ...bookingHandlers,
   ...savedHandlers,
+  // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
+  ...planLinkHandlers,
 ];
