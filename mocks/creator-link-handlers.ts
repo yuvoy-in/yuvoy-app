@@ -200,9 +200,10 @@ export const creatorLinkHandlers = [
     const no = refused(request, scenario);
     if (no) return no;
 
-    let body: { experienceId?: unknown; eventId?: unknown } | null = null;
+    type Body = { experienceId?: unknown; eventId?: unknown };
+    let body: Body | null = null;
     try {
-      body = (await request.json()) as typeof body;
+      body = (await request.json()) as Body | null;
     } catch {
       body = null;
     }
