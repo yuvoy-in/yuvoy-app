@@ -137,6 +137,57 @@ describe("signing out", () => {
     expect(client.getQueryData(qk.invitedTrip("inv_1"))).toBeUndefined();
   });
 
+  it("forgets the places found and every card opened, on sign-out and on sign-in", async () => {
+    /*
+      The feed and card keys carry no session. While explore is open to
+      staff only, a staff number's feed and cards for a staff-only place
+      stayed in the cache after sign-out, for the next person on this
+      browser to read (yuvoy-app#179 review).
+    */
+    let signOut!: () => Promise<void>;
+    let signIn!: () => Promise<void>;
+    function SignIn({
+      onReady,
+    }: {
+      onReady: (fn: () => Promise<void>) => void;
+    }) {
+      const { signIn } = useTravellerSession();
+      onReady(signIn);
+      return null;
+    }
+    const { client } = renderWithQuery(
+      <>
+        <Harness onReady={(fn) => (signOut = fn)} />
+        <SignIn onReady={(fn) => (signIn = fn)} />
+      </>,
+    );
+    const seed = () => {
+      for (const key of [["listEvents"], ["getEvent"], ["listPlaces"]]) {
+        client.setQueryDefaults(key, { gcTime: Infinity });
+      }
+      client.setQueryData(qk.foundFeed("karnataka/coorg", null), { items: [] });
+      client.setQueryData(qk.foundItem("evt_1"), { id: "evt_1" });
+      client.setQueryData(qk.places(true), { places: [] });
+    };
+    const left = () => [
+      client.getQueryData(qk.foundFeed("karnataka/coorg", null)),
+      client.getQueryData(qk.foundItem("evt_1")),
+      client.getQueryData(qk.places(true)),
+    ];
+
+    seed();
+    await act(async () => {
+      await signOut();
+    });
+    expect(left()).toEqual([undefined, undefined, undefined]);
+
+    seed();
+    await act(async () => {
+      await signIn();
+    });
+    expect(left()).toEqual([undefined, undefined, undefined]);
+  });
+
   it("forgets each table opened", async () => {
     /*
       yuvoy-app#194. A table carries the reader's own request, the names and,

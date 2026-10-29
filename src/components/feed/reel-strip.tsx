@@ -150,31 +150,70 @@ export function ReelFrame({
  * opening a shared clip from a message has no history to go back to and no
  * reason to know there is an app around it.
  */
-export function ReelMasthead({ href }: { href?: string }) {
+export function ReelMasthead({
+  href,
+  place,
+}: {
+  href?: string;
+  /**
+   * The place trigger (yuvoy-app#179), passed by the feed only when the
+   * caller's list holds a place to find things in. Absent, the masthead is
+   * exactly what it was: nothing else here changes with it.
+   */
+  place?: ReactNode;
+}) {
+  const mark = href ? (
+    <Link
+      href={href}
+      className="pointer-events-auto flex min-h-11 items-center"
+      aria-label="Yuvoy home"
+    >
+      <Wordmark tone="paper" className="h-7" priority />
+    </Link>
+  ) : (
+    <Wordmark tone="paper" className="h-7" priority />
+  );
   return (
-    /*
-      `justify-between` puts Login opposite the mark. The strip stays
-      `pointer-events-none` across its full width so the whole top of a reel
-      still scrolls the feed; only the mark's link and the button take a press
-      (yuvoy-app#56 item 2). Getting that wrong makes a two-inch band at the
-      top of every reel dead to a swipe, which is where a thumb rests.
-    */
-    <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 pb-11 lg:hidden">
-      <div className="flex h-16 items-center justify-between gap-3 px-4">
-        {href ? (
-          <Link
-            href={href}
-            className="pointer-events-auto flex min-h-11 items-center"
-            aria-label="Yuvoy home"
-          >
-            <Wordmark tone="paper" className="h-7" priority />
-          </Link>
-        ) : (
-          <Wordmark tone="paper" className="h-7" priority />
-        )}
-        <LoginButton className="pointer-events-auto" />
+    <>
+      {/*
+        `justify-between` puts Login opposite the mark. The strip stays
+        `pointer-events-none` across its full width so the whole top of a reel
+        still scrolls the feed; only the mark's link and the button take a
+        press (yuvoy-app#56 item 2). Getting that wrong makes a two-inch band
+        at the top of every reel dead to a swipe, which is where a thumb rests.
+      */}
+      <div className="feed-scrim-top pointer-events-none absolute inset-x-0 top-0 z-20 pb-11 lg:hidden">
+        <div className="flex h-16 items-center justify-between gap-3 px-4">
+          {place ? (
+            /*
+              The place beside the mark, in the same 64px row, so the row's
+              geometry and the scrim's stops (pinned by palette.test.ts) do
+              not move. It shrinks and truncates before Login does.
+            */
+            <div className="flex min-w-0 items-center gap-2">
+              {mark}
+              <div className="pointer-events-auto min-w-0">{place}</div>
+            </div>
+          ) : (
+            mark
+          )}
+          <LoginButton className="pointer-events-auto" />
+        </div>
       </div>
-    </div>
+      {place ? (
+        /*
+          From `lg` up the rail carries the mark and Login, and the row above
+          is hidden with them, so the place floats at the top of the well on
+          its own. A second copy rather than one moved by breakpoint: only one
+          is ever displayed, and a hidden one is out of the accessibility tree.
+        */
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden p-4 lg:block">
+          <div className="pointer-events-auto inline-flex max-w-full">
+            {place}
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 

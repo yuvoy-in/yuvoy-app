@@ -50,7 +50,7 @@ export function PlanReport({
         {label}
       </Button>
       <SheetPresence open={open}>
-        <ReportSheet
+        <PlanReportSheet
           plan={plan}
           report={report}
           title={label}
@@ -63,7 +63,11 @@ export function PlanReport({
   );
 }
 
-function ReportSheet({
+// Not `ReportSheet`: that is the found card's sheet, and the sheet scan in
+// `sheet-presence.test.ts` knows sheets by name: one name for both made the
+// found feed's sheet (which stays mounted while it closes, and wraps its own
+// `SheetPresence`) read as a plain sheet mounted by a condition.
+function PlanReportSheet({
   plan,
   report,
   title,

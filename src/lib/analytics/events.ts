@@ -19,6 +19,8 @@ export const EVENTS = {
   bookingConfirmed: "booking_confirmed",
   bookingCancelled: "booking_cancelled",
   searchPerformed: "search_performed",
+  /** A place chosen on `/` (yuvoy-app#179), with `via: list | near_you | link`. */
+  placePicked: "place_picked",
 } as const;
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS];

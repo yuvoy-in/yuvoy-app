@@ -140,6 +140,12 @@ async function proxy(
     lib/api/client.ts.
   */
   if (answer.apiDate) headers.set("x-api-date", answer.apiDate);
+  /*
+    And `Retry-After`, as the API sent it. On a 429 it is what tells a day's
+    limit from a report sent too fast, and the report sheet words the two
+    differently (yuvoy-app#179).
+  */
+  if (answer.retryAfter) headers.set("Retry-After", answer.retryAfter);
 
   if (answer.status === 204 || !answer.text) {
     return new NextResponse(null, { status: answer.status, headers });
