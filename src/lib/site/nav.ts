@@ -128,6 +128,12 @@ export const FOCUSED_ROUTE_PREFIXES = [
     with its own way back. Not a tab, and not a tab root.
   */
   "/help",
+  /*
+    A plan (yuvoy-app#193). Opened from a link a friend sent, with a Back of
+    its own, and the reply button sits at the foot of a long form, where the
+    bar would float over it.
+  */
+  "/plans/",
 ] as const;
 
 /**
