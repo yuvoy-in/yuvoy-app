@@ -17,6 +17,7 @@ import {
   MapPinIcon,
   TicketIcon,
 } from "@/components/ui/icons";
+import { AsListed } from "@/components/found/as-listed";
 import { DepartmentArt } from "@/components/found/department-art";
 import { TrustLine } from "@/components/found/trust-line";
 import { SeeDetails } from "@/components/found/see-details";
@@ -99,6 +100,13 @@ export function alsoListedOn(
  * summary once a person has checked it, who runs it, the other pages it is
  * listed on, Report a problem, and See details.
  *
+ * ## What the card's own page states (yuvoy-app#195)
+ *
+ * While `checkedCities` is open to the caller, which the route decided on the
+ * server: As listed after when, where and the price, then What's included and
+ * Good to know, each only when stated (`AsListed`). `stated` is in every
+ * answer whatever the release's stage, so closed, none of it is drawn.
+ *
  * ## The check sentence is the API's, verbatim
  *
  * `check.sentence`, and nothing when it is absent (R2-T4 note, 6.4). The
@@ -118,9 +126,12 @@ export function alsoListedOn(
 export function FoundItemPage({
   item,
   signedIn,
+  checkedCities = false,
 }: {
   item: FoundItemDetail;
   signedIn: boolean;
+  /** Whether `checkedCities` is open to this caller, as the server decided. Closed when left out. */
+  checkedCities?: boolean;
 }) {
   const titleId = useId();
   const [reporting, setReporting] = useState(false);
@@ -235,6 +246,8 @@ export function FoundItemPage({
           testId="found-price"
         />
       </dl>
+
+      {checkedCities ? <AsListed item={item} /> : null}
 
       {item.summary ? (
         <p className="text-body mt-6 text-pretty" data-testid="found-summary">

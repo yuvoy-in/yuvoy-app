@@ -3,7 +3,11 @@ import { civilFromDate, civilHere, civilInZone } from "@/lib/format/date";
 import {
   foundWords,
   type FoundBudget,
+  type FoundDifficulty,
+  type FoundDuration,
   type FoundItem,
+  type FoundSetting,
+  type FoundSuits,
   type FoundTail,
   type FoundTimeOfDay,
   type FoundWhen,
@@ -37,6 +41,16 @@ import {
  * sent. An address that carries both Free and an under-price budget, which
  * this app never writes, is read as Free.
  *
+ * ## How hard is a local place's only
+ *
+ * The API matches `difficulty` on checked cards only, and only a local place
+ * is all checked cards (yuvoy-app#195, R3-T6). So in a travel place the
+ * sheet has no How hard row, and `difficulty` is left out of the request, the
+ * key, the address and Filters' count even when something hands one in: every
+ * function that turns filters into any of those takes `local`, the place's
+ * `kind` being `local`, and reads them through `sendable`. The phone does the
+ * same (`foundFilterRows`).
+ *
  * ## The page computes no date window
  *
  * `when` names a day and the server works out its dates in the place's zone
@@ -52,6 +66,10 @@ export interface FoundFilters {
   when: FoundWhen | null;
   budget: FoundBudget | null;
   timeOfDay: FoundTimeOfDay | null;
+  duration: FoundDuration | null;
+  setting: FoundSetting | null;
+  suits: FoundSuits | null;
+  difficulty: FoundDifficulty | null;
 }
 
 /** Nothing chosen: how a place's cards open, and what Show everything goes back to. */
@@ -59,7 +77,33 @@ export const NO_FOUND_FILTERS: Readonly<FoundFilters> = Object.freeze({
   when: null,
   budget: null,
   timeOfDay: null,
+  duration: null,
+  setting: null,
+  suits: null,
+  difficulty: null,
 });
+
+/** A row of the Filters sheet: every filter but the day, which has its chips. */
+export type FoundRowKey = Exclude<keyof FoundFilters, "when">;
+
+/**
+ * The sheet's rows, in order: Budget and Time of day (yuvoy-app#180), then
+ * How long, Indoors or out, Who it suits and How hard (yuvoy-app#195). Each
+ * row's name and options are `foundWords[key]`.
+ */
+export const FOUND_ROWS: readonly FoundRowKey[] = Object.freeze([
+  "budget",
+  "timeOfDay",
+  "duration",
+  "setting",
+  "suits",
+  "difficulty",
+]);
+
+/** The rows the sheet shows in a place: How hard only where the place is local. */
+export function foundRows(local: boolean): FoundRowKey[] {
+  return FOUND_ROWS.filter((key) => local || key !== "difficulty");
+}
 
 /** A search, as `GET /events` takes it: the words, and those kept as plain text. */
 export interface FoundSearch {
@@ -88,6 +132,31 @@ export function timeOfDayParam(raw: unknown): FoundTimeOfDay | null {
   return own(foundWords.timeOfDay.options, raw)
     ? (raw as FoundTimeOfDay)
     : null;
+}
+
+/**
+ * A value of one of the sheet's rows this app sends, or null: only a value
+ * with a word in `foundWords`, which is typed against the contract. So
+ * `setting=both`, which the API refuses, is never read or sent.
+ */
+export function rowParam<K extends FoundRowKey>(
+  key: K,
+  raw: unknown,
+): FoundFilters[K] | null {
+  return own(foundWords[key].options, raw) ? (raw as FoundFilters[K]) : null;
+}
+
+/** The filters as they may be sent: known values only, and How hard only in a local place. */
+function sendable(filters: FoundFilters, local: boolean): FoundFilters {
+  return {
+    when: whenParam(filters.when),
+    budget: rowParam("budget", filters.budget),
+    timeOfDay: rowParam("timeOfDay", filters.timeOfDay),
+    duration: rowParam("duration", filters.duration),
+    setting: rowParam("setting", filters.setting),
+    suits: rowParam("suits", filters.suits),
+    difficulty: local ? rowParam("difficulty", filters.difficulty) : null,
+  };
 }
 
 /* ------------------------------------------------------------ search -- */
@@ -202,7 +271,27 @@ export function understoodRow(
 /* ----------------------------------------------------------- address -- */
 
 /** The parameters of the address this module reads and writes, and no others. */
-const OURS = ["when", "free", "budget", "timeOfDay", "q", "asText"] as const;
+const OURS = [
+  "when",
+  "free",
+  "budget",
+  "timeOfDay",
+  "duration",
+  "setting",
+  "suits",
+  "difficulty",
+  "q",
+  "asText",
+] as const;
+
+/** The rows that go into the address and the request under their own name. */
+const ROW_PARAMS = [
+  "timeOfDay",
+  "duration",
+  "setting",
+  "suits",
+  "difficulty",
+] as const satisfies readonly FoundRowKey[];
 
 /**
  * A Server Component's `searchParams` as `URLSearchParams`, so the server and
@@ -223,11 +312,15 @@ export function paramsOf(
 
 /**
  * The chips, Filters and search an address carries: `?when=`, `free=1`,
- * `budget=`, `timeOfDay=`, `q=` and `asText=` (repeated). A value this app
+ * `budget=`, `timeOfDay=`, `duration=`, `setting=`, `suits=`, `difficulty=`
+ * (in a local place only), `q=` and `asText=` (repeated). A value this app
  * does not send is dropped, as `?category=` is, so a hand-edited address is
  * never a `400`.
  */
-export function foundStateFrom(params: URLSearchParams): {
+export function foundStateFrom(
+  params: URLSearchParams,
+  local: boolean,
+): {
   filters: FoundFilters;
   search: FoundSearch | null;
 } {
@@ -237,11 +330,18 @@ export function foundStateFrom(params: URLSearchParams): {
       ? "free"
       : budgetParam(params.get("budget"));
   return {
-    filters: {
-      when: whenParam(params.get("when")),
-      budget,
-      timeOfDay: timeOfDayParam(params.get("timeOfDay")),
-    },
+    filters: sendable(
+      {
+        when: whenParam(params.get("when")),
+        budget,
+        timeOfDay: timeOfDayParam(params.get("timeOfDay")),
+        duration: rowParam("duration", params.get("duration")),
+        setting: rowParam("setting", params.get("setting")),
+        suits: rowParam("suits", params.get("suits")),
+        difficulty: rowParam("difficulty", params.get("difficulty")),
+      },
+      local,
+    ),
     search: foundSearch(params.get("q") ?? "", params.getAll("asText")),
   };
 }
@@ -249,19 +349,25 @@ export function foundStateFrom(params: URLSearchParams): {
 /**
  * `params` with the chips, Filters and search written in, leaving every other
  * parameter (`place`, `category`, a mocked build's `__scenario`) as it was.
- * Only what is chosen is written, so nothing chosen is the address R2 had.
+ * Only what is chosen is written, so nothing chosen is the address R2 had,
+ * and How hard only in a local place.
  */
 export function withFoundState(
   params: URLSearchParams,
   filters: FoundFilters,
+  local: boolean,
   search: FoundSearch | null,
 ): URLSearchParams {
+  const f = sendable(filters, local);
   const next = new URLSearchParams(params);
   for (const key of OURS) next.delete(key);
-  if (filters.when) next.set("when", filters.when);
-  if (filters.budget === "free") next.set("free", "1");
-  else if (filters.budget) next.set("budget", filters.budget);
-  if (filters.timeOfDay) next.set("timeOfDay", filters.timeOfDay);
+  if (f.when) next.set("when", f.when);
+  if (f.budget === "free") next.set("free", "1");
+  else if (f.budget) next.set("budget", f.budget);
+  for (const key of ROW_PARAMS) {
+    const value = f[key];
+    if (value) next.set(key, value);
+  }
   if (search) {
     next.set("q", search.q);
     for (const word of search.asText) next.append("asText", word);
@@ -277,6 +383,10 @@ export interface FoundListQuery {
   free?: true;
   budget?: "under_500" | "under_1500";
   timeOfDay?: FoundTimeOfDay;
+  duration?: FoundDuration;
+  setting?: FoundSetting;
+  suits?: FoundSuits;
+  difficulty?: FoundDifficulty;
   q?: string;
   asText?: string[];
 }
@@ -284,18 +394,25 @@ export interface FoundListQuery {
 /**
  * What is chosen, as `GET /events` parameters. Free goes as `free=true` and
  * an under-price budget as `budget`, so the two are never sent together, and
- * `any` is not sent at all.
+ * `any` is not sent at all. Only values this app knows are sent, and How hard
+ * only in a local place (`local`).
  */
 export function foundListQuery(
   filters: FoundFilters,
+  local: boolean,
   search: FoundSearch | null,
 ): FoundListQuery {
-  const { when, budget, timeOfDay } = filters;
+  const { when, budget, timeOfDay, duration, setting, suits, difficulty } =
+    sendable(filters, local);
   return {
     ...(when ? { when } : {}),
     ...(budget === "free" ? { free: true as const } : {}),
     ...(budget === "under_500" || budget === "under_1500" ? { budget } : {}),
     ...(timeOfDay ? { timeOfDay } : {}),
+    ...(duration ? { duration } : {}),
+    ...(setting ? { setting } : {}),
+    ...(suits ? { suits } : {}),
+    ...(difficulty ? { difficulty } : {}),
     ...(search ? { q: search.q } : {}),
     ...(search && search.asText.length > 0
       ? { asText: [...search.asText] }
@@ -311,14 +428,19 @@ export function foundListQuery(
  */
 export function foundFilterKey(
   filters: FoundFilters,
+  local: boolean,
   search: FoundSearch | null,
 ): string {
-  const query = foundListQuery(filters, search);
+  const query = foundListQuery(filters, local, search);
   if (Object.keys(query).length === 0) return "";
   return JSON.stringify([
     query.when ?? "",
     query.free ? "free" : (query.budget ?? ""),
     query.timeOfDay ?? "",
+    query.duration ?? "",
+    query.setting ?? "",
+    query.suits ?? "",
+    query.difficulty ?? "",
     query.q ?? "",
     query.asText ?? [],
   ]);
@@ -328,13 +450,14 @@ export function foundFilterKey(
 
 /**
  * How many of the sheet's rows narrow, for Filters' count: an under-price
- * budget and a time of day. Free is the Free chip, which says it is on by
- * itself; `any` narrows nothing.
+ * budget, a time of day, how long, indoors or out, who it suits, and how hard
+ * in a local place. Free is the Free chip, which says it is on by itself;
+ * `any` narrows nothing.
  */
-export function foundRowsOn(filters: FoundFilters): number {
-  const budget =
-    filters.budget === "under_500" || filters.budget === "under_1500" ? 1 : 0;
-  return budget + (filters.timeOfDay ? 1 : 0);
+export function foundRowsOn(filters: FoundFilters, local: boolean): number {
+  const f = sendable(filters, local);
+  const budget = f.budget === "under_500" || f.budget === "under_1500" ? 1 : 0;
+  return ROW_PARAMS.reduce((on, key) => on + (f[key] ? 1 : 0), budget);
 }
 
 /** A day chip tapped: one day at a time, and a second tap clears it. */
@@ -350,6 +473,20 @@ export function toggleFree(filters: FoundFilters): FoundFilters {
   return { ...filters, budget: filters.budget === "free" ? null : "free" };
 }
 
+/**
+ * A choice in one of the sheet's rows: one at a time, and a second tap
+ * clears it. A value the row does not have changes nothing.
+ */
+export function toggleRow(
+  filters: FoundFilters,
+  key: FoundRowKey,
+  value: string,
+): FoundFilters {
+  const next = rowParam(key, value);
+  if (next === null) return filters;
+  return { ...filters, [key]: filters[key] === next ? null : next };
+}
+
 /** Clear filters: every row of the sheet, Budget's Free with it; the day stays. */
 export function clearRows(filters: FoundFilters): FoundFilters {
   return { ...NO_FOUND_FILTERS, when: filters.when };
@@ -363,6 +500,7 @@ export function clearRows(filters: FoundFilters): FoundFilters {
  */
 export function foundEmpty(
   filters: FoundFilters,
+  local: boolean,
   search: FoundSearch | null,
   place: string,
 ): {
@@ -375,7 +513,7 @@ export function foundEmpty(
       action: "clear-search",
     };
   }
-  if (foundRowsOn(filters) > 0) {
+  if (foundRowsOn(filters, local) > 0) {
     return { line: foundWords.emptyFilters(place), action: "clear-filters" };
   }
   if (filters.when) {

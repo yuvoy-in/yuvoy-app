@@ -1,6 +1,6 @@
 import { getResponse, http, type RequestHandler } from "msw";
 import { CHECKED_NOW } from "./found-checked-fixtures";
-import { checkedStageOf } from "./found-handlers";
+import { onR3Clock } from "./found-handlers";
 
 /**
  * One clock under R3's scenarios (yuvoy-app#180).
@@ -18,7 +18,7 @@ import { checkedStageOf } from "./found-handlers";
  */
 export function checkedClock(routes: readonly RequestHandler[]) {
   return http.all("*", async ({ request }) => {
-    if (!checkedStageOf(scenarioOf(request))) return undefined;
+    if (!onR3Clock(scenarioOf(request))) return undefined;
     const answer = await getResponse([...routes], request);
     if (!answer || answer.type === "error") return answer;
     const headers = new Headers(answer.headers);

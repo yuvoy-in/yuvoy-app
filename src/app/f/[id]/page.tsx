@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
+import { requestReleaseOpen } from "@/lib/auth/request-cohort";
 import { readSessionCookie } from "@/lib/auth/session-cookie";
 import { visitorAddressHeaders } from "@/lib/auth/upstream";
 import { SITE_URL, pageMetadata } from "@/lib/site/metadata";
@@ -53,6 +54,12 @@ type FoundItemDetail = components["schemas"]["FoundItemDetail"];
  * the card's status and trust line change between deploys, and the session
  * decides what the API answers. No loading boundary above it, because it can
  * answer 404 (`src/app/loading.test.ts`).
+ *
+ * ## What the card's own page states, while `checkedCities` is open
+ *
+ * Decided here, beside the card's read, so the As listed block never paints
+ * and then hides (yuvoy-app#195). Closed on anything but an answer, as every
+ * release is.
  */
 export const dynamic = "force-dynamic";
 
@@ -193,7 +200,10 @@ export default async function FoundCardPage({
 }) {
   const { id } = await params;
   const scenario = scenarioOf(await searchParams);
-  const read = await readItem(id, scenario);
+  const [read, checkedCities] = await Promise.all([
+    readItem(id, scenario),
+    requestReleaseOpen("checkedCities", scenario).catch(() => false),
+  ]);
 
   if (read.kind === "gone") notFound();
   if (read.kind === "error") {
@@ -223,7 +233,11 @@ export default async function FoundCardPage({
           <JsonLd node={event} />
         </>
       ) : null}
-      <FoundItemPage item={item} signedIn={signedIn} />
+      <FoundItemPage
+        item={item}
+        signedIn={signedIn}
+        checkedCities={checkedCities}
+      />
     </Screen>
   );
 }

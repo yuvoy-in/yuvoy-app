@@ -7,17 +7,18 @@ import { Sheet, SheetPresence } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
 import {
   clearRows,
+  foundRows,
   foundRowsOn,
+  toggleRow,
   type FoundFilters,
+  type FoundRowKey,
 } from "@/lib/found/found-filters";
-import {
-  foundWords,
-  type FoundBudget,
-  type FoundTimeOfDay,
-} from "@/lib/found/found-words";
+import { foundWords } from "@/lib/found/found-words";
 
-const BUDGETS = Object.keys(foundWords.budget.options) as FoundBudget[];
-const TIMES = Object.keys(foundWords.timeOfDay.options) as FoundTimeOfDay[];
+/** A row's options in the order they show, with their words: the words table's, which is the contract's. */
+function optionsOf(key: FoundRowKey): [string, string][] {
+  return Object.entries(foundWords[key].options);
+}
 
 /**
  * The Filters button beside the day chips (yuvoy-app#180, R3-T2). Opens the
@@ -28,12 +29,15 @@ const TIMES = Object.keys(foundWords.timeOfDay.options) as FoundTimeOfDay[];
  */
 export function FiltersButton({
   filters,
+  local,
   onOpen,
 }: {
   filters: FoundFilters;
+  /** Whether the place is local: How hard counts there only. */
+  local: boolean;
   onOpen: () => void;
 }) {
-  const on = foundRowsOn(filters);
+  const on = foundRowsOn(filters, local);
   return (
     <button
       type="button"
@@ -61,13 +65,20 @@ export function FiltersButton({
 
 /**
  * Filters over the found feed, on `Sheet` (yuvoy-app#180, R3-T2): Budget and
- * Time of day, one choice each, nothing chosen by default, and Clear filters.
- * R3-T6 adds four more rows (yuvoy-app#195).
+ * Time of day, then R3-T6's How long, Indoors or out, Who it suits and How
+ * hard (yuvoy-app#195), one choice each, nothing chosen by default, and Clear
+ * filters.
+ *
+ * ## How hard is a local place's only
+ *
+ * The API matches `difficulty` on checked cards only, and only a local
+ * place's cards are all checked. So in a travel place the row is not drawn,
+ * and `difficulty` is never sent (`foundListQuery`'s `local`).
  *
  * ## The words are the copy table's
  *
- * The contract sends no words for `budget` or `timeOfDay`: only `category`
- * has a vocabulary. So the rows say what the phone's sheet says, from
+ * The contract sends no words for the rows: only `category` has a
+ * vocabulary. So the rows say what the phone's sheet says, from
  * `foundWords`, keyed by the contract's values. Only a value with a word is
  * offered, and each table is typed against the contract, so a value the API
  * adds fails to compile rather than showing with no word.
@@ -91,18 +102,26 @@ export function FiltersButton({
 export function FoundFilterSheet({
   open,
   filters,
+  local,
   onApply,
   onClose,
 }: {
   open: boolean;
   filters: FoundFilters;
+  /** Whether the place is local (`kind` is `local`): How hard is offered there only. */
+  local: boolean;
   /** The sheet's rows as chosen; the caller keeps its own day. */
   onApply: (next: FoundFilters) => void;
   onClose: () => void;
 }) {
   return (
     <SheetPresence open={open}>
-      <FoundFilterForm filters={filters} onApply={onApply} onClose={onClose} />
+      <FoundFilterForm
+        filters={filters}
+        local={local}
+        onApply={onApply}
+        onClose={onClose}
+      />
     </SheetPresence>
   );
 }
@@ -110,10 +129,12 @@ export function FoundFilterSheet({
 /** Mounted afresh on every opening, so each starts from what is applied. */
 function FoundFilterForm({
   filters,
+  local,
   onApply,
   onClose,
 }: {
   filters: FoundFilters;
+  local: boolean;
   onApply: (next: FoundFilters) => void;
   onClose: () => void;
 }) {
@@ -148,49 +169,24 @@ function FoundFilterForm({
         {foundWords.filtersNote}
       </p>
 
-      <Group label={foundWords.budget.label} className="mt-6">
-        {BUDGETS.map((budget) => (
-          <ChipButton
-            key={budget}
-            size="lg"
-            pressed={draft.budget === budget}
-            role="radio"
-            aria-pressed={undefined}
-            aria-checked={draft.budget === budget}
-            onClick={() =>
-              setDraft((d) => ({
-                ...d,
-                budget: d.budget === budget ? null : budget,
-              }))
-            }
-            data-budget={budget}
-          >
-            {foundWords.budget.options[budget]}
-          </ChipButton>
-        ))}
-      </Group>
-
-      <Group label={foundWords.timeOfDay.label} className="mt-6">
-        {TIMES.map((time) => (
-          <ChipButton
-            key={time}
-            size="lg"
-            pressed={draft.timeOfDay === time}
-            role="radio"
-            aria-pressed={undefined}
-            aria-checked={draft.timeOfDay === time}
-            onClick={() =>
-              setDraft((d) => ({
-                ...d,
-                timeOfDay: d.timeOfDay === time ? null : time,
-              }))
-            }
-            data-time-of-day={time}
-          >
-            {foundWords.timeOfDay.options[time]}
-          </ChipButton>
-        ))}
-      </Group>
+      {foundRows(local).map((key) => (
+        <Group key={key} label={foundWords[key].label} className="mt-6">
+          {optionsOf(key).map(([value, word]) => (
+            <ChipButton
+              key={value}
+              size="lg"
+              pressed={draft[key] === value}
+              role="radio"
+              aria-pressed={undefined}
+              aria-checked={draft[key] === value}
+              onClick={() => setDraft((d) => toggleRow(d, key, value))}
+              data-option={value}
+            >
+              {word}
+            </ChipButton>
+          ))}
+        </Group>
+      ))}
     </Sheet>
   );
 }
