@@ -86,10 +86,9 @@ export function useGetMyCreatorLink() {
         ...CACHE.getExperience,
       });
       const client = createProxyClient();
-      const { data, error, response } = await client.POST(
-        "/me/creator-links",
-        { body: { experienceId: experience.id } },
-      );
+      const { data, error, response } = await client.POST("/me/creator-links", {
+        body: { experienceId: experience.id },
+      });
       if (error || !data) {
         throw error ?? new Error("POST /me/creator-links had no body.");
       }
