@@ -18,6 +18,8 @@ describe("focused routes", () => {
     ["/trips/recover", true],
     // An invited trip has a Back to Trips, so no bar floating over Decline.
     ["/trips/invited/inv_123", true],
+    // A plan has its own Back, and its reply button at the foot of the form.
+    ["/plans/8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52", true],
     ["/guides/diving-in-havelock", true],
     ["/offline", true],
     ["/", false],

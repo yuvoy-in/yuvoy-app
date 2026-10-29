@@ -116,6 +116,31 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("PUT", "/me")).toBeNull();
   });
 
+  it("forwards a member's four plan calls, and none of the planner's", () => {
+    /*
+      yuvoy-app#193. Read, reply, leave, report. The planner's tools are a
+      later part, so their paths stay refused until it lists them.
+    */
+    const id = "8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52";
+    expect(allowedProxyPath("GET", `/plans/${id}`)).toBe("/plans/{id}");
+    expect(allowedProxyPath("PUT", `/plans/${id}/reply`)).toBe(
+      "/plans/{id}/reply",
+    );
+    expect(allowedProxyPath("DELETE", `/plans/${id}/reply`)).toBe(
+      "/plans/{id}/reply",
+    );
+    expect(allowedProxyPath("POST", `/plans/${id}/reports`)).toBe(
+      "/plans/{id}/reports",
+    );
+    expect(allowedProxyPath("GET", `/plans/${id}/reply`)).toBeNull();
+    expect(allowedProxyPath("PATCH", `/plans/${id}`)).toBeNull();
+    expect(allowedProxyPath("DELETE", `/plans/${id}`)).toBeNull();
+    expect(allowedProxyPath("POST", `/plans/${id}/decision`)).toBeNull();
+    expect(allowedProxyPath("POST", `/plans/${id}/cancel`)).toBeNull();
+    expect(allowedProxyPath("GET", "/plans")).toBeNull();
+    expect(allowedProxyPath("POST", "/plans")).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

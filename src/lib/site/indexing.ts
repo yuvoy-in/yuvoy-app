@@ -114,6 +114,12 @@ export const PRIVATE_ROUTES = [
   "/o/*/r/",
   /* A search result, playing — yuvoy-app#37. Same reasons again. */
   "/search/r/",
+  /*
+    A plan, read by the people on it (yuvoy-app#193). Keyed by the reader's
+    session like an invited trip: a crawler is signed out and is served a
+    sign-in line, and the API answers 404 to anybody not on the plan.
+  */
+  "/plans/",
 ] as const;
 
 /**
