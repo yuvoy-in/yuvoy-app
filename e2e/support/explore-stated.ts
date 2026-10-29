@@ -63,11 +63,11 @@ export const WORDS = {
 export const FOUR = ["duration", "setting", "suits", "difficulty"];
 export const SIX = ["budget", "timeOfDay", ...FOUR];
 
-/** Bengaluru under `found-stated-facts` with nothing chosen: 22 cards, 20 a page. */
+/** Bengaluru under `found-stated-facts` with nothing chosen: 21 cards, 20 a page. */
 export const PAGE_ONE = 20;
-export const BENGALURU_ALL = 22;
-/** Coorg under `found-stated-facts`: R2's seven and the river taster. */
-export const COORG_ALL = 8;
+export const BENGALURU_ALL = 21;
+/** Coorg under `found-stated-facts`: R2's seven, the river taster and the climbing. */
+export const COORG_ALL = 9;
 
 /** One choice of a row: its words, its value, and Bengaluru's cards that state it. */
 export interface Choice {
@@ -104,7 +104,7 @@ export const LISTS = {
     {
       name: WORDS.outdoors,
       value: "outdoor",
-      titles: [S.kayak, S.trek, S.kites, S.planetarium, S.climbing],
+      titles: [S.kayak, S.trek, S.kites, S.planetarium],
     },
   ],
   suits: [
@@ -118,7 +118,10 @@ export const LISTS = {
     },
     { name: "Kids", value: "kids", titles: [S.kites, S.planetarium, S.museum] },
   ],
-  // The climbing card states hard, and its check ran out: never Hard.
+  /*
+    A home city lists no card whose check does not count, so an unchecked
+    card stating hard is never Hard there: only the checked trek is.
+  */
   difficulty: [
     { name: "Easy", value: "easy", titles: [S.kayak, S.planetarium] },
     { name: "Moderate", value: "moderate", titles: [S.pottery] },
