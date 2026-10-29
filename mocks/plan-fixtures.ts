@@ -335,7 +335,8 @@ export function payLinkTamperedView(): PlanView {
  * A paid-only reply (only `paid`) moves the paid marks and nothing else.
  */
 export function withReply(view: PlanView, reply: PlanReply): PlanView {
-  const next: PlanView = structuredClone(view);
+  // A plan is JSON, so a JSON copy is a whole one, in any runtime the mocks run in.
+  const next: PlanView = JSON.parse(JSON.stringify(view));
   const me: PlanMe = next.me ?? {
     name: reply.name ?? "Ravi",
     answers: [],
