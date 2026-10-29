@@ -1398,3 +1398,58 @@ describe("your island days", () => {
     expect(await accountStay()).toBeNull();
   });
 });
+
+/**
+ * Get my link on a trip that is over (yuvoy-app#207): the Past tab only, and
+ * only while the `creator` release is open.
+ */
+describe("a share link from a past trip", () => {
+  const creator = (stage: "off" | "all") =>
+    server.use(
+      http.get(`${BASE}/app-config`, () =>
+        HttpResponse.json({
+          minimumVersion: { ios: "0.0.0", android: "0.0.0" },
+          features: { payments: "coming_soon", inviteOnly: false },
+          support: { whatsappE164: null, hours: "" },
+          deliveryHost: null,
+          releases: { creator: stage },
+        }),
+      ),
+    );
+
+  it("is offered on Past and not on Upcoming", async () => {
+    const user = userEvent.setup();
+    await signIn();
+    noInvites();
+    creator("all");
+    server.use(serverBookings([{ state: "completed" }]));
+
+    renderWithQuery(<TripsScreen />);
+    await screen.findByText("Snorkel trip to Elephant Beach");
+    expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Past" }));
+    expect(
+      await screen.findByRole("button", { name: "Get my link" }),
+    ).toBeInTheDocument();
+    // Beside the card, never inside the link to the booking.
+    expect(
+      screen.getByRole("button", { name: "Get my link" }).closest("a"),
+    ).toBeNull();
+  });
+
+  it("is not offered while the release is off", async () => {
+    const user = userEvent.setup();
+    await signIn();
+    noInvites();
+    creator("off");
+    server.use(serverBookings([{ state: "completed" }]));
+
+    renderWithQuery(<TripsScreen />);
+    await user.click(await screen.findByRole("tab", { name: "Past" }));
+    await waitFor(() => expect(sent.at(-1)?.get("tab")).toBe("past"));
+    await screen.findByText("Snorkel trip to Elephant Beach");
+    await new Promise((r) => setTimeout(r, 80));
+    expect(screen.queryByRole("button", { name: "Get my link" })).toBeNull();
+  });
+});
