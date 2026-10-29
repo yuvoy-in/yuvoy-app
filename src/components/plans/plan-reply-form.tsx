@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useChangedBeforeHydration,
   type FormField,
@@ -24,7 +24,7 @@ const ANSWERS: readonly TimeAnswer[] = ["can", "maybe", "cant"];
 
 type Outcome =
   | { kind: "sent"; notClaimed: string[] }
-  | { kind: "refused"; line: string; field?: "adult" };
+  | { kind: "refused"; line: string; field?: "adult" | "extra" };
 
 /**
  * The reply: times, the vote, the bring list, paid marks and the age tick,
@@ -41,12 +41,17 @@ type Outcome =
  *
  * A refusal keeps every answer as it was on screen and says why in a line
  * the page moves focus to. The age tick's refusal sits under the tick.
+ *
+ * A refusal of one of `formExtras`' own fields (`extraFields`, the guest
+ * page's first name) is drawn by those fields, under the field, and focused
+ * by the page that drew them; this form then draws no second copy of it.
  */
 export function PlanReplyForm({
   plan,
   actions,
   signedIn,
   formExtras,
+  extraFields,
   onPlan,
   onGone,
 }: {
@@ -54,6 +59,8 @@ export function PlanReplyForm({
   actions: PlanActions;
   signedIn: boolean;
   formExtras?: ReactNode;
+  /** The `invalid_input` fields `formExtras` draws its own line for. */
+  extraFields?: readonly string[];
   onPlan: (plan: PlanView) => void;
   onGone: () => void;
 }) {
@@ -84,11 +91,19 @@ export function PlanReplyForm({
       ? outcome.line
       : undefined;
 
-  const refuse = (line: string, field?: "adult") => {
+  const refuse = (line: string, field?: "adult" | "extra") => {
     setOutcome({ kind: "refused", line, field });
-    // After the render that draws the line.
-    requestAnimationFrame(() => alertRef.current?.focus());
   };
+
+  /*
+    Focus goes to the line once it is drawn: an effect runs after the commit
+    that draws it, where a frame asked for at the refusal could come first
+    and find no line. A refusal of an `extraFields` field draws no line here;
+    the page that drew the field moves focus there.
+  */
+  useEffect(() => {
+    if (outcome?.kind === "refused") alertRef.current?.focus();
+  }, [outcome]);
 
   async function send() {
     if (inFlight.current) return;
@@ -106,14 +121,15 @@ export function PlanReplyForm({
       } else if (result.kind === "gone") {
         onGone();
       } else if (result.kind === "refused") {
+        const invalid = result.code === "invalid_input";
         const field =
           // Under the tick when there is one; a tick this view did not draw
           // cannot carry a line, so the line goes with the rest.
-          askAdult &&
-          result.code === "invalid_input" &&
-          result.reason === "adult"
+          askAdult && invalid && result.reason === "adult"
             ? "adult"
-            : undefined;
+            : invalid && result.reason && extraFields?.includes(result.reason)
+              ? "extra"
+              : undefined;
         refuse(refusalLine(result, plan.planner.name), field);
       } else {
         refuse(planWords.notSent);

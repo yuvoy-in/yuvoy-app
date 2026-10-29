@@ -31,6 +31,11 @@ const NOTE_MAX = 300;
  * The person list is the plan's own first names, never typed: the API
  * refuses a name that is not on the plan (`details.personName`), and a list
  * cannot hold one. The reader is left out of it.
+ *
+ * It takes only `people` from the plan, which is all it reads, so the
+ * guest page's "not working" page can offer it with no plan at all
+ * (`{ people: [] }`, yuvoy-mobile#373 case 16): a removed guest has no plan
+ * to read, and the report is then about the plan as a whole.
  */
 export function PlanReport({
   plan,
@@ -38,10 +43,15 @@ export function PlanReport({
   label,
   onGone,
 }: {
-  plan: PlanView;
+  plan: Pick<PlanView, "people">;
   report: NonNullable<PlanActions["report"]>;
   label: string;
-  onGone: () => void;
+  /**
+   * What the page does when the plan turns out to be gone. Absent where
+   * there is no plan on screen to take away (the guest page's "not working"
+   * state): there, a 404 is a report that was not sent, and says so.
+   */
+  onGone?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -75,12 +85,12 @@ function PlanReportSheet({
   onClose,
   onGone,
 }: {
-  plan: PlanView;
+  plan: Pick<PlanView, "people">;
   report: NonNullable<PlanActions["report"]>;
   title: string;
   open: boolean;
   onClose: () => void;
-  onGone: () => void;
+  onGone?: () => void;
 }) {
   const [reason, setReason] = useState<Reason | null>(null);
   const [person, setPerson] = useState("");
@@ -118,8 +128,12 @@ function PlanReportSheet({
       const result = await report(body);
       if (result.kind === "sent" || result.kind === "ok") setSent(true);
       else if (result.kind === "gone") {
-        onClose();
-        onGone();
+        if (onGone) {
+          onClose();
+          onGone();
+        } else {
+          setProblem(planWords.reportNotSent);
+        }
       } else if (
         result.code === "invalid_input" &&
         result.reason === "personName"

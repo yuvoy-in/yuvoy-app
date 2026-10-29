@@ -126,6 +126,53 @@ describe("headers the proxy forwards", () => {
   });
 });
 
+/*
+  The plan guest routes (yuvoy-mobile#373) send a guest key out of an httpOnly
+  cookie and a nonce out of the body, neither of which is a header the page
+  sent. Named by this server, and never able to replace what the call
+  already carries.
+*/
+describe("headers this server names itself", () => {
+  const KEY = `ypk_${"k".repeat(43)}`;
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("are sent as given", async () => {
+    await callUpstream({
+      method: "PUT",
+      path: "/plans/by-token/yp_x/reply",
+      body: {},
+      headers: { "X-Yuvoy-Plan-Key": KEY, "Idempotency-Key": "n".repeat(32) },
+    });
+    expect(sentHeaders()["X-Yuvoy-Plan-Key"]).toBe(KEY);
+    expect(sentHeaders()["Idempotency-Key"]).toBe("n".repeat(32));
+  });
+
+  it("cannot replace the session, the content type or the address", async () => {
+    vi.stubEnv(
+      "PROXY_CLIENT_IP_SECRET",
+      "0123456789abcdef0123456789abcdef0123456789abcdef",
+    );
+    await callUpstream({
+      method: "POST",
+      path: "/plans/by-token/yp_x/link-account",
+      token: "sess_abc",
+      body: {},
+      visitor: new Headers({ "x-real-ip": "203.0.113.9" }),
+      headers: {
+        Authorization: "Bearer sess_other",
+        "Content-Type": "text/plain",
+        Accept: "text/html",
+        "X-Yuvoy-Client-IP": "198.51.100.1",
+      },
+    });
+    const sent = sentHeaders();
+    expect(sent.Authorization).toBe("Bearer sess_abc");
+    expect(sent["Content-Type"]).toBe("application/json");
+    expect(sent.Accept).toBe("application/json");
+    expect(sent["X-Yuvoy-Client-IP"]).toBe("203.0.113.9");
+  });
+});
+
 describe("the replay marker on the way back", () => {
   it("reports a replayed response", async () => {
     /*

@@ -16,6 +16,7 @@ import {
 } from "@/lib/analytics/consent";
 import { CONSENT_WORDS } from "@/lib/analytics/consent-words";
 import { installReporter, consoleReporter } from "@/lib/observability/report";
+import { isPlanLinkPath } from "@/lib/booking/scrub";
 import { Button } from "@/components/ui/button";
 import { CheckIcon, CloseIcon } from "@/components/ui/icons";
 import { LegalLinks } from "@/components/site/legal-links";
@@ -76,15 +77,25 @@ export function ConsentBanner() {
     covers picture, which a reel can spare for a moment. Everywhere else the
     foot is free and it stays there, above the tab bar.
   */
-  const overReel = isMediaGroundRoute(usePathname());
+  const pathname = usePathname();
+  const overReel = isMediaGroundRoute(pathname);
+  /*
+    Not on the plan link page (yuvoy-mobile#373). A friend opens it once from
+    WhatsApp to answer a plan, and its address after the `#` is the plan's
+    secret: no question about analytics there, and no analytics loaded from
+    there, even for somebody who said yes elsewhere. Moving on to another
+    page asks or loads as usual.
+  */
+  const planLink = isPlanLinkPath(pathname);
 
   // Loading analytics is a side effect of a granted choice, not of rendering.
   useEffect(() => {
-    if (key && consent === "granted") void enable(key, host);
-  }, [key, host, consent]);
+    if (key && consent === "granted" && !planLink) void enable(key, host);
+  }, [key, host, consent, planLink]);
 
-  // Nothing counted, already answered, or not yet in a browser.
-  if (!counted || (ask !== "ask" && ask !== "ask-again")) return null;
+  // Nothing counted, already answered, not yet in a browser, or a plan link.
+  if (!counted || planLink || (ask !== "ask" && ask !== "ask-again"))
+    return null;
 
   return (
     <div

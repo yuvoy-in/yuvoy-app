@@ -53,6 +53,7 @@ export function PlanViewScreen({
   mode,
   signedIn,
   formExtras,
+  extraFields,
   footer,
 }: {
   plan: PlanView;
@@ -61,10 +62,24 @@ export function PlanViewScreen({
   signedIn: boolean;
   /** The guest page's fields inside the reply form (Part C). */
   formExtras?: ReactNode;
+  /** The `invalid_input` fields `formExtras` draws its own line for. */
+  extraFields?: readonly string[];
   /** The guest page's lines under the plan (Part C). */
   footer?: ReactNode;
 }) {
   const [plan, setPlan] = useState(first);
+  /*
+    A newer plan from the page wins over the one this view last drew. The
+    guest page answers some actions outside this view (linking a reply, a
+    paid mark on an earlier week) and hands the answer down; without this,
+    the people and "you" above would stay a step behind until the next send
+    of the form. The member page never hands down a new one.
+  */
+  const [given, setGiven] = useState(first);
+  if (first !== given) {
+    setGiven(first);
+    setPlan(first);
+  }
   const [gone, setGone] = useState<"left" | "unavailable" | null>(null);
 
   if (gone) {
@@ -101,6 +116,7 @@ export function PlanViewScreen({
         actions={actions}
         signedIn={signedIn}
         formExtras={formExtras}
+        extraFields={extraFields}
         onPlan={setPlan}
         onGone={() => setGone("unavailable")}
       />
