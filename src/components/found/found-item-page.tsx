@@ -41,6 +41,8 @@ export const FOUND_PAGE_WORDS = Object.freeze({
   price: "Price",
   noEndTime: "End time not listed",
   soldBy: "Tickets are sold by the organiser, not Yuvoy.",
+  /** Under a free card's price (yuvoy-app#180, the R3 copy table's). */
+  free: "Free means the organiser says there's no ticket price.",
   whoRunsIt: "Who runs it",
   alsoListed: (hosts: readonly string[]) =>
     `Also listed on ${hosts.join(", ")}`,
@@ -93,9 +95,9 @@ export function alsoListedOn(
  * department's picture and name, a status other than scheduled, the title,
  * the trust line with the API's sentence about the check under it, when (and
  * that the end time is not listed), where, the price (and who sells the
- * tickets, when somebody does), the summary once a person has checked it,
- * who runs it, the other pages it is listed on, Report a problem, and See
- * details.
+ * tickets, when somebody does, or what Free means on a free card), the
+ * summary once a person has checked it, who runs it, the other pages it is
+ * listed on, Report a problem, and See details.
  *
  * ## The check sentence is the API's, verbatim
  *
@@ -223,7 +225,13 @@ export function FoundItemPage({
           icon={<TicketIcon />}
           label={FOUND_PAGE_WORDS.price}
           value={item.price.text}
-          sub={item.price.kind === "paid" ? FOUND_PAGE_WORDS.soldBy : null}
+          sub={
+            item.price.kind === "paid"
+              ? FOUND_PAGE_WORDS.soldBy
+              : item.price.kind === "free"
+                ? FOUND_PAGE_WORDS.free
+                : null
+          }
           testId="found-price"
         />
       </dl>

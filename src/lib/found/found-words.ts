@@ -1,4 +1,4 @@
-import type { components } from "@/lib/api/schema.gen";
+import type { components, operations } from "@/lib/api/schema.gen";
 import {
   civilFromDate,
   civilHere,
@@ -44,6 +44,18 @@ export type ExplorePlace = components["schemas"]["ExplorePlace"];
 export type Category = components["schemas"]["Category"];
 export type FoundStatus = FoundItem["status"];
 
+type EventsQuery = NonNullable<operations["listEvents"]["parameters"]["query"]>;
+/** The day chips' values (yuvoy-app#180, R3-T2): `when` on `GET /events`. */
+export type FoundWhen = NonNullable<EventsQuery["when"]>;
+/** The Filters sheet's Budget, `budget` on `GET /events`. */
+export type FoundBudget = NonNullable<EventsQuery["budget"]>;
+/** The Filters sheet's Time of day, `timeOfDay` on `GET /events`. */
+export type FoundTimeOfDay = NonNullable<EventsQuery["timeOfDay"]>;
+/** What the words of `q` were taken to mean, as the API says it. */
+export type UnderstoodChip = components["schemas"]["UnderstoodChip"];
+/** The dates a `when` covered, as the API says them back. */
+export type FoundWindow = NonNullable<FoundItemList["window"]>;
+
 /**
  * How many cards a page asks for: the API's default (1 to 30), and the
  * phone's. Here rather than beside the hook because the server's first page
@@ -67,6 +79,20 @@ const STATUS_WORDS: Readonly<
 
 const UNDATED = "Check dates on their page";
 const NO_PLACE = "Place on their page";
+
+/** The day chips (R3 copy table), typed against the contract's `when`. */
+const DAY_CHIPS: Readonly<Record<FoundWhen, string>> = Object.freeze({
+  today: "Today",
+  tomorrow: "Tomorrow",
+  weekend: "This weekend",
+});
+
+/** The chip empty line's day (R3 copy table). */
+const DAY_IN_LINE: Readonly<Record<FoundWhen, string>> = Object.freeze({
+  today: "today",
+  tomorrow: "tomorrow",
+  weekend: "this weekend",
+});
 
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
 
@@ -108,6 +134,95 @@ export const foundWords = Object.freeze({
       "That's as far as we can load right now, not the end of the list. Reload to try again.",
   },
   refresh: "Refresh",
+
+  /*
+    R3 (yuvoy-app#180, R3-T2): the day chips, Free, Filters and search. The
+    R3 copy table's words, as the phone has them (yuvoy-mobile `packages/core/
+    src/explore/filters.ts` and `found-search.ts`), waiting for the owner's
+    approval with the rest of R3. The chips the words of a search were taken
+    to mean are the API's own `label`s and are never written here.
+  */
+  /** Names the day chips and Free for a screen reader. */
+  dayGroup: "Filter by day and price",
+  /** In the order they show; a day the contract adds fails to compile here. */
+  days: DAY_CHIPS,
+  free: "Free",
+  filters: "Filters",
+  /** Filters' name with how many of its rows narrow: the count on its face is not read out. */
+  filtersName: (on: number) => (on > 0 ? `Filters, ${on} on` : "Filters"),
+  /**
+   * The sheet's rows. The contract sends no words for `budget` or
+   * `timeOfDay` (only `category` has a vocabulary), so these are the copy
+   * table's, the phone's `FOUND_FILTER_ROWS`, typed against the contract's
+   * values so a value it adds fails to compile here.
+   */
+  budget: {
+    label: "Budget",
+    options: {
+      free: "Free",
+      under_500: "Under ₹500",
+      under_1500: "Under ₹1,500",
+      any: "Any",
+    } satisfies Record<FoundBudget, string>,
+  },
+  timeOfDay: {
+    label: "Time of day",
+    options: {
+      morning: "Morning",
+      afternoon: "Afternoon",
+      evening: "Evening",
+    } satisfies Record<FoundTimeOfDay, string>,
+  },
+  /** The line at the top of Filters (the phone's, ours, for Sai Teja). */
+  filtersNote:
+    "Each filter reads what a card's own page states. A card whose page does not say is left out.",
+  clearFilters: "Clear filters",
+  showResults: "Show results",
+  emptyDay: (when: FoundWhen, place: string) =>
+    `Nothing checked for ${DAY_IN_LINE[when]} in ${place} yet.`,
+  emptyFree: (place: string) => `Nothing free in ${place} right now.`,
+  /** A list emptied by the sheet's rows (the phone's, ours, for Sai Teja). */
+  emptyFilters: (place: string) => `Nothing matches those filters in ${place}.`,
+  thinWeekend:
+    "Not much this weekend yet. Here's what's coming up in the next two weeks.",
+  comingUp: "Coming up",
+  askLead: "Looking for something specific?",
+  askLink: "Ask the Yuvoy team.",
+  search: {
+    label: (place: string) => `Search ${place}`,
+    submit: "Search",
+    clear: "Clear search",
+    empty: (place: string, q: string) => `Nothing in ${place} matches “${q}”.`,
+    /** Before the understood chips (the phone's, ours, for Sai Teja). */
+    showing: "Showing",
+    remove: (label: string) => `Remove ${label}`,
+    searchIn: (place: string) => `Search in ${place}`,
+  },
+
+  /**
+   * The heading over a chosen day's cards, from the answer's `window`:
+   * `This weekend · Fri, 21 Nov to Sun, 23 Nov` (R3 copy table), and
+   * `Today · Thu, 20 Nov` and `Tomorrow · Fri, 21 Nov` (the phone's, ours).
+   * Null without a window (the server did not apply the day) or with dates
+   * this app cannot read: the page works out no window of its own, so with
+   * none it says none.
+   */
+  windowHeading: (
+    when: FoundWhen | null,
+    window: FoundWindow | null | undefined,
+  ): string | null => {
+    if (!when || !window) return null;
+    const from =
+      typeof window.from === "string" ? civilFromDate(window.from) : null;
+    if (!from) return null;
+    if (when !== "weekend") {
+      return `${DAY_CHIPS[when]} · ${weekdayDayMonth(from)}`;
+    }
+    const to = typeof window.to === "string" ? civilFromDate(window.to) : null;
+    return to
+      ? `${DAY_CHIPS.weekend} · ${weekdayDayMonth(from)} to ${weekdayDayMonth(to)}`
+      : null;
+  },
 
   /* The card's lines for what it does not say. */
   undated: UNDATED,
