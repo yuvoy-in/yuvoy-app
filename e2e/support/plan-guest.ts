@@ -119,6 +119,31 @@ export function everythingSent(page: Page): {
 }
 
 /**
+ * Answers a guest route from the test, on the context and not the page:
+ * MSW's service worker stands in front of every fetch the page makes, and
+ * a request it passes on comes from the worker, which `page.route` never
+ * sees (see `search-reels.spec.ts`). `context.route` does, in Chromium,
+ * the only engine this spec runs in.
+ */
+export function routeGuest(
+  page: Page,
+  route: "view" | "reply" | "link",
+  handler: Parameters<BrowserContext["route"]>[1],
+) {
+  return page.context().route(`**/p/api/${route}`, handler);
+}
+
+/**
+ * The page's own alerts, without the empty one Next.js keeps for route
+ * announcements, which is `role="alert"` too.
+ */
+export function pageAlert(page: Page) {
+  return page
+    .getByRole("alert")
+    .and(page.locator(":not(#__next-route-announcer__)"));
+}
+
+/**
  * The next reply reaches the server and its answer never reaches the page:
  * a connection lost on the way back. `route.fetch` runs through the
  * context's own request client, which keeps any cookie the answer sets, so
@@ -126,7 +151,7 @@ export function everythingSent(page: Page): {
  */
 export async function dropNextReplyAnswer(page: Page) {
   let dropped = false;
-  await page.route("**/p/api/reply", async (route) => {
+  await routeGuest(page, "reply", async (route) => {
     if (dropped) return route.continue();
     dropped = true;
     await route.fetch();
@@ -183,6 +208,23 @@ export function envelope(code: string, details?: Record<string, unknown>) {
 }
 
 export async function expectAccessible(page: Page) {
+  /*
+    Let entrances finish first, as `explore-place.spec.ts` does: axe
+    measuring a sheet mid-rise reads the page behind its tint, a colour
+    nobody sees. Settled ones only, never an infinite one.
+  */
+  await page.evaluate(() =>
+    Promise.allSettled(
+      document
+        .getAnimations()
+        .filter(
+          (a) =>
+            a.timeline === document.timeline &&
+            a.effect?.getTiming().iterations !== Infinity,
+        )
+        .map((a) => a.finished),
+    ),
+  );
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();

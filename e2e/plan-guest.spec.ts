@@ -14,7 +14,9 @@ import {
   guestAnswers,
   guestCalls,
   openPlan,
+  pageAlert,
   planLink,
+  routeGuest,
   signIn,
   signInHere,
 } from "./support/plan-guest";
@@ -70,7 +72,7 @@ test.describe("case 2: no token, or the wrong shape", () => {
       const calls = guestCalls(page);
       await page.goto(address);
       await expect(page.getByText(NOT_WORKING)).toBeVisible();
-      await expect(page.getByRole("alert")).toBeFocused();
+      await expect(pageAlert(page)).toBeFocused();
       expect(calls).toEqual([]);
       await expectAccessible(page);
     });
@@ -104,7 +106,8 @@ test.describe("a first reply", () => {
       page.getByRole("radio", { name: "Maybe" }).first(),
     ).toBeChecked();
     await expect(tick).toBeChecked();
-    expect(calls).toEqual([]);
+    // The plan was read, and nothing was sent.
+    expect(calls.map((c) => c.route)).toEqual(["view"]);
     await expectAccessible(page);
   });
 
@@ -239,7 +242,7 @@ test.describe("a guest who replied before", () => {
   }) => {
     await asReturningGuest(context, baseURL);
     // Charcoal reads free here, as it was before Kiran's reply landed.
-    await page.route("**/p/api/view", async (route) => {
+    await routeGuest(page, "view", async (route) => {
       const response = await route.fetch();
       const plan = await response.json();
       plan.items[0] = { id: PLAN_IDS.items[0], label: "Charcoal", mine: false };
@@ -402,7 +405,7 @@ test.describe("signed in", () => {
   }) => {
     await signIn(page, freshNumber());
     await asReturningGuest(context, baseURL);
-    await page.route("**/p/api/link", (route) =>
+    await routeGuest(page, "link", (route) =>
       route.fulfill({
         status: 409,
         contentType: "application/json",
@@ -413,7 +416,7 @@ test.describe("signed in", () => {
     await page
       .getByRole("button", { name: "Link my reply to my account" })
       .click();
-    await expect(page.getByRole("alert")).toHaveText(
+    await expect(pageAlert(page)).toHaveText(
       "This account already answered this plan.",
     );
     await expectAccessible(page);
@@ -432,7 +435,7 @@ test.describe("refusals", () => {
         "This plan has as many people as Yuvoy allows. Ask Asha if there is room.",
       ),
     ).toBeVisible();
-    await expect(page.getByRole("alert")).toBeFocused();
+    await expect(pageAlert(page)).toBeFocused();
     await expectAccessible(page);
   });
 
@@ -475,7 +478,7 @@ test.describe("refusals", () => {
       ],
     ];
     let next = 0;
-    await page.route("**/p/api/reply", (route) => {
+    await routeGuest(page, "reply", (route) => {
       const [status, code, details] = refusals[next++];
       return route.fulfill({
         status,
@@ -486,7 +489,7 @@ test.describe("refusals", () => {
     await openPlan(page, "plan-guest-returning");
     for (const [, , , line] of refusals) {
       await page.getByRole("button", UPDATE).click();
-      await expect(page.getByRole("alert")).toHaveText(line);
+      await expect(pageAlert(page)).toHaveText(line);
     }
     await expect(
       page.getByRole("radio", { name: "Can", exact: true }).first(),
