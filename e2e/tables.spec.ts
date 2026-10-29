@@ -50,7 +50,9 @@ async function expectAccessible(page: Page) {
         .getAnimations()
         // A pulse that never ends would hold this forever; it changes no colour.
         .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
-        .map((a) => a.finished),
+        // One cancelled or replaced on the way (a sheet's entry, once) rejects
+        // its promise and has nothing left to draw: AbortError, passed on retry.
+        .map((a) => a.finished.catch(() => undefined)),
     ),
   );
   const results = await new AxeBuilder({ page })
