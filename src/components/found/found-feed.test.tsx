@@ -509,8 +509,8 @@ describe("R3 open", () => {
     const asked = answerEvents(() => page([card(7)]));
     renderFeed({ checkedCities: true });
     await userEvent.click(screen.getByRole("button", { name: "Filters" }));
-    await userEvent.click(screen.getByRole("button", { name: "Under ₹500" }));
-    await userEvent.click(screen.getByRole("button", { name: "Evening" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Under ₹500" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Evening" }));
     await userEvent.click(screen.getByRole("button", { name: "Show results" }));
     await waitFor(() => expect(titles()).toEqual(["Card 7"]));
     expect(narrowing(asked.at(-1)!)).toBe("budget=under_500&timeOfDay=evening");
