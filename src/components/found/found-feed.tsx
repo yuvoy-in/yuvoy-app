@@ -11,6 +11,7 @@ import {
 } from "react";
 import { onlineManager } from "@tanstack/react-query";
 import { NetworkError } from "@/lib/api/errors";
+import { clockOffsetMs } from "@/lib/booking/clock";
 import { useVocabulary } from "@/lib/search/use-search-reels";
 import {
   useFoundFeed,
@@ -19,6 +20,20 @@ import {
   useStale,
 } from "@/lib/found/use-found-feed";
 import { useFoundShown } from "@/lib/found/found-outcomes";
+import {
+  NO_FOUND_FILTERS,
+  clearRows,
+  comingUpCards,
+  foundEmpty,
+  foundSearch,
+  foundToday,
+  thinWeekend,
+  understoodRow,
+  withAsText,
+  withFoundState,
+  type FoundFilters,
+  type FoundSearch,
+} from "@/lib/found/found-filters";
 import {
   departmentName,
   foundTail,
@@ -30,6 +45,7 @@ import {
 } from "@/lib/found/found-words";
 import { Screen } from "@/components/chrome/screen";
 import { Button } from "@/components/ui/button";
+import Link from "@/components/ui/link";
 import {
   EmptyState,
   ErrorState,
@@ -39,8 +55,12 @@ import {
   StaleNotice,
 } from "@/components/states";
 import { DepartmentChips } from "./department-chips";
+import { FiltersButton, FoundFilterSheet } from "./filter-sheet";
 import { FoundItemCard } from "./found-item-card";
+import { FoundSearchBox } from "./found-search";
 import { ReportSheet } from "./report-sheet";
+import { UnderstoodRow } from "./understood-row";
+import { WhenChips } from "./when-chips";
 
 /**
  * What was found in a discover place (yuvoy-app#179, R2-T4): the heading,
@@ -70,6 +90,18 @@ import { ReportSheet } from "./report-sheet";
  *   - **Stale**: half an hour after the list was read, `StaleNotice` says when
  *     by the place's clock, with Refresh.
  *
+ * ## R3's chips, Filters and search (yuvoy-app#180)
+ *
+ * Only while `checkedCities` is open to the caller, which the server decided
+ * (`checkedCities`): the search field, the day chips and Free with the
+ * Filters button beside them, the understood row under a search, the
+ * heading from the answer's `window` over a chosen day, R3's empty lines, and
+ * Coming up on a thin weekend. Closed, none of it is drawn, nothing from the
+ * address narrows, and the feed is exactly R2's.
+ *
+ * Every change is written into the address in place, like a department chip,
+ * and starts the list again from page one (`useFoundFeed`'s key).
+ *
  * ## The trigger is the place button
  *
  * The page hands in P1's place button and this draws it under the place line.
@@ -85,19 +117,31 @@ export function FoundFeed(props: {
   firstPage: FoundItemList | null;
   /** From `?category=`, already checked against the `Category` enum. */
   category: Category | null;
+  /** Whether `checkedCities` is open to this caller, as the server decided. Closed when left out. */
+  checkedCities?: boolean;
+  /** The day, Free and Filters the server read from the address; only while `checkedCities` is open. */
+  filters?: FoundFilters;
+  /** The search the server read from the address; only while `checkedCities` is open. */
+  search?: FoundSearch | null;
+  /** The places a search's place chip may go to (`foundPlaceKeys`). */
+  searchPlaces?: readonly string[];
   signedIn: boolean;
   /** The place button, drawn under the place line. */
   trigger: ReactNode;
 }) {
   /*
-    One view per place and department the SERVER rendered. A new place, or a
-    department arriving in the address from outside (a link, Back), is a new
-    server render with its own first page, and starts afresh rather than
-    carrying the last place's chips, seed and hidden notes into it.
+    One view per place, department, filters and search the SERVER rendered.
+    A new place, or a department or filter arriving in the address from
+    outside (a link, Back), is a new server render with its own first page,
+    and starts afresh rather than carrying the last place's chips, seed and
+    hidden notes into it.
   */
+  const narrowed = props.checkedCities
+    ? JSON.stringify([props.filters ?? NO_FOUND_FILTERS, props.search ?? null])
+    : "";
   return (
     <FoundFeedView
-      key={`${props.place.key}|${props.category ?? ""}`}
+      key={`${props.place.key}|${props.category ?? ""}|${narrowed}`}
       {...props}
     />
   );
@@ -108,10 +152,15 @@ function FoundFeedView({
   placeName,
   firstPage,
   category: serverCategory,
+  checkedCities = false,
+  filters: serverFilters = NO_FOUND_FILTERS,
+  search: serverSearch = null,
+  searchPlaces = [],
   signedIn,
   trigger,
 }: Parameters<typeof FoundFeed>[0]) {
   const headingId = useId();
+  const comingId = useId();
   const heading = useRef<HTMLHeadingElement | null>(null);
   const list = useRef<HTMLDivElement | null>(null);
   const triggerSlot = useRef<HTMLDivElement | null>(null);
@@ -124,6 +173,14 @@ function FoundFeedView({
     a read long gone (the search screen's rule).
   */
   const [category, setCategory] = useState<Category | null>(serverCategory);
+  // R3's, the same way; never anything but none while `checkedCities` is closed.
+  const [filters, setFilters] = useState<FoundFilters>(
+    checkedCities ? serverFilters : NO_FOUND_FILTERS,
+  );
+  const [search, setSearch] = useState<FoundSearch | null>(
+    checkedCities ? serverSearch : null,
+  );
+  const [filtering, setFiltering] = useState(false);
   const [changed, setChanged] = useState(false);
   // When this view received the server's page: the stale line counts from here.
   const [receivedAt] = useState(() => Date.now());
@@ -136,6 +193,8 @@ function FoundFeedView({
     signedIn,
     seed: !changed && firstPage ? { page: firstPage, receivedAt } : null,
     enabled: asked || changed,
+    filters,
+    search,
   });
   const vocabulary = useVocabulary();
   const terms = vocabulary.data?.categories ?? null;
@@ -153,18 +212,76 @@ function FoundFeedView({
   const cards = visibleCards(pages, hidden.ids);
   const tail = foundTail(pages);
 
-  const chooseCategory = (next: Category | null) => {
-    if (next === category) return;
-    setChanged(true);
-    setCategory(next);
+  /*
+    Coming up (R3-T2): a weekend the server says is complete with fewer than
+    three cards also reads the first page without the day, every other choice
+    kept, and shows what starts in the next two weeks and is not already on
+    screen. Asked only once the weekend is known to be thin.
+  */
+  const thin = checkedCities && thinWeekend(filters.when, tail, cards.length);
+  const plain = useFoundFeed({
+    placeKey: place.key,
+    category,
+    signedIn,
+    enabled: thin,
+    filters: { ...filters, when: null },
+    search,
+  });
+  const coming =
+    thin && plain.data
+      ? comingUpCards(
+          visibleCards(plain.data.pages.slice(0, 1), hidden.ids),
+          cards,
+          /*
+            The place's today by the server's clock (the offset its Date
+            header taught) when that page was read: drawn in the browser
+            alone, since the server never seeds this read.
+          */
+          foundToday(plain.dataUpdatedAt + clockOffsetMs(), place.timezone),
+        )
+      : [];
+
+  /*
+    One change to what narrows the list: a department, R3's filters, or the
+    search. Written in place, never navigated to: a navigation would ask the
+    server for the whole page again, and the list is already being read from
+    here. Replace, not push, as the search screen does: one list being
+    narrowed. Every other parameter (`place`, a mocked build's `__scenario`)
+    stays.
+  */
+  const narrow = (
+    next: {
+      category?: Category | null;
+      filters?: FoundFilters;
+      search?: FoundSearch | null;
+    },
     /*
-      Written in place, never navigated to: a navigation would ask the server
-      for the whole page again, and the list is already being read from here.
-      Replace, not push, as the search screen does: one list being narrowed.
-      Every other parameter (`place`, a mocked build's `__scenario`) stays.
+      "heading" when the control pressed goes as the list is read again (an
+      understood chip, an empty state's button): focus moves to the page's
+      heading, which stays, rather than falling to the body. The new list is
+      said by the live line below.
     */
-    const params = new URLSearchParams(window.location.search);
-    if (next) params.set("category", next);
+    then?: "heading",
+  ) => {
+    const nextCategory = next.category === undefined ? category : next.category;
+    const nextFilters = next.filters ?? filters;
+    const nextSearch = next.search === undefined ? search : next.search;
+    if (
+      nextCategory === category &&
+      JSON.stringify([nextFilters, nextSearch]) ===
+        JSON.stringify([filters, search])
+    )
+      return;
+    setChanged(true);
+    setCategory(nextCategory);
+    setFilters(nextFilters);
+    setSearch(nextSearch);
+    const params = withFoundState(
+      new URLSearchParams(window.location.search),
+      nextFilters,
+      nextSearch,
+    );
+    if (nextCategory) params.set("category", nextCategory);
     else params.delete("category");
     const query = params.toString();
     window.history.replaceState(
@@ -172,7 +289,41 @@ function FoundFeedView({
       "",
       `${window.location.pathname}${query ? `?${query}` : ""}`,
     );
+    if (then === "heading") heading.current?.focus();
   };
+  const chooseCategory = (next: Category | null) => narrow({ category: next });
+  /*
+    A new search is new words: none of them is kept as plain text yet. An
+    empty field sent clears the search; words too short to search change
+    nothing, so the applied search and the field's text both stay.
+  */
+  const searchFor = (typed: string) => {
+    const next = foundSearch(typed);
+    if (!next && typed.trim() !== "") return;
+    narrow({ search: next });
+  };
+  const clearSearch = () => narrow({ search: null });
+
+  /*
+    What the words were taken to mean, as the list's first page says it. A
+    place chip only for another place this caller can open, since all it does
+    is take them there.
+  */
+  const understood = search
+    ? understoodRow(
+        pages?.[0]?.understood,
+        (key) => key !== place.key && searchPlaces.includes(key),
+      )
+    : [];
+  const searchIn = (key: string) => {
+    const query = withFoundState(
+      new URLSearchParams({ place: key }),
+      NO_FOUND_FILTERS,
+      search,
+    ).toString();
+    return `/?${query}`;
+  };
+  const windowLine = foundWords.windowHeading(filters.when, pages?.[0]?.window);
 
   // Presses the place button: one picker, one way in.
   const canPick = trigger !== null && trigger !== undefined;
@@ -191,6 +342,23 @@ function FoundFeedView({
     pageCount: pages?.length ?? 0,
   });
   const reporting = report.item;
+
+  /*
+    Said politely once a list narrowed here lands: the focus stays on the
+    control or moves to the heading, never onto the list, so without this a
+    screen reader hears nothing come back. Empty while the new list is read,
+    so the same words twice are still a change; counted from its first page,
+    so scrolling on says nothing more. A count, never the empty state's own
+    line, which is on screen already.
+  */
+  const pageOne = pages?.slice(0, 1);
+  const landed =
+    changed && feed.isSuccess
+      ? foundWords.results(
+          visibleCards(pageOne, hidden.ids).length,
+          foundTail(pageOne) === "more",
+        )
+      : "";
 
   let body: ReactNode;
   if (!asked && !changed) {
@@ -221,7 +389,41 @@ function FoundFeedView({
     );
   } else if (cards.length === 0 && tail !== "more") {
     const named = category ? departmentName(category, terms) : null;
-    body = category ? (
+    const emptied = checkedCities
+      ? foundEmpty(filters, search, placeName)
+      : null;
+    body = emptied ? (
+      <EmptyState
+        title={emptied.line}
+        action={
+          emptied.action === "clear-search" ? (
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => narrow({ search: null }, "heading")}
+            >
+              {foundWords.search.clear}
+            </Button>
+          ) : emptied.action === "clear-filters" ? (
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => narrow({ filters: clearRows(filters) }, "heading")}
+            >
+              {foundWords.clearFilters}
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => narrow({ filters: NO_FOUND_FILTERS }, "heading")}
+            >
+              {foundWords.showEverything}
+            </Button>
+          )
+        }
+      />
+    ) : category ? (
       <EmptyState
         title={
           named
@@ -233,7 +435,7 @@ function FoundFeedView({
           <Button
             variant="outline"
             size="md"
-            onClick={() => chooseCategory(null)}
+            onClick={() => narrow({ category: null }, "heading")}
           >
             {foundWords.showEverything}
           </Button>
@@ -299,13 +501,62 @@ function FoundFeedView({
         </div>
       ) : null}
 
-      <div className="mt-5">
+      {checkedCities ? (
+        <>
+          <div className="mt-4">
+            <FoundSearchBox
+              placeName={placeName}
+              search={search}
+              keep={[
+                ...withFoundState(
+                  new URLSearchParams(
+                    category
+                      ? { place: place.key, category }
+                      : { place: place.key },
+                  ),
+                  filters,
+                  null,
+                ),
+              ]}
+              onSearch={searchFor}
+              onClear={clearSearch}
+            />
+          </div>
+          <div className="mt-4">
+            <WhenChips
+              filters={filters}
+              onChange={(next) => narrow({ filters: next })}
+              after={
+                <FiltersButton
+                  filters={filters}
+                  onOpen={() => setFiltering(true)}
+                />
+              }
+            />
+          </div>
+        </>
+      ) : null}
+
+      <div className={checkedCities ? "mt-3" : "mt-5"}>
         <DepartmentChips
           terms={terms}
           selected={category}
           onSelect={chooseCategory}
         />
       </div>
+
+      {understood.length > 0 ? (
+        <div className="mt-4">
+          <UnderstoodRow
+            chips={understood}
+            onRemove={(chip) => {
+              if (search)
+                narrow({ search: withAsText(search, chip.from) }, "heading");
+            }}
+            placeHref={searchIn}
+          />
+        </div>
+      ) : null}
 
       <div className="mt-5 space-y-3 empty:hidden">
         {!online && feed.data ? <OfflineNotice /> : null}
@@ -316,7 +567,74 @@ function FoundFeedView({
         ) : null}
       </div>
 
+      {windowLine && feed.data ? (
+        <h2
+          className="text-forest mt-5 font-bold text-pretty"
+          data-testid="found-window"
+        >
+          {windowLine}
+        </h2>
+      ) : null}
+
       <div className="mt-5 flex-1">{body}</div>
+      <p role="status" className="sr-only" data-testid="found-announce">
+        {landed}
+      </p>
+
+      {thin ? (
+        <div className="mt-2" data-testid="found-coming-up">
+          {coming.length > 0 ? (
+            <>
+              <p className="text-body text-forest/80 text-pretty">
+                {foundWords.thinWeekend}
+              </p>
+              <h2
+                id={comingId}
+                className="font-display tracking-display leading-display text-forest mt-4 text-2xl text-balance"
+              >
+                {foundWords.comingUp}
+              </h2>
+              <div
+                role="feed"
+                aria-labelledby={comingId}
+                className="mt-4 space-y-3"
+              >
+                {coming.map((item, index) => (
+                  <FoundItemCard
+                    key={item.id}
+                    item={item}
+                    position={cards.length + index}
+                    posInSet={index}
+                    timezone={place.timezone}
+                    departmentName={departmentName(item.department, terms)}
+                    onReport={(id) => report.open(id, cards.length + index)}
+                    observe={observe}
+                    setSize={coming.length}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+          <p className="text-body text-forest/70 mt-6 text-pretty">
+            {foundWords.askLead}{" "}
+            <Link
+              href="/help"
+              className="text-forest tap-target font-bold underline underline-offset-4"
+            >
+              {foundWords.askLink}
+            </Link>
+          </p>
+        </div>
+      ) : null}
+
+      {/* Opened only by Filters, which is drawn only while `checkedCities` is open. */}
+      <FoundFilterSheet
+        open={filtering}
+        filters={filters}
+        // The sheet's rows; the day is the chips', and stays.
+        onApply={(next) => narrow({ filters: { ...next, when: filters.when } })}
+        onClose={() => setFiltering(false)}
+      />
 
       {reporting ? (
         <ReportSheet

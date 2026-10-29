@@ -2,6 +2,7 @@ import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { visitorAddressHeaders } from "@/lib/auth/upstream";
 import { FIRST_PAGE_TIMEOUT_MS } from "@/lib/feed/first-page";
+import type { FoundListQuery } from "./found-filters";
 import {
   FOUND_PAGE_SIZE,
   type Category,
@@ -47,6 +48,13 @@ export async function firstFoundPage(args: {
   destinationKey: string;
   /** From `?category=`, already checked against the generated `Category`. */
   category: Category | null;
+  /**
+   * R3's day, Free, Filters and search from the address (yuvoy-app#180),
+   * already checked and built by `foundListQuery`, so page one is asked for
+   * with exactly what the browser's pages after it will be. Left out, or
+   * empty, while `checkedCities` is closed to the caller: the page is R2's.
+   */
+  narrow?: FoundListQuery;
   /** The `yv_session` value when a cookie exists. */
   token: string | null;
   /** The incoming request's headers, for `visitorAddressHeaders`. */
@@ -66,6 +74,7 @@ export async function firstFoundPage(args: {
           limit: FOUND_PAGE_SIZE,
           // Omitted rather than sent empty: "" is a value, and not a Category.
           ...(args.category ? { category: args.category } : {}),
+          ...args.narrow,
         },
       },
       headers: {

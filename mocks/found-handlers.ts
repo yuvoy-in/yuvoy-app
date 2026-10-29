@@ -2,6 +2,7 @@ import { http, HttpResponse, delay } from "msw";
 import type { components } from "../src/lib/api/schema.gen";
 import { mockHeaders, mockNow } from "./fixtures";
 import {
+  BENGALURU,
   FOUND_IDS,
   FOUND_PLACES,
   REPORT_RECEIPTS,
@@ -12,6 +13,12 @@ import {
   sampleById,
   type FoundShape,
 } from "./found-fixtures";
+import {
+  CHECKED_NOW,
+  checkedSampleById,
+  checkedWeek,
+} from "./found-checked-fixtures";
+import { NO_R3, askKey, narrow, readR3, refused, windowOf } from "./found-r3";
 
 /**
  * What was found in a discover place, and reports on it (yuvoy-app#179,
@@ -58,6 +65,31 @@ import {
  * The three list faults ride on the long list, because a fault on page two
  * needs a page two.
  *
+ * ## Checked cities (yuvoy-app#180, R3-T2)
+ *
+ * `checkedCities` is `off` with no scenario, exactly as on dev and
+ * production. Four scenarios open it at `staff` as well as `explore`. Each
+ * starts `found-`, since the server render reads places only under the
+ * prefixes `src/lib/site/my-places.ts` lists (`PLACE_SCENARIO`), so mobile's
+ * `checked-staff` is `found-checked` here:
+ *
+ *   - `found-checked`: the healthy staff world. Bengaluru answers its week
+ *     (`found-checked-fixtures.ts`), and `GET /events` narrows by `when`,
+ *     `free`, `q`, `asText`, `budget`, `timeOfDay` and R3-T6's four, says
+ *     what `q` was taken to mean ("dive saturday" is an Adventure chip and a
+ *     Saturday chip, each with its `from`) and, for a `when`, its window
+ *     (`found-r3.ts`);
+ *   - `found-weekend-thin`: This weekend finds one card, so Coming up follows;
+ *   - `found-free-empty`: Free (`free=true` or `budget=free`) finds nothing;
+ *   - `found-search-empty`: a search finds nothing, and what it understood is
+ *     still said.
+ *
+ * Under all four every found route reads `CHECKED_NOW`, Friday 21 August
+ * 2026 at 17:30 in Kolkata, and every mocked answer says it in its `Date`
+ * header (`checked-clock.ts`), so the app's measured offset is one clock. While
+ * `checkedCities` is closed to the caller, every R3 parameter is ignored
+ * without being checked and the answer is R2's, `understood: []`.
+ *
  * `explore-all` opens `explore` to everybody: Karnataka is on `GET /places`
  * too, open to all, a signed-out caller reads its cards and reports on them,
  * and `GET /events/index` lists the cards a search engine may index.
@@ -77,8 +109,17 @@ type EventReportReceipt = components["schemas"]["EventReportReceipt"];
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 const url = (p: string) => `${BASE}${p}`;
 
+/** The scenarios that open `checkedCities` at `staff`, with `explore`. */
+export const CHECKED_STAFF_SCENARIOS: ReadonlySet<string> = new Set([
+  "found-checked",
+  "found-weekend-thin",
+  "found-free-empty",
+  "found-search-empty",
+]);
+
 /** The scenarios that open `explore` at `staff`. See above for each. */
 export const EXPLORE_STAFF_SCENARIOS: ReadonlySet<string> = new Set([
+  ...CHECKED_STAFF_SCENARIOS,
   "explore-staff",
   "found-empty",
   "found-error",
@@ -104,6 +145,19 @@ export function exploreStageOf(scenario: string): "staff" | "all" | null {
   if (EXPLORE_STAFF_SCENARIOS.has(scenario)) return "staff";
   if (scenario === "explore-all") return "all";
   return null;
+}
+
+/**
+ * The stage a scenario gives `checkedCities`, or null for every other
+ * scenario, which the app-config answers as `off`.
+ */
+export function checkedStageOf(scenario: string): "staff" | null {
+  return CHECKED_STAFF_SCENARIOS.has(scenario) ? "staff" : null;
+}
+
+/** The found routes' clock: R3's stands still on a Friday evening. */
+function foundNow(scenario: string): number {
+  return checkedStageOf(scenario) ? CHECKED_NOW : mockNow();
 }
 
 /** A sign-in session, as the mocks mint them (`sess_<digits>`). */
@@ -206,22 +260,39 @@ const REASONS = new Set<string>([
   "other",
 ] satisfies components["schemas"]["EventReport"]["reason"][]);
 
+/** A short, stable name for a filter set, so a cursor can say which one it is. */
+function signature(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
+}
+
 /*
-  A cursor: where the next page starts, bound to the department it was minted
-  under, as the API binds a cursor to its filters. Opaque to the app, which
-  only ever passes `nextCursor` back.
+  A cursor: where the next page starts, bound to every filter it was minted
+  under (the department, R3's filters and the search), as the API binds a
+  cursor to its filters. Opaque to the app, which only ever passes
+  `nextCursor` back.
 */
-const mintCursor = (offset: number, category: string) =>
-  `fc_${offset}_${category || "all"}`;
+const mintCursor = (offset: number, filters: string) =>
+  `fc_${offset}_${signature(filters)}`;
 function readCursor(
   cursor: string,
-  category: string,
+  filters: string,
 ): number | "mismatch" | null {
-  const match = /^fc_(\d+)_([a-z_]+)$/.exec(cursor);
+  const match = /^fc_(\d+)_([0-9a-z]+)$/.exec(cursor);
   if (!match) return null;
-  if (match[2] !== (category || "all")) return "mismatch";
+  if (match[2] !== signature(filters)) return "mismatch";
   return Number(match[1]);
 }
+
+/** The headers of an answer, its `Date` on the found routes' clock. */
+const headersAt = (now: number) => ({
+  ...mockHeaders(rid()),
+  date: new Date(now).toUTCString(),
+});
 
 export const foundHandlers = [
   http.get(url("/events"), async ({ request }) => {
@@ -269,21 +340,36 @@ export const foundHandlers = [
     if (scenario === "found-error") return unavailable();
     if (scenario === "found-slow") await delay(1500);
 
+    /*
+      R3, only while `checkedCities` is open to the caller (the same rule as
+      `explore`'s). Closed, nothing below is read, so nothing can be a 400.
+    */
+    const r3 = checkedStageOf(scenario) !== null && signedIn(request);
+    const ask = r3 ? readR3(params) : NO_R3;
+    if (refused(ask)) {
+      return envelope("invalid_input", ask.message, 400, ask.details);
+    }
+    const filters = askKey(category, ask);
+
     const shape: FoundShape =
       scenario === "found-long" ||
       scenario === "found-stopped" ||
       scenario === "found-page-error"
         ? "long"
         : "full";
-    const now = mockNow();
+    const now = foundNow(scenario);
     const all =
-      scenario === "found-empty" ? [] : foundSamples(key, now, shape)!;
+      scenario === "found-empty"
+        ? []
+        : checkedStageOf(scenario) && key === BENGALURU
+          ? checkedWeek()
+          : foundSamples(key, now, shape)!;
 
     let offset = 0;
     if (cursor !== null) {
       if (scenario === "found-page-error") return unavailable();
-      const read = readCursor(cursor, category);
-      if (read === "mismatch") {
+      const at = readCursor(cursor, filters);
+      if (at === "mismatch") {
         return envelope(
           "invalid_input",
           "that cursor was for different filters, so start again from the first page",
@@ -291,20 +377,30 @@ export const foundHandlers = [
           { cursor: "minted under different filters" },
         );
       }
-      if (read === null) {
+      if (at === null) {
         return envelope(
           "invalid_input",
           "that cursor can no longer be used, so start again from the first page",
           400,
         );
       }
-      offset = read;
+      offset = at;
     }
 
-    const narrowed =
-      scenario === "found-dept-empty" && category
-        ? []
-        : all.filter((s) => !category || s.card.department === category);
+    const found = narrow(
+      all.filter((s) => !category || s.card.department === category),
+      place,
+      ask,
+      now,
+    );
+    let narrowed =
+      scenario === "found-dept-empty" && category ? [] : found.samples;
+    // R3's scenarios, each one shape of answer (see above).
+    if (scenario === "found-weekend-thin" && ask.when === "weekend") {
+      narrowed = narrowed.slice(0, 1);
+    }
+    if (scenario === "found-free-empty" && ask.free) narrowed = [];
+    if (scenario === "found-search-empty" && ask.q) narrowed = [];
     // The card page's sentence is on `GET /events/{id}` only.
     const items = narrowed
       .slice(offset, offset + limit)
@@ -321,11 +417,13 @@ export const foundHandlers = [
       complete: !rest && !stopped,
       // Spread rather than a `null`: the key is absent on the last page.
       ...(rest && !stopped
-        ? { nextCursor: mintCursor(offset + limit, category) }
+        ? { nextCursor: mintCursor(offset + limit, filters) }
         : {}),
-      understood: [],
+      // Only when `when` applied: a day chip from the words has no window.
+      ...(ask.when ? { window: windowOf(ask.when, now) } : {}),
+      understood: found.understood,
     };
-    return HttpResponse.json(body, { headers: mockHeaders(rid()) });
+    return HttpResponse.json(body, { headers: headersAt(now) });
   }),
 
   /*
@@ -379,11 +477,13 @@ export const foundHandlers = [
     }
     if (scenario === "found-error") return unavailable();
 
-    const now = mockNow();
+    const now = foundNow(scenario);
     const merged =
       asked === FOUND_IDS.merged ||
       (scenario === "item-merged" && sampleById(asked, now) !== null);
-    const found = sampleById(merged ? FOUND_IDS.mergedInto : asked, now);
+    const found =
+      (checkedStageOf(scenario) && checkedSampleById(asked)) ||
+      sampleById(merged ? FOUND_IDS.mergedInto : asked, now);
     if (!found) return envelope("not_found", EVENT_NOT_FOUND, 404);
 
     const detail = foundDetail(
@@ -395,7 +495,7 @@ export const foundHandlers = [
       scenario === "item-ended"
         ? { ...detail, status: "ended" as const, indexable: false }
         : detail,
-      { headers: mockHeaders(rid()) },
+      { headers: headersAt(now) },
     );
   }),
 
@@ -509,7 +609,9 @@ export const foundHandlers = [
       return envelope("not_found", CARD_NOT_SHOWING, 404);
     }
 
-    const found = sampleById(id, mockNow());
+    const found =
+      (checkedStageOf(scenario) && checkedSampleById(id)) ||
+      sampleById(id, foundNow(scenario));
     if (!found) return envelope("not_found", CARD_NOT_SHOWING, 404);
 
     const unchecked = found.sample.card.check.tier === "found";

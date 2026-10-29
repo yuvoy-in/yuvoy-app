@@ -6,6 +6,13 @@ import { api, createProxyClient } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
 import { HIDDEN_CARDS_CHANGED, hiddenCardIds } from "./device-store";
 import {
+  NO_FOUND_FILTERS,
+  foundFilterKey,
+  foundListQuery,
+  type FoundFilters,
+  type FoundSearch,
+} from "./found-filters";
+import {
   FOUND_PAGE_SIZE,
   FOUND_STALE_AFTER_MS,
   type Category,
@@ -66,6 +73,15 @@ export const FOUND_FEED_CACHE = {
  * the paging too, but it is NOT the end: `foundTail` tells the two apart for
  * the foot of the screen.
  *
+ * ## The chips, Filters and search are in the key
+ *
+ * R3's day, Free, Filters and search (yuvoy-app#180) narrow the same list,
+ * and the key's filter slot and the request are built from the same object
+ * (`foundFilterKey`, `foundListQuery`), so a cursor only ever goes back with
+ * the filters, `q` and `asText` it was minted under, and a change to any of
+ * them starts again from page one. With nothing chosen the slot is empty and
+ * the request is R2's.
+ *
  * ## The server's order, untouched
  *
  * "Ordered by local day, checked before found within a day, then start time,
@@ -77,16 +93,29 @@ export function useFoundFeed(options: {
   category: Category | null;
   signedIn: boolean;
   /**
-   * Page one from the server render, for THIS place and department only, and
-   * when this view received it. Left out, the list is read from here.
+   * Page one from the server render, for THIS place, department, filters
+   * and search only, and when this view received it. Left out, the list is read from here.
    */
   seed?: { page: FoundItemList; receivedAt: number } | null;
   /** False asks nothing until it turns true (after a failed server read, until Try again). */
   enabled?: boolean;
+  /** R3's day, Free and Filters; nothing chosen when left out. */
+  filters?: FoundFilters;
+  /** R3's search, or none. */
+  search?: FoundSearch | null;
 }) {
-  const { placeKey, category, signedIn, seed, enabled = true } = options;
+  const {
+    placeKey,
+    category,
+    signedIn,
+    seed,
+    enabled = true,
+    filters = NO_FOUND_FILTERS,
+    search = null,
+  } = options;
+  const narrow = foundListQuery(filters, search);
   return useInfiniteQuery({
-    queryKey: qk.foundFeed(placeKey, category),
+    queryKey: qk.foundFeed(placeKey, category, foundFilterKey(filters, search)),
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }): Promise<FoundItemList> => {
       const client = signedIn ? createProxyClient() : api;
@@ -96,6 +125,7 @@ export function useFoundFeed(options: {
             destinationKey: placeKey,
             limit: FOUND_PAGE_SIZE,
             ...(category ? { category } : {}),
+            ...narrow,
             // Omitted on the first page: an empty cursor is a different request.
             ...(pageParam ? { cursor: pageParam } : {}),
           },

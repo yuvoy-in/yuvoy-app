@@ -144,20 +144,20 @@ function checkedAt(ago: number, now: number): string {
 }
 
 /** How a person checked: the trust line's ending, and the page's sentence. */
-type Method = { line: string; sentence: (on: string) => string };
+export type Method = { line: string; sentence: (on: string) => string };
 const onPage = (page: string): Method => ({
   line: ` · ${page}`,
   sentence: (on) =>
     `A person at Yuvoy checked the date, time, place and price on the ${page} on ${on}.`,
 });
-const ORGANISER = onPage("organiser's page");
-const VENUE = onPage("venue's page");
-const IN_PERSON: Method = {
+export const ORGANISER = onPage("organiser's page");
+export const VENUE = onPage("venue's page");
+export const IN_PERSON: Method = {
   line: " · in person",
   sentence: (on) => `A person at Yuvoy checked this in person on ${on}.`,
 };
 
-function checked(
+export function checked(
   host: string,
   path: string,
   how: Method,
@@ -226,8 +226,8 @@ function lapsed(host: string, path: string, ago: number, now: number): Check {
   };
 }
 
-const FREE: Price = { kind: "free", from: null, text: "Free" };
-const UNPRICED: Price = {
+export const FREE: Price = { kind: "free", from: null, text: "Free" };
+export const UNPRICED: Price = {
   kind: "unknown",
   from: null,
   text: "Price on the organiser's page",
@@ -242,7 +242,7 @@ function grouped(rupees: number): string {
 }
 
 /** A price a person checked, or (`asListed`) one only the page states. */
-function paid(rupees: number, asListed = false): Price {
+export function paid(rupees: number, asListed = false): Price {
   return {
     kind: "paid",
     from: { amountMinor: rupees * 100, currency: "INR" },
@@ -549,7 +549,7 @@ function fillers(key: string, count: number, now: number): FoundSample[] {
  * start time, then department; undated items last. Applied rather than
  * written by hand, so the long list cannot drift out of it.
  */
-function inServerOrder(samples: FoundSample[]): FoundSample[] {
+export function inServerOrder(samples: FoundSample[]): FoundSample[] {
   const rank = (s: FoundSample) => (s.card.check.tier === "found" ? 1 : 0);
   return [...samples].sort((a, b) => {
     const da = a.card.when.startsOn;

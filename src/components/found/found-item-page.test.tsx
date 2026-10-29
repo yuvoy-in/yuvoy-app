@@ -195,6 +195,31 @@ describe("the page", () => {
     }
   });
 
+  it("says what Free means under a free card's price, and on no other", () => {
+    const { unmount } = renderWithQuery(
+      <FoundItemPage
+        item={card({ price: { kind: "free", from: null, text: "Free" } })}
+        signedIn={false}
+      />,
+    );
+    expect(screen.getByTestId("found-price")).toHaveTextContent(
+      "Free means the organiser says there's no ticket price.",
+    );
+    unmount();
+    for (const kind of ["paid", "unknown"] as const) {
+      const { unmount: again } = renderWithQuery(
+        <FoundItemPage
+          item={card({
+            price: { kind, from: null, text: "Price on their page" },
+          })}
+          signedIn={false}
+        />,
+      );
+      expect(screen.queryByText(FOUND_PAGE_WORDS.free), kind).toBeNull();
+      again();
+    }
+  });
+
   it("shows the API's check sentence verbatim, and composes none", () => {
     const { unmount } = renderWithQuery(
       <FoundItemPage item={card()} signedIn={false} />,

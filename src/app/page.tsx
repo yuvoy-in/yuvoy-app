@@ -7,7 +7,14 @@ import { PlaceButton, RememberPlace } from "@/components/place/place-button";
 import { gatedRoute } from "@/components/auth/gated-route";
 import { firstReelsPage } from "@/lib/feed/first-page";
 import { firstFoundPage } from "@/lib/found/first-page";
+import {
+  NO_FOUND_FILTERS,
+  foundListQuery,
+  foundStateFrom,
+  paramsOf,
+} from "@/lib/found/found-filters";
 import { readSessionCookie } from "@/lib/auth/session-cookie";
+import { requestReleaseOpen } from "@/lib/auth/request-cohort";
 import { preconnectApi } from "@/lib/site/preconnect";
 import { feedHeading, getPlaces, type PlaceList } from "@/lib/site/places";
 import { myPlaces } from "@/lib/site/my-places";
@@ -16,6 +23,7 @@ import {
   PLACE_COOKIE,
   categoryParam,
   choiceFrom,
+  foundPlaceKeys,
   goneAfterAnswer,
   hasDiscoverPlace,
   type PlaceChoice,
@@ -142,6 +150,14 @@ export default async function FeedPage({
       const reelsAhead = choosing
         ? null
         : firstReelsPage({ screen: "feed", scenario });
+      /*
+        R3 (yuvoy-app#180): whether this caller gets the day chips, Free,
+        Filters and search, decided here so nothing paints and then hides.
+        Asked beside the list, and only when a found place may be shown.
+      */
+      const checkedAhead = choosing
+        ? requestReleaseOpen("checkedCities", scenario)
+        : null;
       const places = await myPlaces(token, scenario);
       const list = places.list;
       let choice = choiceFrom(list, param, remembered);
@@ -150,9 +166,22 @@ export default async function FeedPage({
       if (choice.shown.kind === "found" && list) {
         const { market, destination } = choice.shown;
         const category = categoryParam(query.category);
+        /*
+          `?when=`, `free=1`, `budget=`, `timeOfDay=`, `q=` and `asText=`,
+          only while `checkedCities` is open to this caller. Closed, the
+          address's filters are not read at all and the page is R2's: the
+          API would ignore them, and a list narrowed by a chip nobody can
+          see would be worse.
+        */
+        const checked = await (checkedAhead ??
+          requestReleaseOpen("checkedCities", scenario));
+        const { filters, search } = checked
+          ? foundStateFrom(paramsOf(query))
+          : { filters: NO_FOUND_FILTERS, search: null };
         const first = await firstFoundPage({
           destinationKey: destination.key,
           category,
+          narrow: foundListQuery(filters, search),
           /*
             Only a token the API still accepts: after `/me/places` answered
             401 the list is the public one, and a dead token would turn every
@@ -185,6 +214,10 @@ export default async function FeedPage({
                 placeName={destination.name}
                 firstPage={first.kind === "ok" ? first.page : null}
                 category={category}
+                checkedCities={checked}
+                filters={filters}
+                search={search}
+                searchPlaces={foundPlaceKeys(list)}
                 signedIn={places.signedIn}
                 trigger={
                   <PlaceButton
