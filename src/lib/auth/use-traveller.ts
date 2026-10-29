@@ -153,6 +153,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     // And each one opened: the invitation was the previous number's.
     qc.removeQueries({ queryKey: ["getInvitedTrip"] });
+    // A table carries the reader's own request, the names and the venue.
+    qc.removeQueries({ queryKey: ["getTable"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -224,6 +226,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     qc.removeQueries({ queryKey: ["getInvitedTrip"] });
+    qc.removeQueries({ queryKey: ["getTable"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });

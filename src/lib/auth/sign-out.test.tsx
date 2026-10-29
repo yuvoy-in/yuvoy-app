@@ -137,6 +137,26 @@ describe("signing out", () => {
     expect(client.getQueryData(qk.invitedTrip("inv_1"))).toBeUndefined();
   });
 
+  it("forgets each table opened", async () => {
+    /*
+      yuvoy-app#194. A table carries the reader's own request, the names and,
+      for an approved guest, the venue: the next person on a shared phone must
+      not see any of it while a refetch runs.
+    */
+    let signOut!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <Harness onReady={(fn) => (signOut = fn)} />,
+    );
+    client.setQueryDefaults(["getTable"], { gcTime: Infinity });
+    client.setQueryData(qk.table("tbl_1"), { id: "tbl_1" });
+
+    await act(async () => {
+      await signOut();
+    });
+
+    expect(client.getQueryData(qk.table("tbl_1"))).toBeUndefined();
+  });
+
   it("clears the device even when the sign-out request fails", async () => {
     /*
       The route is told first and its answer is deliberately ignored, because a
@@ -163,6 +183,42 @@ describe("signing out", () => {
     expect(await listBookings()).toEqual([]);
     vi.unstubAllGlobals();
     vi.stubGlobal("indexedDB", {});
+  });
+});
+
+/** Hands the hook's `signIn` out, the refresh after `POST /api/session`. */
+function SignInProbe({
+  onReady,
+}: {
+  onReady: (fn: () => Promise<void>) => void;
+}) {
+  const { signIn } = useTravellerSession();
+  onReady(signIn);
+  return null;
+}
+
+describe("signing in", () => {
+  it("forgets each table the previous number opened", async () => {
+    /*
+      yuvoy-app#194, beside the invited trips: removed, not invalidated, so
+      the previous number's request and venue are not on screen while the
+      new number's read runs.
+    */
+    let signIn!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <SignInProbe onReady={(fn) => (signIn = fn)} />,
+    );
+    client.setQueryDefaults(["getTable"], { gcTime: Infinity });
+    client.setQueryDefaults(["getInvitedTrip"], { gcTime: Infinity });
+    client.setQueryData(qk.table("tbl_1"), { id: "tbl_1" });
+    client.setQueryData(qk.invitedTrip("inv_1"), { id: "inv_1" });
+
+    await act(async () => {
+      await signIn();
+    });
+
+    expect(client.getQueryData(qk.table("tbl_1"))).toBeUndefined();
+    expect(client.getQueryData(qk.invitedTrip("inv_1"))).toBeUndefined();
   });
 });
 

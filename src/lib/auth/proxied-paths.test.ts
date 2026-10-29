@@ -116,6 +116,27 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("PUT", "/me")).toBeNull();
   });
 
+  it("forwards one table's read, withdraw and report, and nothing else of tables", () => {
+    /*
+      yuvoy-app#194. The page is signed in only, so all three go through
+      here. Asking to join and the traveller's own list have no screen yet,
+      so they stay refused, as does every verb not listed.
+    */
+    expect(allowedProxyPath("GET", "/tables/7d3f9a2e")).toBe("/tables/{id}");
+    expect(allowedProxyPath("DELETE", "/tables/7d3f9a2e/requests/mine")).toBe(
+      "/tables/{id}/requests/mine",
+    );
+    expect(allowedProxyPath("POST", "/tables/7d3f9a2e/reports")).toBe(
+      "/tables/{id}/reports",
+    );
+    expect(allowedProxyPath("POST", "/tables/7d3f9a2e/requests")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/tables")).toBeNull();
+    expect(allowedProxyPath("GET", "/tables")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/tables/7d3f9a2e")).toBeNull();
+    expect(allowedProxyPath("GET", "/tables/7d3f9a2e/reports")).toBeNull();
+    expect(allowedProxyPath("GET", "/tables/a/b")).toBeNull();
+  });
+
   it("forwards a member's four plan calls, and none of the planner's", () => {
     /*
       yuvoy-app#193. Read, reply, leave, report. The planner's tools are a

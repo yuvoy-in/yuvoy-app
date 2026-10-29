@@ -504,6 +504,32 @@ export function describeError(
             "This way of signing in is switched off for now, so nothing was sent.",
           canRetry: false,
         };
+      /*
+        Tables paused (yuvoy-app#194): "paused, not broken". Not a deliberate
+        stop: the table page offers Try again, and one read is all it costs.
+        The table page draws its own paused state; this is for anywhere else
+        the code lands.
+      */
+      case "tables_unavailable":
+        return {
+          ...base,
+          title: "Tables are paused right now",
+          body:
+            error.message.trim() ||
+            "Nothing is lost. Your requests and seats come back as they were when we open tables again.",
+          canRetry: true,
+        };
+      /*
+        Withdraw's 409 (yuvoy-app#194): the table has started, or it was
+        cancelled. Asking again is refused the same way, so no retry.
+      */
+      case "table_closed":
+        return {
+          ...base,
+          title: "This table is closed",
+          body: error.message.trim() || "Requests for this table are closed.",
+          canRetry: false,
+        };
       default:
         return {
           ...base,
