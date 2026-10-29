@@ -57,7 +57,9 @@ export function planTimeRange(
   const end = endsAt ? civil(endsAt, timeZone) : null;
   if (!end) return first;
   const sameDay =
-    end.year === start.year && end.month === start.month && end.day === start.day;
+    end.year === start.year &&
+    end.month === start.month &&
+    end.day === start.day;
   return sameDay
     ? `${first} to ${clockTime(end)}`
     : `${first} to ${weekdayDayMonth(end)}, ${clockTime(end)}`;

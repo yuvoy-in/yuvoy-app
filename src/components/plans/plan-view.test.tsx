@@ -45,7 +45,12 @@ function actionsFor(
 
 function draw(plan: PlanView, actions = actionsFor(plan), signedIn = true) {
   render(
-    <PlanViewScreen plan={plan} actions={actions} mode="member" signedIn={signedIn} />,
+    <PlanViewScreen
+      plan={plan}
+      actions={actions}
+      mode="member"
+      signedIn={signedIn}
+    />,
   );
   return actions;
 }
@@ -58,7 +63,9 @@ describe("the plan's money", () => {
       upiPayLink(45000, "Dinner at the beach shack"),
     );
     expect(
-      screen.getByText(`Button not working? Send ₹450 to ${PLAN_PAYEE.upiId} from any UPI app.`),
+      screen.getByText(
+        `Button not working? Send ₹450 to ${PLAN_PAYEE.upiId} from any UPI app.`,
+      ),
     ).toBeInTheDocument();
     // Once per share: there are two costs, both paid by Asha.
     expect(
@@ -112,7 +119,9 @@ describe("the reply", () => {
       claims: [PLAN_IDS.items[1], PLAN_IDS.items[2]],
       paid: [],
     });
-    expect(await screen.findByText(/Thanks, Ravi\. Your reply is in\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Thanks, Ravi\. Your reply is in\./),
+    ).toBeInTheDocument();
     expect(screen.getByText(/You can change it until/)).toBeInTheDocument();
   });
 
@@ -157,10 +166,14 @@ describe("the reply", () => {
     const plan = openPlanView("member", memberMe({ adultConfirmed: false }));
     const actions = draw(plan);
     await user.click(screen.getByRole("button", { name: "Update my reply" }));
-    expect(await screen.findByText("Tick to say you are 18 or over.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Tick to say you are 18 or over."),
+    ).toBeInTheDocument();
     expect(actions.reply).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("checkbox", { name: "I am 18 or older" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "I am 18 or older" }),
+    );
     await user.click(screen.getByRole("button", { name: "Update my reply" }));
     await waitFor(() => expect(actions.reply).toHaveBeenCalledTimes(1));
     expect(actions.sent[0]).toMatchObject({ adult: true });
@@ -210,12 +223,15 @@ describe("the reply", () => {
     const user = userEvent.setup();
     const plan = { ...decidedPlanView("member", memberMe()), canReply: false };
     const actions = draw(plan);
-    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    for (const radio of screen.getAllByRole("radio"))
+      expect(radio).toBeDisabled();
     expect(
       screen.getByText("Replies are closed because the plan has started."),
     ).toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("checkbox", { name: /I've paid my share/ })[0]!);
+    await user.click(
+      screen.getAllByRole("checkbox", { name: /I've paid my share/ })[0]!,
+    );
     await user.click(screen.getByRole("button", { name: "Update my reply" }));
     await waitFor(() => expect(actions.reply).toHaveBeenCalledTimes(1));
     expect(actions.sent[0]).toEqual({ paid: [PLAN_IDS.costs[0]] });
@@ -233,7 +249,9 @@ describe("leaving", () => {
       ),
     ).toBeInTheDocument();
     expect(actions.leave).not.toHaveBeenCalled();
-    const buttons = await screen.findAllByRole("button", { name: "Leave this plan" });
+    const buttons = await screen.findAllByRole("button", {
+      name: "Leave this plan",
+    });
     await user.click(buttons[buttons.length - 1]!);
     await waitFor(() => expect(actions.leave).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("You left this plan.")).toBeInTheDocument();
@@ -241,7 +259,9 @@ describe("leaving", () => {
 
   it("is never offered to the planner", () => {
     draw(plannerPlanView());
-    expect(screen.queryByRole("button", { name: "Leave this plan" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Leave this plan" }),
+    ).toBeNull();
   });
 });
 

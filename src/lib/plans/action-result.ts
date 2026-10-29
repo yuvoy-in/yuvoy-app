@@ -76,14 +76,22 @@ export function planActionFromAnswer(
     if (status === 204) return { kind: "gone" };
     // A 200 that is not a plan: the answer did not say what happened, so the
     // reader is told it did not go, and the answers stay filled in.
-    return { kind: "refused", code: "internal_error", message: planWords.notSent };
+    return {
+      kind: "refused",
+      code: "internal_error",
+      message: planWords.notSent,
+    };
   }
   if (status === 404) return { kind: "gone" };
   if (isErrorEnvelope(body)) {
     const { code, message, details } = body.error;
     return { kind: "refused", code, ...readDetails(code, details, message) };
   }
-  return { kind: "refused", code: "internal_error", message: planWords.notSent };
+  return {
+    kind: "refused",
+    code: "internal_error",
+    message: planWords.notSent,
+  };
 }
 
 /**

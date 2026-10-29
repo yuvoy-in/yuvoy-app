@@ -46,7 +46,8 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 const url = (p: string) => `${BASE}${p}`;
 
 let seq = 0;
-const rid = () => `01JPLN${(++seq).toString(36).toUpperCase().padStart(5, "0")}`;
+const rid = () =>
+  `01JPLN${(++seq).toString(36).toUpperCase().padStart(5, "0")}`;
 
 function envelope(
   status: number,
@@ -104,11 +105,16 @@ function gate(
   const scenario = scenarioOf(request);
   if (scenario === "plan-unavailable") {
     return {
-      refusal: envelope(503, "plans_unavailable", "Plans are paused for a moment."),
+      refusal: envelope(
+        503,
+        "plans_unavailable",
+        "Plans are paused for a moment.",
+      ),
     };
   }
   const plan = planFor(id, scenario);
-  if (!plan) return { refusal: envelope(404, "not_found", "We could not find that.") };
+  if (!plan)
+    return { refusal: envelope(404, "not_found", "We could not find that.") };
   return { plan };
 }
 
@@ -117,13 +123,17 @@ const isStrings = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every((x) => typeof x === "string");
 
 /** The API's field checks on a reply, by field, or null when it is sound. */
-function replyProblem(plan: PlanView, body: unknown): Record<string, string> | null {
+function replyProblem(
+  plan: PlanView,
+  body: unknown,
+): Record<string, string> | null {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return { body: "Send a reply." };
   }
   const reply = body as Record<string, unknown>;
   for (const key of Object.keys(reply)) {
-    if (!REPLY_KEYS.has(key)) return { [key]: "This field is not part of a reply." };
+    if (!REPLY_KEYS.has(key))
+      return { [key]: "This field is not part of a reply." };
   }
   const options = new Set([
     ...plan.times.map((t) => t.id),
@@ -137,27 +147,46 @@ function replyProblem(plan: PlanView, body: unknown): Record<string, string> | n
           typeof a === "object" &&
           a !== null &&
           options.has((a as { optionId?: unknown }).optionId as string) &&
-          ["can", "maybe", "cant", "vote"].includes((a as { answer?: unknown }).answer as string),
+          ["can", "maybe", "cant", "vote"].includes(
+            (a as { answer?: unknown }).answer as string,
+          ),
       )
     ) {
       return { answers: "An answer names an option this plan does not have." };
     }
   }
   const items = new Set(plan.items.map((i) => i.id));
-  if (reply.claims !== undefined && !(isStrings(reply.claims) && reply.claims.every((c) => items.has(c)))) {
+  if (
+    reply.claims !== undefined &&
+    !(isStrings(reply.claims) && reply.claims.every((c) => items.has(c)))
+  ) {
     return { claims: "A claim names an item this plan does not have." };
   }
   const costs = new Set(plan.costs.map((c) => c.id));
-  if (reply.paid !== undefined && !(isStrings(reply.paid) && reply.paid.every((c) => costs.has(c)))) {
+  if (
+    reply.paid !== undefined &&
+    !(isStrings(reply.paid) && reply.paid.every((c) => costs.has(c)))
+  ) {
     return { paid: "A paid mark names a cost this plan does not have." };
   }
-  if (plan.me && !plan.me.adultConfirmed && plan.canReply && reply.adult !== true) {
+  if (
+    plan.me &&
+    !plan.me.adultConfirmed &&
+    plan.canReply &&
+    reply.adult !== true
+  ) {
     return { adult: "Tick to say you are 18 or over." };
   }
   return null;
 }
 
-const REASONS = new Set(["unsafe", "harassment", "spam", "impersonation", "other"]);
+const REASONS = new Set([
+  "unsafe",
+  "harassment",
+  "spam",
+  "impersonation",
+  "other",
+]);
 
 export const planHandlers = [
   http.get(url("/plans/:id"), ({ request, params }) => {
@@ -173,7 +202,12 @@ export const planHandlers = [
     const body: unknown = await request.json().catch(() => null);
     const problem = replyProblem(plan, body);
     if (problem) {
-      return envelope(400, "invalid_input", Object.values(problem)[0] ?? "", problem);
+      return envelope(
+        400,
+        "invalid_input",
+        Object.values(problem)[0] ?? "",
+        problem,
+      );
     }
     const reply = body as PlanReply;
     const paidOnly =
@@ -182,9 +216,13 @@ export const planHandlers = [
       reply.answers === undefined &&
       reply.claims === undefined;
     if (!plan.canReply && !paidOnly) {
-      return envelope(409, "plan_closed", "Replies are closed.", { reason: "started" });
+      return envelope(409, "plan_closed", "Replies are closed.", {
+        reason: "started",
+      });
     }
-    return HttpResponse.json(withReply(plan, reply), { headers: mockHeaders(rid()) });
+    return HttpResponse.json(withReply(plan, reply), {
+      headers: mockHeaders(rid()),
+    });
   }),
 
   http.delete(url("/plans/:id/reply"), ({ request, params }) => {
@@ -203,14 +241,25 @@ export const planHandlers = [
     const gated = gate(request, String(params.id));
     if ("refusal" in gated) return gated.refusal;
     const { plan } = gated;
-    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    const body = (await request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
     if (!body || typeof body.reason !== "string" || !REASONS.has(body.reason)) {
       return envelope(400, "invalid_input", "Pick a reason.");
     }
-    if (body.note !== undefined && (typeof body.note !== "string" || body.note.length > 300)) {
-      return envelope(400, "invalid_input", "Keep the note to 300 characters.", {
-        note: "Keep the note to 300 characters.",
-      });
+    if (
+      body.note !== undefined &&
+      (typeof body.note !== "string" || body.note.length > 300)
+    ) {
+      return envelope(
+        400,
+        "invalid_input",
+        "Keep the note to 300 characters.",
+        {
+          note: "Keep the note to 300 characters.",
+        },
+      );
     }
     if (
       body.personName !== undefined &&

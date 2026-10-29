@@ -109,7 +109,9 @@ export function PlanReplyForm({
         const field =
           // Under the tick when there is one; a tick this view did not draw
           // cannot carry a line, so the line goes with the rest.
-          askAdult && result.code === "invalid_input" && result.reason === "adult"
+          askAdult &&
+          result.code === "invalid_input" &&
+          result.reason === "adult"
             ? "adult"
             : undefined;
         refuse(refusalLine(result, plan.planner.name), field);
@@ -142,13 +144,21 @@ export function PlanReplyForm({
           <legend className="font-display tracking-display leading-display text-2xl text-balance">
             {decided && times[0]
               ? planWords.areYouGoing(
-                  planTimeRange(times[0].startsAt, times[0].endsAt, plan.timeZone) ?? "",
+                  planTimeRange(
+                    times[0].startsAt,
+                    times[0].endsAt,
+                    plan.timeZone,
+                  ) ?? "",
                 )
               : planWords.canYouMakeIt}
           </legend>
           <div className="mt-4 space-y-4">
             {times.map((time) => {
-              const range = planTimeRange(time.startsAt, time.endsAt, plan.timeZone);
+              const range = planTimeRange(
+                time.startsAt,
+                time.endsAt,
+                plan.timeZone,
+              );
               return (
                 <Panel key={time.id} tone="outline">
                   <fieldset>
@@ -240,7 +250,10 @@ export function PlanReplyForm({
                       disabled={!open}
                       onChange={(e) => {
                         const on = e.currentTarget.checked;
-                        setDraft((d) => ({ ...d, claims: toggled(d.claims, item.id, on) }));
+                        setDraft((d) => ({
+                          ...d,
+                          claims: toggled(d.claims, item.id, on),
+                        }));
                       }}
                       className="accent-terra-deep size-6 shrink-0"
                     />
@@ -279,7 +292,11 @@ export function PlanReplyForm({
                 <li key={cost.id}>
                   <Panel tone="outline">
                     <p>
-                      {planWords.costLine(cost.label, rupees(cost.amountMinor), cost.paidBy)}
+                      {planWords.costLine(
+                        cost.label,
+                        rupees(cost.amountMinor),
+                        cost.paidBy,
+                      )}
                     </p>
                     {cost.split ? (
                       <p className="text-forest/70 mt-1 text-sm tabular-nums">
@@ -310,7 +327,10 @@ export function PlanReplyForm({
                             checked={draft.paid.includes(cost.id)}
                             onChange={(e) => {
                               const on = e.currentTarget.checked;
-                              setDraft((d) => ({ ...d, paid: toggled(d.paid, cost.id, on) }));
+                              setDraft((d) => ({
+                                ...d,
+                                paid: toggled(d.paid, cost.id, on),
+                              }));
                             }}
                             className="accent-terra-deep size-6 shrink-0"
                           />
@@ -322,7 +342,9 @@ export function PlanReplyForm({
                           </span>
                         </label>
                         {mine.receivedMarked ? (
-                          <p className="mt-2 text-sm">{planWords.received(cost.paidBy)}</p>
+                          <p className="mt-2 text-sm">
+                            {planWords.received(cost.paidBy)}
+                          </p>
                         ) : null}
                       </>
                     ) : null}
@@ -425,8 +447,10 @@ function applyField(draft: ReplyDraft, field: FormField): ReplyDraft {
     return { ...draft, answers: { ...draft.answers, [name.slice(7)]: answer } };
   }
   if (name === "vote" && checked) return { ...draft, vote: value };
-  if (name === "claim") return { ...draft, claims: toggled(draft.claims, value, checked) };
-  if (name === "paid") return { ...draft, paid: toggled(draft.paid, value, checked) };
+  if (name === "claim")
+    return { ...draft, claims: toggled(draft.claims, value, checked) };
+  if (name === "paid")
+    return { ...draft, paid: toggled(draft.paid, value, checked) };
   if (name === "adult") return { ...draft, adult: checked };
   return draft;
 }

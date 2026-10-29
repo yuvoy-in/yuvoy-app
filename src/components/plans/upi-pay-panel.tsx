@@ -43,7 +43,9 @@ export function UpiPayPanel({
   const amount = rupees(share);
   if (!payee) {
     return (
-      <p className="text-forest/70 mt-2 text-sm">{planWords.noPayeeYet(payer)}</p>
+      <p className="text-forest/70 mt-2 text-sm">
+        {planWords.noPayeeYet(payer)}
+      </p>
     );
   }
   const link = checkedPayLink(payLink, payee, share);
@@ -61,12 +63,16 @@ export function UpiPayPanel({
           <p className="text-forest/70 mt-2 text-sm text-pretty">
             {planWords.underPayButton(payer, amount)}
           </p>
-          <p className="mt-2 text-sm">{planWords.payFallback(amount, payee.upiId)}</p>
+          <p className="mt-2 text-sm">
+            {planWords.payFallback(amount, payee.upiId)}
+          </p>
         </>
       ) : (
         <p className="text-sm">{planWords.payByHand(amount, payee.upiId)}</p>
       )}
-      <p className="text-forest/70 mt-1 text-sm">{planWords.payeeName(payee.name)}</p>
+      <p className="text-forest/70 mt-1 text-sm">
+        {planWords.payeeName(payee.name)}
+      </p>
       <CopyUpiId upiId={payee.upiId} />
     </div>
   );
@@ -101,7 +107,11 @@ function CopyUpiId({ upiId }: { upiId: string }) {
         })();
       }}
     >
-      {copied ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
+      {copied ? (
+        <CheckIcon className="size-4" />
+      ) : (
+        <CopyIcon className="size-4" />
+      )}
       {copied ? planWords.copied : planWords.copyUpiId}
     </Button>
   );

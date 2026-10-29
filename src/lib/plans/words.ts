@@ -122,7 +122,8 @@ export const planWords = {
   copyUpiId: "Copy UPI ID",
   copied: "Copied",
   paidTick: "I've paid my share",
-  paidHint: (payer: string) => `This tells ${payer}. Yuvoy cannot see payments.`,
+  paidHint: (payer: string) =>
+    `This tells ${payer}. Yuvoy cannot see payments.`,
   /** new: the planner ticked "Got it" on this share. */
   received: (payer: string) => `${payer} says they got it.`,
 
@@ -270,9 +271,11 @@ export function namesList(names: readonly string[]): string {
  * this build has not seen (the enum grows on the server) says nothing rather
  * than taking the page down.
  */
-export function stateLine(
-  plan: { state: string; canReply: boolean; planner: { name: string } },
-): string | null {
+export function stateLine(plan: {
+  state: string;
+  canReply: boolean;
+  planner: { name: string };
+}): string | null {
   switch (plan.state) {
     case "cancelled":
       return planWords.cancelled(plan.planner.name);

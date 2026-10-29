@@ -120,7 +120,9 @@ export function PlanViewScreen({
           <PlanReport
             plan={plan}
             report={actions.report}
-            label={mode === "guest" ? planWords.reportPlan : planWords.reportProblem}
+            label={
+              mode === "guest" ? planWords.reportPlan : planWords.reportProblem
+            }
             onGone={() => setGone("unavailable")}
           />
         ) : null}

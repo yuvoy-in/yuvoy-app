@@ -117,7 +117,9 @@ describe("stateLine", () => {
   });
 
   it("names each ending, and a plan that has started", () => {
-    expect(stateLine(plan("cancelled", false))).toBe("Asha cancelled this plan.");
+    expect(stateLine(plan("cancelled", false))).toBe(
+      "Asha cancelled this plan.",
+    );
     expect(stateLine(plan("done", false))).toBe("This plan has happened.");
     expect(stateLine(plan("closed", false))).toBe(
       "This plan is no longer available.",
@@ -152,9 +154,9 @@ describe("refusalLine", () => {
   });
 
   it("shows a field refusal in the API's own words", () => {
-    expect(line("invalid_input", "adult", "Tick to say you are 18 or over.")).toBe(
-      "Tick to say you are 18 or over.",
-    );
+    expect(
+      line("invalid_input", "adult", "Tick to say you are 18 or over."),
+    ).toBe("Tick to say you are 18 or over.");
   });
 
   it("keeps the answers on a network failure and says so", () => {

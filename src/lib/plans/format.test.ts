@@ -59,7 +59,11 @@ describe("planTimeRange", () => {
   });
 
   it("has no dash in it", () => {
-    const line = planTimeRange("2026-08-22T13:30:00Z", "2026-08-22T17:30:00Z", tz);
+    const line = planTimeRange(
+      "2026-08-22T13:30:00Z",
+      "2026-08-22T17:30:00Z",
+      tz,
+    );
     expect(line).not.toMatch(/[\u2012-\u2015\u2212]|\s-\s/);
   });
 });

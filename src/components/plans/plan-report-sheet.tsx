@@ -116,7 +116,10 @@ function ReportSheet({
       else if (result.kind === "gone") {
         onClose();
         onGone();
-      } else if (result.code === "invalid_input" && result.reason === "personName") {
+      } else if (
+        result.code === "invalid_input" &&
+        result.reason === "personName"
+      ) {
         setProblem(planWords.reportPersonUnknown);
       } else if (result.code === "rate_limited") {
         setProblem(planWords.reportTooFast);
@@ -176,7 +179,9 @@ function ReportSheet({
         }}
       >
         <fieldset>
-          <legend className="label text-forest/75">{planWords.reportWhy}</legend>
+          <legend className="label text-forest/75">
+            {planWords.reportWhy}
+          </legend>
           <div className="mt-3 space-y-3">
             {REASONS.map((r) => (
               <label key={r} className="flex items-start gap-3">
@@ -196,7 +201,10 @@ function ReportSheet({
 
         {names.length > 0 ? (
           <div>
-            <label htmlFor="plan-report-person" className="label text-forest/75">
+            <label
+              htmlFor="plan-report-person"
+              className="label text-forest/75"
+            >
               {planWords.reportPerson}
             </label>
             <select

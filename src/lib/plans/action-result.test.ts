@@ -13,7 +13,10 @@ describe("planActionFromAnswer", () => {
   });
 
   it("never passes a guest key on to the view", () => {
-    const result = planActionFromAnswer(201, { ...plan, guestKey: "gk_secret" });
+    const result = planActionFromAnswer(201, {
+      ...plan,
+      guestKey: "gk_secret",
+    });
     expect(result).toEqual({ kind: "ok", plan });
     expect(JSON.stringify(result)).not.toContain("gk_secret");
   });
@@ -85,7 +88,11 @@ describe("planActionFromThrown", () => {
   });
 
   it("reads a 404 as gone", () => {
-    const error = new YuvoyError({ code: "not_found", message: "x", status: 404 });
+    const error = new YuvoyError({
+      code: "not_found",
+      message: "x",
+      status: 404,
+    });
     expect(planActionFromThrown(error)).toEqual({ kind: "gone" });
   });
 
