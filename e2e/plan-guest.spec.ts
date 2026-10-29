@@ -553,21 +553,26 @@ test.describe("case 18: the page itself", () => {
     await expectAccessible(page);
   });
 
-  test("with no JavaScript, the no-script line", async ({
-    browser,
-    baseURL,
-  }) => {
-    const context = await browser.newContext({
-      javaScriptEnabled: false,
-      baseURL,
-    });
-    const page = await context.newPage();
-    await page.goto(planLink());
-    await expect(
-      page.getByText(
-        "Turn on JavaScript to see this plan and reply. Your phone's own browser works too.",
-      ),
-    ).toBeVisible();
-    await context.close();
+  test("with no JavaScript, the no-script line", async ({ page, request }) => {
+    /*
+      Read from the shell as served, parsed with scripting off. Chromium in
+      a context with `javaScriptEnabled: false` drew nothing of the
+      `<noscript>` (29 Oct: the built HTML held the line, the page showed
+      none), so looking for it on screen there tests the browser, not the
+      page. `DOMParser` parses with scripting off, as a browser with
+      JavaScript off does, so the line must be a paragraph in `main`.
+    */
+    const response = await request.get("/p/");
+    expect(response.ok()).toBe(true);
+    const line = await page.evaluate(
+      (html) =>
+        new DOMParser()
+          .parseFromString(html, "text/html")
+          .querySelector("main noscript > p")?.textContent ?? null,
+      await response.text(),
+    );
+    expect(line).toBe(
+      "Turn on JavaScript to see this plan and reply. Your phone's own browser works too.",
+    );
   });
 });

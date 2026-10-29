@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   useChangedBeforeHydration,
   type FormField,
@@ -93,9 +93,17 @@ export function PlanReplyForm({
 
   const refuse = (line: string, field?: "adult" | "extra") => {
     setOutcome({ kind: "refused", line, field });
-    // After the render that draws the line.
-    requestAnimationFrame(() => alertRef.current?.focus());
   };
+
+  /*
+    Focus goes to the line once it is drawn: an effect runs after the commit
+    that draws it, where a frame asked for at the refusal could come first
+    and find no line. A refusal of an `extraFields` field draws no line here;
+    the page that drew the field moves focus there.
+  */
+  useEffect(() => {
+    if (outcome?.kind === "refused") alertRef.current?.focus();
+  }, [outcome]);
 
   async function send() {
     if (inFlight.current) return;

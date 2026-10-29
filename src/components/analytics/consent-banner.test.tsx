@@ -205,6 +205,11 @@ describe("on the plan link page", () => {
   it("loads no analytics for somebody who said yes elsewhere", async () => {
     pathname = "/p";
     sessionStorage.setItem("yuvoy.consent.analytics", "granted:2");
+    /*
+      Earlier tests' loads finish first: one still waiting on its import
+      when the mock goes in would call it, and read as this page loading.
+    */
+    await vi.dynamicImportSettled();
     vi.resetModules();
     const create = vi.fn(async () => null);
     vi.doMock("@/lib/analytics/posthog", () => ({
@@ -214,6 +219,8 @@ describe("on the plan link page", () => {
     await act(async () => {
       render(<ConsentBanner />);
     });
+    // And this page's own, had it started one, before saying it did not.
+    await vi.dynamicImportSettled();
     expect(create).not.toHaveBeenCalled();
     vi.doUnmock("@/lib/analytics/posthog");
   });
