@@ -72,3 +72,48 @@ describe("the cohort of this request", () => {
     expect(await cohort()).toBeNull();
   });
 });
+
+describe("whether a release is open to this request (yuvoy-app#180)", () => {
+  async function open(stage: string | undefined) {
+    server.use(
+      http.get(`${BASE}/app-config`, () =>
+        HttpResponse.json({
+          releases: stage === undefined ? {} : { checkedCities: stage },
+        }),
+      ),
+    );
+    vi.resetModules();
+    const { requestReleaseOpen } = await import("./request-cohort");
+    return requestReleaseOpen("checkedCities");
+  }
+
+  it("is shut at off, and when the key is absent, and asks GET /me nothing", async () => {
+    jar.token = "sess_abc";
+    const auth = me(200, { cohort: "staff" });
+    expect(await open("off")).toBe(false);
+    expect(await open(undefined)).toBe(false);
+    expect(auth).toEqual([]);
+  });
+
+  it("is open at all to everybody, signed out too, and asks GET /me nothing", async () => {
+    const auth = me(200, { cohort: null });
+    expect(await open("all")).toBe(true);
+    jar.token = "sess_abc";
+    expect(await open("all")).toBe(true);
+    expect(auth).toEqual([]);
+  });
+
+  it("asks the cohort at staff and early, by the API's rule", async () => {
+    jar.token = "sess_abc";
+    me(200, { cohort: "staff" });
+    expect(await open("staff")).toBe(true);
+    expect(await open("early")).toBe(true);
+    me(200, { cohort: "early" });
+    expect(await open("staff")).toBe(false);
+    expect(await open("early")).toBe(true);
+    me(200, { cohort: null });
+    expect(await open("early")).toBe(false);
+    jar.token = null;
+    expect(await open("staff")).toBe(false);
+  });
+});

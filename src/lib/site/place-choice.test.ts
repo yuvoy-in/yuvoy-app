@@ -7,6 +7,7 @@ import {
   categoryParam,
   choiceFrom,
   clearPlaceCookie,
+  foundPlaceKeys,
   goneAfterAnswer,
   hasDiscoverPlace,
   placeCookie,
@@ -173,6 +174,17 @@ describe("which place / shows", () => {
     expect(hasDiscoverPlace({ markets: [...PLACES.markets, empty] })).toBe(
       false,
     );
+  });
+});
+
+describe("the places a search's place chip may go to (yuvoy-app#180)", () => {
+  it("are the discover towns, and never a bookable market's", () => {
+    expect(foundPlaceKeys(OPEN)).toEqual([
+      "karnataka/bengaluru",
+      "karnataka/coorg",
+    ]);
+    expect(foundPlaceKeys(PLACES)).toEqual([]);
+    expect(foundPlaceKeys(null)).toEqual([]);
   });
 });
 

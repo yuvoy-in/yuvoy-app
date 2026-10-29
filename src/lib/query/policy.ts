@@ -145,10 +145,10 @@ export const qk = {
     ["listPlaces", signedIn ? "me" : "public"] as const,
   /**
    * One place's found feed (`GET /events`, yuvoy-app#179), paged by cursor
-   * inside the entry like `reels`. The third slot is the filter key, empty
-   * until yuvoy-app#180 adds the day chips, Free and search: the cursor is
-   * minted against the filters, so a different filter set is a different
-   * accumulated answer.
+   * inside the entry like `reels`. The third slot is the filter key
+   * (`foundFilterKey`, yuvoy-app#180): the day chips, Free, Filters and the
+   * search, empty when none is chosen. The cursor is minted against the
+   * filters, so a different filter set is a different accumulated answer.
    */
   foundFeed: (placeKey: string, category: string | null, filterKey = "") =>
     ["listEvents", placeKey, category ?? "", filterKey] as const,

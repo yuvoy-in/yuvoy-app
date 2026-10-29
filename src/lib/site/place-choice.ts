@@ -78,6 +78,18 @@ export function hasDiscoverPlace(list: PlaceList | null): boolean {
   return (list?.markets ?? []).some((m) => m.mode === "discover" && offered(m));
 }
 
+/**
+ * Every place in the list a found feed can open (the discover towns), by key:
+ * what a search's place chip may take somebody to (yuvoy-app#180). A place
+ * the list does not hold is one `?place=` would not open, so its chip is not
+ * drawn.
+ */
+export function foundPlaceKeys(list: PlaceList | null): string[] {
+  return (list?.markets ?? [])
+    .filter((m) => m.mode === "discover")
+    .flatMap((m) => m.destinations.map((d) => d.key));
+}
+
 /** What `/` shows. */
 export type Shown =
   | { kind: "reels"; market: PlaceMarket | null }
