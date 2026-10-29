@@ -157,14 +157,23 @@ export function RememberPlace({
   clear: boolean;
   list: PlaceList | null;
 }) {
+  /*
+    The list is read through a ref: it is a new object on every server
+    refresh, and as a dependency it wrote the cookie and sent `place_picked`
+    again each time.
+  */
+  const latestList = useRef(list);
+  useEffect(() => {
+    latestList.current = list;
+  });
   useEffect(() => {
     if (clear) {
       clearPlaceCookie();
       return;
     }
-    if (isPlaceKey(write) && writePlaceCookie(write, list)) {
+    if (isPlaceKey(write) && writePlaceCookie(write, latestList.current)) {
       captureEvent(EVENTS.placePicked, { via: "link" });
     }
-  }, [write, clear, list]);
+  }, [write, clear]);
   return null;
 }

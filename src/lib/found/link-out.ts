@@ -28,7 +28,11 @@
  * and the rule is to open what was stored, not what a parser made of it. The
  * pattern only decides whether the string is one we may open at all.
  */
-const HTTP_URL = /^(https?):\/\/([^/?#\s]+)([/?#][^\s]*)?$/i;
+// No backslash and no control character anywhere: a browser reads `\` as
+// `/`, so `https://evil.test\@trusted.in/` would read as trusted.in here and
+// open evil.test.
+// eslint-disable-next-line no-control-regex
+const HTTP_URL = /^(https?):\/\/([^/?#\s\\\x00-\x1f]+)([/?#][^\s\\\x00-\x1f]*)?$/i;
 
 /**
  * A link a card may open, returned exactly as stored, or null.

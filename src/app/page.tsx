@@ -9,7 +9,7 @@ import { firstReelsPage } from "@/lib/feed/first-page";
 import { firstFoundPage } from "@/lib/found/first-page";
 import { readSessionCookie } from "@/lib/auth/session-cookie";
 import { preconnectApi } from "@/lib/site/preconnect";
-import { feedHeading, type PlaceList } from "@/lib/site/places";
+import { feedHeading, getPlaces, type PlaceList } from "@/lib/site/places";
 import { myPlaces } from "@/lib/site/my-places";
 import { nearYou } from "@/lib/site/near-you";
 import {
@@ -130,7 +130,14 @@ export default async function FeedPage({
       */
       const { remembered, visitor, token } = await requestParts();
       const param = query.place;
-      const choosing = typeof param === "string" || remembered !== null;
+      /*
+        Only a destination key (`<market>/<destination>`) can be a found
+        place. A market key, such as the one a `?place=andaman` link leaves in
+        the cookie, always means the reels, so they are asked for beside the
+        list as if nothing were chosen.
+      */
+      const candidate = typeof param === "string" ? param : remembered;
+      const choosing = typeof candidate === "string" && candidate.includes("/");
 
       const reelsAhead = choosing
         ? null
@@ -146,7 +153,12 @@ export default async function FeedPage({
         const first = await firstFoundPage({
           destinationKey: destination.key,
           category,
-          token,
+          /*
+            Only a token the API still accepts: after `/me/places` answered
+            401 the list is the public one, and a dead token would turn every
+            visit into the error state until the cookie went.
+          */
+          token: places.signedIn ? token : null,
           headers: visitor ?? new Headers(),
           scenario,
         });
@@ -199,7 +211,7 @@ export default async function FeedPage({
           <Feed
             initialPage={page}
             initialFetchedAt={fetchedAt}
-            heading={feedHeading(list)}
+            heading={feedHeading(list ?? (await getPlaces()))}
             trigger={
               /*
                 Only when the list holds a place to find things in: with

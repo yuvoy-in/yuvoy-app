@@ -211,13 +211,18 @@ export default async function FoundCardPage({
   const event = item.indexable ? foundEventJsonLd(item) : null;
   return (
     <Screen>
-      <JsonLd
-        node={breadcrumbJsonLd([
-          { name: "Yuvoy", path: "/" },
-          { name: item.title, path: `/f/${item.id}` },
-        ])}
-      />
-      {event ? <JsonLd node={event} /> : null}
+      {/* Both only on a card a person checked: a noindex card says nothing to a crawler. */}
+      {event ? (
+        <>
+          <JsonLd
+            node={breadcrumbJsonLd([
+              { name: "Yuvoy", path: "/" },
+              { name: item.title, path: `/f/${item.id}` },
+            ])}
+          />
+          <JsonLd node={event} />
+        </>
+      ) : null}
       <FoundItemPage item={item} signedIn={signedIn} />
     </Screen>
   );
