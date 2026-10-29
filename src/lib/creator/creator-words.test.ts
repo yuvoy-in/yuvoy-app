@@ -40,10 +40,10 @@ describe("a link's counts", () => {
     );
   });
 
-  it("uses the singular where there is one", () => {
+  it("keeps the issue's words at one, as the phone app does", () => {
     expect(
       linkCounts(link({ opens30Days: 1, opensTotal: 1, bookings: 1 })),
-    ).toBe("1 open in the last 30 days · 1 in all · 1 booking");
+    ).toBe("1 opens in the last 30 days · 1 in all · 1 bookings");
   });
 
   it("says nought plainly for a link nobody has opened", () => {

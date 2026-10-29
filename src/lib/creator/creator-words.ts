@@ -51,23 +51,15 @@ export const CREATOR_WORDS = {
   },
 } as const;
 
-/** "4 opens", "1 open": the singular where it belongs, as Account's counts. */
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
 /**
  * "{opens30Days} opens in the last 30 days · {opensTotal} in all ·
- * {bookings} bookings".
+ * {bookings} bookings", word for word as the issue and the phone app have
+ * it, at every count, so the two apps read alike.
  */
 export function linkCounts(
   link: Pick<CreatorLink, "opens30Days" | "opensTotal" | "bookings">,
 ): string {
-  return [
-    `${plural(link.opens30Days, "open", "opens")} in the last 30 days`,
-    `${link.opensTotal} in all`,
-    plural(link.bookings, "booking", "bookings"),
-  ].join(" · ");
+  return `${link.opens30Days} opens in the last 30 days · ${link.opensTotal} in all · ${link.bookings} bookings`;
 }
 
 /**

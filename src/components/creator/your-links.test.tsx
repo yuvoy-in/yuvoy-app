@@ -145,7 +145,7 @@ describe("your links", () => {
     expect(rows[1]).toHaveTextContent("Sunset music on the beach");
     expect(
       within(rows[1]).getByText(
-        "1 open in the last 30 days · 1 in all · 0 bookings",
+        "1 opens in the last 30 days · 1 in all · 0 bookings",
       ),
     ).toBeInTheDocument();
     expect(within(rows[1]).queryByText(/Latest booking/)).toBeNull();
