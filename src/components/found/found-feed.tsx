@@ -641,6 +641,8 @@ function FoundFeedView({
         open={filtering}
         filters={filters}
         local={local}
+        rows={vocabulary.data?.foundFilters}
+        rowsPending={vocabulary.isPending}
         // The sheet's rows; the day is the chips', and stays.
         onApply={(next) => narrow({ filters: { ...next, when: filters.when } })}
         onClose={() => setFiltering(false)}

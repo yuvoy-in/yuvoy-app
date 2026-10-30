@@ -223,6 +223,8 @@ export interface paths {
          *
          *     `marketKey` narrows destinations and activity types to one market. Without it, destinations are those of every open market Yuvoy sells in and activity types are the whole list. A well-formed market we do not have, have not opened, or do not sell in (`mode` `discover` on `listPlaces`) answers categories and two empty lists rather than an error; a malformed one is a `400`. Either way a destination still opening, not yet open to everybody, is left out.
          *
+         *     `foundFilters` is the found feed's Filters sheet (`listEvents`): each row's parameter, its title and its values with the words to show, the same for every market. Draw the sheet from it rather than from a table in the app (yuvoy-api#589).
+         *
          *     Edge-cacheable: nothing here moves with a booking.
          */
         get: operations["getPublicVocabulary"];
@@ -263,7 +265,7 @@ export interface paths {
         };
         /**
          * What was found for one discover place
-         * @description Found items for one discover place, for this caller. A place shows when the `explore` release stage and the place's audience include the caller; a caller with no credential sees places open to all. An unknown place, a bookable place and a place the caller may not see are the same `404`. In a `local` place only items a person checked show; elsewhere items that passed the automatic checks show too, labelled. Ordered by local day, checked before found within a day, then start time, then department; undated items come last. `when`, `free`, `q`, `asText`, `budget`, `timeOfDay`, `duration`, `setting`, `suits` and `difficulty` narrow and never reorder; while `checkedCities` is not open to the caller they are ignored without being checked and `understood` is empty. Once it is open, a value not in a filter's list is a `400`. Pass `nextCursor` back with the same filters: a cursor belongs to the filters it was minted under, `when`, `free` and `q` included. `complete: true` with no `nextCursor` is the end. Never cached: the answer depends on who asks.
+         * @description Found items for one discover place, for this caller. A place shows when the `explore` release stage and the place's audience include the caller; a caller with no credential sees places open to all. An unknown place, a bookable place and a place the caller may not see are the same `404`. In a `local` place only items a person checked show; elsewhere items that passed the automatic checks show too, labelled. The soonest order is by local day, checked before found within a day, then start time, then department; undated items come last. Once the `going` release stage is open to the caller the default order is For you instead (see `sort`). `when`, `free`, `q`, `asText`, `budget`, `timeOfDay`, `duration`, `setting`, `suits` and `difficulty` narrow and never reorder; while `checkedCities` is not open to the caller they are ignored without being checked and `understood` is empty. Once it is open, a value not in a filter's list is a `400`. Pass `nextCursor` back with the same filters: a cursor belongs to the filters it was minted under, `when`, `free` and `q` included. `complete: true` with no `nextCursor` is the end. Never cached: the answer depends on who asks.
          */
         get: operations["listEvents"];
         put?: never;
@@ -365,7 +367,7 @@ export interface paths {
         put?: never;
         /**
          * Send Yuvoy an event
-         * @description An organiser, venue or group sends one event in a discover place. It is stored unconfirmed and a 6-digit code goes to `email`; nothing reaches a person at Yuvoy until `verifyEventSubmission` succeeds, and nothing shows on Yuvoy until that person checks the event. The email is never shown on Yuvoy. The `202` is the same whether or not a letter could go out, so it does not promise one was delivered. Three a day per email and ten a day per caller address, then `429` with `Retry-After` in seconds; five codes an hour per email, and a daily ceiling on code letters across everyone, then `429` too. Requests sent too fast answer `429` with no `Retry-After`. A field the server refuses is a `400` with `details` keyed by that field: `officialUrl` for a link that is not http or https, has no host name, is an address literal or `localhost`, carries user information or is on a host the finder blocks; `priceFrom` or `priceTo` outside INR 1 to 1,00,000 rupees, a price on a free event, a paid event with no `priceFrom`, or `priceTo` below `priceFrom`; `startTime` or `endTime` from 24:00 on; `startsOn` before the place's local today or more than 365 days ahead; `endsOn` before `startsOn` or more than 30 days after it; `endTime` not after `startTime` on a one-day event; `destinationKey` not a discover place open to the caller; `department`, `email` and `consent`. `404` while `checkedCities` is not open to the caller; `503` while the form is switched off. Never cached.
+         * @description An organiser, venue or group sends one event in a discover place. It is stored unconfirmed and a 6-digit code goes to `email`; nothing reaches a person at Yuvoy until `verifyEventSubmission` succeeds, and nothing shows on Yuvoy until that person checks the event. The email is never shown on Yuvoy. The `202` is the same whether or not a letter could go out, so it does not promise one was delivered. Three a day per email and ten a day per caller address, then `429` with `Retry-After` in seconds; five codes an hour per email, and a daily ceiling on code letters across everyone, then `429` too. Requests sent too fast answer `429` with `Retry-After`, the seconds until one more is let through; the three routes share that per-minute limit. A field the server refuses is a `400` with `details` keyed by that field: `officialUrl` for a link that is not http or https, has no host name, is an address literal or `localhost`, carries user information or is on a host the finder blocks; `priceFrom` or `priceTo` outside INR 1 to 1,00,000 rupees, a price on a free event, a paid event with no `priceFrom`, or `priceTo` below `priceFrom`; `startTime` or `endTime` from 24:00 on; `startsOn` before the place's local today or more than 365 days ahead; `endsOn` before `startsOn` or more than 30 days after it; `endTime` not after `startTime` on a one-day event; `destinationKey` not a discover place open to the caller; `department`, `email` and `consent`. `404` while `checkedCities` is not open to the caller; `503` while the form is switched off. Never cached.
          */
         post: operations["submitEvent"];
         delete?: never;
@@ -2317,7 +2319,7 @@ export interface paths {
         };
         /**
          * People the caller has blocked
-         * @description Newest first, at most 500, so there is no next page. A session only. 404 while the `people` release is closed to the caller.
+         * @description Newest first, every block, so there is no next page. At most 500 are made with `blockPerson`; a block that comes back when somebody the caller blocked returns after closing their account can take the list past 500. A session only. 404 while the `people` release is closed to the caller.
          */
         get: operations["listMyBlocks"];
         put?: never;
@@ -2669,7 +2671,7 @@ export interface paths {
         };
         /**
          * Whether the traveller accepted the Trigo notice in force, and its words
-         * @description `accepted` is true only when the latest choice is granted on the current noticeVersion. noticeText is the notice to show, word for word. Not gated by the release. A session only.
+         * @description `accepted` is true only when the latest choice is granted on the current noticeVersion. noticeText is the notice to show, word for word. Which notice is current depends on where Trigo runs: 2026-11-r5 when messages are processed in India, 2026-11-r6 when they are processed outside India. Read noticeVersion and noticeText from here rather than from a copy in the app. Not gated by the release. A session only.
          */
         get: operations["getTrigoConsent"];
         put?: never;
@@ -4622,6 +4624,8 @@ export interface components {
             emailProven: boolean;
             /** @description The proven email itself, lower case: the address Ways in lists. Null exactly when emailProven is false. Not the profile's email, which is what the traveller typed on the Account tab. */
             provenEmail: string | null;
+            /** @description True when a Google account is one of this traveller's ways in, whatever its address. Says nothing about email: use `emailProven` for whether an email can reach them. */
+            googleSignIn: boolean;
             /** @description Category and activity-type keys, in the order chosen. */
             interests: string[];
             /** @description Show the first-sign-in screen, skippable. Never a gate on booking. */
@@ -4740,7 +4744,7 @@ export interface components {
             happenedAt: string;
             /**
              * Format: uri
-             * @description The entry's photo once photos are stored (R12-T1); null until then, and the app draws the department art (REQ-R10-01).
+             * @description On the owner's own reads (getMyLifeList, updateMyLifeEntry), a trip or went entry's newest private photo that the owner added (R12-T1): a signed read that works for five minutes, so read the list again for a fresh one, and never store or share it. Null for a plan or a table, an entry with no photo, while photos are off, and always on a friend's read; the app then draws the department art (REQ-R10-01).
              */
             photoUrl?: string | null;
             destinationKey?: string | null;
@@ -4970,7 +4974,7 @@ export interface components {
             message: string;
         };
         BlockList: {
-            /** @description Newest first. */
+            /** @description Newest first. Every block, uncapped: a block applied again for a returning person can take it past the 500 blockPerson allows. */
             blocked: components["schemas"]["BlockedPerson"][];
         };
         BlockedPerson: {
@@ -5886,6 +5890,22 @@ export interface components {
             /** @description What to show. */
             label: string;
         };
+        FoundFilterRow: {
+            /**
+             * @description The `listEvents` parameter this row sends.
+             * @enum {string}
+             */
+            key: "budget" | "timeOfDay" | "duration" | "setting" | "suits" | "difficulty";
+            /**
+             * @description The row's title.
+             * @example Budget
+             */
+            label: string;
+            /** @description Every value the parameter takes, in the order to show them. A value `listEvents` takes always has its word here. */
+            options: components["schemas"]["VocabularyTerm"][];
+            /** @description The row matches checked items only, so offer it only in a `local` place, where every card is checked. True for `difficulty`. */
+            localOnly: boolean;
+        };
         ActivityTypeTerm: {
             /** @example scuba */
             key: string;
@@ -6439,6 +6459,14 @@ export interface components {
              * @description http or https only, and never a host on the finder's blocked list; absent when there is no safe link.
              */
             seeDetailsUrl?: string;
+            /** @description On `listEvents` in the For you order only: the card is here because its department is one the viewer picked. Absent otherwise, and always absent signed out. */
+            rankReason?: {
+                /** @enum {string} */
+                kind: "interest";
+                category: components["schemas"]["Category"];
+                /** @description The viewer's own pick that counts as this category: a category key or an activity type key. Absent when none does. */
+                interest?: string;
+            };
             /**
              * Format: uri
              * @description The picture the card's organiser added, once staff approved it (R11-T2): the `card` size on a list, a going or a save, and the `hero` size on `getEvent`. Absent when there is none; draw the department's art then.
@@ -8178,6 +8206,8 @@ export interface operations {
                         activityTypes: components["schemas"]["ActivityTypeTerm"][];
                         /** @description Open destinations, ordered by market and then as supply wants them shown. `key` is `<market>/<destination>`. */
                         destinations: components["schemas"]["VocabularyTerm"][];
+                        /** @description The rows of the found feed's Filters sheet, in the order to show them: `budget`, `timeOfDay`, `duration`, `setting`, `suits`, `difficulty`. Optional for one release; this version always sends it. */
+                        foundFilters?: components["schemas"]["FoundFilterRow"][];
                     };
                 };
             };
@@ -8215,6 +8245,8 @@ export interface operations {
                 limit?: number;
                 /** @description From `nextCursor`, with the same filters. Opaque. */
                 cursor?: string;
+                /** @description `for_you` orders by the ranking rule: the date, the departments the viewer picked, the check tier, then how many people say they are going and went. `soonest` is the soonest order above. The default is `for_you` once the `going` release stage is open to the caller; below it this is ignored without being checked and the order is `soonest`. Once it is open, any other value is a `400`. A For you cursor is refused once the day, the day's counts or the viewer's picks change; start again from the first page. A card whose check or status changes while you page may move, so it can be skipped or shown twice; start again from the first page to see the new order. */
+                sort?: "for_you" | "soonest";
                 /** @description `today` and `tomorrow` are the place's local dates; an item counts on every day it runs. `weekend` is Friday 17:00 to Sunday 24:00 local, this week's from Friday on, the coming one before; in a `local` place it leaves out cards not checked since that week's Monday once Friday has begun. Undated items never match. Ignored while `checkedCities` is not open to the caller. */
                 when?: "today" | "tomorrow" | "weekend";
                 /** @description Only items whose source says they are free. A missing price never matches. `true` or `false`; anything else is a `400`. */
@@ -8393,7 +8425,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
-            /** @description `rate_limited`. `Retry-After` is set past a day limit and the daily letter ceiling, to the seconds until the sender may try again. */
+            /** @description `rate_limited`. `Retry-After` is set past a day limit and the daily letter ceiling, to the seconds until the sender may try again, and on requests sent too fast, to the seconds until one more is let through. Five codes an hour per email send none. */
             429: {
                 headers: {
                     "Retry-After"?: number;
@@ -8437,7 +8469,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `rate_limited`. `Retry-After` is set past the daily letter ceiling, to the seconds until the sender may try again. */
+            /** @description `rate_limited`. `Retry-After` is set past the daily letter ceiling, to the seconds until the sender may try again, and on requests sent too fast, to the seconds until one more is let through. Five codes an hour per email send none. */
             429: {
                 headers: {
                     "Retry-After"?: number;
@@ -8487,7 +8519,16 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            /** @description `rate_limited`. `Retry-After` is set on requests sent too fast, to the seconds until one more is let through. Ten tries an hour on one submission send none. */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             503: components["responses"]["ServiceUnavailable"];
         };
     };

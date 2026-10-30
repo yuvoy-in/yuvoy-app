@@ -612,6 +612,12 @@ paths:
         opening, not yet open to everybody, is left out.
 
 
+        `foundFilters` is the found feed's Filters sheet (`listEvents`): each
+        row's parameter, its title and its values with the words to show, the
+        same for every market. Draw the sheet from it rather than from a table
+        in the app (yuvoy-api#589).
+
+
         Edge-cacheable: nothing here moves with a booking.
       parameters:
         - name: marketKey
@@ -643,6 +649,14 @@ paths:
                       Open destinations, ordered by market and then as supply
                       wants them shown. `key` is `<market>/<destination>`.
                     items: { $ref: "#/components/schemas/VocabularyTerm" }
+                  foundFilters:
+                    type: array
+                    description: >-
+                      The rows of the found feed's Filters sheet, in the order to
+                      show them: `budget`, `timeOfDay`, `duration`, `setting`,
+                      `suits`, `difficulty`. Optional for one release; this
+                      version always sends it.
+                    items: { $ref: "#/components/schemas/FoundFilterRow" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "503": { $ref: "#/components/responses/CatalogUnavailable" }
 
@@ -678,9 +692,11 @@ paths:
         a caller with no credential sees places open to all. An unknown place, a
         bookable place and a place the caller may not see are the same `404`.
         In a `local` place only items a person checked show; elsewhere items
-        that passed the automatic checks show too, labelled. Ordered by local
-        day, checked before found within a day, then start time, then
-        department; undated items come last. `when`, `free`, `q`, `asText`,
+        that passed the automatic checks show too, labelled. The soonest order
+        is by local day, checked before found within a day, then start time,
+        then department; undated items come last. Once the `going` release
+        stage is open to the caller the default order is For you instead (see
+        `sort`). `when`, `free`, `q`, `asText`,
         `budget`, `timeOfDay`, `duration`, `setting`, `suits` and `difficulty`
         narrow and never reorder; while `checkedCities` is not open to the
         caller they are ignored without being checked and `understood` is
@@ -694,6 +710,18 @@ paths:
         - { name: category, in: query, description: "An unknown value is a `400`.", schema: { $ref: "#/components/schemas/Category" } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 30, default: 20 } }
         - { name: cursor, in: query, description: "From `nextCursor`, with the same filters. Opaque.", schema: { type: string, maxLength: 512 } }
+        - name: sort
+          in: query
+          description: >-
+            `for_you` orders by the ranking rule: the date, the departments the viewer picked, the
+            check tier, then how many people say they are going and went. `soonest` is the soonest
+            order above. The default is `for_you` once the `going` release stage is open to the
+            caller; below it this is ignored without being checked and the order is `soonest`. Once
+            it is open, any other value is a `400`. A For you cursor is refused once the day, the
+            day's counts or the viewer's picks change; start again from the first page. A card
+            whose check or status changes while you page may move, so it can be skipped or shown
+            twice; start again from the first page to see the new order.
+          schema: { type: string, enum: [for_you, soonest] }
         - name: when
           in: query
           description: >-
@@ -883,7 +911,9 @@ paths:
         and ten a day per caller address, then `429` with `Retry-After` in
         seconds; five codes an hour per email, and a daily ceiling on code
         letters across everyone, then `429` too. Requests sent too fast answer
-        `429` with no `Retry-After`. A field the server refuses is a `400` with
+        `429` with `Retry-After`, the seconds until one more is let through;
+        the three routes share that per-minute limit. A field the server
+        refuses is a `400` with
         `details` keyed by that field: `officialUrl` for a link that is not
         http or https, has no host name, is an address literal or `localhost`,
         carries user information or is on a host the finder blocks;
@@ -907,7 +937,9 @@ paths:
         "429":
           description: >-
             `rate_limited`. `Retry-After` is set past a day limit and the daily
-            letter ceiling, to the seconds until the sender may try again.
+            letter ceiling, to the seconds until the sender may try again, and
+            on requests sent too fast, to the seconds until one more is let
+            through. Five codes an hour per email send none.
           headers:
             Retry-After: { schema: { type: integer, minimum: 1 } }
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
@@ -937,7 +969,9 @@ paths:
         "429":
           description: >-
             `rate_limited`. `Retry-After` is set past the daily letter ceiling,
-            to the seconds until the sender may try again.
+            to the seconds until the sender may try again, and on requests sent
+            too fast, to the seconds until one more is let through. Five codes
+            an hour per email send none.
           headers:
             Retry-After: { schema: { type: integer, minimum: 1 } }
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
@@ -972,7 +1006,14 @@ paths:
         "409":
           description: "`conflict`: this event is already with our team."
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429":
+          description: >-
+            `rate_limited`. `Retry-After` is set on requests sent too fast, to
+            the seconds until one more is let through. Ten tries an hour on one
+            submission send none.
+          headers:
+            Retry-After: { schema: { type: integer, minimum: 1 } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
   /tables:
     get:
@@ -4871,8 +4912,9 @@ paths:
       summary: People the caller has blocked
       operationId: listMyBlocks
       description: >-
-        Newest first, at most 500, so there is no next page. A session only. 404 while the `people` release
-        is closed to the caller.
+        Newest first, every block, so there is no next page. At most 500 are made with `blockPerson`; a
+        block that comes back when somebody the caller blocked returns after closing their account can take
+        the list past 500. A session only. 404 while the `people` release is closed to the caller.
       security: [{ travellerSession: [] }]
       responses:
         "200": { description: The people blocked., content: { application/json: { schema: { $ref: "#/components/schemas/BlockList" } } } }
@@ -5429,7 +5471,10 @@ paths:
       description: >-
         `accepted` is true only when the latest choice is granted on the
         current noticeVersion. noticeText is the notice to show, word for word.
-        Not gated by the release. A session only.
+        Which notice is current depends on where Trigo runs: 2026-11-r5 when
+        messages are processed in India, 2026-11-r6 when they are processed
+        outside India. Read noticeVersion and noticeText from here rather than
+        from a copy in the app. Not gated by the release. A session only.
       security: [{ travellerSession: [] }]
       responses:
         "200":
@@ -8719,8 +8764,8 @@ components:
 
     TravellerAccount:
       type: object
-      required: [phone, name, email, emailProven, provenEmail, interests, onboardingRequired, memberSince, trips, reviews,
-                 support, admitted, stay]
+      required: [phone, name, email, emailProven, provenEmail, googleSignIn, interests, onboardingRequired, memberSince,
+                 trips, reviews, support, admitted, stay]
       properties:
         phone:
           type: [string, "null"]
@@ -8747,6 +8792,12 @@ components:
             The proven email itself, lower case: the address Ways in lists.
             Null exactly when emailProven is false. Not the profile's email,
             which is what the traveller typed on the Account tab.
+        googleSignIn:
+          type: boolean
+          description: >-
+            True when a Google account is one of this traveller's ways in,
+            whatever its address. Says nothing about email: use `emailProven`
+            for whether an email can reach them.
         interests:
           type: array
           items: { type: string }
@@ -8897,7 +8948,7 @@ components:
         kind: { type: string, enum: [trip, went, plan, table] }
         title: { type: string }
         happenedAt: { type: string, format: date-time }
-        photoUrl: { type: [string, "null"], format: uri, description: "The entry's photo once photos are stored (R12-T1); null until then, and the app draws the department art (REQ-R10-01)." }
+        photoUrl: { type: [string, "null"], format: uri, description: "On the owner's own reads (getMyLifeList, updateMyLifeEntry), a trip or went entry's newest private photo that the owner added (R12-T1): a signed read that works for five minutes, so read the list again for a fresh one, and never store or share it. Null for a plan or a table, an entry with no photo, while photos are off, and always on a friend's read; the app then draws the department art (REQ-R10-01)." }
         destinationKey: { type: [string, "null"] }
         category: { oneOf: [{ $ref: "#/components/schemas/Category" }, { type: "null" }] }
         experienceSlug: { type: string, description: Trips only; opens the listing. }
@@ -9135,7 +9186,7 @@ components:
       additionalProperties: false
       required: [blocked]
       properties:
-        blocked: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/BlockedPerson" }, description: "Newest first." }
+        blocked: { type: array, items: { $ref: "#/components/schemas/BlockedPerson" }, description: "Newest first. Every block, uncapped: a block applied again for a returning person can take it past the 500 blockPerson allows." }
     BlockedPerson:
       type: object
       additionalProperties: false
@@ -10901,6 +10952,27 @@ components:
         key: { type: string, description: What to send. }
         label: { type: string, description: What to show. }
 
+    FoundFilterRow:
+      type: object
+      required: [key, label, options, localOnly]
+      properties:
+        key:
+          type: string
+          description: The `listEvents` parameter this row sends.
+          enum: [budget, timeOfDay, duration, setting, suits, difficulty]
+        label: { type: string, description: The row's title., examples: ["Budget"] }
+        options:
+          type: array
+          description: >-
+            Every value the parameter takes, in the order to show them. A
+            value `listEvents` takes always has its word here.
+          items: { $ref: "#/components/schemas/VocabularyTerm" }
+        localOnly:
+          type: boolean
+          description: >-
+            The row matches checked items only, so offer it only in a `local`
+            place, where every card is checked. True for `difficulty`.
+
     ActivityTypeTerm:
       type: object
       required: [key, label, category]
@@ -11782,6 +11854,16 @@ components:
         status: { type: string, enum: [scheduled, cancelled, postponed, moved, sold_out, ended] }
         check: { $ref: "#/components/schemas/FoundItemCheck" }
         seeDetailsUrl: { type: string, format: uri, description: "http or https only, and never a host on the finder's blocked list; absent when there is no safe link." }
+        rankReason:
+          type: object
+          description: >-
+            On `listEvents` in the For you order only: the card is here because its department is one
+            the viewer picked. Absent otherwise, and always absent signed out.
+          required: [kind, category]
+          properties:
+            kind: { type: string, enum: [interest] }
+            category: { $ref: "#/components/schemas/Category" }
+            interest: { type: string, description: "The viewer's own pick that counts as this category: a category key or an activity type key. Absent when none does." }
         imageUrl:
           type: string
           format: uri

@@ -51,6 +51,72 @@ type StatedFacts = components["schemas"]["StatedFacts"];
  * was merged into (`mergedInto`, the checked card), under the survivor's id,
  * which is how the card page learns to redirect.
  */
+/** `foundFilters` on `GET /catalog/vocabulary`, as the live API sends it (yuvoy-api#589). */
+export const FOUND_FILTER_ROWS: components["schemas"]["FoundFilterRow"][] = [
+  {
+    key: "budget",
+    label: "Budget",
+    localOnly: false,
+    options: [
+      { key: "free", label: "Free" },
+      { key: "under_500", label: "Under ₹500" },
+      { key: "under_1500", label: "Under ₹1,500" },
+      { key: "any", label: "Any" },
+    ],
+  },
+  {
+    key: "timeOfDay",
+    label: "Time of day",
+    localOnly: false,
+    options: [
+      { key: "morning", label: "Morning" },
+      { key: "afternoon", label: "Afternoon" },
+      { key: "evening", label: "Evening" },
+    ],
+  },
+  {
+    key: "duration",
+    label: "How long",
+    localOnly: false,
+    options: [
+      { key: "under_2h", label: "Under 2 hours" },
+      { key: "half_day", label: "Half a day" },
+      { key: "longer", label: "Longer" },
+    ],
+  },
+  {
+    key: "setting",
+    label: "Indoors or out",
+    localOnly: false,
+    options: [
+      { key: "indoor", label: "Indoors" },
+      { key: "outdoor", label: "Outdoors" },
+    ],
+  },
+  {
+    key: "suits",
+    label: "Who it suits",
+    localOnly: false,
+    options: [
+      { key: "solo", label: "Solo" },
+      { key: "couples", label: "Couples" },
+      { key: "friends", label: "Friends" },
+      { key: "families", label: "Families" },
+      { key: "kids", label: "Kids" },
+    ],
+  },
+  {
+    key: "difficulty",
+    label: "How hard",
+    localOnly: true,
+    options: [
+      { key: "easy", label: "Easy" },
+      { key: "moderate", label: "Moderate" },
+      { key: "hard", label: "Hard" },
+    ],
+  },
+];
+
 export const FOUND_IDS = Object.freeze({
   checked: "3c9e5a10-7b2d-4e8f-9a61-2d4f6b8c0a01",
   found: "3c9e5a10-7b2d-4e8f-9a61-2d4f6b8c0a02",

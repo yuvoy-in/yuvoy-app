@@ -6,7 +6,7 @@ import {
   foundEmpty,
   foundFilterKey,
   foundListQuery,
-  foundRows,
+  foundSheetRows,
   foundRowsOn,
   foundSearch,
   foundSearchText,
@@ -21,8 +21,10 @@ import {
   understoodRow,
   withAsText,
   withFoundState,
+  type FoundFilterRow,
   type FoundFilters,
 } from "./found-filters";
+import { FOUND_FILTER_ROWS } from "../../../mocks/found-fixtures";
 import { foundWords, type UnderstoodChip } from "./found-words";
 
 /**
@@ -302,8 +304,8 @@ describe("R3-T6's four rows (yuvoy-app#195)", () => {
     expect(foundListQuery(NO_FOUND_FILTERS, true, null)).toEqual({});
   });
 
-  it("show in the sheet after Budget and Time of day, How hard only in a local place", () => {
-    expect(foundRows(true)).toEqual([
+  it("show in the vocabulary's order, a localOnly row only in a local place", () => {
+    expect(foundSheetRows(FOUND_FILTER_ROWS, true).map((r) => r.key)).toEqual([
       "budget",
       "timeOfDay",
       "duration",
@@ -311,8 +313,40 @@ describe("R3-T6's four rows (yuvoy-app#195)", () => {
       "suits",
       "difficulty",
     ]);
-    expect(foundRows(false)).not.toContain("difficulty");
-    expect(foundRows(false)).toHaveLength(5);
+    const travel = foundSheetRows(FOUND_FILTER_ROWS, false).map((r) => r.key);
+    expect(travel).not.toContain("difficulty");
+    expect(travel).toHaveLength(5);
+  });
+
+  it("are none while the vocabulary has none", () => {
+    expect(foundSheetRows(undefined, true)).toEqual([]);
+    expect(foundSheetRows(null, true)).toEqual([]);
+    expect(foundSheetRows([], true)).toEqual([]);
+  });
+
+  it("leave out a row or a value the address could not carry, and an emptied row", () => {
+    const rows = [
+      ...FOUND_FILTER_ROWS,
+      { key: "mood", label: "Mood", localOnly: false, options: [] },
+      {
+        key: "setting",
+        label: "Indoors or out",
+        localOnly: false,
+        options: [
+          { key: "both", label: "Both" },
+          { key: "indoor", label: "Indoors" },
+        ],
+      },
+      {
+        key: "suits",
+        label: "Who it suits",
+        localOnly: false,
+        options: [{ key: "pets", label: "Pets" }],
+      },
+    ] as FoundFilterRow[];
+    const drawn = foundSheetRows(rows, true).slice(6);
+    expect(drawn.map((r) => r.key)).toEqual(["setting"]);
+    expect(drawn[0].options.map((o) => o.key)).toEqual(["indoor"]);
   });
 
   it("are one choice a row, and a second tap clears it", () => {
