@@ -7,18 +7,13 @@ import { Sheet, SheetPresence } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
 import {
   clearRows,
-  foundRows,
   foundRowsOn,
+  foundSheetRows,
   toggleRow,
+  type FoundFilterRow,
   type FoundFilters,
-  type FoundRowKey,
 } from "@/lib/found/found-filters";
 import { foundWords } from "@/lib/found/found-words";
-
-/** A row's options in the order they show, with their words: the words table's, which is the contract's. */
-function optionsOf(key: FoundRowKey): [string, string][] {
-  return Object.entries(foundWords[key].options);
-}
 
 /**
  * The Filters button beside the day chips (yuvoy-app#180, R3-T2). Opens the
@@ -73,15 +68,17 @@ export function FiltersButton({
  *
  * The API matches `difficulty` on checked cards only, and only a local
  * place's cards are all checked. So in a travel place the row is not drawn,
- * and `difficulty` is never sent (`foundListQuery`'s `local`).
+ * and `difficulty` is never sent (`foundListQuery`'s `local`). The vocabulary
+ * marks such a row `localOnly`.
  *
- * ## The words are the copy table's
+ * ## The rows and their words are the API's
  *
- * The contract sends no words for the rows: only `category` has a
- * vocabulary. So the rows say what the phone's sheet says, from
- * `foundWords`, keyed by the contract's values. Only a value with a word is
- * offered, and each table is typed against the contract, so a value the API
- * adds fails to compile rather than showing with no word.
+ * `GET /catalog/vocabulary` sends `foundFilters`: each row's title and its
+ * values with their words, in the order to show them (yuvoy-api#589). No word
+ * of a row lives in web code, so changing one needs no web release. Only a
+ * value this app can carry is offered (`foundSheetRows`). With the vocabulary
+ * down the sheet says so and has no rows; what the address already narrows by
+ * still narrows, and Clear filters still clears it.
  *
  * ## One choice per row, so radios
  *
@@ -103,6 +100,8 @@ export function FoundFilterSheet({
   open,
   filters,
   local,
+  rows,
+  rowsPending,
   onApply,
   onClose,
 }: {
@@ -110,6 +109,10 @@ export function FoundFilterSheet({
   filters: FoundFilters;
   /** Whether the place is local (`kind` is `local`): How hard is offered there only. */
   local: boolean;
+  /** The vocabulary's `foundFilters`, as sent, or absent while it has not answered or could not. */
+  rows: readonly FoundFilterRow[] | null | undefined;
+  /** The vocabulary has not answered yet, so no rows is not yet a failure. */
+  rowsPending: boolean;
   /** The sheet's rows as chosen; the caller keeps its own day. */
   onApply: (next: FoundFilters) => void;
   onClose: () => void;
@@ -119,6 +122,8 @@ export function FoundFilterSheet({
       <FoundFilterForm
         filters={filters}
         local={local}
+        rows={rows}
+        rowsPending={rowsPending}
         onApply={onApply}
         onClose={onClose}
       />
@@ -130,15 +135,20 @@ export function FoundFilterSheet({
 function FoundFilterForm({
   filters,
   local,
+  rows,
+  rowsPending,
   onApply,
   onClose,
 }: {
   filters: FoundFilters;
   local: boolean;
+  rows: readonly FoundFilterRow[] | null | undefined;
+  rowsPending: boolean;
   onApply: (next: FoundFilters) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<FoundFilters>(filters);
+  const drawn = foundSheetRows(rows, local);
   return (
     <Sheet
       open
@@ -165,24 +175,30 @@ function FoundFilterForm({
         </div>
       }
     >
-      <p className="text-forest/70 text-sm text-pretty">
-        {foundWords.filtersNote}
-      </p>
+      {drawn.length > 0 ? (
+        <p className="text-forest/70 text-sm text-pretty">
+          {foundWords.filtersNote}
+        </p>
+      ) : rowsPending ? null : (
+        <p role="status" className="text-forest/70 text-sm text-pretty">
+          {foundWords.filtersUnavailable}
+        </p>
+      )}
 
-      {foundRows(local).map((key) => (
-        <Group key={key} label={foundWords[key].label} className="mt-6">
-          {optionsOf(key).map(([value, word]) => (
+      {drawn.map((row) => (
+        <Group key={row.key} label={row.label} className="mt-6">
+          {row.options.map((option) => (
             <ChipButton
-              key={value}
+              key={option.key}
               size="lg"
-              pressed={draft[key] === value}
+              pressed={draft[row.key] === option.key}
               role="radio"
               aria-pressed={undefined}
-              aria-checked={draft[key] === value}
-              onClick={() => setDraft((d) => toggleRow(d, key, value))}
-              data-option={value}
+              aria-checked={draft[row.key] === option.key}
+              onClick={() => setDraft((d) => toggleRow(d, row.key, option.key))}
+              data-option={option.key}
             >
-              {word}
+              {option.label}
             </ChipButton>
           ))}
         </Group>

@@ -22,6 +22,7 @@ import {
   checkedStageOf,
 } from "./found-handlers";
 import {
+  FOUND_FILTER_ROWS,
   KARNATAKA_FOR_ALL,
   KARNATAKA_MARKET,
   isFoundId,
@@ -626,6 +627,7 @@ const routes = [
           { key: "andaman/neil", label: "Neil (Shaheed Dweep)" },
           { key: "andaman/port_blair", label: "Port Blair" },
         ],
+        foundFilters: FOUND_FILTER_ROWS,
       },
       { headers: mockHeaders(requestId()) },
     );
