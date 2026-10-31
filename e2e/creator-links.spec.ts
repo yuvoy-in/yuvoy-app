@@ -160,9 +160,20 @@ const isMake = (r: Response) =>
   new URL(r.url()).pathname === "/api/v1/me/creator-links" &&
   r.request().method() === "POST";
 
+/**
+ * The answer as the mock worker received it, for a test that reads its body.
+ * Each call is seen twice, by the page and by the worker that passes it on,
+ * and Chromium often drops the body of the page's copy: `response.json()` then
+ * fails with no navigation anywhere (yuvoy-app#209's CI, on the mobile project).
+ */
+const workerAnswer = (page: Page, isAnswer: (r: Response) => boolean) =>
+  page.context().waitForEvent("response", {
+    predicate: (r) => isAnswer(r) && r.request().serviceWorker() !== null,
+  });
+
 /** Presses Get my link on a trip and returns the API's answer. */
 async function getMyLink(page: Page, title: string) {
-  const answered = page.waitForResponse(isMake);
+  const answered = workerAnswer(page, isMake);
   await tripRow(page, title)
     .getByRole("button", { name: "Get my link" })
     .click();
@@ -618,7 +629,7 @@ test("case 11: creator tools off and no links, the section is hidden", async ({
   await signIn(page, testInfo);
 
   // Whether there is any link has to be asked, so the answer is waited for.
-  const listed = page.waitForResponse(isList);
+  const listed = workerAnswer(page, isList);
   await page.goto(account("creator-tools-off"));
   const answer = await listed;
   expect(answer.status()).toBe(200);
