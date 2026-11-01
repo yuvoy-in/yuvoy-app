@@ -7,6 +7,7 @@ import {
   beforeEach,
   afterAll,
   afterEach,
+  onTestFinished,
 } from "vitest";
 import { act, screen, waitFor, cleanup, within } from "@testing-library/react";
 import { focusManager, onlineManager } from "@tanstack/react-query";
@@ -413,6 +414,12 @@ describe("the filter sheet", () => {
   });
 
   it("opens a month calendar behind Pick a date, and the chip then reads it", async () => {
+    // Mid-month: on a month's last day tomorrow is not in the month it opens on.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-15T08:30:00Z"));
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const user = userEvent.setup();
     renderWithQuery(<SearchScreen />);
     const sheet = await openFilters(user);

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { FOUND_FILTER_ROWS } from "../../../mocks/found-fixtures";
 import { NO_FOUND_FILTERS, type FoundFilters } from "@/lib/found/found-filters";
 import { FiltersButton, FoundFilterSheet } from "./filter-sheet";
 
@@ -29,6 +30,8 @@ function open(filters = f(), local = true) {
       open
       filters={filters}
       local={local}
+      rows={FOUND_FILTER_ROWS}
+      rowsPending={false}
       onApply={onApply}
       onClose={onClose}
     />,
@@ -48,6 +51,70 @@ const checked = (name: string) =>
     .map((chip) => chip.textContent);
 
 describe("FoundFilterSheet", () => {
+  it("draws the API's words, not its own", () => {
+    render(
+      <FoundFilterSheet
+        open
+        filters={f()}
+        local
+        rows={[
+          {
+            key: "budget",
+            label: "What it costs",
+            localOnly: false,
+            options: [{ key: "free", label: "No charge" }],
+          },
+        ]}
+        rowsPending={false}
+        onApply={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(options("What it costs")).toEqual(["No charge"]);
+    expect(screen.queryByRole("group", { name: "Budget" })).toBeNull();
+  });
+
+  it("says so when the vocabulary could not answer, and Clear filters still clears", async () => {
+    const onApply = vi.fn();
+    render(
+      <FoundFilterSheet
+        open
+        filters={f({ budget: "under_500" })}
+        local
+        rows={undefined}
+        rowsPending={false}
+        onApply={onApply}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "We can't load the filters right now.",
+    );
+    expect(screen.queryAllByRole("radio")).toEqual([]);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Clear filters" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Show results" }));
+    expect(onApply).toHaveBeenCalledWith(
+      expect.objectContaining({ budget: null }),
+    );
+  });
+
+  it("says nothing while the vocabulary has not answered", () => {
+    render(
+      <FoundFilterSheet
+        open
+        filters={f()}
+        local
+        rows={undefined}
+        rowsPending
+        onApply={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("offers Budget and Time of day, with nothing chosen by default", () => {
     open();
     expect(screen.getByRole("dialog", { name: "Filters" })).toBeInTheDocument();

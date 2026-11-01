@@ -586,6 +586,19 @@ repo=yuvoy-in/yuvoy-api
 #
 # Checked with `gh api repos/yuvoy-in/yuvoy-api/commits/ad4fa894`.
 
-ref=ad4fa894f96729bbb899b4cc47b46625b1862f83
+# 31 Oct 2026. Forward from ad4fa894f967 to d879826904b1, API master. Read for
+# removals first: no path and no schema is removed.
+#
+# Consumed in this change (yuvoy-app#180, #195): `foundFilters` on
+# `GET /catalog/vocabulary` (yuvoy-api#589). The Filters sheet draws its rows
+# and words from it, and the copied table in `found-words.ts` is gone.
+#
+# Named, not consumed: `sort` and `rankReason` on `listEvents` (the API orders
+# For you by itself once `going` is open), `googleSignIn` on `GET /me`, and the
+# new `Retry-After` on the event submission routes.
+#
+# Checked with `git ls-remote` immediately before pinning.
+
+ref=d879826904b18b656cf5b08bb75e6be19d09e351
 branch=master
-pinned_on=2026-10-29
+pinned_on=2026-10-31

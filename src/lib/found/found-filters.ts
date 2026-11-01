@@ -1,4 +1,5 @@
 import { marketDaysFrom } from "@/lib/booking/availability-window";
+import type { components } from "@/lib/api/schema.gen";
 import { civilFromDate, civilHere, civilInZone } from "@/lib/format/date";
 import {
   foundWords,
@@ -86,24 +87,8 @@ export const NO_FOUND_FILTERS: Readonly<FoundFilters> = Object.freeze({
 /** A row of the Filters sheet: every filter but the day, which has its chips. */
 export type FoundRowKey = Exclude<keyof FoundFilters, "when">;
 
-/**
- * The sheet's rows, in order: Budget and Time of day (yuvoy-app#180), then
- * How long, Indoors or out, Who it suits and How hard (yuvoy-app#195). Each
- * row's name and options are `foundWords[key]`.
- */
-export const FOUND_ROWS: readonly FoundRowKey[] = Object.freeze([
-  "budget",
-  "timeOfDay",
-  "duration",
-  "setting",
-  "suits",
-  "difficulty",
-]);
-
-/** The rows the sheet shows in a place: How hard only where the place is local. */
-export function foundRows(local: boolean): FoundRowKey[] {
-  return FOUND_ROWS.filter((key) => local || key !== "difficulty");
-}
+/** A row as the vocabulary sends it (`foundFilters`, yuvoy-api#589). */
+export type FoundFilterRow = components["schemas"]["FoundFilterRow"];
 
 /** A search, as `GET /events` takes it: the words, and those kept as plain text. */
 export interface FoundSearch {
@@ -122,28 +107,86 @@ export function whenParam(raw: unknown): FoundWhen | null {
   return own(foundWords.days, raw) ? (raw as FoundWhen) : null;
 }
 
+/**
+ * The values this app sends for each row, typed against the contract, so a
+ * value it adds fails to compile until the address and the request can carry
+ * it. The words are the API's: these only say what may be read and sent.
+ */
+const ROW_VALUES = {
+  budget: {
+    free: true,
+    under_500: true,
+    under_1500: true,
+    any: true,
+  } satisfies Record<FoundBudget, true>,
+  timeOfDay: {
+    morning: true,
+    afternoon: true,
+    evening: true,
+  } satisfies Record<FoundTimeOfDay, true>,
+  duration: {
+    under_2h: true,
+    half_day: true,
+    longer: true,
+  } satisfies Record<FoundDuration, true>,
+  // No "both": an item stated as both matches either, and `setting=both` is a `400`.
+  setting: {
+    indoor: true,
+    outdoor: true,
+  } satisfies Record<FoundSetting, true>,
+  suits: {
+    solo: true,
+    couples: true,
+    friends: true,
+    families: true,
+    kids: true,
+  } satisfies Record<FoundSuits, true>,
+  difficulty: {
+    easy: true,
+    moderate: true,
+    hard: true,
+  } satisfies Record<FoundDifficulty, true>,
+} satisfies Record<FoundRowKey, object>;
+
 /** A budget this app sends, or null. */
 export function budgetParam(raw: unknown): FoundBudget | null {
-  return own(foundWords.budget.options, raw) ? (raw as FoundBudget) : null;
+  return own(ROW_VALUES.budget, raw) ? (raw as FoundBudget) : null;
 }
 
 /** A time of day this app sends, or null. */
 export function timeOfDayParam(raw: unknown): FoundTimeOfDay | null {
-  return own(foundWords.timeOfDay.options, raw)
-    ? (raw as FoundTimeOfDay)
-    : null;
+  return own(ROW_VALUES.timeOfDay, raw) ? (raw as FoundTimeOfDay) : null;
 }
 
 /**
- * A value of one of the sheet's rows this app sends, or null: only a value
- * with a word in `foundWords`, which is typed against the contract. So
- * `setting=both`, which the API refuses, is never read or sent.
+ * A value of one of the sheet's rows this app sends, or null: only one in
+ * `ROW_VALUES`, which is typed against the contract. So `setting=both`, which
+ * the API refuses, is never read or sent.
  */
 export function rowParam<K extends FoundRowKey>(
   key: K,
   raw: unknown,
 ): FoundFilters[K] | null {
-  return own(foundWords[key].options, raw) ? (raw as FoundFilters[K]) : null;
+  return own(ROW_VALUES[key], raw) ? (raw as FoundFilters[K]) : null;
+}
+
+/**
+ * The rows the sheet draws in a place, in the vocabulary's order and with its
+ * words. A row that matches checked cards only (`localOnly`, How hard) only
+ * where the place is local. A row or a value this app cannot carry is left
+ * out, since a choice the address would drop on reading must not be offered.
+ */
+export function foundSheetRows(
+  rows: readonly FoundFilterRow[] | null | undefined,
+  local: boolean,
+): FoundFilterRow[] {
+  return (rows ?? [])
+    .filter((row) => own(ROW_VALUES, row.key) && (local || !row.localOnly))
+    .map((row) => ({
+      ...row,
+      options: row.options.filter((o) => rowParam(row.key, o.key) !== null),
+    }))
+    .filter((row) => row.options.length > 0);
 }
 
 /** The filters as they may be sent: known values only, and How hard only in a local place. */
