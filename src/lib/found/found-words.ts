@@ -161,73 +161,12 @@ export const foundWords = Object.freeze({
   filters: "Filters",
   /** Filters' name with how many of its rows narrow: the count on its face is not read out. */
   filtersName: (on: number) => (on > 0 ? `Filters, ${on} on` : "Filters"),
-  /**
-   * The sheet's rows. The contract sends no labels for `budget` or
-   * `timeOfDay` (only `category` has a vocabulary), so these are the phone's
-   * words, word for word: yuvoy-mobile `packages/core/src/explore/filters.ts`,
-   * `FOUND_FILTER_ROWS`. Keyed by the contract's values, and the sheet offers
-   * only the keys here, so a value with no word is never shown; typed against
-   * the contract, so a value it adds fails to compile until it has one.
-   */
-  budget: {
-    label: "Budget",
-    options: {
-      free: "Free",
-      under_500: "Under ₹500",
-      under_1500: "Under ₹1,500",
-      any: "Any",
-    } satisfies Record<FoundBudget, string>,
-  },
-  timeOfDay: {
-    label: "Time of day",
-    options: {
-      morning: "Morning",
-      afternoon: "Afternoon",
-      evening: "Evening",
-    } satisfies Record<FoundTimeOfDay, string>,
-  },
-  /*
-    R3-T6's four rows (yuvoy-app#195), the phone's words the same way
-    (yuvoy-mobile#361, `FOUND_FILTER_ROWS`). Indoors or out has no "both":
-    an item stated as both matches either, and `setting=both` is a `400`.
-  */
-  duration: {
-    label: "How long",
-    options: {
-      under_2h: "Under 2 hours",
-      half_day: "Half a day",
-      longer: "Longer",
-    } satisfies Record<FoundDuration, string>,
-  },
-  setting: {
-    label: "Indoors or out",
-    options: {
-      indoor: "Indoors",
-      outdoor: "Outdoors",
-    } satisfies Record<FoundSetting, string>,
-  },
-  suits: {
-    label: "Who it suits",
-    options: {
-      solo: "Solo",
-      couples: "Couples",
-      friends: "Friends",
-      families: "Families",
-      kids: "Kids",
-    } satisfies Record<FoundSuits, string>,
-  },
-  /** Only in a local place, where every card is checked. */
-  difficulty: {
-    label: "How hard",
-    options: {
-      easy: "Easy",
-      moderate: "Moderate",
-      hard: "Hard",
-    } satisfies Record<FoundDifficulty, string>,
-  },
   /** The line at the top of Filters (the phone's, ours, for Sai Teja). */
   filtersNote:
     "Each filter reads what a card's own page states. A card whose page does not say is left out.",
+  /** The vocabulary could not answer, so the sheet has no rows to draw (ours, for Sai Teja). */
+  filtersUnavailable:
+    "We can't load the filters right now. Try again in a moment.",
   clearFilters: "Clear filters",
   showResults: "Show results",
   emptyDay: (when: FoundWhen, place: string) =>
