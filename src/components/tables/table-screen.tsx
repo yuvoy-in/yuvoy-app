@@ -289,15 +289,12 @@ function TableDetail({
           {W.seats(table.seatsTaken, table.seatsMax)}
         </p>
 
-        {/*
-          The event as plain words for now: its page at `/f/{id}` is not on
-          dev yet, and the link comes with whichever of this and yuvoy-app#179
-          merges second. The experience page exists, so that one links.
-        */}
         {table.event ? (
           <p className="mt-3 flex items-center gap-2 text-sm">
             <TicketIcon className="text-forest/70 size-4 shrink-0" />
-            {table.event.title}
+            <Link href={`/f/${table.event.id}`} className="underline">
+              {table.event.title}
+            </Link>
           </p>
         ) : null}
         {table.experience ? (

@@ -270,7 +270,7 @@ describe("the table", () => {
     expect(screen.queryByText("Asha")).toBeNull();
   });
 
-  it("shows the event as words and the experience as a link", async () => {
+  it("links the event to its card page and the experience to its page", async () => {
     signedIn(
       answer({
         event: { id: "a1b2", title: "Sample full-moon walk" },
@@ -278,11 +278,8 @@ describe("the table", () => {
       }),
     );
     expect(
-      await screen.findByText("Sample full-moon walk"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "Sample full-moon walk" }),
-    ).toBeNull();
+      await screen.findByRole("link", { name: "Sample full-moon walk" }),
+    ).toHaveAttribute("href", "/f/a1b2");
     expect(screen.getByRole("link", { name: "Try-dive" })).toHaveAttribute(
       "href",
       "/e/try-dive-nemo-reef",
