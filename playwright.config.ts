@@ -1,4 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
+import { firstFreeLoopbackPort } from "./mocks/free-port";
+
+/**
+ * The port the e2e web server listens on: the first free one from 3100.
+ * Fixed at 3100, a stray server left there by an earlier run refused every
+ * test at start ("already used"). Kept in `process.env`, so the workers, which
+ * load this file again, inherit it rather than choosing their own. A port set
+ * by hand wins.
+ */
+process.env.E2E_PORT ??= String(firstFreeLoopbackPort(3100, 3198));
+const E2E_PORT = process.env.E2E_PORT;
+const E2E_ORIGIN = `http://127.0.0.1:${E2E_PORT}`;
 
 /**
  * End-to-end configuration.
@@ -28,7 +40,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
 
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? E2E_ORIGIN,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -76,8 +88,8 @@ export default defineConfig({
     : {
         // Mocks stay ON: there is no staging API, and pointing e2e at
         // production would create real reservations against real inventory.
-        command: "pnpm build && pnpm start --port 3100",
-        url: "http://127.0.0.1:3100",
+        command: `pnpm build && pnpm start --port ${E2E_PORT}`,
+        url: E2E_ORIGIN,
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,
         env: { NEXT_PUBLIC_API_MOCKING: "enabled" },
