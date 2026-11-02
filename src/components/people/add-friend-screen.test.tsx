@@ -179,6 +179,20 @@ describe("/add/{code}", () => {
     },
   );
 
+  it("never says Request sent when sending answers 404, and shows the API's sentence", async () => {
+    // A 404 there means People is closed to the caller, never "sent".
+    const { user } = open({ state: "ok", owner: PRIYA, relation: "none" });
+    const sent = answer("post", "/me/friend-requests", () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    await heading(W.asks("Priya S."));
+    await user.click(screen.getByRole("button", { name: W.send }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Not found.");
+    expect(sent).toHaveLength(1);
+    expect(screen.queryByText(W.sent)).toBeNull();
+    expect(screen.queryByText(W.friends)).toBeNull();
+  });
+
   it("opens the name step when sending needs a name", async () => {
     const { user } = open({ state: "ok", owner: PRIYA, relation: "none" });
     answer("post", "/me/friend-requests", () =>
