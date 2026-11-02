@@ -8,6 +8,7 @@ import {
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
+import { organiserAgeConfirmed } from "./organiser-handlers";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -1788,6 +1789,11 @@ export const bookingHandlers = [
           `creator-tools-off`.
         */
         creatorToolsOn: creatorToolsOnFor(scenarioOf(request)),
+        /*
+          The 18+ answer (yuvoy-app#224): true, except under
+          `organisers-age` until `PUT /me/age` is answered for this session.
+        */
+        ageConfirmed: organiserAgeConfirmed(request),
         onboardingRequired: fresh,
         memberSince: fresh ? null : "2026-07-02T04:30:00Z",
         trips: { total: 3, upcoming: 1, completed: 2 },
