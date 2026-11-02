@@ -259,6 +259,23 @@ describe("/people/crews/{crewId}/edit", () => {
     expect(sent[0].body).toEqual({ name: "Hostel gang" });
   });
 
+  it("renames a crew with nobody in it, sending only the name", async () => {
+    const empty = crew(3, "Old flatmates", []);
+    const sent = answer(
+      "patch",
+      `/me/crews/${empty.crewId}`,
+      json({ ...empty, name: "New flatmates" }),
+    );
+    const user = open(empty.crewId, [empty]);
+    await ready(W.editTitle);
+    await user.clear(nameBox());
+    await user.type(nameBox(), "New flatmates");
+    await user.click(save());
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].body).toEqual({ name: "New flatmates" });
+    expect(screen.queryByText(W.pickOne)).toBeNull();
+  });
+
   it("sends nothing when nothing changed", async () => {
     const sent = answer("patch", `/me/crews/${GANG.crewId}`, json(GANG));
     const user = open(GANG.crewId);

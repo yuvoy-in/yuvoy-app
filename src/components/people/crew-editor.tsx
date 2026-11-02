@@ -169,8 +169,12 @@ function CrewEditor({
         : length > CREW_NAME_MOST
           ? W.nameLong
           : undefined;
+    // A rename alone sends no memberIds (the API takes `{name}` by itself),
+    // so a crew with nobody in it can still be renamed.
+    const sendsMembers =
+      !crew || crewChange(crew, name, picked)?.memberIds !== undefined;
     const pickProblem =
-      picked.length === 0
+      picked.length === 0 && sendsMembers
         ? W.pickOne
         : picked.length > CREW_MEMBERS_MOST
           ? W.pickMost
