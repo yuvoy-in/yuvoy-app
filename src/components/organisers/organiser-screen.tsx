@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Screen } from "@/components/chrome/screen";
 import { Skeleton } from "@/components/states";
@@ -20,6 +20,7 @@ import {
   useOrganiserEvents,
 } from "@/lib/organisers/use-organisers";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
+import { clearLinked, linkedLine } from "./organiser-form-parts";
 import { OrganiserRefusalBlock } from "./organiser-gate";
 import {
   BACK_TO_HUB,
@@ -31,16 +32,21 @@ import {
 
 /**
  * `/organiser/{id}` (yuvoy-app#224, the phone's `organiser-screen.tsx`): one
- * organiser for a member of it. The thanks line after setting up (`?made=1`),
+ * organiser for a member of it. The thanks line after setting up (`?made=1`;
+ * `?made=club` for a group's page, checked already, yuvoy-app#225),
  * the state card (its sentence, and the code large with "Copy code" while it
  * waits for a check), "Post an event" while the state allows it, "Edit page"
  * and "Helpers" for an owner, and the events in the API's order, each opening
- * its own screen. Left out from the phone: the group line and "Check people
- * in" (the door), which the web does not build.
+ * its own screen. A group's form that met `409 club_already_linked` opens
+ * the group's organiser here with the API's sentence, once. Left out from
+ * the phone: "Check people in" (the door), which the web does not build.
  */
 export function OrganiserScreen({ id }: { id: string }) {
   const organiser = useOrganiser(id, true);
-  const made = useSearchParams().get("made") === "1";
+  const made = useSearchParams().get("made");
+  // The sentence a group's form handed over on its 409, shown once.
+  const [linked] = useState(() => linkedLine(id));
+  useEffect(() => clearLinked(id), [id]);
 
   if (organiser.isPending) {
     return <OrganiserLoading label={W.loadingOrganiser} back={BACK_TO_HUB} />;
@@ -61,18 +67,34 @@ export function OrganiserScreen({ id }: { id: string }) {
   const page = organiser.data;
   const actions = organiserActions(page);
   const base = `/organiser/${encodeURIComponent(page.id)}`;
+  const madeLine =
+    made === "club" || (made === "1" && page.clubId)
+      ? W.clubMade(page.name)
+      : made === "1"
+        ? W.made
+        : null;
 
   return (
     <Screen back={BACK_TO_HUB}>
       <OrganiserHeading>{page.name}</OrganiserHeading>
-      {made ? (
+      {madeLine ? (
         <Panel
           tone="raised"
           role="status"
           className="mt-4 px-4 py-4"
           data-testid="organiser-made"
         >
-          <p className="text-pretty">{W.made}</p>
+          <p className="text-pretty">{madeLine}</p>
+        </Panel>
+      ) : null}
+      {linked ? (
+        <Panel
+          tone="outline"
+          role="status"
+          className="mt-4 px-4 py-4"
+          data-testid="organiser-linked"
+        >
+          <p className="text-pretty">{linked}</p>
         </Panel>
       ) : null}
       <RefetchNotice query={organiser} />

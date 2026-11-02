@@ -10,17 +10,19 @@ import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { CACHE, qk } from "@/lib/query/policy";
 import type {
+  MyOrganisers,
   Organiser,
   OrganiserEvent,
   OrganiserEventInput,
   OrganiserHelper,
   OrganiserHelperListed,
+  OrganiserFromClubInput,
   OrganiserInput,
 } from "./types";
 
 /**
  * Organiser pages for a signed-in adult (yuvoy-app#224, the web half of
- * yuvoy-mobile#393), read and changed through this app's proxy, which holds
+ * yuvoy-mobile#393, with the group setup of yuvoy-app#225), read and changed through this app's proxy, which holds
  * the session: every organiser route is session only.
  *
  * A screen passes `enabled` only once the session says signed in (and the
@@ -88,7 +90,12 @@ export function refreshOrganisers(qc: QueryClient) {
 
 /* ------------------------------------------------------------------ reads -- */
 
-/** `GET /me/organisers`: the person's organisers. The groups to link are not used on the web. */
+/**
+ * `GET /me/organisers`: the person's organisers, oldest first, and in
+ * `clubsToLink` the groups they hold that have no organiser yet, by name. The
+ * hub draws a card for each group (yuvoy-app#225); a group leaves the list
+ * once its organiser is set up, on the next read.
+ */
 export function useMyOrganisers(enabled: boolean) {
   const qc = useQueryClient();
   return useQuery({
@@ -96,14 +103,18 @@ export function useMyOrganisers(enabled: boolean) {
     enabled,
     retry: false,
     ...CACHE.organisers,
-    queryFn: async ({ signal }): Promise<Organiser[]> => {
+    queryFn: async ({ signal }): Promise<MyOrganisers> => {
       const client = createProxyClient();
       const page = await asked(
         qc,
         () => client.GET("/me/organisers", { signal }),
         "GET /me/organisers",
       );
-      return page.items;
+      return {
+        items: page.items,
+        // An answer from before the groups were added has no list: no cards.
+        clubsToLink: Array.isArray(page.clubsToLink) ? page.clubsToLink : [],
+      };
     },
   });
 }
@@ -232,12 +243,20 @@ function eventChanged(qc: QueryClient, id: string, postId: string) {
   });
 }
 
-/** `POST /organisers`: set up a page. The person becomes its owner, and it starts `pending`. */
+/**
+ * `POST /organisers`: set up a page. The person becomes its owner. A page of
+ * its own (`OrganiserInput`) starts `pending` with a code; one for a group the
+ * person holds (`OrganiserFromClubInput`, with `clubId`) starts `verified`,
+ * with the group's name and place and no code. The API tells the two apart by
+ * `clubId`. The hub's list is read again, so the group's card goes.
+ */
 export function useCreateOrganiser() {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: async (body: OrganiserInput): Promise<Organiser> => {
+    mutationFn: async (
+      body: OrganiserInput | OrganiserFromClubInput,
+    ): Promise<Organiser> => {
       const client = createProxyClient();
       return asked(
         qc,
@@ -252,7 +271,11 @@ export function useCreateOrganiser() {
   });
 }
 
-/** `PATCH /organisers/{id}`: the whole page, every field sent (`organiserInput`). Owners only. */
+/**
+ * `PATCH /organisers/{id}`: the whole page, every field sent (`organiserInput`).
+ * Owners only. A group's organiser (`clubId` set) sends its name and place back
+ * exactly as read: a changed one is 400 under that field.
+ */
 export function useUpdateOrganiser(id: string) {
   const qc = useQueryClient();
   return useMutation({

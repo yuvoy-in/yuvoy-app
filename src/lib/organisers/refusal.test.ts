@@ -169,6 +169,103 @@ describe("organiserRefusal", () => {
   });
 });
 
+describe("a group's setup (yuvoy-app#225)", () => {
+  it("puts the group's sentences under their fields", () => {
+    expect(isOrganiserField("clubId")).toBe(true);
+    expect(
+      organiserRefusal(
+        refused(400, "invalid_input", "Choose one of the groups you hold.", {
+          clubId: "Choose one of the groups you hold.",
+        }),
+      ),
+    ).toEqual({
+      kind: "fields",
+      fields: { clubId: "Choose one of the groups you hold." },
+      message: "Choose one of the groups you hold.",
+    });
+    const name = "A group's organiser keeps the group's name.";
+    expect(
+      organiserRefusal(refused(400, "invalid_input", name, { name })),
+    ).toEqual({ kind: "fields", fields: { name }, message: name });
+    const place =
+      "A group's organiser has the group's own place, so leave the place out.";
+    expect(
+      organiserRefusal(
+        refused(400, "invalid_input", place, { destinationKey: place }),
+      ),
+    ).toEqual({
+      kind: "fields",
+      fields: { destinationKey: place },
+      message: place,
+    });
+  });
+
+  it("reads 409 club_already_linked with the organiser it opens", () => {
+    expect(
+      organiserRefusal(
+        refused(409, "club_already_linked", "This group already has an organiser.", {
+          organiserId: "7e2d4b60-5a6c-4d8e-9fb0-000000000001",
+        }),
+      ),
+    ).toEqual({
+      kind: "clubLinked",
+      message: "This group already has an organiser.",
+      organiserId: "7e2d4b60-5a6c-4d8e-9fb0-000000000001",
+    });
+    expect(
+      organiserRefusal(
+        refused(409, "club_already_linked", "", { organiserId: "o1" }),
+      ),
+    ).toEqual({ kind: "clubLinked", message: W.clubLinked, organiserId: "o1" });
+  });
+
+  it("reads 409 club_already_linked with no organiser as the sentence alone", () => {
+    expect(organiserRefusal(refused(409, "club_already_linked"))).toEqual({
+      kind: "other",
+      message: W.clubLinked,
+    });
+  });
+
+  it("shows the API's sentence for the group's 403s, with a fallback", () => {
+    expect(
+      organiserRefusal(refused(403, "not_club_holder", "Not yours.")),
+    ).toEqual({ kind: "other", message: "Not yours." });
+    expect(organiserRefusal(refused(403, "not_club_holder"))).toEqual({
+      kind: "other",
+      message: W.notClubHolder,
+    });
+    expect(
+      organiserRefusal(
+        refused(403, "people_paused", "Your use of People is paused for now.", {
+          standing: "paused",
+        }),
+      ),
+    ).toEqual({ kind: "other", message: "Your use of People is paused for now." });
+    expect(
+      organiserRefusal(refused(403, "people_paused", "", { standing: "paused" })),
+    ).toEqual({ kind: "other", message: W.peoplePaused });
+    expect(
+      organiserRefusal(refused(403, "people_paused", "", { standing: "ended" })),
+    ).toEqual({ kind: "other", message: W.peopleEnded });
+  });
+
+  it("reads the group's 404 as any other 404, with the API's sentence", () => {
+    expect(
+      organiserRefusal(refused(404, "not_found", "We could not find that group.")),
+    ).toEqual({ kind: "notFound", message: "We could not find that group." });
+  });
+
+  it("says a clubLinked refusal as its sentence", () => {
+    expect(
+      organiserRefusalLine({
+        kind: "clubLinked",
+        message: W.clubLinked,
+        organiserId: "o1",
+      }),
+    ).toBe(W.clubLinked);
+  });
+});
+
 describe("organiserRefusalLine", () => {
   it("says one line for any refusal", () => {
     expect(organiserRefusalLine({ kind: "signedOut" })).toBe(W.signIn);

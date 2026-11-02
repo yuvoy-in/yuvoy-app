@@ -6,23 +6,26 @@ import {
 } from "@/lib/format/date";
 import { formatMoney } from "@/lib/format/money";
 import type {
+  ClubToLink,
   Organiser,
   OrganiserEvent,
   OrganiserEventInput,
   OrganiserEventNumbers,
   OrganiserEventState,
+  OrganiserFromClubInput,
   OrganiserInput,
   OrganiserLink,
   OrganiserState,
 } from "./types";
-import { ORGANISER_WORDS as W } from "./words";
+import { ORGANISER_DEPARTMENTS, ORGANISER_WORDS as W } from "./words";
 
 /**
  * What an organiser's state and the person's role allow, and how its pages
  * and events are said and sent (yuvoy-app#224, the web half of
  * yuvoy-mobile#393). Ported from the phone's `organisers.ts` on
- * yuvoy-mobile dev, without the group setup. The API holds every one of these
- * rules too; these decide only what is drawn and what is sent.
+ * yuvoy-mobile dev, with the group setup of yuvoy-app#225 (yuvoy-mobile#395).
+ * The API holds every one of these rules too; these decide only what is drawn
+ * and what is sent.
  */
 
 /** The most departments a page runs, and the most links it carries. */
@@ -179,6 +182,47 @@ export function organiserForm(organiser: Organiser): OrganiserPageForm {
     links: organiser.links.map((link) => ({ ...link })),
     contactEmail: organiser.contactEmail ?? "",
   };
+}
+
+/* ------------------------------------------------------- a group's page -- */
+
+/**
+ * The setup form for a group the person holds (yuvoy-app#225): #224's empty
+ * form with the group's name and place, and the group's category ticked when
+ * it is one of the departments the form draws. One it cannot draw could not
+ * be unticked, so it is left out.
+ */
+export function clubPageForm(club: ClubToLink): OrganiserPageForm {
+  const { category } = club;
+  return {
+    ...emptyOrganiserForm(club.destinationKey),
+    name: club.name,
+    departments:
+      category !== null && Object.hasOwn(ORGANISER_DEPARTMENTS, category)
+        ? [category]
+        : [],
+  };
+}
+
+/**
+ * `createOrganiser`'s body for a group: the form's fields as `organiserInput`
+ * sends them, with the group's `clubId` and without its name and place, which
+ * the API takes from the group (a body that sends either is 400).
+ */
+export function clubOrganiserInput(
+  form: OrganiserPageForm,
+  clubId: string,
+): OrganiserFromClubInput {
+  const page = organiserInput(form);
+  const body: OrganiserFromClubInput = {
+    clubId,
+    departments: page.departments,
+    runsIt: true,
+  };
+  if (page.about !== undefined) body.about = page.about;
+  if (page.links !== undefined) body.links = page.links;
+  if (page.contactEmail !== undefined) body.contactEmail = page.contactEmail;
+  return body;
 }
 
 /* -------------------------------------------------------- times and dates -- */
