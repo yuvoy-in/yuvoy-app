@@ -130,11 +130,14 @@ describe("the groups directory", () => {
   });
 
   it("shows an error with a retry, never the empty line, and reads again on Try again", async () => {
+    // The client retries a GET on 503 up to three times, so the list stays
+    // down until the test lets it up, right before Try again.
+    let failing = true;
     let calls = 0;
     server.use(
       http.get(`${BASE}/clubs`, ({ request }) => {
         calls += 1;
-        if (calls === 1) {
+        if (failing) {
           return HttpResponse.json(
             {
               error: {
@@ -157,11 +160,13 @@ describe("the groups directory", () => {
     expect(screen.queryByText(CLUB_WORDS.empty(HAVELOCK))).toBeNull();
     expect(screen.queryByText(CLUB_WORDS.footer)).toBeNull();
 
+    const failed = calls;
+    failing = false;
     await user.click(retry);
     expect(
       await screen.findByText("Havelock Reef Runners"),
     ).toBeInTheDocument();
-    expect(calls).toBe(2);
+    expect(calls).toBe(failed + 1);
   });
 
   it("is the not-found screen while People is closed to this reader", async () => {

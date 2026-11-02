@@ -145,11 +145,14 @@ describe("a group's page", () => {
   });
 
   it("shows an error with a retry, and reads again on Try again", async () => {
+    // The client retries a GET on 503 up to three times, so the group stays
+    // down until the test lets it up, right before Try again.
+    let failing = true;
     let calls = 0;
     server.use(
       http.get(`${BASE}/clubs/:slug`, () => {
         calls += 1;
-        return calls === 1
+        return failing
           ? refusal(503, "internal_error", M.unavailable)
           : HttpResponse.json(HAVELOCK_CLUBS[2]);
       }),
@@ -160,6 +163,8 @@ describe("a group's page", () => {
     const retry = await screen.findByRole("button", { name: "Try again" });
     expect(screen.queryByText(NOT_FOUND_WORDS.title)).toBeNull();
 
+    const failed = calls;
+    failing = false;
     await user.click(retry);
     expect(
       await screen.findByRole("heading", {
@@ -167,7 +172,7 @@ describe("a group's page", () => {
         name: "Havelock Reef Runners",
       }),
     ).toBeInTheDocument();
-    expect(calls).toBe(2);
+    expect(calls).toBe(failed + 1);
   });
 
   it("keeps a removal's message up after the group is hidden, and Done opens its place", async () => {
