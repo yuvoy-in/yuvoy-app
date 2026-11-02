@@ -473,18 +473,55 @@ describe("Trigo sheet: when a message does not go", () => {
       const retry = screen.getByRole("button", { name: TRY_AGAIN });
       expect(retry).toBeDisabled();
       expect(retry).toHaveAccessibleDescription(TRY_AGAIN_SOON);
+      // Send is held too, so the wait cannot be skipped from the composer.
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
 
       act(() => vi.advanceTimersByTime(2_999));
       expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeDisabled();
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
 
       act(() => vi.advanceTimersByTime(1));
       expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeEnabled();
+      expect(screen.getByRole("button", { name: SEND })).toBeEnabled();
       expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
 
       s.answer = null;
       await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
       expect(s.sent).toHaveLength(2);
       expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a rate limit with Retry-After holds Send until it has passed", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      s.answer = () => ({
+        failure: {
+          kind: "rate_limited",
+          message: "Slow down a little.",
+          retryAfterSeconds: 2,
+        },
+      });
+      open();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await user.type(
+        screen.getByLabelText(COMPOSER_LABEL),
+        "Where to stay in Gokarna?",
+      );
+      await user.keyboard("{Enter}");
+
+      expect(screen.getByText("Slow down a little.")).toBeInTheDocument();
+      expect(screen.getByText(TRY_AGAIN_SOON)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(1_999));
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole("button", { name: SEND })).toBeEnabled();
+      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

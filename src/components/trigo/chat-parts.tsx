@@ -157,21 +157,23 @@ function TryAgain({ held, onRetry }: { held: boolean; onRetry: () => void }) {
 /**
  * The one line under the chat that says why a message did not go.
  *
- * Where the answer carried `Retry-After`, Try again stays off until it has
- * passed (`useRetryHold`); without one it is on at once, as before.
+ * `held` is the sheet's `useRetryHold(failure)`: while the answer's
+ * `Retry-After` lasts, Try again is off and the line says so. Without one it
+ * is on at once, as before.
  */
 export function StatusLine({
   failure,
   online,
   busy,
+  held,
   onRetry,
 }: {
   failure: TrigoFailure | null;
   online: boolean;
   busy: boolean;
+  held: boolean;
   onRetry: () => void;
 }) {
-  const held = useRetryHold(failure);
   if (!online || failure?.kind === "offline") {
     return (
       <p role="status" className="text-forest text-body text-pretty">
@@ -200,10 +202,14 @@ export function StatusLine({
         </p>
       );
     case "rate_limited":
+      // No Try again, but Send is held while a Retry-After lasts.
       return (
-        <p role="alert" className="text-forest text-body text-pretty">
-          {failure.message}
-        </p>
+        <div role="alert" className="flex flex-col gap-2">
+          <p className="text-forest text-body text-pretty">{failure.message}</p>
+          {held ? (
+            <p className="text-forest/75 label">{TRY_AGAIN_SOON}</p>
+          ) : null}
+        </div>
       );
     case "in_progress":
     case "idempotency_in_progress":

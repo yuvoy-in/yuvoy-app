@@ -404,7 +404,7 @@ export type TrigoFailure =
   | { kind: "age" } // 403 adult_confirmation_required
   | { kind: "consent"; noticeVersion: string | null } // 409 consent_required, details.noticeVersion
   | { kind: "limit"; resetsAt: string | null; message: string } // 429 daily_limit_reached, details.resetsAt
-  | { kind: "rate_limited"; message: string } // 429 rate_limited
+  | { kind: "rate_limited"; message: string; retryAfterSeconds?: number } // 429 rate_limited
   | { kind: "in_progress"; retryAfterSeconds?: number } // 409 turn_in_progress
   | { kind: "idempotency_in_progress"; retryAfterSeconds?: number } // 409 idempotency_in_progress: read the chat, do not resend
   | { kind: "busy"; message: string; retryAfterSeconds?: number } // 503: show the API's sentence, Try again with the same key
@@ -422,8 +422,10 @@ function stringDetail(error: YuvoyError, name: string): string | null {
 }
 
 /**
- * The answer's `Retry-After`, for the kinds that offer Try again: the API
- * sends `2` on `409 idempotency_in_progress`, and Try again waits that long.
+ * The answer's `Retry-After`, for the kinds that offer Try again or Send
+ * again: the API sends `2` on `409 idempotency_in_progress`, and the sheet
+ * waits that long. Its Trigo turn limiter sends none on `429 rate_limited`
+ * today; the wait is read there too, for when it does.
  * Nothing when there was none, so those kinds read as they always did.
  */
 function waitOf(error: YuvoyError): { retryAfterSeconds?: number } {
@@ -481,7 +483,7 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
         message: error.message,
       };
     }
-    return { kind: "rate_limited", message: error.message };
+    return { kind: "rate_limited", message: error.message, ...waitOf(error) };
   }
   if (status === 503) {
     return { kind: "busy", message: error.message, ...waitOf(error) };

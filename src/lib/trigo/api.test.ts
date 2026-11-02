@@ -140,7 +140,7 @@ describe("classifyTrigoError", () => {
     ).toEqual({ kind: "failure" });
   });
 
-  it("carries the answer's Retry-After on the kinds that offer Try again", () => {
+  it("carries the answer's Retry-After on the kinds that send again", () => {
     const wait = (status: number, code: string) =>
       new YuvoyError({ status, code, message: "x", retryAfterSeconds: 3 });
     expect(classifyTrigoError(wait(409, "idempotency_in_progress"))).toEqual({
@@ -158,6 +158,11 @@ describe("classifyTrigoError", () => {
     });
     expect(classifyTrigoError(wait(500, "internal_error"))).toEqual({
       kind: "failure",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(429, "rate_limited"))).toEqual({
+      kind: "rate_limited",
+      message: "x",
       retryAfterSeconds: 3,
     });
     // Without one, nothing waits: the kind has no retryAfterSeconds at all.
