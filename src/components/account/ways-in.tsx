@@ -51,7 +51,13 @@ export function WaysIn({ me }: { me: Parameters<typeof waysIn>[0] }) {
   const [added, setAdded] = useState(false);
   const heading = useId();
 
-  if (!showsWaysIn(ways, doorOpen) && !added) return null;
+  /*
+    An open form stays, with whatever it says, until it is closed. The door
+    shutting under it (the config read again after the API's own
+    `sign_in_unavailable`) would otherwise take a number-only account's
+    whole section away, the alert saying why with it (manager, 3 Nov 01:21).
+  */
+  if (!showsWaysIn(ways, doorOpen) && !added && adding === null) return null;
 
   const open = (kind: WayKind) => {
     setAdded(false);
@@ -148,8 +154,12 @@ function AddWay({
   /** What an answer tells the rest of the app. */
   function told(error: unknown) {
     if (!(error instanceof YuvoyError)) return;
+    /*
+      Only the API's own door-closed answer reads the config again, and the
+      config alone says whether the door is shut. Any other 5xx, a bare 503
+      included, is a passing failure and leaves the door as it was.
+    */
     if (error.status === 503 && error.code === "sign_in_unavailable") {
-      // The door shut: the config is read again and the section follows it.
       void qc.invalidateQueries({ queryKey: qk.appConfig() });
     }
     if (error.status === 409) {

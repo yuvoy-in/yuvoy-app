@@ -311,6 +311,77 @@ test("the door shut on the add: said, the config read again, and nothing offered
   ).toHaveCount(0);
 });
 
+test("the door shut on a number-only account: the section and its alert stay until Close", async ({
+  page,
+  context,
+}, info) => {
+  const seen = watch(context);
+  await signIn(page, info, "email-sign-in");
+  const open = await page.evaluate(
+    async (url) =>
+      (
+        await fetch(url, { headers: { "x-yuvoy-scenario": "email-sign-in" } })
+      ).json(),
+    `${API}/app-config`,
+  );
+  let shut = false;
+  await context.route("**/app-config*", (route) =>
+    shut
+      ? route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            ...open,
+            features: {
+              ...open.features,
+              signIn: { ...open.features.signIn, email: false },
+            },
+          }),
+        })
+      : route.fallback(),
+  );
+
+  await sendEmailCode(page, "shut@example.com");
+  shut = true;
+  const readsBefore = seen.configReads;
+  await addWithCode(page, "Add this email");
+
+  const alert = waysIn(page)
+    .getByRole("alert")
+    .filter({ hasText: "Adding a way in is closed right now" });
+  await expect(alert).toBeVisible();
+  await expect.poll(() => seen.configReads).toBeGreaterThan(readsBefore);
+  // The config says shut now, and the section and the alert are still there.
+  await page.waitForTimeout(500);
+  await expect(alert).toBeVisible();
+  await alert.getByRole("button", { name: "Close" }).click();
+  await expect(waysIn(page)).toHaveCount(0);
+});
+
+test("a 5xx on the add is a passing failure: the door stays open", async ({
+  page,
+  context,
+}, info) => {
+  const seen = watch(context);
+  await signIn(page, info, "email-sign-in");
+  await sendEmailCode(page, "ravi@example.com");
+  await context.route("**/api/session/link", (route) =>
+    route.fulfill({ status: 503, body: "" }),
+  );
+  const readsBefore = seen.configReads;
+  await addWithCode(page, "Add this email");
+
+  const alert = waysIn(page)
+    .getByRole("alert")
+    .filter({ hasText: "We could not connect" });
+  await expect(alert).toBeVisible();
+  await expect(alert).not.toContainText("closed");
+  expect(seen.configReads).toBe(readsBefore);
+  await waysIn(page).getByRole("button", { name: "Not now" }).click();
+  await expect(
+    waysIn(page).getByRole("button", { name: "Add an email" }),
+  ).toBeVisible();
+});
+
 test("no answer, but the account holds it: Added", async ({
   page,
   context,
