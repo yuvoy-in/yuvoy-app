@@ -203,9 +203,14 @@ describe("a group's setup (yuvoy-app#225)", () => {
   it("reads 409 club_already_linked with the organiser it opens", () => {
     expect(
       organiserRefusal(
-        refused(409, "club_already_linked", "This group already has an organiser.", {
-          organiserId: "7e2d4b60-5a6c-4d8e-9fb0-000000000001",
-        }),
+        refused(
+          409,
+          "club_already_linked",
+          "This group already has an organiser.",
+          {
+            organiserId: "7e2d4b60-5a6c-4d8e-9fb0-000000000001",
+          },
+        ),
       ),
     ).toEqual({
       kind: "clubLinked",
@@ -240,18 +245,27 @@ describe("a group's setup (yuvoy-app#225)", () => {
           standing: "paused",
         }),
       ),
-    ).toEqual({ kind: "other", message: "Your use of People is paused for now." });
+    ).toEqual({
+      kind: "other",
+      message: "Your use of People is paused for now.",
+    });
     expect(
-      organiserRefusal(refused(403, "people_paused", "", { standing: "paused" })),
+      organiserRefusal(
+        refused(403, "people_paused", "", { standing: "paused" }),
+      ),
     ).toEqual({ kind: "other", message: W.peoplePaused });
     expect(
-      organiserRefusal(refused(403, "people_paused", "", { standing: "ended" })),
+      organiserRefusal(
+        refused(403, "people_paused", "", { standing: "ended" }),
+      ),
     ).toEqual({ kind: "other", message: W.peopleEnded });
   });
 
   it("reads the group's 404 as any other 404, with the API's sentence", () => {
     expect(
-      organiserRefusal(refused(404, "not_found", "We could not find that group.")),
+      organiserRefusal(
+        refused(404, "not_found", "We could not find that group."),
+      ),
     ).toEqual({ kind: "notFound", message: "We could not find that group." });
   });
 

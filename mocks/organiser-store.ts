@@ -55,7 +55,9 @@ export interface Store {
 
 /** The scenarios where the caller holds groups: none of their own organisers yet. */
 export function holdsClubs(scenario: string): boolean {
-  return scenario === "organisers-club" || scenario === "organisers-club-paused";
+  return (
+    scenario === "organisers-club" || scenario === "organisers-club-paused"
+  );
 }
 
 const stores = new Map<string, Store>();

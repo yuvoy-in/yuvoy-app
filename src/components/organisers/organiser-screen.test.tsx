@@ -60,7 +60,9 @@ describe("OrganiserScreen", () => {
     expect(screen.queryByTestId("organiser-code")).toBeNull();
 
     const base = `/organiser/${ORG_IDS.verified}`;
-    expect(linkTo(W.postEvent)?.getAttribute("href")).toBe(`${base}/events/new`);
+    expect(linkTo(W.postEvent)?.getAttribute("href")).toBe(
+      `${base}/events/new`,
+    );
     expect(linkTo(W.editPage)?.getAttribute("href")).toBe(`${base}/edit`);
     expect(linkTo(W.helpers)?.getAttribute("href")).toBe(`${base}/helpers`);
 
@@ -185,9 +187,9 @@ describe("OrganiserScreen, a group's page (yuvoy-app#225)", () => {
     asGroupPage();
     handOverLinked(ORG_IDS.verified, W.clubLinked);
     open(ORG_IDS.verified);
-    expect(
-      (await screen.findByTestId("organiser-linked")).textContent,
-    ).toBe(W.clubLinked);
+    expect((await screen.findByTestId("organiser-linked")).textContent).toBe(
+      W.clubLinked,
+    );
     expect(screen.queryByTestId("organiser-made")).toBeNull();
     cleanup();
 
@@ -216,9 +218,9 @@ describe("OrganiserScreen, a group's page (yuvoy-app#225)", () => {
     );
     handOverLinked(ORG_IDS.verified, W.clubLinked);
     open(ORG_IDS.verified);
-    expect(
-      (await screen.findByTestId("organiser-linked")).textContent,
-    ).toBe(W.clubLinked);
+    expect((await screen.findByTestId("organiser-linked")).textContent).toBe(
+      W.clubLinked,
+    );
     expect(
       screen.getByRole("heading", { level: 1, name: W.title }),
     ).toBeTruthy();
@@ -243,7 +245,9 @@ describe("a read again that fails over the page", () => {
     expect(await screen.findByText(W.postEvent)).toBeTruthy();
 
     refuseNextRead(403, "not_a_member", "You are no longer on this organiser.");
-    await client.invalidateQueries({ queryKey: qk.organiser(ORG_IDS.verified) });
+    await client.invalidateQueries({
+      queryKey: qk.organiser(ORG_IDS.verified),
+    });
 
     expect(
       await screen.findByText("You are no longer on this organiser."),
@@ -257,7 +261,9 @@ describe("a read again that fails over the page", () => {
     expect(await screen.findByText(W.postEvent)).toBeTruthy();
 
     refuseNextRead(500, "internal", "");
-    await client.invalidateQueries({ queryKey: qk.organiser(ORG_IDS.verified) });
+    await client.invalidateQueries({
+      queryKey: qk.organiser(ORG_IDS.verified),
+    });
 
     const notice = await screen.findByTestId("organiser-stale");
     expect(notice.textContent).toContain(W.notNow);

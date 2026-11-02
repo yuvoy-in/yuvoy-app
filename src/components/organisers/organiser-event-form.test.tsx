@@ -5,10 +5,7 @@ import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { OrganiserGate } from "./organiser-gate";
-import {
-  EditOrganiserEvent,
-  NewOrganiserEvent,
-} from "./organiser-event-form";
+import { EditOrganiserEvent, NewOrganiserEvent } from "./organiser-event-form";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { __resetOrganiserMocks } from "../../../mocks/organiser-handlers";
@@ -102,7 +99,9 @@ describe("NewOrganiserEvent", () => {
     await user.click(screen.getByRole("button", { name: W.sendEvent(false) }));
     await waitFor(() => expect(nav.replace).toHaveBeenCalledTimes(1));
     expect(nav.replace.mock.calls[0]?.[0]).toMatch(
-      new RegExp(`^/organiser/${ORG_IDS.verified}/events/[^/?]+\\?sent=in_checking$`),
+      new RegExp(
+        `^/organiser/${ORG_IDS.verified}/events/[^/?]+\\?sent=in_checking$`,
+      ),
     );
     expect(sent).toMatchObject({
       title: "Sunrise walk",
@@ -141,7 +140,9 @@ describe("NewOrganiserEvent", () => {
     });
     await user.type(screen.getByLabelText(W.eventAddress), "Sample Road");
     await user.click(screen.getByRole("button", { name: W.sendEvent(false) }));
-    expect(await screen.findByText("Give the event a name.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Give the event a name."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Choose a kind of event.")).toBeInTheDocument();
     expect(screen.getByText("Give the place it is at.")).toBeInTheDocument();
     expect(screen.getByLabelText(W.eventStart)).toHaveValue("2026-11-20T06:30");

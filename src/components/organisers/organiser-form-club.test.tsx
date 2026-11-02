@@ -155,7 +155,9 @@ describe("A group's organiser page (yuvoy-app#225)", () => {
     expect(screen.queryByLabelText(W.name)).toBeNull();
     expect(screen.queryByRole("button", { name: "Port Blair" })).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Sports" }).getAttribute("aria-pressed"),
+      screen
+        .getByRole("button", { name: "Sports" })
+        .getAttribute("aria-pressed"),
     ).toBe("true");
 
     await user.click(screen.getByLabelText(W.runsIt));

@@ -83,8 +83,7 @@ function FormLoading() {
 function ClubFormBody({ clubId }: { clubId: string }) {
   const organisers = useMyOrganisers(true);
   const found =
-    organisers.data?.clubsToLink.find((club) => club.clubId === clubId) ??
-    null;
+    organisers.data?.clubsToLink.find((club) => club.clubId === clubId) ?? null;
   /*
     Kept once found: after the 201 (or an answer lost on the way) the list is
     read again and no longer offers it, and it is the write's answer that

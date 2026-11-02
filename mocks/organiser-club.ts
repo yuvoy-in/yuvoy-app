@@ -38,8 +38,7 @@ export interface Refusal {
   details?: Record<string, unknown>;
 }
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The API's sentences (yuvoy-mobile#395, "Messages from the API"). */
 const SAID = {
@@ -135,9 +134,7 @@ export function clubCreate(
   // The API lists the person's organisers oldest first.
   store.organisers.push(org);
   store.linked.set(club.clubId, org.id);
-  store.clubsToLink = store.clubsToLink.filter(
-    (c) => c.clubId !== club.clubId,
-  );
+  store.clubsToLink = store.clubsToLink.filter((c) => c.clubId !== club.clubId);
   return { made: org };
 }
 

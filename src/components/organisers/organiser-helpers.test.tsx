@@ -181,8 +181,6 @@ describe("OrganiserHelpers", () => {
     expect(names()).toEqual(HELPER_OF_HELPERS.map((h) => h.firstName));
     expect(screen.getByText(W.helpersRead)).toBeTruthy();
     expect(screen.queryByTestId("organiser-helpers-form")).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: /^Remove/ }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
   });
 });

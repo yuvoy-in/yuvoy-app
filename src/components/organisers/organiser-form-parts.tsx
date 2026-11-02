@@ -9,10 +9,7 @@ import {
   ORGANISER_MAX_LINKS,
   type OrganiserPageForm,
 } from "@/lib/organisers/organisers";
-import type {
-  OrganiserLink,
-  OrganiserLinkKind,
-} from "@/lib/organisers/types";
+import type { OrganiserLink, OrganiserLinkKind } from "@/lib/organisers/types";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import type { PlaceList } from "@/lib/site/places";
 
@@ -86,10 +83,7 @@ export function missing(
  * app can read, so its line stays hidden rather than guess a name from the key,
  * until the API sends the name itself (yuvoy-in/yuvoy-api#596).
  */
-export function placeName(
-  places: PlaceList | undefined,
-  key: string,
-): string {
+export function placeName(places: PlaceList | undefined, key: string): string {
   return (
     places?.markets
       .flatMap((market) => market.destinations)

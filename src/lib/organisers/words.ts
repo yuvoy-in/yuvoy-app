@@ -69,6 +69,9 @@ const ORGANISER_STATES: Readonly<Record<OrganiserState, string>> =
     closed: "Closed",
   });
 
+/** Ours: a state this build does not know yet (the server added one). Never a blank or a crash. */
+const UNKNOWN_STATE = "Status not known yet";
+
 /** Ours: the person's role on a hub row. */
 const ROLES: Readonly<Record<OrganiserRole, string>> = Object.freeze({
   owner: "Owner",
@@ -143,14 +146,16 @@ export const ORGANISER_WORDS = Object.freeze({
   peoplePaused: "Your use of People is paused for now.",
   peopleEnded: "Your use of People has ended.",
   loading: "Loading your organiser pages",
-  stateLabel: (state: OrganiserState): string => ORGANISER_STATES[state],
+  stateLabel: (state: OrganiserState): string =>
+    ORGANISER_STATES[state] ?? UNKNOWN_STATE,
   roleLabel: (role: OrganiserRole): string => ROLES[role],
   /** Ours: a hub row for a screen reader, in the order it is drawn. */
   rowLabel: (
     name: string,
     state: OrganiserState,
     role: OrganiserRole,
-  ): string => `${name}, ${ORGANISER_STATES[state]}, ${ROLES[role]}`,
+  ): string =>
+    `${name}, ${ORGANISER_STATES[state] ?? UNKNOWN_STATE}, ${ROLES[role]}`,
 
   /* ------------------------------------------------------------------ the page form -- */
 
@@ -254,7 +259,7 @@ export const ORGANISER_WORDS = Object.freeze({
       ? reason?.trim()
         ? `Not accepted: ${reason.trim()}`
         : "Not accepted"
-      : EVENT_STATES[state],
+      : (EVENT_STATES[state] ?? UNKNOWN_STATE),
   eventTitle: "Title",
   /** Ours, for the department, start, end, place, venue, address, price, link and about fields. */
   eventDepartment: "What kind of thing it is",

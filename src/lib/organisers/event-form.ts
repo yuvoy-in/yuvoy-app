@@ -113,7 +113,11 @@ export function checkEventForm(
       fields.repeatsWeeklyUntil = W.repeatRange;
     }
   }
-  if (!form.free && form.price.trim() && typedRupees(form.price) === undefined) {
+  if (
+    !form.free &&
+    form.price.trim() &&
+    typedRupees(form.price) === undefined
+  ) {
     fields.priceFromRupees = W.needPrice;
   }
   const marked = Object.keys(fields).length;
