@@ -1,4 +1,4 @@
-import { HttpResponse } from "msw";
+import { HttpResponse, type JsonBodyType } from "msw";
 import { mockHeaders } from "./fixtures";
 
 /**
@@ -60,7 +60,7 @@ export function refusal(
   );
 }
 
-export function json(body: unknown): Response {
+export function json(body: JsonBodyType): Response {
   return HttpResponse.json(body, {
     headers: { ...mockHeaders(rid()), "cache-control": "private, no-store" },
   });
