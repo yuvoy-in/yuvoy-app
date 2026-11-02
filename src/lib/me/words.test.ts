@@ -161,6 +161,7 @@ describe("the words", () => {
       "Did you go to Open mic at Lamakaan?",
     );
     expect(ME_WORDS.newBadge("Explorer")).toBe("New badge: Explorer");
+    expect(ME_WORDS.stars(4)).toBe("4 out of 5");
   });
 
   it("says the same two failure lines the phone does", () => {

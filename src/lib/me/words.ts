@@ -142,6 +142,8 @@ export const ME_WORDS = {
     "Badges come from things you do. Your first one comes with your first trip or event.",
   onlyYouBadge:
     "Only you can see this one. It counts for friends once a check-in confirms it.",
+  /** A trip's own rating, read out: the review form's words for it. */
+  stars: (n: number) => `${n} out of 5`,
   earnedFrom: "Earned from",
   newBadge: (name: string) => `New badge: ${name}`,
   nice: "Nice",

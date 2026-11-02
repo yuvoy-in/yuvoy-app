@@ -77,8 +77,7 @@ export function LifeEntryCard({
           {stars ? (
             <p
               role="img"
-              // The review form's own words for a rating (`review-form.tsx`).
-              aria-label={`${stars} out of 5`}
+              aria-label={ME_WORDS.stars(stars)}
               className="text-terra-deep mt-0.5 text-sm"
             >
               {"★".repeat(stars)}
