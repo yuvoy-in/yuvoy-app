@@ -90,6 +90,28 @@ function readChatAgain(qc: QueryClient, conversationId: string | null): void {
 }
 
 /**
+ * After a reservation from a card's checkout: each chat held that has the
+ * card is read again in full, so back in the chat the card reads Booked, not
+ * Go to checkout. A chat on screen is read at once; one that is not waits
+ * for its next read. The chats list is read again too, as after a decline.
+ */
+export function readCardChatAgain(qc: QueryClient, actionId: string): void {
+  const chats = qc.getQueriesData<TrigoChatData>({
+    queryKey: ["getTrigoConversation"],
+  });
+  for (const [key, data] of chats) {
+    const id = key[1];
+    if (
+      typeof id === "string" &&
+      data?.messages.some((m) => m.actionCard?.actionId === actionId)
+    ) {
+      readTrigoChatInFull(qc, id);
+    }
+  }
+  void qc.invalidateQueries({ queryKey: qk.trigoConversations() });
+}
+
+/**
  * `POST /trigo/actions/{id}/confirm` (confirmTrigoAction). On a 200:
  *
  *   - `next.checkout` with `state: confirmed`: the checkout is kept for

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { markArrival } from "@/lib/booking/arrival";
@@ -13,6 +14,7 @@ import {
   dropTrigoTotal,
   trigoCheckoutFor,
 } from "@/lib/trigo/checkout-prefill";
+import { readCardChatAgain } from "@/lib/trigo/actions";
 import {
   ScreeningFields,
   bandMeetsMinimum,
@@ -169,6 +171,7 @@ function CheckoutFields({
   trigoCardId: string | null;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const create = useCreateReservation();
   const { refresh, signedIn } = useTravellerSession();
 
@@ -515,7 +518,11 @@ function CheckoutFields({
         ? { answers: toBookingAnswers(questions, answers) }
         : {}),
     });
-    if (trigo) clearTrigoCheckout(experience.slug);
+    if (trigo) {
+      clearTrigoCheckout(experience.slug);
+      // Back in the chat, the card reads Booked and offers no checkout.
+      if (trigoCardId) readCardChatAgain(queryClient, trigoCardId);
+    }
 
     if (!reservation.statusToken) {
       // Booked, and no way in. Say so, with the way in that does exist.
