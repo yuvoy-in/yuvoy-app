@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { NetworkError, YuvoyError } from "@/lib/api/errors";
 import { server } from "../../../mocks/server";
@@ -6,8 +6,14 @@ import {
   __resetAppRouteMocks,
   __signInAppRouteMock,
 } from "../../../mocks/app-route-handlers";
-import { EXPORT_WORDS } from "../../../mocks/export-handlers";
-import { fallbackFileName, fetchMyData, fileNameOf } from "./download-my-data";
+import { EXPORT_WORDS, exportText } from "../../../mocks/export-handlers";
+import {
+  LET_GO_AFTER_MS,
+  fallbackFileName,
+  fetchMyData,
+  fileNameOf,
+  saveFile,
+} from "./download-my-data";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -62,7 +68,7 @@ describe("asking for the file", () => {
       generatedAt: string;
       sections: Record<string, unknown>;
     };
-    expect(typeof body.generatedAt).toBe("string");
+    expect(file.text).toBe(exportText(new Date(body.generatedAt)));
     expect(body.sections).toHaveProperty("account");
   });
 
@@ -140,5 +146,34 @@ describe("asking for the file", () => {
     ask.abort();
     const cause = await failure(fetchMyData(ask.signal));
     expect(cause).not.toBeInstanceOf(NetworkError);
+  });
+});
+
+describe("saving the file", () => {
+  it("keeps the object URL a minute after the click, for WebKit", () => {
+    vi.useFakeTimers();
+    const revoke = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      value: () => "blob:mock/1",
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      value: revoke,
+      configurable: true,
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    try {
+      saveFile({ fileName: "yuvoy-my-data-2026-11-02.json", text: "{}" });
+      expect(click).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(LET_GO_AFTER_MS - 1);
+      expect(revoke).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(revoke).toHaveBeenCalledWith("blob:mock/1");
+    } finally {
+      click.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });

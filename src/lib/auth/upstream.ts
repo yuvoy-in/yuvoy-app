@@ -149,6 +149,11 @@ export interface UpstreamResult {
    * under that name only if the proxy passes it on (yuvoy-app#221).
    */
   contentDisposition: string | null;
+  /**
+   * The API's `Content-Type`, as sent, for an answer passed on byte for byte
+   * (the export file, yuvoy-app#221).
+   */
+  contentType: string | null;
 }
 
 export async function callUpstream(options: {
@@ -266,6 +271,7 @@ export async function callUpstream(options: {
     apiDate: response.headers.get("date"),
     retryAfter: response.headers.get("Retry-After"),
     contentDisposition: response.headers.get("Content-Disposition"),
+    contentType: response.headers.get("Content-Type"),
   };
 }
 

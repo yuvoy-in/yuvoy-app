@@ -1,5 +1,13 @@
 import { isErrorEnvelope, NetworkError, YuvoyError } from "@/lib/api/errors";
 import { proxyBaseUrl, scenarioHeaders } from "@/lib/api/client";
+import { fetchWithin } from "@/lib/api/deadline";
+
+/*
+  How long the row waits with nothing arriving. The API gives up making the
+  file at 6 seconds and the proxy at 8, so past this nothing is coming, and
+  the row says so in the words for no signal.
+*/
+const STALL_MS = 15_000;
 
 /**
  * Download my data (yuvoy-app#221, the web half of yuvoy-mobile#369).
@@ -47,14 +55,18 @@ export function fileNameOf(disposition: string | null): string | null {
 export async function fetchMyData(signal?: AbortSignal): Promise<MyDataFile> {
   let response: Response;
   try {
-    response = await fetch(`${proxyBaseUrl()}/me/export`, {
-      method: "GET",
-      // The page's `?__scenario=`, in a mocked build only, as the client does.
-      headers: { Accept: "application/json", ...scenarioHeaders() },
-      credentials: "same-origin",
-      cache: "no-store",
-      signal,
-    });
+    response = await fetchWithin(
+      `${proxyBaseUrl()}/me/export`,
+      {
+        method: "GET",
+        // The page's `?__scenario=`, in a mocked build only, as the client does.
+        headers: { Accept: "application/json", ...scenarioHeaders() },
+        credentials: "same-origin",
+        cache: "no-store",
+        signal,
+      },
+      STALL_MS,
+    );
   } catch (cause) {
     if (signal?.aborted) throw cause;
     throw new NetworkError(undefined, cause);
@@ -93,10 +105,17 @@ export async function fetchMyData(signal?: AbortSignal): Promise<MyDataFile> {
 }
 
 /**
+ * How long the object URL is kept after the click. WebKit, iOS Safari above
+ * all, can still be reading the blob well after the click returns, and a URL
+ * let go too soon fails the download (FileSaver.js waits 40 s for this).
+ */
+export const LET_GO_AFTER_MS = 60_000;
+
+/**
  * Hand the file to the browser as a download, and keep nothing.
  *
- * The object URL is let go on the next turn: the click has started the
- * download by then, and the file is the traveller's, not the page's.
+ * The object URL is let go a minute later, not on the next turn: see
+ * `LET_GO_AFTER_MS`. The file is the traveller's, not the page's.
  */
 export function saveFile(file: MyDataFile): void {
   const blob = new Blob([file.text], { type: "application/json" });
@@ -109,5 +128,5 @@ export function saveFile(file: MyDataFile): void {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  setTimeout(() => URL.revokeObjectURL(href), 0);
+  setTimeout(() => URL.revokeObjectURL(href), LET_GO_AFTER_MS);
 }

@@ -92,12 +92,15 @@ test("the browser saves the file under the API's name, with what the API sent", 
   expect(file.suggestedFilename()).toMatch(
     /^yuvoy-my-data-\d{4}-\d{2}-\d{2}\.json$/,
   );
-  const saved = await file.path();
-  const body = JSON.parse(await readFile(saved, "utf8")) as {
+  const saved = await readFile(await file.path(), "utf8");
+  const body = JSON.parse(saved) as {
     generatedAt: string;
     sections: Record<string, unknown>;
   };
   expect(Number.isNaN(Date.parse(body.generatedAt))).toBe(false);
+  // Byte for byte as the API wrote it, not parsed and written out again.
+  // The mock lays it out with two-space indents and a closing newline.
+  expect(saved).toBe(`${JSON.stringify(body, null, 2)}\n`);
   expect(body.sections).toHaveProperty("account");
   await expect(said(page)).toHaveCount(0);
   await expectAccessible(page);
@@ -143,6 +146,21 @@ test("a session that is not a sign-in: Account turns into the sign-in form and s
   await expect(said(page)).toHaveText(SIGNED_OUT);
   await expect(download(page)).toHaveCount(0);
   await expectAccessible(page);
+});
+
+test("another page on the same site cannot spend a file", async ({
+  page,
+}, info) => {
+  await signIn(page, info);
+  // A sibling *.yuvoy.in page gets the Lax cookie, so the proxy checks who sent it.
+  const sibling = await page.request.get("/api/v1/me/export", {
+    headers: { "sec-fetch-site": "same-site" },
+  });
+  expect(sibling.status()).toBe(403);
+  const own = await page.request.get("/api/v1/me/export", {
+    headers: { "sec-fetch-site": "same-origin" },
+  });
+  expect(own.status()).toBe(200);
 });
 
 test("signed out, there is no row", async ({ page }) => {

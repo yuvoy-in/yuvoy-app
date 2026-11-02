@@ -21,6 +21,7 @@ function answer(status: number, body: unknown): UpstreamResult {
     apiDate: null,
     retryAfter: null,
     contentDisposition: null,
+    contentType: null,
   };
 }
 

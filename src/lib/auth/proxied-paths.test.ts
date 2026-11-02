@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { allowedProxyPath, proxyPathOf, PROXIED_PATHS } from "./proxied-paths";
+import {
+  allowedProxyPath,
+  proxiedRule,
+  proxyPathOf,
+  PROXIED_PATHS,
+} from "./proxied-paths";
 
 /**
  * The allowlist in front of the credentialed proxy (yuvoy-app#57).
@@ -122,6 +127,21 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("POST", "/me/export")).toBeNull();
     expect(allowedProxyPath("DELETE", "/me/export")).toBeNull();
     expect(allowedProxyPath("GET", "/me/export/x")).toBeNull();
+  });
+
+  it("holds the download to the write check, and says its own sign-in line", () => {
+    // Each file is one of three a day, so a sibling page must not spend one.
+    expect(proxiedRule("GET", "/me/export")).toEqual({
+      method: "GET",
+      pattern: "/me/export",
+      counted: true,
+      signedOut: "Sign in to download your data.",
+    });
+    // The only counted read today; another needs the same look.
+    expect(
+      PROXIED_PATHS.filter((p) => p.counted).map((p) => p.pattern),
+    ).toEqual(["/me/export"]);
+    expect(proxiedRule("GET", "/me")?.counted).toBeUndefined();
   });
 
   it("forwards one table's read, withdraw and report, and nothing else of tables", () => {

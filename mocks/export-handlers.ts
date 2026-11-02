@@ -61,6 +61,11 @@ export function mockExport(now: Date): TravellerExport {
   };
 }
 
+/** The file as the mock sends it, byte for byte. */
+export function exportText(now: Date): string {
+  return `${JSON.stringify(mockExport(now), null, 2)}\n`;
+}
+
 export const exportHandlers = [
   http.get(url("/me/export"), async ({ request }) => {
     if (!request.headers.get("authorization")) {
@@ -76,9 +81,15 @@ export const exportHandlers = [
     }
     const now = new Date(mockNow());
     const day = now.toISOString().slice(0, 10);
-    return HttpResponse.json(mockExport(now), {
+    /*
+      Laid out with two-space indents and a closing newline, so a test can
+      tell the file the browser saved is this text and not one parsed and
+      written out again on the way through (yuvoy-app#221).
+    */
+    return new HttpResponse(exportText(now), {
       headers: {
         ...mockHeaders(rid()),
+        "Content-Type": "application/json",
         "Content-Disposition": `attachment; filename="yuvoy-my-data-${day}.json"`,
         "Cache-Control": "private, no-store",
       },

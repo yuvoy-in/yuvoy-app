@@ -77,11 +77,9 @@ describe("Download my data (yuvoy-app#221)", () => {
     expect(saved[0]!.name).toMatch(/^yuvoy-my-data-\d{4}-\d{2}-\d{2}\.json$/);
     const body = JSON.parse(await blobs[0]!.text()) as { generatedAt: string };
     expect(typeof body.generatedAt).toBe("string");
-    // The link is gone from the page and its URL let go.
+    // The link is gone from the page. Its URL is kept a while for WebKit.
     expect(document.querySelector("a[download]")).toBeNull();
-    await waitFor(() =>
-      expect(URL.revokeObjectURL).toHaveBeenCalledWith(saved[0]!.href),
-    );
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
