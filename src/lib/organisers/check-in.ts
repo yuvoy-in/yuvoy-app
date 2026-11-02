@@ -29,9 +29,20 @@ export type CheckInVia = "portal_link" | "typed";
 export type CheckInAnswer =
   operations["checkInAtTheDoor"]["responses"][200]["content"]["application/json"];
 
-/** Fewest and most code characters the API takes. */
-export const CHECK_IN_CODE_MIN = 8;
-export const CHECK_IN_CODE_MAX = 12;
+/**
+ * A code as the API issues it (`invite.Normalise` in yuvoy-api): exactly
+ * eight characters from this alphabet, which leaves out 0, 1, I, L and O so
+ * no two read alike. The handler takes 8 to 12, but a longer code or one of
+ * those five can never match: it would only be a miss, and 30 misses in an
+ * hour lock the door for every code.
+ */
+export const CHECK_IN_CODE_LENGTH = 8;
+export const CHECK_IN_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+
+const A_CODE = new RegExp(
+  `^[${CHECK_IN_CODE_ALPHABET}]{${CHECK_IN_CODE_LENGTH}}$`,
+);
+const LOOKALIKE = /[01ILO]/;
 
 /** Every door time is in India today: the answer carries no zone (#394). */
 export const DOOR_ZONE = "Asia/Kolkata";
@@ -42,21 +53,27 @@ export function normaliseCode(raw: string): string {
 }
 
 /**
- * Whether Check in can be pressed: 8 to 12 code characters, letters and
- * digits only, as the phone's `typedCodeReady`.
+ * Whether Check in can be pressed: exactly eight characters from the API's
+ * alphabet once spaces and hyphens are gone, capitals or not.
  */
 export function codeReady(raw: string): boolean {
+  return A_CODE.test(normaliseCode(raw));
+}
+
+/**
+ * Whether the field should say codes never use 0, 1, I, L or O: eight
+ * characters or more are typed and one of the five is among them. Shorter,
+ * the person may still be typing.
+ */
+export function codeHasLookalike(raw: string): boolean {
   const code = normaliseCode(raw);
-  return (
-    /^[A-Z0-9]+$/.test(code) &&
-    code.length >= CHECK_IN_CODE_MIN &&
-    code.length <= CHECK_IN_CODE_MAX
-  );
+  return code.length >= CHECK_IN_CODE_LENGTH && LOOKALIKE.test(code);
 }
 
 /**
  * The code in the address's `#` part (`#K7QM2XPA`, `#k7qm-2xpa`), as it is
- * sent, or null when the part is empty or is not a code.
+ * sent, or null when the part is empty or is not a code (the rule of
+ * `codeReady`).
  */
 export function codeFromHash(hash: string): string | null {
   let raw = hash.startsWith("#") ? hash.slice(1) : hash;
@@ -66,6 +83,24 @@ export function codeFromHash(hash: string): string | null {
     return null;
   }
   return codeReady(raw) ? normaliseCode(raw) : null;
+}
+
+/** What a `/door#...` address carries (`doorLink`). */
+export interface DoorLinkRead {
+  /** The code as it is sent, or null. */
+  code: string | null;
+  /** The `#` part held something that is not a code. */
+  bad: boolean;
+}
+
+/**
+ * What a `/door#...` address carries: the code, or `bad` when the `#` part
+ * holds something that is not one (a link cut short by a messaging app).
+ */
+export function doorLink(hash: string): DoorLinkRead {
+  const code = codeFromHash(hash);
+  const rest = hash.startsWith("#") ? hash.slice(1) : hash;
+  return { code, bad: code === null && rest !== "" };
 }
 
 /** "19:42" in India, or "" for a time that does not parse. */

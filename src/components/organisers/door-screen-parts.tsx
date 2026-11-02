@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import type { CheckInOutcome } from "@/lib/organisers/check-in";
@@ -7,18 +9,19 @@ import { DOOR_WORDS as D } from "@/lib/organisers/door-words";
 import type { OrganiserRefusal } from "@/lib/organisers/refusal";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { OrganiserWriteError } from "./organiser-gate";
+import { BACK_TO_HUB, OrganiserHeading } from "./organiser-parts";
 
 /**
  * Pieces of the door (yuvoy-app#226): the way in from the organiser pages,
- * the calm line a check-in leaves, and what a refusal that is not about the
- * code shows. A refusal about the code (`refused`) is the field's own line,
- * drawn by `door-screen.tsx`.
+ * the page for someone who is not a member, the calm line a check-in leaves,
+ * and what a refusal that is not about the code shows. A refusal about the
+ * code (`refused`) is the field's own line, drawn by `door-screen.tsx`.
  */
 
 /**
  * "Check people in", for a member (owner or helper) of a `verified`
- * organiser. The API answers every code from anyone else with a 404, so this
- * link is the only gate the app adds. The callers decide when it shows.
+ * organiser. The callers decide when it shows; the door page checks the same
+ * itself, for a person who opens `/door#CODE` straight from a Going card.
  */
 export function DoorLink({
   variant = "primary",
@@ -37,6 +40,44 @@ export function DoorLink({
     >
       {D.entry}
     </ButtonLink>
+  );
+}
+
+/**
+ * Takes the `#` part off the address, keeping the path, the query (the mock
+ * scenario rides there) and the history state, so a reload sends nothing.
+ * `replaceState` fires no `hashchange`.
+ */
+export function clearAddressHash(): void {
+  if (!window.location.hash) return;
+  const { pathname, search } = window.location;
+  window.history.replaceState(window.history.state, "", pathname + search);
+}
+
+/**
+ * The door for a person who is not a member of any `verified` organiser (none
+ * at all, or only ones still in checking): what it is for, and the way to the
+ * organiser pages. No field, so nothing is sent: a code sent from here would
+ * only be a miss, counted against them. A code in the address is taken off.
+ */
+export function DoorNotMember() {
+  useEffect(() => {
+    clearAddressHash();
+  }, []);
+  return (
+    <Screen back={BACK_TO_HUB}>
+      <OrganiserHeading>{D.title}</OrganiserHeading>
+      <Panel
+        tone="outline"
+        className="mt-6 px-4 py-4"
+        data-testid="door-not-member"
+      >
+        <p className="text-pretty">{D.notMember}</p>
+        <ButtonLink href="/organiser" block className="mt-4">
+          {W.title}
+        </ButtonLink>
+      </Panel>
+    </Screen>
   );
 }
 

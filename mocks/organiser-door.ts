@@ -8,16 +8,18 @@ import { adults, asksAge, doorUsed, scenarioOf } from "./organiser-store";
  * session, `supply`, the age, the kill switch, the body, then the code.
  * Every sentence is the API's (`internal/handler/door_check_in.go`).
  *
- * The answer by code, as sent (case, spaces and hyphens ignored):
+ * The answer by code, as sent (case, spaces and hyphens ignored). Every code
+ * is from the API's alphabet (`CHECK_IN_CODE_ALPHABET`: no 0, 1, I, L or O),
+ * or the page's own button would never send it:
  *
  *   - `ASHA2345`: 200 Asha at "Sample Sunday Run"; the same code again is
  *     `alreadyCheckedIn` with the first time (per scenario and session).
- *   - `NONAME23`: 200 with an empty `firstName`.
+ *   - `NAME2345`: 200 with an empty `firstName`.
  *   - `USED2345`: 200, used before, at 2026-11-01T13:12:00Z.
- *   - `LATER234`: 409 `check_in_not_today`, `details.validOn`.
- *   - `MINE2345`: 409 `own_code`.
- *   - `SLOW2345`: 429 `rate_limited` (the 30 misses an hour).
- *   - `BROKE234`: 500.
+ *   - `WAKE2345`: 409 `check_in_not_today`, `details.validOn`.
+ *   - `MYNE2345`: 409 `own_code`.
+ *   - `FAST2345`: 429 `rate_limited` (the 30 misses an hour).
+ *   - `BRKE2345`: 500.
  *   - anything else: 404 `not_found`.
  *
  * Scenarios (`organiser-store.ts` gives the door ones one verified organiser):
@@ -52,7 +54,7 @@ const SAID = {
   tooMany: "Too many codes did not match. Try again in an hour.",
 } as const;
 
-/** The day `LATER234` is for, and the sentence the API writes for it. */
+/** The day `WAKE2345` is for, and the sentence the API writes for it. */
 export const DOOR_LATER_ON = "2026-11-08";
 const LATER_SAID = "This code is for Sun 8 Nov.";
 
@@ -165,7 +167,7 @@ export const doorHandlers = [
           alreadyCheckedIn: first !== undefined,
         });
       }
-      case "NONAME23":
+      case "NAME2345":
         return answer({
           firstName: "",
           eventTitle: "Sample Sunday Run",
@@ -179,15 +181,15 @@ export const doorHandlers = [
           checkedInAt: DOOR_USED_AT,
           alreadyCheckedIn: true,
         });
-      case "LATER234":
+      case "WAKE2345":
         return envelope("check_in_not_today", LATER_SAID, 409, {
           validOn: DOOR_LATER_ON,
         });
-      case "MINE2345":
+      case "MYNE2345":
         return envelope("own_code", SAID.ownCode, 409);
-      case "SLOW2345":
+      case "FAST2345":
         return envelope("rate_limited", SAID.tooMany, 429);
-      case "BROKE234":
+      case "BRKE2345":
         return HttpResponse.json(
           {
             error: {

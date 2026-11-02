@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
@@ -86,10 +87,29 @@ function Loading() {
   );
 }
 
+/**
+ * Pages whose `#` part rides through sign-in: the door's `/door#CODE` from a
+ * scanned Going card (yuvoy-app#226). `/account` sends the person to `next`
+ * as it is, `#` part and all (`safeNextPath` keeps it), so the code is still
+ * there once they are signed in. No other organiser page uses its `#` part.
+ */
+const KEEPS_HASH: ReadonlySet<string> = new Set(["/door"]);
+
+function onHashChange(changed: () => void): () => void {
+  window.addEventListener("hashchange", changed);
+  return () => window.removeEventListener("hashchange", changed);
+}
+
 /** The way in, back to the page the person was on. */
 function useSignInHref(): string {
   const path = usePathname() || "/organiser";
-  return `/account?next=${encodeURIComponent(path)}`;
+  const hash = useSyncExternalStore(
+    onHashChange,
+    () => window.location.hash,
+    () => "",
+  );
+  const back = KEEPS_HASH.has(path) ? `${path}${hash}` : path;
+  return `/account?next=${encodeURIComponent(back)}`;
 }
 
 /** Signed out, or a sign-in that ended (`expired`): what it is for, and the way in. */

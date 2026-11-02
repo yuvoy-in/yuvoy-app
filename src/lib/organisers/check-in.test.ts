@@ -4,7 +4,9 @@ import {
   checkInDone,
   checkInRefusal,
   codeFromHash,
+  codeHasLookalike,
   codeReady,
+  doorLink,
   doorTime,
   normaliseCode,
 } from "./check-in";
@@ -26,18 +28,43 @@ describe("normaliseCode and codeReady", () => {
     expect(normaliseCode("k7-qm 2x-pa")).toBe("K7QM2XPA");
   });
 
-  it("turns the button on at eight code characters, up to twelve", () => {
+  it("turns the button on at exactly eight code characters", () => {
     expect(codeReady("K7QM-2XP")).toBe(false);
     expect(codeReady("k7qm2xpa")).toBe(true);
     expect(codeReady("K7QM-2XPA")).toBe(true);
-    expect(codeReady("K7QM2XPAK7QM")).toBe(true);
-    expect(codeReady("K7QM2XPAK7QM2")).toBe(false);
+    expect(codeReady("K7QM2XPAK")).toBe(false);
+    expect(codeReady("K7QM2XPAK7QM")).toBe(false);
     expect(codeReady("")).toBe(false);
   });
 
   it("keeps the button off for characters a code cannot have", () => {
     expect(codeReady("K7QM.2XPA")).toBe(false);
     expect(codeReady("K7QM2XP?")).toBe(false);
+  });
+
+  it("keeps the button off for 0, 1, I, L and O", () => {
+    for (const odd of ["0", "1", "I", "L", "O", "i", "l", "o"]) {
+      expect(codeReady(`K7QM2XP${odd}`), odd).toBe(false);
+    }
+    expect(codeReady("23456789")).toBe(true);
+    expect(codeReady("ABCDEFGH")).toBe(true);
+    expect(codeReady("JKMNPQRS")).toBe(true);
+    expect(codeReady("TUVWXYZ2")).toBe(true);
+  });
+});
+
+describe("codeHasLookalike", () => {
+  it("speaks up once eight or more characters hold 0, 1, I, L or O", () => {
+    expect(codeHasLookalike("K7QM2XP0")).toBe(true);
+    expect(codeHasLookalike("k7qm-2xpo")).toBe(true);
+    expect(codeHasLookalike("K7QMZXPA1")).toBe(true);
+    expect(codeHasLookalike("LATE2345")).toBe(true);
+  });
+
+  it("stays quiet while the code is shorter, and for a good code", () => {
+    expect(codeHasLookalike("K7QM0")).toBe(false);
+    expect(codeHasLookalike("K7QM2XPA")).toBe(false);
+    expect(codeHasLookalike("")).toBe(false);
   });
 });
 
@@ -56,6 +83,28 @@ describe("codeFromHash", () => {
     expect(codeFromHash("#top")).toBeNull();
     expect(codeFromHash("#a.b.c.d.e.f.g.h")).toBeNull();
     expect(codeFromHash("#%E0%A4%A")).toBeNull();
+  });
+
+  it("is null for a code the API never issues", () => {
+    expect(codeFromHash("#K7QM2XPAK")).toBeNull();
+    expect(codeFromHash("#K7QM2XP0")).toBeNull();
+    expect(codeFromHash("#NONAME23")).toBeNull();
+  });
+});
+
+describe("doorLink", () => {
+  it("carries the code, and is not bad", () => {
+    expect(doorLink("#k7qm-2xpa")).toEqual({ code: "K7QM2XPA", bad: false });
+  });
+
+  it("is neither for an address with no # part", () => {
+    expect(doorLink("")).toEqual({ code: null, bad: false });
+    expect(doorLink("#")).toEqual({ code: null, bad: false });
+  });
+
+  it("is bad for a # part that is not a code", () => {
+    expect(doorLink("#K7QM-2XP")).toEqual({ code: null, bad: true });
+    expect(doorLink("#top")).toEqual({ code: null, bad: true });
   });
 });
 

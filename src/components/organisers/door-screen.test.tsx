@@ -166,7 +166,7 @@ describe("DoorScreen", () => {
   it("says a person cannot check themselves in", async () => {
     const user = userEvent.setup();
     door();
-    await user.type(await field(), "MINE2345");
+    await user.type(await field(), "MYNE2345");
     await user.click(checkInButton());
     expect(await screen.findByText(D.ownCode)).toBeTruthy();
   });
@@ -209,7 +209,7 @@ describe("DoorScreen", () => {
   it("says a fault on our side with Try again", async () => {
     const user = userEvent.setup();
     door();
-    await user.type(await field(), "BROKE234");
+    await user.type(await field(), "BRKE2345");
     await user.click(checkInButton());
     const broken = await screen.findByTestId("door-broken");
     expect(broken.textContent).toContain(D.broken);
@@ -267,7 +267,7 @@ describe("DoorScreen", () => {
     expect((await field()).value).toBe("");
   });
 
-  it("sends nothing for an address part that is not a code, and clears it", async () => {
+  it("sends nothing for an address part that is not a code, and says so", async () => {
     window.history.replaceState(null, "", "/door#top");
     const sent = counted(() => asha());
     door();
@@ -275,5 +275,72 @@ describe("DoorScreen", () => {
     await waitFor(() => expect(window.location.hash).toBe(""));
     expect(sent).toHaveLength(0);
     expect(checkInButton().disabled).toBe(true);
+    expect(screen.getByText(D.badLink)).toBeTruthy();
+    await userEvent.setup().type(await field(), "A");
+    expect(screen.queryByText(D.badLink)).toBeNull();
+  });
+
+  it("keeps Check in off for a code with a look-alike, and says why", async () => {
+    const user = userEvent.setup();
+    door();
+    const input = await field();
+    await user.type(input, "ASHA234");
+    expect(screen.queryByText(D.lookalike)).toBeNull();
+    await user.type(input, "0");
+    expect(screen.getByText(D.lookalike)).toBeTruthy();
+    expect(checkInButton().disabled).toBe(true);
+    await user.clear(input);
+    await user.type(input, "ASHA23456");
+    expect(screen.queryByText(D.lookalike)).toBeNull();
+    expect(checkInButton().disabled).toBe(true);
+  });
+
+  it("takes the problem away on typing, so Check in sends the new code", async () => {
+    server.use(
+      http.post("*/api/v1/organiser-check-ins", () => HttpResponse.error(), {
+        once: true,
+      }),
+    );
+    const sent = counted(() => asha());
+    const user = userEvent.setup();
+    door();
+    const input = await field();
+    await user.type(input, "ASHA2345");
+    await user.click(checkInButton());
+    expect(await screen.findByTestId("door-offline")).toBeTruthy();
+    await user.clear(input);
+    await user.type(input, "NAME2345");
+    expect(screen.queryByTestId("door-offline")).toBeNull();
+    await user.click(checkInButton());
+    expect(await screen.findByTestId("door-done")).toBeTruthy();
+    expect(sent).toEqual([{ code: "NAME2345", via: "typed" }]);
+  });
+
+  it("says which day a code is for", async () => {
+    const user = userEvent.setup();
+    door();
+    await user.type(await field(), "WAKE2345");
+    await user.click(checkInButton());
+    expect(await screen.findByText(D.notToday("Sun 8 Nov"))).toBeTruthy();
+  });
+
+  it("says the API's line for a body it could not read", async () => {
+    counted(() => refusal("invalid_input", D.badCode, 400));
+    const user = userEvent.setup();
+    door();
+    const input = await field();
+    await user.type(input, "ASHA2345");
+    await user.click(checkInButton());
+    expect(await screen.findByText(D.badCode)).toBeTruthy();
+    expect(input.value).toBe("ASHA2345");
+  });
+
+  it("says the API's line when too many codes missed", async () => {
+    const user = userEvent.setup();
+    door();
+    await user.type(await field(), "FAST2345");
+    await user.click(checkInButton());
+    expect(await screen.findByText(D.tooManyMisses)).toBeTruthy();
+    expect(screen.queryByTestId("door-done")).toBeNull();
   });
 });

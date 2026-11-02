@@ -26,6 +26,13 @@ describe("door words", () => {
     expect(D.notToday("Sat 24 Oct")).toBe("This code is for Sat 24 Oct.");
   });
 
+  it("says what a code never holds, and when a link carried none", () => {
+    expect(D.lookalike).toBe("Codes never use 0, 1, I, L or O.");
+    expect(D.badLink).toBe(
+      "That link did not carry a door code. Type the code from the Going card.",
+    );
+  });
+
   it("keeps the API's sentences word for word", () => {
     expect(D.notFound).toBe("This code is not for one of your events.");
     expect(D.ownCode).toBe(

@@ -45,6 +45,11 @@ export const DOOR_WORDS = Object.freeze({
    */
   notMember:
     "You can check people in once you help run an organiser that Yuvoy has checked.",
+  /** Ours: under the field when eight or more characters hold 0, 1, I, L or O. */
+  lookalike: "Codes never use 0, 1, I, L or O.",
+  /** Ours: under the field when `/door#...` held something that is not a code. */
+  badLink:
+    "That link did not carry a door code. Type the code from the Going card.",
 
   /* The API's sentences, the fallbacks for an answer that came without one. */
 
