@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
+import { refreshOrganisers } from "@/lib/organisers/use-organisers";
 import { qk } from "@/lib/query/policy";
 import type { TravellerAccount } from "./use-my-account";
 
@@ -17,7 +18,8 @@ export interface ConfirmAgeBody {
  * an account whose GET /me says `ageConfirmed: false`.
  *
  * On a confirmed answer the account entry says so at once and is read again,
- * so every screen that branches on `ageConfirmed` moves on. A 401 reads the
+ * so every screen that branches on `ageConfirmed` moves on, and every
+ * organiser read is asked again (`refreshOrganisers`). A 401 reads the
  * session again. What a refusal says is `confirmAgeOutcome`'s; an under-18
  * answer (403 `under_age_sign_up`) is the step's to sign out on.
  */
@@ -39,6 +41,7 @@ export function useConfirmAge() {
         qc.setQueryData<TravellerAccount>(qk.myAccount(), (account) =>
           account ? { ...account, ageConfirmed: true } : account,
         );
+        refreshOrganisers(qc);
       }
       void qc.invalidateQueries({ queryKey: qk.myAccount() });
     },

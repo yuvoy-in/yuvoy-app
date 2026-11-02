@@ -28,9 +28,9 @@ import type {
  *
  * Every read is `retry: false`: none of the refusals improve by asking again
  * at once. The client itself still retries a GET that never arrived, and a
- * GET that answered 503, up to three tries in all; `organisers_paused` is not
- * in its never-retry list, so a paused read is asked three times before it
- * reaches the screen.
+ * GET that answered 503, up to three tries in all. `organisers_paused` is in
+ * its never-retry list, so a paused read reaches the screen on the first
+ * answer.
  *
  * Any 401 reads the session entry again, so the screen falls to its sign-in
  * branch. What the screen says for a refusal comes from `organiserRefusal`.
@@ -60,13 +60,30 @@ async function asked<T>(
   }
 }
 
+/** The first key of every organiser read. */
+const ORGANISER_READS = [
+  qk.myOrganisers(),
+  ["getOrganiser"],
+  ["listOrganiserEvents"],
+  ["getOrganiserEventNumbers"],
+  ["listOrganiserHelpers"],
+] as const;
+
 /** Removes everything organiser from the cache. Sign in and sign out call it. */
 export function forgetOrganisers(qc: QueryClient) {
-  qc.removeQueries({ queryKey: qk.myOrganisers() });
-  qc.removeQueries({ queryKey: ["getOrganiser"] });
-  qc.removeQueries({ queryKey: ["listOrganiserEvents"] });
-  qc.removeQueries({ queryKey: ["getOrganiserEventNumbers"] });
-  qc.removeQueries({ queryKey: ["listOrganiserHelpers"] });
+  for (const queryKey of ORGANISER_READS) qc.removeQueries({ queryKey });
+}
+
+/**
+ * Reads every organiser entry again. The age step calls it once the age is
+ * confirmed: every read on screen may still hold the 403 `age_required`, and
+ * a screen showing a second one would offer the step again, which the API
+ * then refuses with 409 `age_locked`.
+ */
+export function refreshOrganisers(qc: QueryClient) {
+  for (const queryKey of ORGANISER_READS) {
+    void qc.invalidateQueries({ queryKey });
+  }
 }
 
 /* ------------------------------------------------------------------ reads -- */
