@@ -1706,6 +1706,9 @@ for (const f of files) {
     /\bcode\s+(?:was|has\s+been|got)\s+(?:just\s+)?sent\b/i,
     // "Code sent" as a line of its own; "the code sent to" mid-sentence passes.
     /["'`>]\s*(?:a\s+)?(?:new\s+)?code\s+sent\b/i,
+    // "Enter the code sent to your email" claims the send as "the code we
+    // sent" does; "the code sent to hello@business.in" names no one and passes.
+    /\bcode\s+sent\s+to\s+(?:you|your)\b/i,
     // "Sent." only where a code or the inbox follows, so "Sent." after a
     // report or a booking message passes.
     /["'`>]\s*sent\s*[.!][^"'`<]{0,60}\b(?:code|check\s+your\s+(?:email|inbox))\b/i,
