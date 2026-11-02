@@ -45,6 +45,10 @@ const W = PEOPLE_WORDS.add;
  * always "Request sent", whatever happened behind it, unless it answers
  * `friends` (they had already asked). `request_in` is answered the same way:
  * asking back somebody who asked is what makes two people friends.
+ *
+ * A `404` on sending is never "Request sent": the API's sentence shows and
+ * the link is looked up again, so a release closed meanwhile turns the page
+ * into "not open yet", as `/people` does.
  */
 export function AddFriendScreen({ raw }: { raw: string }) {
   const qc = useQueryClient();
@@ -88,7 +92,11 @@ export function AddFriendScreen({ raw }: { raw: string }) {
 
   if (lookup.isPending || sessionEnded) return <Loading />;
 
-  if (lookup.isLoadingError) {
+  // A re-read (after a send answered 404) that says People closed replaces
+  // the owner card: the link cannot be used, and nothing was sent.
+  const closedNow = lookup.isRefetchError && isPeopleClosed(lookup.error);
+
+  if (lookup.isLoadingError || closedNow) {
     if (isPeopleClosed(lookup.error)) {
       return (
         <Shell>
@@ -132,6 +140,7 @@ export function AddFriendScreen({ raw }: { raw: string }) {
         code={code}
         owner={found.owner}
         relation={found.relation ?? "none"}
+        onClosed={() => void lookup.refetch()}
         onUnderAge={(message) => {
           setClosed(message);
           void signOut();
@@ -147,11 +156,14 @@ function LinkOwner({
   code,
   owner,
   relation,
+  onClosed,
   onUnderAge,
 }: {
   code: string;
   owner: PersonRef;
   relation: Relation;
+  /** A send answered 404: read the link again to learn if People closed. */
+  onClosed: () => void;
   onUnderAge: (message: string) => void;
 }) {
   const ask = useRequestFriend();
@@ -167,6 +179,7 @@ function LinkOwner({
       onError: (error) => {
         if (needsAge(error)) setStep("age");
         else if (needsName(error)) setStep("name");
+        else if (isPeopleClosed(error)) onClosed();
       },
     });
 

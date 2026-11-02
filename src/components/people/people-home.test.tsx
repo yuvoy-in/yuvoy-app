@@ -133,6 +133,27 @@ describe("People: requests", () => {
     await user.click(within(row).getByRole("button", { name: W.takeBack }));
     await waitFor(() => expect(gone).toHaveLength(1));
   });
+
+  it("keeps the row and shows the API's sentence when Take back answers 404", async () => {
+    // A 404 there means People is closed to the caller, never "taken back".
+    noFriends();
+    const r = request(4, "Meera J.", { direction: "outgoing" });
+    const gone = answer("delete", `/me/friend-requests/${r.requestId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const { read, user } = await open({ requestsOut: [r] });
+    const row = screen.getByTestId("request-out");
+    await user.click(within(row).getByRole("button", { name: W.takeBack }));
+    expect(await within(row).findByRole("alert")).toHaveTextContent(
+      "Not found.",
+    );
+    // The refresh reads the home again, which still has the request.
+    await waitFor(() => expect(read.length).toBeGreaterThan(1));
+    const after = screen.getByTestId("request-out");
+    expect(after).toHaveTextContent("Meera J.");
+    expect(within(after).getByRole("alert")).toHaveTextContent("Not found.");
+    expect(gone).toHaveLength(1);
+  });
 });
 
 describe("People: friends", () => {
@@ -172,6 +193,33 @@ describe("People: friends", () => {
     await user.click(within(kiran).getByRole("button", { name: W.unfriend }));
     await user.click(screen.getByRole("button", { name: W.unfriendConfirm }));
     await waitFor(() => expect(removed).toHaveLength(1));
+  });
+
+  it("keeps the friend and shows the API's sentence when Unfriend answers 404", async () => {
+    // A 404 there means People is closed to the caller, never "not friends".
+    const kiran = friend(6, "Kiran Rao");
+    const pages = answer(
+      "get",
+      "/me/friends",
+      json({ friends: [kiran], nextCursor: null }),
+    );
+    const removed = answer("delete", `/me/friends/${kiran.personId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const { user } = await open({ friendCount: 1 });
+    const row = await screen.findByTestId("friend");
+    await user.click(within(row).getByRole("button", { name: W.unfriend }));
+    await user.click(screen.getByRole("button", { name: W.unfriendConfirm }));
+    expect(await within(row).findByRole("alert")).toHaveTextContent(
+      "Not found.",
+    );
+    // The refresh reads the list again, which still has the friend.
+    await waitFor(() => expect(pages.length).toBeGreaterThan(1));
+    const after = screen.getByTestId("friend");
+    expect(after).toHaveTextContent("Kiran Rao");
+    expect(within(after).getByRole("alert")).toHaveTextContent("Not found.");
+    expect(screen.getByText(W.friendCount(1))).toBeInTheDocument();
+    expect(removed).toHaveLength(1);
   });
 
   it("says when there are no friends yet", async () => {
@@ -268,6 +316,8 @@ describe("People: settings", () => {
       sharing: "only_me",
       privateUpcomingGoing: 3,
     });
+    // The re-read after the save finds what was saved.
+    answer("get", "/me/people", json(home()));
     const form = screen.getByRole("form", { name: W.sharingTitle });
     expect(within(form).getByText(W.sharingWhoMe)).toBeInTheDocument();
     await user.click(
@@ -294,6 +344,8 @@ describe("People: settings", () => {
       json(home({ requestEmails: false })),
     );
     const { user } = await open();
+    // The re-read after the save finds what was saved.
+    answer("get", "/me/people", json(home({ requestEmails: false })));
     const toggle = screen.getByRole("switch", { name: W.emailsTitle });
     expect(toggle).toHaveAttribute("aria-checked", "true");
     await user.click(toggle);
@@ -301,5 +353,25 @@ describe("People: settings", () => {
       expect(toggle).toHaveAttribute("aria-checked", "false"),
     );
     expect(patch[0].body).toEqual({ requestEmails: false });
+  });
+
+  it("says People is not open yet when a save answers 404 and the re-read does too", async () => {
+    // A 404 on the save is never "Saved": the page reads the home again.
+    noFriends();
+    const patch = answer("patch", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const { user } = await open();
+    const again = answer("get", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    await user.click(screen.getByRole("switch", { name: W.emailsTitle }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: W.closed.title }),
+    ).toBeInTheDocument();
+    expect(patch).toHaveLength(1);
+    expect(again.length).toBeGreaterThan(0);
+    expect(screen.queryByRole("switch", { name: W.emailsTitle })).toBeNull();
+    expect(screen.queryByText(W.saved)).toBeNull();
   });
 });

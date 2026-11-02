@@ -112,7 +112,11 @@ export interface PeoplePatch {
   requestEmails?: boolean;
 }
 
-/** `PATCH /me/people`. The answer is the whole home, so it replaces it. */
+/**
+ * `PATCH /me/people`. The answer is the whole home, so it replaces it. Only
+ * a `2xx` is saved: a `404` means People is closed to the caller, and the
+ * re-read after it turns the page into "not open yet".
+ */
 export function useUpdatePeople() {
   const qc = useQueryClient();
   return useMutation({
@@ -127,6 +131,7 @@ export function useUpdatePeople() {
     onSuccess: (home) => {
       qc.setQueryData(qk.myPeople(), home);
     },
+    onSettled: () => refreshPeople(qc),
   });
 }
 
