@@ -23,14 +23,22 @@ const W = PEOPLE_WORDS.age;
  * `under_age_sign_up` is handed up with the API's sentence: the account is
  * closed and the screen above keeps the sentence while it signs out.
  * `age_locked` and every other refusal is shown here, in the API's words.
+ *
+ * Account asks the same question as "Confirm your age" (yuvoy-app#229), in
+ * its own words and under an h2, since the screen already has its h1.
  */
 export function AgeStep({
   onDone,
   onUnderAge,
+  words = W,
+  level = 1,
 }: {
   onDone?: () => void;
   onUnderAge: (message: string) => void;
+  words?: { title: string; body: string };
+  level?: 1 | 2;
 }) {
+  const Heading = level === 1 ? "h1" : "h2";
   const confirm = useConfirmAge();
   const [typed, setTyped] = useState("");
   const [birthday, setBirthday] = useState<boolean | undefined>(undefined);
@@ -77,13 +85,21 @@ export function AgeStep({
 
   return (
     <form onSubmit={submit} noValidate aria-labelledby={`${legendId}-title`}>
-      <h1
+      <Heading
         id={`${legendId}-title`}
-        className="font-display tracking-display leading-display text-3xl text-balance"
+        className={
+          level === 1
+            ? "font-display tracking-display leading-display text-3xl text-balance"
+            : "text-sm font-bold text-balance"
+        }
       >
-        {W.title}
-      </h1>
-      <p className="text-forest/70 text-body mt-3 text-pretty">{W.body}</p>
+        {words.title}
+      </Heading>
+      <p
+        className={`text-forest/70 text-body text-pretty ${level === 1 ? "mt-3" : "mt-1.5"}`}
+      >
+        {words.body}
+      </p>
 
       <YearFields
         className="mt-6"

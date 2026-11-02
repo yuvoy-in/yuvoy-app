@@ -539,6 +539,16 @@ function CheckoutFields({
     typeof whoFailure.details["contact.name"] === "string"
       ? (whoFailure.details["contact.name"] as string)
       : undefined;
+  // The same for the number, asked of an account with none (yuvoy-app#229).
+  // "required" is a key, not a sentence, so it gets ours.
+  const phoneSaid =
+    whoFailure?.status === 400 ? whoFailure.details["contact.whatsapp"] : null;
+  const phoneRefusal =
+    typeof phoneSaid === "string"
+      ? phoneSaid === "required"
+        ? "Add a WhatsApp number so we can send your booking."
+        : phoneSaid
+      : undefined;
   const sessionEnded = whoFailure?.status === 401;
 
   /*
@@ -729,6 +739,7 @@ function CheckoutFields({
           email={contact.emailValue}
           onEmailChange={setEmail}
           nameError={nameRefusal}
+          phoneError={phoneRefusal}
           phoneHint="This is how we send your booking and reach you if the sea changes."
         />
 
