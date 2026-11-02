@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
-import { clubOrganiserInput, clubPageForm } from "@/lib/organisers/organisers";
+import {
+  clubOrganiserInput,
+  clubPageForm,
+} from "@/lib/organisers/organisers-club";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { OrganiserGate } from "./organiser-gate";
 import { OrganiserHub } from "./organiser-hub";

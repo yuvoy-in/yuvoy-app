@@ -14,7 +14,8 @@ import { NetworkError, YuvoyError } from "@/lib/api/errors";
  * server, which ends every session, so the web signs out.
  *
  * Sending an answer again is always safe: the first adult answer is kept and a
- * later one changes nothing (409 `age_locked` once it is kept).
+ * later adult answer is 200 with no change. 409 `age_locked` comes only while
+ * staff's under-18 finding on the account stands.
  *
  * The year is never kept: not in the browser, never in a log.
  */
