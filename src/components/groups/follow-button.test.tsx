@@ -56,6 +56,11 @@ function Page() {
 beforeEach(() => __signInAppRouteMock());
 
 describe("the Follow button", () => {
+  it("shows nothing until the follows list is read", () => {
+    renderWithQuery(<FollowButton club={A} follows={undefined} />);
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("reads Following once the API takes the follow", async () => {
     follows([]);
     server.use(

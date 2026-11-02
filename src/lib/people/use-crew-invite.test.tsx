@@ -54,12 +54,16 @@ function followsOpen() {
 }
 
 /** `GET /me/plans` answering a page: plans open to the caller. */
+/** Plans open to the caller; counts the reads of the list. */
 function plansOpen() {
+  const reads = { count: 0 };
   server.use(
-    http.get(`${BASE}/me/plans`, () =>
-      HttpResponse.json({ items: [], complete: true }),
-    ),
+    http.get(`${BASE}/me/plans`, () => {
+      reads.count += 1;
+      return HttpResponse.json({ items: [], complete: true });
+    }),
   );
+  return reads;
 }
 
 function invites(answer: () => Response) {
@@ -120,20 +124,13 @@ describe("Invite to a plan", () => {
   it("reads a 404 with both releases open as the plan not there, and reads plans again", async () => {
     releases({ people: "all", plans: "all" });
     followsOpen();
-    plansOpen();
+    const plansReads = plansOpen();
     invites(() => notFound("We could not find that plan."));
-    const { client } = renderWithQuery(<Probe />);
-    client.setQueryData(["listMyPlans", "upcoming"], {
-      pages: [],
-      pageParams: [],
-    });
+    renderWithQuery(<Probe />);
     fireEvent.click(screen.getByText("invite"));
     await says("gone");
-    await waitFor(() =>
-      expect(
-        client.getQueryState(["listMyPlans", "upcoming"])?.isInvalidated,
-      ).toBe(true),
-    );
+    // Nothing on screen holds the list, so the one read is the 404 check's.
+    expect(plansReads.count).toBe(1);
   });
 
   it("reads a 404 as plans closed when only plans is closed, as the picker says", async () => {

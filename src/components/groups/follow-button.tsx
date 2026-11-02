@@ -18,7 +18,9 @@ import { useFollowClub, useUnfollowClub } from "@/lib/groups/use-follows";
  * stops following. The list changes only once the API has taken the tap.
  *
  * Each button keeps its own writes, so one group's Sending or refusal never
- * shows on another (review-392, low 8).
+ * shows on another (review-392, low 8). Until the list is read it shows
+ * nothing, never a Follow that may be wrong (review-392, note e); a list
+ * that cannot be read is the page's FollowsUnavailable.
  *
  * Waits for yuvoy-app#386 (the card and the group page render it) and #222
  * (the age and name steps; until then those refusals show their line).
@@ -46,6 +48,7 @@ export function FollowButton({
     }
   };
 
+  if (!follows) return null;
   const failure = error ? followFailure(error) : null;
   return (
     <div>
@@ -97,7 +100,7 @@ export function FollowsUnavailable({
         variant="outline"
         className="mt-2"
         pending={retrying}
-        pendingLabel="Trying again"
+        pendingLabel={FOLLOW_WORDS.tryingAgain}
         onClick={onRetry}
       >
         {FOLLOW_WORDS.tryAgain}

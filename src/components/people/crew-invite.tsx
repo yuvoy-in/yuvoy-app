@@ -191,7 +191,7 @@ function ReadFailed({
           variant="outline"
           className="mt-2"
           pending={retrying}
-          pendingLabel="Trying again"
+          pendingLabel={CREW_INVITE_WORDS.tryingAgain}
           onClick={onRetry}
         >
           {CREW_INVITE_WORDS.tryAgain}

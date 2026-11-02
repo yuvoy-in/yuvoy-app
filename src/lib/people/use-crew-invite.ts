@@ -28,6 +28,11 @@ import {
  * the API or not be readable at all, and for the same reason the plans list
  * is asked about plans. Either way the plans list and the crews are read
  * again.
+ *
+ * The three reads go out together, so the line waits one round trip, and the
+ * plans read joins the refetch the invalidation starts while the picker is
+ * open: a 404 costs the releases and the follows list, not a second plans
+ * read (review-392, note d).
  */
 
 export interface CrewInviteResult {
@@ -59,16 +64,18 @@ export function useInviteCrewToPlan(crewId: string) {
         if (error instanceof YuvoyError && error.status === 404) {
           void qc.invalidateQueries({ queryKey: ["listMyPlans"] });
           void readCrewsAgain(qc);
-          const open = await releasesReadAgain(qc, Boolean(signedIn), [
-            "people",
-            "plans",
+          // The config can lag the API by minutes, so the follows list (404 only
+          // while People is closed) and the plans list (404 only while plans is
+          // closed) are asked too. The order of the checks is the order of trust.
+          const [open, followsShut, plansShut] = await Promise.all([
+            releasesReadAgain(qc, Boolean(signedIn), ["people", "plans"]),
+            peopleShutByFollows(qc),
+            plansShutByList(qc),
           ]);
           if (open && !open("people")) throw new PeopleShutError();
-          // The config can lag the API by minutes, so the follows list is asked too.
-          if (await peopleShutByFollows(qc)) throw new PeopleShutError();
+          if (followsShut) throw new PeopleShutError();
           if (open && !open("plans")) throw new PlansShutError();
-          // The same lag for plans: the plans list answers 404 only while plans is closed.
-          if (await plansShutByList(qc)) throw new PlansShutError();
+          if (plansShut) throw new PlansShutError();
           throw error;
         }
         throw error;

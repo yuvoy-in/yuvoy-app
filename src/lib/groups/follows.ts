@@ -21,6 +21,7 @@ export const FOLLOW_WORDS = Object.freeze({
   following: "Following",
   sending: "Sending",
   tryAgain: "Try again",
+  tryingAgain: "Trying again",
   followLabel: (name: string) => `Follow ${name}`,
   followingLabel: (name: string) => `Following ${name}`,
   unavailable: "Follow is not available right now.",

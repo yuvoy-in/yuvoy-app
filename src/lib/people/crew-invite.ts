@@ -23,6 +23,7 @@ export const CREW_INVITE_WORDS = Object.freeze({
   /** Added to the empty crews line on mobile: "..., and invite them to plans in one tap." */
   crewsEmptyClause: ", and invite them to plans in one tap.",
   tryAgain: "Try again",
+  tryingAgain: "Trying again",
   sending: "Sending",
 });
 
