@@ -116,6 +116,14 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("PUT", "/me")).toBeNull();
   });
 
+  it("forwards the data download as a read, and nothing else under it", () => {
+    // yuvoy-app#221. The file is the traveller's own; a write here means nothing.
+    expect(allowedProxyPath("GET", "/me/export")).toBe("/me/export");
+    expect(allowedProxyPath("POST", "/me/export")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/me/export")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/export/x")).toBeNull();
+  });
+
   it("forwards one table's read, withdraw and report, and nothing else of tables", () => {
     /*
       yuvoy-app#194. The page is signed in only, so all three go through

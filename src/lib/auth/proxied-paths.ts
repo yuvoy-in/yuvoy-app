@@ -161,6 +161,12 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   */
   { method: "GET", pattern: "/me/places" },
   /*
+    Download my data (yuvoy-app#221, R9-T4). A sign-in session only, which is
+    the only kind this proxy holds. GET only: nothing else lives under
+    `/me/export`.
+  */
+  { method: "GET", pattern: "/me/export" },
+  /*
     A found feed's later pages, signed in (yuvoy-app#179). The session decides
     which places this caller may read: with `explore` at `staff`, only a staff
     number gets an answer. Signed out, the browser calls the API directly.

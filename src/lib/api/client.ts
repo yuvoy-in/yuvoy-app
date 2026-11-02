@@ -329,7 +329,7 @@ function retryingFetch(input: Request): Promise<Response> {
  * Compiled out of any build that does not enable mocking, because
  * NEXT_PUBLIC_* is inlined at build time.
  */
-function scenarioHeaders(): Record<string, string> {
+export function scenarioHeaders(): Record<string, string> {
   if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") return {};
   if (typeof window === "undefined") return {};
   const scenario = new URLSearchParams(window.location.search).get(

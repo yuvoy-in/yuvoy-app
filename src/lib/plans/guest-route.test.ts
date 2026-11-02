@@ -20,6 +20,7 @@ function answer(status: number, body: unknown): UpstreamResult {
     idempotentReplay: false,
     apiDate: null,
     retryAfter: null,
+    contentDisposition: null,
   };
 }
 

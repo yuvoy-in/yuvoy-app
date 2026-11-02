@@ -146,6 +146,14 @@ async function proxy(
     differently (yuvoy-app#179).
   */
   if (answer.retryAfter) headers.set("Retry-After", answer.retryAfter);
+  /*
+    And the file's name. `GET /me/export` names the download
+    `yuvoy-my-data-<date>.json` with the API's own UTC day, and the browser
+    saves under the name on this answer (yuvoy-app#221).
+  */
+  if (answer.contentDisposition) {
+    headers.set("Content-Disposition", answer.contentDisposition);
+  }
 
   if (answer.status === 204 || !answer.text) {
     return new NextResponse(null, { status: answer.status, headers });
