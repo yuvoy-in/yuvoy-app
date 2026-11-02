@@ -79,6 +79,18 @@ function forgetSupportRequests(qc: QueryClient): void {
   qc.removeQueries({ queryKey: ["getSupportRequest"] });
 }
 
+/**
+ * Me's life list, badges and settings (yuvoy-mobile#444), on both sides of a
+ * change of who is signed in. Removed, for the reason `refresh` gives: the list
+ * carries the person's own photos as signed links, and the next person must
+ * never see them while their own list is read.
+ */
+function forgetMe(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.myLifeList() });
+  qc.removeQueries({ queryKey: qk.myBadges() });
+  qc.removeQueries({ queryKey: qk.mySettings() });
+}
+
 function forgetSaved(qc: QueryClient): void {
   /*
     First, so nothing started for the previous number (an adoption, a queued
@@ -169,6 +181,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetMe(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -247,6 +260,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetMe(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
