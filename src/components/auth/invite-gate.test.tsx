@@ -174,7 +174,7 @@ describe("the landing, for somebody signed out", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    // Signed in, and the answer to "is this number in" is on its way.
+    // Signed in, and the answer to "is this traveller in" is on its way.
     expect(
       screen.getByRole("status", { name: "Checking your invitation" }),
     ).toBeInTheDocument();
