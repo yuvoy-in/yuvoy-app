@@ -383,6 +383,17 @@ describe("Trigo sheet: when a message does not go", () => {
     expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
   });
 
+  it("a refusal the same send would get again keeps the text and offers no Try again", async () => {
+    await failWith({ kind: "rejected" });
+    expect(screen.getByText(FAILURE_LINE)).toBeInTheDocument();
+    expect(screen.getByLabelText(COMPOSER_LABEL)).toHaveValue(
+      "Where to stay in Gokarna?",
+    );
+    expect(
+      screen.queryByRole("button", { name: TRY_AGAIN }),
+    ).not.toBeInTheDocument();
+  });
+
   it.each([
     [{ kind: "busy", message: "Trigo is busy. Try again in a minute." }],
     [{ kind: "rate_limited", message: "Slow down a little." }],

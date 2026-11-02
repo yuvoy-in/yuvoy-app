@@ -103,10 +103,19 @@ describe("classifyTrigoError", () => {
     ).toEqual({ kind: "busy", message: "Trigo is busy." });
   });
 
-  it("reads anything else as a failure", () => {
-    expect(classifyTrigoError(apiError(409, "idempotency_key_reuse"))).toEqual({
-      kind: "failure",
+  it("reads a refusal the same send would get again as rejected", () => {
+    expect(classifyTrigoError(apiError(400, "invalid_input"))).toEqual({
+      kind: "rejected",
     });
+    expect(
+      classifyTrigoError(apiError(400, "idempotency_key_malformed")),
+    ).toEqual({ kind: "rejected" });
+    expect(classifyTrigoError(apiError(409, "idempotency_key_reuse"))).toEqual({
+      kind: "rejected",
+    });
+  });
+
+  it("reads anything else as a failure", () => {
     expect(classifyTrigoError(apiError(500, "internal"))).toEqual({
       kind: "failure",
     });
