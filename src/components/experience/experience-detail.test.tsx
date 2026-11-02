@@ -199,6 +199,37 @@ describe("ExperienceDetail", () => {
     });
   });
 
+  /*
+    yuvoy-app#219, the web half of yuvoy-mobile#368. The operator's tourism
+    registration while it is valid, and nothing at all when the API sends none.
+  */
+  describe("the registration line", () => {
+    it("names the registration and the last valid day", () => {
+      const registered: Experience = {
+        ...withGallery,
+        compliance: {
+          label: "Registered with A&N Tourism",
+          validTo: "2027-06-30",
+        },
+      };
+      renderWithQuery(<ExperienceDetail experience={registered} />);
+      expect(screen.getByTestId("listing-registration")).toHaveTextContent(
+        "Registered with A&N Tourism · valid to 30 Jun 2027",
+      );
+    });
+
+    it("draws nothing when the API sends no registration", () => {
+      const { compliance: _none, ...unregistered } = withGallery;
+      void _none;
+      renderWithQuery(<ExperienceDetail experience={unregistered} />);
+      expect(
+        screen.queryByTestId("listing-registration"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/valid to/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Registered/)).not.toBeInTheDocument();
+    });
+  });
+
   describe("the price says what it means", () => {
     /*
       yuvoy-app#20 §1. This screen hard-coded "per person" on its own

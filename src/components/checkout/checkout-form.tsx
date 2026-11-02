@@ -24,7 +24,7 @@ import {
   type AnswerDraft,
 } from "@/lib/booking/answers";
 import { describeError, FailurePanel, RECOVER_PATH } from "@/components/states";
-import { checkoutTotal } from "@/lib/booking/checkout-total";
+import { checkoutTotal, perPersonLine } from "@/lib/booking/checkout-total";
 import { YuvoyError } from "@/lib/api/errors";
 import { formatMoney } from "@/lib/format/money";
 import { civilFromDate, weekdayDayMonth } from "@/lib/format/date";
@@ -269,6 +269,8 @@ function CheckoutFields({
     the whole group is not multiplied by the party. See `checkoutTotal`.
   */
   const total = checkoutTotal(slot.price, guests, experience.pricingUnit);
+  // A price for the whole group (boat or not) also says what it comes to each.
+  const each = perPersonLine(total, guests, experience.pricingUnit);
 
   /** Everything that must be true before the button does anything. */
   const blockers = useMemo(() => {
@@ -785,6 +787,14 @@ function CheckoutFields({
               </span>
             )}
           </div>
+          {each ? (
+            <p
+              className="text-forest/70 mt-1 text-right text-sm"
+              data-testid="checkout-each"
+            >
+              {each}
+            </p>
+          ) : null}
           <p className="text-forest/70 mt-1.5 text-xs">
             All in. Nothing is added after this screen.
           </p>
