@@ -155,8 +155,11 @@ describe("People: the age step", () => {
           {
             error: {
               code: "invalid_input",
-              message: "Tell us whether your birthday has passed.",
-              details: { birthdayPassed: "Needed for this year." },
+              message: "Tell us whether you have had your birthday this year.",
+              details: {
+                birthdayPassed:
+                  "Tell us whether you have had your birthday this year.",
+              },
             },
           },
           { status: 400 },
@@ -176,6 +179,12 @@ describe("People: the age step", () => {
       await screen.findByRole("group", { name: W.age.birthday }),
     ).toBeInTheDocument();
     expect(put[0].body).toEqual({ birthYear: typed });
+    // The opened question answers the 400, so its sentence is not repeated.
+    expect(
+      screen
+        .queryAllByRole("alert")
+        .filter((a) => a.textContent?.includes("birthday this year")),
+    ).toEqual([]);
 
     await user.click(screen.getByRole("radio", { name: W.age.no }));
     await user.click(screen.getByRole("button", { name: W.age.action }));

@@ -96,9 +96,15 @@ export function AgeStep({
     );
   }
 
+  /*
+    Not the under-18 answer, which the screen above says, and not the 400
+    that opened the birthday question: the question is the answer to it, so
+    its sentence would only repeat the legend (yuvoy-app#228).
+  */
   const refused =
-    confirm.error instanceof YuvoyError &&
-    confirm.error.code === "under_age_sign_up"
+    (confirm.error instanceof YuvoyError &&
+      confirm.error.code === "under_age_sign_up") ||
+    asksBirthday(confirm.error)
       ? null
       : confirm.error;
 
