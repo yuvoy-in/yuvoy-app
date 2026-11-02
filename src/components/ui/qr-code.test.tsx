@@ -13,8 +13,9 @@ describe("qrPath", () => {
     // 56 bytes at M is version 4: 33 modules a side, 41 with the quiet zone.
     expect(code?.side).toBe(41);
     // Every rectangle sits inside the quiet zone.
-    for (const [, x, y] of code!.d.matchAll(/M(\d+) (\d+)/g)) {
+    for (const [, x, y, run] of code!.d.matchAll(/M(\d+) (\d+)h(\d+)/g)) {
       expect(Number(x)).toBeGreaterThanOrEqual(4);
+      expect(Number(x) + Number(run)).toBeLessThanOrEqual(37);
       expect(Number(y)).toBeGreaterThanOrEqual(4);
       expect(Number(y)).toBeLessThan(37);
     }

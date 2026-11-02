@@ -150,8 +150,9 @@ describe("show at check-in", () => {
       vi.setSystemTime(Date.parse(iso) - skew);
     }
 
-    it("shows from 00:01 the day before", async () => {
-      serverAt("2026-08-20T18:31:00Z");
+    // No lower bound, as the app: the issue only says when it goes.
+    it("shows from the first read, a week before the trip's day included", async () => {
+      serverAt("2026-08-15T04:30:00Z");
       answer(statusBody({ checkIn: CHECK_IN }));
       renderWithQuery(<BookingScreen />);
       expect(await screen.findByText("K7QM-2XPA")).toBeVisible();

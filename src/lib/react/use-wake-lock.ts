@@ -17,11 +17,18 @@ export function useWakeLock(on: boolean): void {
     if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
 
     let held: WakeLockSentinel | null = null;
+    let asking = false;
     let gone = false;
 
+    /*
+      One request at a time. A tab hidden and shown again while the first
+      request is still out would otherwise send a second, and the lock the
+      first one brought back would be dropped from `held` and never let go.
+    */
     const ask = async () => {
-      if (gone || document.visibilityState !== "visible") return;
+      if (gone || asking || document.visibilityState !== "visible") return;
       if (held && !held.released) return;
+      asking = true;
       try {
         const lock = await navigator.wakeLock.request("screen");
         if (gone) {
@@ -31,6 +38,8 @@ export function useWakeLock(on: boolean): void {
         held = lock;
       } catch {
         // Refused: the screen sleeps as it would have without this.
+      } finally {
+        asking = false;
       }
     };
 

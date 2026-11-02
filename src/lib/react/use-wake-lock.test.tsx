@@ -77,6 +77,22 @@ describe("useWakeLock", () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
+  it("sends one request at a time, so no lock is left held", async () => {
+    const lock = sentinel();
+    let grant: (s: Sentinel) => void = () => {};
+    const request = stubWakeLock(
+      () => new Promise<Sentinel>((resolve) => (grant = resolve)),
+    );
+    const { unmount } = renderHook(() => useWakeLock(true));
+    // Hidden and shown again while the first request is still out.
+    await act(async () => setVisibility("hidden"));
+    await act(async () => setVisibility("visible"));
+    expect(request).toHaveBeenCalledTimes(1);
+    await act(async () => grant(lock));
+    unmount();
+    expect(lock.release).toHaveBeenCalled();
+  });
+
   it("is quiet where the browser refuses or lacks it", async () => {
     stubWakeLock(async () => {
       throw new DOMException("no", "NotAllowedError");
