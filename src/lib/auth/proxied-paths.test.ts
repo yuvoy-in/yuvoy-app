@@ -178,6 +178,51 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/me/creator-links/C-K7QM2XPA")).toBeNull();
   });
 
+  it("forwards the People calls by their verbs, and nothing more of People", () => {
+    /*
+      yuvoy-app#222. Every one is session only. The friend link's lookup
+      carries its code in the body, so there is no path with a code in it.
+    */
+    const person = "6a3c1f8e-2b4d-4c1a-9e0f-1d2c3b4a5f60";
+    const ok: [string, string][] = [
+      ["GET", "/me/people"],
+      ["PATCH", "/me/people"],
+      ["GET", "/me/friends"],
+      ["DELETE", `/me/friends/${person}`],
+      ["POST", "/me/friend-requests"],
+      ["POST", `/me/friend-requests/${person}/answer`],
+      ["DELETE", `/me/friend-requests/${person}`],
+      ["PUT", "/me/friend-link"],
+      ["DELETE", "/me/friend-link"],
+      ["POST", "/friend-links/lookup"],
+      ["PUT", "/me/age"],
+    ];
+    for (const [method, path] of ok) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBe(path);
+    }
+
+    const refused: [string, string][] = [
+      ["PUT", "/me/people"],
+      ["DELETE", "/me/people"],
+      ["POST", "/me/friends"],
+      ["GET", "/me/friend-requests"],
+      ["GET", "/me/friend-link"],
+      ["GET", "/friend-links/lookup"],
+      ["GET", "/friend-links/ABCDE-FGHIJ"],
+      ["POST", "/me/age"],
+      ["GET", "/me/age"],
+      // Not built yet: one person's card, reports, the friends' goings.
+      ["GET", `/people/${person}`],
+      ["POST", `/people/${person}/reports`],
+      ["GET", "/me/friends-going"],
+      ["GET", "/me/friends/activity"],
+      ["GET", `/me/friend-requests/${person}/answer`],
+    ];
+    for (const [method, path] of refused) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBeNull();
+    }
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

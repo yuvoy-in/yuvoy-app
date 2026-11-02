@@ -79,6 +79,17 @@ function forgetSupportRequests(qc: QueryClient): void {
   qc.removeQueries({ queryKey: ["getSupportRequest"] });
 }
 
+/**
+ * People (yuvoy-app#222): the home, the friends list and any friend link
+ * looked up. Removed, for the reason `forgetSupportRequests` gives: they are
+ * a number's own friends and requests, by name.
+ */
+function forgetPeople(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.myPeople() });
+  qc.removeQueries({ queryKey: qk.myFriends() });
+  qc.removeQueries({ queryKey: ["lookupFriendLink"] });
+}
+
 function forgetSaved(qc: QueryClient): void {
   /*
     First, so nothing started for the previous number (an adoption, a queued
@@ -167,6 +178,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getTable"] });
     // And share links are the number's own, with their counts.
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    // So are People: friends, requests, the friend link (yuvoy-app#222).
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -245,6 +258,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getEvent"] });
     qc.removeQueries({ queryKey: ["getTable"] });
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
