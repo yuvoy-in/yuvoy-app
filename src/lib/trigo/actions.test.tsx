@@ -324,6 +324,30 @@ describe("useConfirmTrigoAction", () => {
     expect(chatOf(client)?.messages.map((m) => m.seq)).toEqual([1, 2]);
   });
 
+  it("keeps no checkout when the card was booked already", async () => {
+    __signInAppRouteMock();
+    server.use(
+      http.post(CONFIRM, () =>
+        HttpResponse.json({
+          ...CHECKOUT,
+          state: "used",
+        } satisfies TrigoActionConfirmation),
+      ),
+    );
+    const { client } = renderWithQuery(<Tap which="confirm" />);
+    seed(client);
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
+    );
+
+    expect(chatOf(client)?.messages[1].actionCard?.state).toBe("used");
+    expect(readTrigoCheckout("try-dive-nemo-reef", Date.now())).toBeNull();
+    expect(
+      client.getQueryState(qk.trigoConversation(CHAT))?.isInvalidated,
+    ).toBe(true);
+  });
+
   it("marks a date alert card used and reads the alerts again", async () => {
     __signInAppRouteMock();
     server.use(

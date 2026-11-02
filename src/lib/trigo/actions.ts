@@ -92,8 +92,11 @@ function readChatAgain(qc: QueryClient, conversationId: string | null): void {
 /**
  * `POST /trigo/actions/{id}/confirm` (confirmTrigoAction). On a 200:
  *
- *   - `next.checkout`: the checkout is kept for `/e/{slug}/book`
- *     (`saveTrigoCheckout`); the screen opens it.
+ *   - `next.checkout` with `state: confirmed`: the checkout is kept for
+ *     `/e/{slug}/book` (`saveTrigoCheckout`); the screen opens it. With
+ *     `state: used` the card was booked already (the server replays it with
+ *     the same checkout): nothing is kept, and the chat's read again draws
+ *     the card Booked.
  *   - `next.done`: the alert or draft exists, so the date alerts or trip
  *     drafts list (yuvoy-app#220) is read again.
  *   - `next.handoff` (R6-T2): the message joins the chat.
@@ -124,7 +127,7 @@ export function useConfirmTrigoAction(): UseMutationResult<
       const next = result.next;
       const more = "handoff" in next ? [next.handoff] : [];
       setCardState(qc, vars.conversationId, vars.actionId, result.state, more);
-      if ("checkout" in next) {
+      if ("checkout" in next && result.state === "confirmed") {
         saveTrigoCheckout(vars.actionId, next.checkout, Date.now());
       }
       if ("done" in next) {

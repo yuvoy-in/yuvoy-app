@@ -221,6 +221,14 @@ describe("ActionCard, a tap", () => {
     );
   });
 
+  it("does not open checkout when the card was booked already", async () => {
+    s.confirm = () => ({ ok: { ...checkout(), state: "used" } });
+    draw(card({ state: "confirmed" }));
+    await userEvent.click(screen.getByRole("button", { name: GO_TO_CHECKOUT }));
+    expect(s.confirmed).toHaveLength(1);
+    expect(s.push).not.toHaveBeenCalled();
+  });
+
   it("does not move on a date alert's done", async () => {
     s.confirm = () => ({
       ok: { actionId: ACTION, state: "used", next: { done: {} } },

@@ -149,7 +149,8 @@ export function ActionCard({
     confirm.mutate(vars, {
       ...settled,
       onSuccess: (result) => {
-        if ("checkout" in result.next) {
+        // A used card is booked already: it shows Booked, never a checkout.
+        if ("checkout" in result.next && result.state === "confirmed") {
           router.push(trigoCheckoutHref(result.next.checkout));
         }
       },
