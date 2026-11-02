@@ -34,6 +34,7 @@ import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
+import { meHandlers, meStageOf, meTablesStageOf } from "./me-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -203,7 +204,19 @@ export type Scenario =
   | "creator-links-rate-limited"
   | "creator-links-down"
   | "creator-tools-off"
-  | "creator-outside";
+  | "creator-outside"
+  /*
+    Me on the Account screen (yuvoy-mobile#444). Each but `me-off` opens `me`
+    and `going` at `staff`; `me-handlers.ts` says what each does.
+  */
+  | "me-off"
+  | "me-life-list"
+  | "me-life-list-long"
+  | "me-empty"
+  | "me-badges-new"
+  | "me-life-list-error"
+  | "me-writes-fail"
+  | "me-tables";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -409,6 +422,7 @@ const routes = [
     `/experiences/:slug` says they do not exist (yuvoy-app#207).
   */
   ...creatorLinkHandlers,
+  ...meHandlers,
 
   /* ------------------------------------------------------------- catalog */
 
@@ -1169,8 +1183,9 @@ const routes = [
   /*
     The app's config, with how far each release has reached (R0-T2): every
     release `off`, as on dev and production today, unless a scenario moves
-    `explore`, `checkedCities` (yuvoy-app#180's, at `staff`) or `creator`
-    (yuvoy-app#207's, at `staff`).
+    `explore`, `checkedCities` (yuvoy-app#180's, at `staff`), `creator`
+    (yuvoy-app#207's, at `staff`), or `me`, `going` and `tables`
+    (yuvoy-mobile#444's, at `staff`).
   */
   http.get(url("/app-config"), async ({ request }) => {
     const failed = await commonFailure(request);
@@ -1197,6 +1212,10 @@ const routes = [
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
+          // yuvoy-mobile#444: Did you go asks only while `going` is open.
+          me: meStageOf(scenario) ?? "off",
+          going: meStageOf(scenario) ?? "off",
+          tables: meTablesStageOf(scenario) ?? "off",
         },
       },
       { headers: mockHeaders(requestId()) },
