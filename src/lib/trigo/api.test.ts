@@ -41,6 +41,17 @@ describe("mergeBySeq", () => {
     expect(merged[1].text).toBe("new");
   });
 
+  it("keeps a full read's fresh copy of a message already held", () => {
+    const held = { ...msg(2), text: "a card, proposed" };
+    const fresh = { ...msg(2), text: "a card, used" };
+    const merged = mergeBySeq([msg(1), held, msg(3)], [fresh, msg(3)]);
+    expect(merged.map((m) => m.text)).toEqual([
+      "message 1",
+      "a card, used",
+      "message 3",
+    ]);
+  });
+
   it("orders by seq, whatever order the two lists came in", () => {
     const merged = mergeBySeq([msg(5), msg(3)], [msg(4), msg(1)]);
     expect(merged.map((m) => m.seq)).toEqual([1, 3, 4, 5]);

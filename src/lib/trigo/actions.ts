@@ -11,7 +11,12 @@ import { StalledError } from "@/lib/api/deadline";
 import { NetworkError, YuvoyError } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
 import type { components } from "@/lib/api/schema.gen";
-import { mergeBySeq, type TrigoChatData, type TrigoMessage } from "./api";
+import {
+  mergeBySeq,
+  readTrigoChatInFull,
+  type TrigoChatData,
+  type TrigoMessage,
+} from "./api";
 import { saveTrigoCheckout } from "./checkout-prefill";
 
 /**
@@ -79,12 +84,9 @@ function setCardState(
   );
 }
 
+/** In full, not `after`: the card's own message is an older one. */
 function readChatAgain(qc: QueryClient, conversationId: string | null): void {
-  if (conversationId) {
-    void qc.invalidateQueries({
-      queryKey: qk.trigoConversation(conversationId),
-    });
-  }
+  if (conversationId) readTrigoChatInFull(qc, conversationId);
 }
 
 /**

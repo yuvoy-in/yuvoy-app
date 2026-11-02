@@ -13,7 +13,7 @@ import {
   type TrigoActionCard,
   type TrigoActionConfirmation,
 } from "./actions";
-import type { TrigoChatData, TrigoMessage } from "./api";
+import { useTrigoChat, type TrigoChatData, type TrigoMessage } from "./api";
 import { readTrigoCheckout } from "./checkout-prefill";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
@@ -26,6 +26,7 @@ import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 
 const CONFIRM = "*/api/v1/trigo/actions/:id/confirm";
 const DECLINE = "*/api/v1/trigo/actions/:id/decline";
+const CHAT_READ = "*/api/v1/trigo/conversations/:id";
 
 const CHAT = "6f1c2d3e-4a5b-4c6d-8e7f-8091a2b3c4d5";
 const ACTION = "2b7e4c1a-9d3f-4e5a-8b6c-7d8e9f0a1b2c";
@@ -124,6 +125,32 @@ function Tap({
       <p>{status}</p>
     </>
   );
+}
+
+/** The chat on screen, so a read again of it is a real request. */
+function Chat() {
+  const chat = useTrigoChat(CHAT, true);
+  return <p>{chat.messages.length} held</p>;
+}
+
+function page(messages: TrigoMessage[]) {
+  return {
+    conversation: {
+      id: CHAT,
+      state: "open",
+      startedAt: "2026-11-02T04:30:00Z",
+      lastMessageAt: "2026-11-02T04:31:00Z",
+      team: { state: "none", openNow: true },
+      unread: 0,
+      textRemoved: false,
+    },
+    messages,
+    more: false,
+    hasOlder: false,
+    remainingToday: 18,
+    resetsAt: "2026-11-02T18:30:00Z",
+    pollAfterSeconds: 0,
+  };
 }
 
 const TRG_KEY = `trg_${ACTION.replace(/-/g, "")}`;
@@ -244,6 +271,57 @@ describe("useConfirmTrigoAction", () => {
       expectTotalPaise: 900000,
       idempotencyKey: TRG_KEY,
     });
+  });
+
+  it("reads the chat again in full, so the card's own older message comes back fresh", async () => {
+    __signInAppRouteMock();
+    const afters: (string | null)[] = [];
+    let booked = false;
+    server.use(
+      http.get(CHAT_READ, ({ request }) => {
+        const after = new URL(request.url).searchParams.get("after");
+        afters.push(after);
+        const held = [
+          msg(1, "Beginner dive Saturday for two"),
+          msg(
+            2,
+            "Here.",
+            booked
+              ? { ...card(), state: "used", bookingReference: "YV-7K2Q" }
+              : card(),
+          ),
+        ];
+        return HttpResponse.json(
+          page(held.filter((m) => m.seq > Number(after ?? 0))),
+        );
+      }),
+      http.post(CONFIRM, () => {
+        // Booked in another tab meanwhile: the server's card is used.
+        booked = true;
+        return HttpResponse.json(CHECKOUT);
+      }),
+    );
+    const { client } = renderWithQuery(
+      <>
+        <Chat />
+        <Tap which="confirm" />
+      </>,
+    );
+    await waitFor(() => expect(screen.getByText("2 held")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(chatOf(client)?.messages[1].actionCard?.state).toBe("used"),
+    );
+    expect(chatOf(client)?.messages[1].actionCard?.bookingReference).toBe(
+      "YV-7K2Q",
+    );
+    expect(afters).toEqual([null, null]);
+
+    // The next poll is the cheap one again.
+    await client.refetchQueries({ queryKey: qk.trigoConversation(CHAT) });
+    expect(afters).toEqual([null, null, "2"]);
+    expect(chatOf(client)?.messages.map((m) => m.seq)).toEqual([1, 2]);
   });
 
   it("marks a date alert card used and reads the alerts again", async () => {
