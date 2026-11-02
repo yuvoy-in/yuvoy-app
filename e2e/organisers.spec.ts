@@ -140,7 +140,9 @@ test.describe("organiser pages", () => {
         "Run a group or a series of events? Set up your organiser page, post your events, and see how many people are going.",
       ),
     ).toBeVisible();
-    await page.getByRole("link", { name: "Set up your organiser page" }).click();
+    await page
+      .getByRole("link", { name: "Set up your organiser page" })
+      .click();
     await expect(page).toHaveURL(/\/organiser\/new$/);
     await reopen(page, scenario);
 
@@ -154,9 +156,7 @@ test.describe("organiser pages", () => {
     await page.waitForURL(/\/organiser\/[^/?]+\?made=1$/);
     const pagePath = new URL(page.url()).pathname;
     await reopen(page, scenario);
-    await expect(
-      page.getByRole("heading", { level: 1, name }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
     await expect(
       page.getByText(
         "Thanks. We check new organisers by email or a short call, usually within two working days. You can post events now, and we check each one before it shows.",

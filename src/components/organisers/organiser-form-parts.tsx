@@ -6,10 +6,7 @@ import { ChipButton } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
 import { Skeleton } from "@/components/states";
 import { ORGANISER_MAX_LINKS } from "@/lib/organisers/organisers";
-import type {
-  OrganiserLink,
-  OrganiserLinkKind,
-} from "@/lib/organisers/types";
+import type { OrganiserLink, OrganiserLinkKind } from "@/lib/organisers/types";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import type { PlaceList } from "@/lib/site/places";
 
@@ -19,7 +16,6 @@ import type { PlaceList } from "@/lib/site/places";
  * place picker, the departments and the links. Split out of
  * `organiser-form.tsx` to keep it short.
  */
-
 
 const LINK_KINDS: readonly OrganiserLinkKind[] = [
   "website",

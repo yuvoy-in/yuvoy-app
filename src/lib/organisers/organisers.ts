@@ -159,9 +159,7 @@ export function organiserInput(form: OrganiserPageForm): OrganiserInput {
 }
 
 /** The form's link rows `organiserInput` sends, in order: every row with an address. */
-export function sentLinkRows(
-  form: Pick<OrganiserPageForm, "links">,
-): number[] {
+export function sentLinkRows(form: Pick<OrganiserPageForm, "links">): number[] {
   return form.links.flatMap((link, row) => (link.url.trim() ? [row] : []));
 }
 

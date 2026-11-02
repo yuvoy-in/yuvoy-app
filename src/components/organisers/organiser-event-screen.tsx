@@ -190,7 +190,7 @@ function Posted({ event }: { event: OrganiserEvent }) {
       {when ? <p className="font-bold text-pretty">{when}</p> : null}
       {rows.map(([key, value]) =>
         value?.trim() ? (
-          <p key={key} className="break-words text-pretty">
+          <p key={key} className="text-pretty break-words">
             {value.trim()}
           </p>
         ) : null,
@@ -208,7 +208,7 @@ function Posted({ event }: { event: OrganiserEvent }) {
         <p className="break-all">{link}</p>
       ) : null}
       {event.about?.trim() ? (
-        <p className="text-forest/80 break-words whitespace-pre-line text-pretty">
+        <p className="text-forest/80 text-pretty break-words whitespace-pre-line">
           {event.about.trim()}
         </p>
       ) : null}
