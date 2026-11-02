@@ -4,11 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
-import {
-  normaliseCode,
-  type CheckInAnswer,
-  type CheckInVia,
-} from "./check-in";
+import { normaliseCode, type CheckInAnswer, type CheckInVia } from "./check-in";
 
 /** What one check-in sends: the code as shown or typed, and how it came. */
 export interface CheckInVariables {

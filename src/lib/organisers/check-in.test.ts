@@ -218,13 +218,11 @@ describe("checkInRefusal", () => {
 
   it("reads the age step, the sign-in and the pause", () => {
     expect(
-      checkInRefusal(
-        refused(403, "adult_confirmation_required", D.adultsOnly),
-      ),
+      checkInRefusal(refused(403, "adult_confirmation_required", D.adultsOnly)),
     ).toEqual({ kind: "age" });
-    expect(
-      checkInRefusal(refused(401, "unauthorized", D.signIn)),
-    ).toEqual({ kind: "signIn" });
+    expect(checkInRefusal(refused(401, "unauthorized", D.signIn))).toEqual({
+      kind: "signIn",
+    });
     expect(
       checkInRefusal(refused(503, "organisers_paused", "Paused for now.")),
     ).toEqual({ kind: "paused", message: "Paused for now." });
@@ -249,7 +247,9 @@ describe("checkInRefusal", () => {
     expect(checkInRefusal(refused(503, "unavailable", "x"))).toEqual(broken);
     expect(checkInRefusal(refused(409, "conflict"))).toEqual(broken);
     expect(
-      checkInRefusal(refused(404, "internal_error", "The server answered 404.")),
+      checkInRefusal(
+        refused(404, "internal_error", "The server answered 404."),
+      ),
     ).toEqual(broken);
     expect(checkInRefusal(new Error("boom"))).toEqual(broken);
     expect(checkInRefusal(undefined)).toEqual(broken);

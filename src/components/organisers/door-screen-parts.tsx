@@ -140,7 +140,9 @@ export function DoorProblemBlock({
     case "refused":
       return null;
     case "age":
-      return <OrganiserWriteError refusal={problem.refusal} onRetry={onAgain} />;
+      return (
+        <OrganiserWriteError refusal={problem.refusal} onRetry={onAgain} />
+      );
     case "signIn":
       return (
         <Panel

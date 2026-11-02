@@ -230,7 +230,9 @@ describe("DoorScreen", () => {
 
   it("asks the age, then sends the same code the same way once more", async () => {
     server.use(
-      http.put(`${BASE}/me/age`, () => HttpResponse.json({ ageConfirmed: true })),
+      http.put(`${BASE}/me/age`, () =>
+        HttpResponse.json({ ageConfirmed: true }),
+      ),
     );
     const sent = counted((n) =>
       n === 1
@@ -246,7 +248,9 @@ describe("DoorScreen", () => {
       await screen.findByLabelText(BIRTH_YEAR_WORDS.label),
       String(indiaYear(Date.now() + clockOffsetMs()) - 30),
     );
-    await user.click(screen.getByRole("button", { name: BIRTH_YEAR_WORDS.send }));
+    await user.click(
+      screen.getByRole("button", { name: BIRTH_YEAR_WORDS.send }),
+    );
 
     expect(await screen.findByTestId("door-done")).toBeTruthy();
     expect(sent).toEqual([

@@ -153,9 +153,7 @@ function DoorDesk() {
       setProblem({
         kind: "age",
         refusal:
-          said.kind === "age"
-            ? said
-            : { kind: "age", message: D.adultsOnly },
+          said.kind === "age" ? said : { kind: "age", message: D.adultsOnly },
       });
       return;
     }

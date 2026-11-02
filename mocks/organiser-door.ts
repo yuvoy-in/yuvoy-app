@@ -61,7 +61,10 @@ const LATER_SAID = "This code is for Sun 8 Nov.";
 /** `USED2345`'s first time. */
 export const DOOR_USED_AT = "2026-11-01T13:12:00Z";
 
-const PAUSED_SCENARIOS = new Set(["organisers-paused", "organisers-door-paused"]);
+const PAUSED_SCENARIOS = new Set([
+  "organisers-paused",
+  "organisers-door-paused",
+]);
 
 function envelope(
   code: string,
@@ -90,8 +93,7 @@ function answer(body: Record<string, unknown>) {
 }
 
 type Read =
-  | { ok: true; code: string }
-  | { ok: false; details: Record<string, string> };
+  { ok: true; code: string } | { ok: false; details: Record<string, string> };
 
 /** The body as the API reads it: `code` (8 to 12 after cleaning) and `via`, nothing else. */
 async function readBody(request: Request): Promise<Read> {
