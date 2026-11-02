@@ -28,6 +28,10 @@ const ACCOUNT_CLOSED_EMAIL =
 const TOO_MANY_EMAIL =
   "We have stopped sending codes to this address for a while. Nothing is wrong with your account. Wait a while and ask for another.";
 
+/** The number's, when the API sends no sentence: its limits are an hour. */
+const TOO_MANY_NUMBER =
+  "We have stopped sending codes to this number for a while. Nothing is wrong with your account. Wait a while and ask for another.";
+
 /** The API's message when it reads as a sentence, else null. */
 function apiSentence(error: YuvoyError): string | null {
   const said = error.message?.trim();
@@ -78,9 +82,9 @@ export function signInFailure(
   if (status === 429) {
     return {
       title: "Too many tries",
-      body: email
-        ? (apiSentence(error as YuvoyError) ?? TOO_MANY_EMAIL)
-        : "We have stopped sending codes to this number for a few minutes. Nothing is wrong with your account. Wait a moment and ask for another.",
+      body:
+        apiSentence(error as YuvoyError) ??
+        (email ? TOO_MANY_EMAIL : TOO_MANY_NUMBER),
     };
   }
 

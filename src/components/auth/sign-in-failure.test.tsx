@@ -51,6 +51,18 @@ describe("the email door's failures", () => {
     ).toMatch(/^We have stopped sending codes to this address/);
   });
 
+  it("prints the API's hour sentence on a 429 for a number too", () => {
+    expect(
+      signInFailure(
+        refusal(429, "rate_limited", "Too many tries. Try again in an hour."),
+        phone,
+      )?.body,
+    ).toBe("Too many tries. Try again in an hour.");
+    expect(
+      signInFailure(refusal(429, "rate_limited", "rate limited"), phone)?.body,
+    ).toMatch(/^We have stopped sending codes to this number for a while\./);
+  });
+
   it("puts a bad address on the email field", () => {
     const said = signInFailure(refusal(400, "invalid_input"), email);
     expect(said?.field).toBe("email");
