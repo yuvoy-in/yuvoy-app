@@ -46,12 +46,12 @@ export function needsName(error: unknown): boolean {
  * After any write: the home's counts, the friends list and the Account row's
  * summary (`GET /me` carries `people`) are all read again.
  */
-function refreshPeople(qc: QueryClient): Promise<unknown> {
+export function refreshPeople(qc: QueryClient): Promise<unknown> {
   return Promise.all([
     qc.invalidateQueries({ queryKey: qk.myPeople() }),
     qc.invalidateQueries({ queryKey: qk.myFriends() }),
     qc.invalidateQueries({ queryKey: qk.myAccount() }),
-    // An unfriended person stays in crews under a short name (yuvoy-app#227).
+    // An unfriended person leaves the caller's crews (yuvoy-app#227).
     qc.invalidateQueries({ queryKey: qk.myCrews() }),
   ]);
 }

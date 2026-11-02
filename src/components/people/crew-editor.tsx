@@ -4,7 +4,6 @@ import { useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   friendsOf,
-  isPeopleClosed,
   needsAge,
   needsName,
   useMyFriends,
@@ -360,13 +359,13 @@ function CrewEditor({
         <p role="alert" className="text-terra-deep mt-4 text-sm">
           {W.limit}
         </p>
-      ) : (
-          crew
-            ? crewMissing(save.error) === "closed"
-            : isPeopleClosed(save.error)
-        ) ? (
+      ) : crewMissing(save.error) === "closed" ? (
         <p role="alert" className="text-terra-deep mt-4 text-sm">
-          {PEOPLE_WORDS.closed.title}
+          {W.closedNotSaved}
+        </p>
+      ) : crewMissing(save.error) === "unknown" ? (
+        <p role="alert" className="text-terra-deep mt-4 text-sm">
+          {W.notSaved}
         </p>
       ) : save.error && !isStepRefusal(save.error) ? (
         <Refusal error={save.error} className="mt-4" />

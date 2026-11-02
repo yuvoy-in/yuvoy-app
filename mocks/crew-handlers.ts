@@ -37,10 +37,6 @@ import type { PeopleState } from "./people-state";
  *   - `people-crews-big`: 55 friends and one crew of 50, "Whole batch". One
  *     more member is `400 invalid_input`.
  *   - `people-crews-empty`: one crew, "Old flatmates", with nobody in it.
- *   - `people-crews-gone-friend`: one crew, "Trek group", of Kiran, Anjali,
- *     Rahul, Sameer T. and Nisha V. The last two stopped being friends, so
- *     saving with them is `409 not_friends` with their two ids; saving
- *     again without them works.
  *   - `people-crews-down`: `people`, and every crew route is `500`. The
  *     rest of People works.
  *   - `people-first`, `people-age-locked`: no crews. Saving is
@@ -49,10 +45,14 @@ import type { PeopleState } from "./people-state";
  *   - `people-paused`: saving is `403 people_paused`; deleting still works.
  *
  * As the API: names are trimmed and 1 to 40 characters, members are 1 to 50
- * of the caller's friends now (repeats count once), at most 20 crews, newest
- * first. Unfriend leaves the person in the caller's crews, so saving that
- * crew's members afterwards is `409 not_friends`. Deleting is `204` also for
- * a crew that is gone or not the caller's; changing one is `404`.
+ * of the caller's friends now, at most 20 crews, newest first. A repeated
+ * member id (in any case) is `400 invalid_input`, not counted once. The body
+ * is checked before paused, adult and name. Crew and person ids compare in
+ * any case. Unfriend takes the person out of every one of the caller's crews
+ * at once (`people-handlers.ts`), so a list never has a member who is not a
+ * friend. `409 not_friends` is then only a race: somebody who was a friend
+ * when the editor read the list and is not by Save. Deleting is `204` also
+ * for a crew that is gone or not the caller's; changing one is `404`.
  */
 
 type Crew = components["schemas"]["Crew"];
@@ -64,6 +64,9 @@ let made = 0;
 function nextCrewId(): string {
   return crewId(1000 + ++made);
 }
+
+/** Ids compare in any case, as the API lowercases them. */
+const lower = (id: string) => id.toLowerCase();
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -102,7 +105,7 @@ export function readName(name: unknown): Read<string> {
   return { ok: trimmed };
 }
 
-/** Member ids as sent: 1 to 50 person ids, a repeat counted once. */
+/** Member ids as sent: 1 to 50 person ids, each once. A repeat is `400`. */
 export function readMemberIds(ids: unknown): Read<string[]> {
   const no = (why: string) => ({
     no: envelope("invalid_input", why, 400, {
@@ -115,18 +118,22 @@ export function readMemberIds(ids: unknown): Read<string[]> {
   ) {
     return no("Pick the friends for this crew.");
   }
-  const unique = [...new Set(ids as string[])];
-  if (unique.length < 1) return no("Pick at least one friend.");
-  if (unique.length > CREW_MEMBER_LIMIT) {
+  const sent = ids as string[];
+  if (sent.length < 1) return no("Pick at least one friend.");
+  if (sent.length > CREW_MEMBER_LIMIT) {
     return no(`A crew can have up to ${CREW_MEMBER_LIMIT} friends.`);
   }
-  return { ok: unique };
+  // As the API: the same person twice is refused, whatever the case.
+  if (new Set(sent.map(lower)).size !== sent.length) {
+    return no("Each friend can be in a crew once.");
+  }
+  return { ok: sent };
 }
 
 /** The members for these ids, or `409 not_friends` naming who is not a friend now. */
 function membersFor(s: PeopleState, ids: string[]): Read<Crew["members"]> {
-  const byId = new Map(s.friends.map((f) => [f.personId, f]));
-  const notFriends = ids.filter((id) => !byId.has(id));
+  const byId = new Map(s.friends.map((f) => [lower(f.personId), f]));
+  const notFriends = ids.filter((id) => !byId.has(lower(id)));
   if (notFriends.length > 0) {
     return {
       no: envelope(
@@ -137,7 +144,7 @@ function membersFor(s: PeopleState, ids: string[]): Read<Crew["members"]> {
       ),
     };
   }
-  return { ok: ids.map((id) => memberOf(byId.get(id)!)) };
+  return { ok: ids.map((id) => memberOf(byId.get(lower(id))!)) };
 }
 
 /** Only the keys the contract has. */
@@ -159,8 +166,7 @@ export const crewHandlers = [
     const g = crewGate(request);
     if (g instanceof Response) return g;
     const { s } = g;
-    const no = mayWrite(s);
-    if (no) return no;
+    // As the API: the body first, then paused, adult and name.
     const body = await bodyOf(request);
     if (!onlyKeys(body, ["name", "memberIds"])) {
       return envelope("invalid_input", "Send a name and memberIds.", 400);
@@ -169,6 +175,8 @@ export const crewHandlers = [
     if ("no" in name) return name.no;
     const ids = readMemberIds(body.memberIds);
     if ("no" in ids) return ids.no;
+    const no = mayWrite(s);
+    if (no) return no;
     if (s.crews.length >= CREW_LIMIT) {
       return envelope(
         "crew_limit_reached",
@@ -192,8 +200,7 @@ export const crewHandlers = [
     const g = crewGate(request);
     if (g instanceof Response) return g;
     const { s } = g;
-    const no = mayWrite(s);
-    if (no) return no;
+    // As the API: the body first, then paused, adult and name.
     const body = await bodyOf(request);
     const keys = Object.keys(body);
     if (keys.length === 0 || !onlyKeys(body, ["name", "memberIds"])) {
@@ -204,7 +211,10 @@ export const crewHandlers = [
     const ids =
       body.memberIds === undefined ? null : readMemberIds(body.memberIds);
     if (ids && "no" in ids) return ids.no;
-    const at = s.crews.findIndex((c) => c.crewId === params.crewId);
+    const no = mayWrite(s);
+    if (no) return no;
+    const id = lower(String(params.crewId));
+    const at = s.crews.findIndex((c) => lower(c.crewId) === id);
     if (at < 0) return envelope("not_found", "Not found.", 404);
     const members = ids ? membersFor(s, ids.ok) : null;
     if (members && "no" in members) return members.no;
@@ -223,7 +233,8 @@ export const crewHandlers = [
   http.delete(url("/me/crews/:crewId"), ({ request, params }) => {
     const g = crewGate(request);
     if (g instanceof Response) return g;
-    g.s.crews = g.s.crews.filter((c) => c.crewId !== params.crewId);
+    const id = lower(String(params.crewId));
+    g.s.crews = g.s.crews.filter((c) => lower(c.crewId) !== id);
     return NO_CONTENT();
   }),
 ];

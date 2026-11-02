@@ -11,6 +11,7 @@ import {
   nextRequestId,
   peopleOpen,
   stateOf,
+  unfriend,
   type PeopleState,
 } from "./people-state";
 
@@ -28,7 +29,8 @@ import {
  *     page, so a second page of 3), a live link (`ASHAM-LNK22`, 17 requests
  *     left). `GET /me` says 2 requests waiting. Every change is kept for the
  *     session: Accept makes a friend, Decline and Take back remove the
- *     request, Unfriend removes the friend, a new link has a new code and
+ *     request, Unfriend removes the friend (and takes them out of the
+ *     traveller's crews, as the API does), a new link has a new code and
  *     the old one stops working, Switch off leaves no link, and the sharing
  *     choice and the email switch stay as saved. Asking is always `202`.
  *     Answering a request that is not waiting is `404`.
@@ -232,11 +234,12 @@ export const peopleHandlers = [
     return json({ friends, nextCursor: next });
   }),
 
-  // Nobody is told, and 204 also when the two were not friends.
+  // Nobody is told, and 204 also when the two were not friends. The person
+  // also leaves every one of the caller's crews, in the same step as the API.
   http.delete(url("/me/friends/:personId"), ({ request, params }) => {
     const g = gate(request);
     if (g instanceof Response) return g;
-    g.s.friends = g.s.friends.filter((f) => f.personId !== params.personId);
+    unfriend(g.s, String(params.personId));
     return new HttpResponse(null, { status: 204, headers: mockHeaders(rid()) });
   }),
 

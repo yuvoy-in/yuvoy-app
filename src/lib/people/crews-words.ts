@@ -65,6 +65,12 @@ export const CREWS_WORDS = {
   deleting: "Deleting",
   deleted: "Crew deleted",
   saved: "Crew saved",
+  /** A save or delete that answered `404`, once the release was read again. */
+  closedNotSaved: "People is closed for now, so this crew was not saved.",
+  closedNotDeleted: "People is closed for now, so this crew was not deleted.",
+  /** A `404` that the reads after it could not explain. */
+  notSaved: "This crew was not saved. Try again.",
+  notDeleted: "This crew was not deleted. Try again.",
   gone: {
     title: "This crew is not there any more",
     body: "It may have been deleted on another device.",

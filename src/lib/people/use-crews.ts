@@ -9,6 +9,7 @@ import {
 import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { CACHE, qk } from "@/lib/query/policy";
+import { refreshPeople } from "./use-people";
 import type { Crew, CrewInput, CrewList, CrewPatch } from "./crews-words";
 
 /**
@@ -43,18 +44,20 @@ export function isCrewLimit(error: unknown): boolean {
 }
 
 /**
- * What a change's `404` turned out to be. In the contract that `404` is
- * either a crew that is not the caller's any more (deleted on another
- * device) or the `people` release closed to them, so it proves neither on
- * its own: the list is read again, and only its answer decides (the shared
- * rule, a `404` is never success). A read that fails decides nothing, and
- * the change is then refused like any failure.
+ * What a crew `404` turned out to be. In the contract that `404` is either a
+ * crew that is not the caller's any more (deleted on another device) or the
+ * `people` release closed to them, so it proves neither on its own (the
+ * shared rule: a `404` is never success). The release is read again first,
+ * as People does: `GET /me/people` answers `404` while People is closed to
+ * the caller. Then, for a change to one crew, the list: a list without it
+ * means the crew is gone. Anything else, or a read that fails, is `unknown`,
+ * and the page says the change did not happen.
  */
-export type CrewMissing = "gone" | "closed";
+export type CrewMissing = "gone" | "closed" | "unknown";
 
 const missing = new WeakMap<object, CrewMissing>();
 
-/** Why a change answered `404`, once the list was read again; else null. */
+/** Why a crew call answered `404`, once it was read again; else null. */
 export function crewMissing(error: unknown): CrewMissing | null {
   return error instanceof YuvoyError ? (missing.get(error) ?? null) : null;
 }
@@ -64,26 +67,40 @@ export function isCrewGone(error: unknown): boolean {
   return crewMissing(error) === "gone";
 }
 
-async function whyMissing(crewId: string): Promise<CrewMissing | null> {
+function is404(error: unknown): error is YuvoyError {
+  return error instanceof YuvoyError && error.status === 404;
+}
+
+async function whyMissing(crewId?: string): Promise<CrewMissing> {
   try {
     const client = createProxyClient();
-    const { data, error } = await client.GET("/me/crews");
-    if (error) {
-      return error instanceof YuvoyError && error.status === 404
-        ? "closed"
-        : null;
-    }
+    const home = await client.GET("/me/people");
+    if (home.error) return is404(home.error) ? "closed" : "unknown";
+    if (!crewId) return "unknown";
+    const list = await client.GET("/me/crews");
+    if (list.error) return "unknown";
     const id = crewId.toLowerCase();
-    return data.crews.some((c) => c.crewId.toLowerCase() === id)
-      ? null
+    return list.data.crews.some((c) => c.crewId.toLowerCase() === id)
+      ? "unknown"
       : "gone";
   } catch {
-    return null;
+    return "unknown";
   }
 }
 
-function refreshCrews(qc: QueryClient): Promise<unknown> {
-  return qc.invalidateQueries({ queryKey: qk.myCrews() });
+/** Reads the release again after a `404` and keeps the answer on the error. */
+async function explain(error: unknown, crewId?: string): Promise<void> {
+  if (is404(error)) missing.set(error, await whyMissing(crewId));
+}
+
+/**
+ * After a change: the crews list. After a `404`, all of People too, with the
+ * Account row (`GET /me` carries `people`), as a People `404` does.
+ */
+function refreshAfter(qc: QueryClient, error: unknown): Promise<unknown> {
+  return is404(error)
+    ? refreshPeople(qc)
+    : qc.invalidateQueries({ queryKey: qk.myCrews() });
 }
 
 /** Writes a change into the cached list at once, before it is read again. */
@@ -95,6 +112,7 @@ function patchList(qc: QueryClient, change: (crews: Crew[]) => Crew[]): void {
 
 /** `GET /me/crews`, newest first. */
 export function useMyCrews(enabled: boolean) {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: qk.myCrews(),
     enabled,
@@ -103,7 +121,15 @@ export function useMyCrews(enabled: boolean) {
     queryFn: async ({ signal }) => {
       const client = createProxyClient();
       const { data, error } = await client.GET("/me/crews", { signal });
-      if (error) throw error;
+      if (error) {
+        if (is404(error)) {
+          await explain(error);
+          // Not the crews list itself: that would read it again in a loop.
+          void qc.invalidateQueries({ queryKey: qk.myPeople() });
+          void qc.invalidateQueries({ queryKey: qk.myAccount() });
+        }
+        throw error;
+      }
       return data;
     },
   });
@@ -117,17 +143,20 @@ export function useCreateCrew() {
     mutationFn: async (input: CrewInput): Promise<Crew> => {
       const client = createProxyClient();
       const { data, error } = await client.POST("/me/crews", { body: input });
-      if (error) throw error;
+      if (error) {
+        await explain(error);
+        throw error;
+      }
       return data;
     },
     onSuccess: (crew) => patchList(qc, (crews) => [crew, ...crews]),
-    onSettled: () => refreshCrews(qc),
+    onSettled: (_, error) => refreshAfter(qc, error),
   });
 }
 
 /**
  * `PATCH /me/crews/{crewId}`: a new name, new members, or both. A `404`
- * reads the list again before it is thrown (`crewMissing`).
+ * reads the release and the list again before it is thrown (`crewMissing`).
  */
 export function useUpdateCrew() {
   const qc = useQueryClient();
@@ -146,10 +175,7 @@ export function useUpdateCrew() {
         body: patch,
       });
       if (error) {
-        if (error instanceof YuvoyError && error.status === 404) {
-          const why = await whyMissing(crewId);
-          if (why) missing.set(error, why);
-        }
+        await explain(error, crewId);
         throw error;
       }
       return data;
@@ -158,13 +184,14 @@ export function useUpdateCrew() {
       patchList(qc, (crews) =>
         crews.map((c) => (c.crewId === crew.crewId ? crew : c)),
       ),
-    onSettled: () => refreshCrews(qc),
+    onSettled: (_, error) => refreshAfter(qc, error),
   });
 }
 
 /**
- * `DELETE /me/crews/{crewId}`. Done only on `204`. A `404` is People closed
- * to the traveller, not a deleted crew, so it is refused like any failure.
+ * `DELETE /me/crews/{crewId}`. Done only on `204` (a crew that is gone
+ * answers `204` too). A `404` is never done: the release is read again and
+ * the page says People closed, or that the crew was not deleted.
  */
 export function useDeleteCrew() {
   const qc = useQueryClient();
@@ -175,7 +202,10 @@ export function useDeleteCrew() {
       const { error, response } = await client.DELETE("/me/crews/{crewId}", {
         params: { path: { crewId } },
       });
-      if (error) throw error;
+      if (error) {
+        await explain(error);
+        throw error;
+      }
       if (response.status !== 204) {
         throw new YuvoyError({
           code: "internal_error",
@@ -186,6 +216,6 @@ export function useDeleteCrew() {
     },
     onSuccess: (_, crewId) =>
       patchList(qc, (crews) => crews.filter((c) => c.crewId !== crewId)),
-    onSettled: () => refreshCrews(qc),
+    onSettled: (_, error) => refreshAfter(qc, error),
   });
 }

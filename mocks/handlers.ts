@@ -227,7 +227,6 @@ export type Scenario =
   | "people-crews-full"
   | "people-crews-big"
   | "people-crews-empty"
-  | "people-crews-gone-friend"
   | "people-crews-down";
 
 function scenarioOf(request: Request): Scenario {

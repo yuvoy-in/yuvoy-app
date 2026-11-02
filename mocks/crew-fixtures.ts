@@ -16,8 +16,9 @@ import {
  * and their members without loading MSW. `crew-handlers.ts` says which
  * scenario starts with what.
  *
- * A member is a `PersonRef`: a friend has `firstName`, somebody who stopped
- * being a friend has only `shortName` and `initial`.
+ * A member is a `PersonRef` of a friend now, with `firstName`: as the API,
+ * unfriending somebody takes them out of the caller's crews, so no list has
+ * a member who stopped being a friend.
  */
 
 type Crew = components["schemas"]["Crew"];
@@ -41,24 +42,6 @@ export const WHOLE_BATCH = { crewId: crewId(201), name: "Whole batch" };
 
 /** `people-crews-empty`: one crew whose members are all gone. */
 export const OLD_FLATMATES = { crewId: crewId(301), name: "Old flatmates" };
-
-/** `people-crews-gone-friend`: five members, two of them friends no more. */
-export const TREK_GROUP = { crewId: crewId(401), name: "Trek group" };
-
-/** In Trek group and no longer friends, so saving its members is `409`. */
-export const SAMEER = {
-  personId: personId(130),
-  shortName: "Sameer T.",
-  initial: "S",
-} satisfies PersonRef;
-export const NISHA = {
-  personId: personId(131),
-  shortName: "Nisha V.",
-  initial: "N",
-} satisfies PersonRef;
-
-/** The `personIds` a Trek group save answers with, in member order. */
-export const GONE_FRIEND_IDS = [SAMEER.personId, NISHA.personId];
 
 /** `people-crews-full`: twenty crews, newest first, `crewId(101)` to `(120)`. */
 export const FULL_CREW_NAMES = [
@@ -195,14 +178,6 @@ export function startingCrews(
       ];
     case "people-crews-empty":
       return [crew(OLD_FLATMATES, [], now - 90 * 24 * HOUR)];
-    case "people-crews-gone-friend":
-      return [
-        crew(
-          TREK_GROUP,
-          [...members(0, 3), SAMEER, NISHA],
-          now - 10 * 24 * HOUR,
-        ),
-      ];
     default:
       // Kiran, Anjali, Rahul and Sneha.
       return [crew(COLLEGE_GANG, members(0, 4), now - 2 * 24 * HOUR)];

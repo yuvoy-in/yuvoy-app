@@ -10,6 +10,7 @@ import {
   answer,
   crew,
   crews,
+  home,
   json,
   member,
   noContent,
@@ -98,11 +99,64 @@ describe("/people/crews/{crewId}", () => {
     );
   });
 
-  it("says People is not open yet when the list answers 404", async () => {
+  it("says People is not open yet when the list and the release answer 404", async () => {
     signedIn();
     answer("get", "/me/crews", () => refuse(404, "not_found", "Not found."));
+    const release = answer("get", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
     show();
     await heading(PEOPLE_WORDS.closed.title);
+    expect(release.length).toBeGreaterThan(0);
+  });
+
+  it("says the list did not load on a 404 the release does not explain", async () => {
+    signedIn();
+    answer("get", "/me/crews", () => refuse(404, "not_found", "Not found."));
+    answer("get", "/me/people", json(home()));
+    show();
+    await heading(W.failed);
+    expect(
+      screen.queryByRole("heading", { name: PEOPLE_WORDS.closed.title }),
+    ).toBeNull();
+  });
+
+  it("drops Edit and Delete when People closes while the crew is open", async () => {
+    signedIn();
+    answer("get", "/me/crews", json({ crews: [GANG] }), () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    answer("get", "/me/people", () => refuse(404, "not_found", "Not found."));
+    answer("delete", `/me/crews/${GANG.crewId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const user = show();
+    await heading("College gang");
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    await heading(PEOPLE_WORDS.closed.title);
+    expect(screen.queryByText("College gang")).toBeNull();
+    expect(screen.queryByRole("link", { name: W.edit })).toBeNull();
+    expect(screen.queryByRole("button", { name: W.delete })).toBeNull();
+    expect(screen.queryByText(W.deleted)).toBeNull();
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("says the sign-in ended when a later list read answers 401", async () => {
+    signedIn();
+    answer("get", "/me/crews", json({ crews: [GANG] }), () =>
+      refuse(401, "unauthorized", "Sign in to see People."),
+    );
+    answer("delete", `/me/crews/${GANG.crewId}`, () =>
+      refuse(403, "people_paused", "People is paused for you until Friday."),
+    );
+    const user = show();
+    await heading("College gang");
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    await heading(PEOPLE_WORDS.sessionEnded.title);
+    expect(screen.queryByRole("link", { name: W.edit })).toBeNull();
+    expect(screen.queryByRole("button", { name: W.delete })).toBeNull();
   });
 
   it("deletes after a second tap, then goes back to People", async () => {
@@ -129,6 +183,9 @@ describe("/people/crews/{crewId}", () => {
     answer("delete", `/me/crews/${GANG.crewId}`, () =>
       refuse(404, "not_found", "Not found."),
     );
+    const release = answer("get", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
     const user = show();
     await heading("College gang");
     await user.click(screen.getByRole("button", { name: W.delete }));
@@ -137,12 +194,31 @@ describe("/people/crews/{crewId}", () => {
     });
     await user.click(within(ask).getByRole("button", { name: W.delete }));
     expect(await within(ask).findByRole("alert")).toHaveTextContent(
-      PEOPLE_WORDS.closed.title,
+      W.closedNotDeleted,
     );
+    expect(release.length).toBeGreaterThan(0);
+    expect(screen.queryByText("Not found.")).toBeNull();
     expect(screen.queryByText(W.deleted)).toBeNull();
     expect(
       screen.getByRole("heading", { level: 1, name: "College gang" }),
     ).toBeInTheDocument();
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("says the crew was not deleted on a 404 the release does not explain", async () => {
+    signedIn();
+    crews(GANG);
+    answer("delete", `/me/crews/${GANG.crewId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    answer("get", "/me/people", json(home()));
+    const user = show();
+    await heading("College gang");
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(W.notDeleted);
+    expect(screen.queryByText("Not found.")).toBeNull();
+    expect(screen.queryByText(W.deleted)).toBeNull();
     expect(nav.replace).not.toHaveBeenCalled();
   });
 

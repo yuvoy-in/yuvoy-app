@@ -2,9 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useDeleteCrew } from "@/lib/people/use-crews";
-import { isPeopleClosed } from "@/lib/people/use-people";
-import { PEOPLE_WORDS } from "@/lib/people/people-words";
+import { crewMissing, useDeleteCrew } from "@/lib/people/use-crews";
 import {
   CREWS_WORDS as W,
   crewCountLine,
@@ -40,7 +38,8 @@ export function CrewScreen({
     Held here, not in the crew's view: a delete takes the crew out of the
     list before it answers, and the view goes with it. Once it is done this
     page says "Crew deleted", not that the crew is gone. Only a `204` is done:
-    a `404` is People closed, said under the button, and the crew stays.
+    a `404` reads the release again and is said under the button (People
+    closed, or not deleted), and the crew stays.
   */
   const remove = useDeleteCrew();
   const done = remove.isSuccess;
@@ -55,7 +54,7 @@ export function CrewScreen({
         if (done || (!crew && remove.isPending)) {
           return (
             <>
-              <p role="status" className="text-body font-bold">
+              <p role="status" className="text-body font-bold text-pretty">
                 {W.deleted}
               </p>
               <ButtonLink href="/people" size="lg" className="mt-6">
@@ -101,7 +100,9 @@ function CrewView({
           {W.pickHead}
         </h2>
         {crew.members.length === 0 ? (
-          <p className="text-forest/70 text-body mt-3">{W.nobody}</p>
+          <p className="text-forest/70 text-body mt-3 text-pretty">
+            {W.nobody}
+          </p>
         ) : (
           <ul className="divide-paper-line divide-y">
             {crew.members.map((m) => (
@@ -158,9 +159,13 @@ function CrewView({
               {W.deleteKeep}
             </Button>
           </div>
-          {isPeopleClosed(remove.error) ? (
+          {crewMissing(remove.error) === "closed" ? (
             <p role="alert" className="text-terra-deep mt-2 text-sm">
-              {PEOPLE_WORDS.closed.title}
+              {W.closedNotDeleted}
+            </p>
+          ) : crewMissing(remove.error) === "unknown" ? (
+            <p role="alert" className="text-terra-deep mt-2 text-sm">
+              {W.notDeleted}
             </p>
           ) : remove.error ? (
             <Refusal error={remove.error} className="mt-2" />

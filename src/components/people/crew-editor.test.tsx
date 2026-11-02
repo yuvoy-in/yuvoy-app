@@ -11,6 +11,7 @@ import {
   crew,
   crews,
   friend,
+  home,
   json,
   member,
   refuse,
@@ -196,16 +197,35 @@ describe("/people/crews/new", () => {
     expect(nav.replace).not.toHaveBeenCalled();
   });
 
-  it("says People is not open yet when a new crew answers 404", async () => {
+  it("says People is closed when a new crew and the release both answer 404", async () => {
     answer("post", "/me/crews", () => refuse(404, "not_found", "Not found."));
     const user = open();
     await ready(W.newTitle);
+    const release = answer("get", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
     await user.type(nameBox(), "Office lunch");
     await user.click(pick(/Rahul/));
     await user.click(save());
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      PEOPLE_WORDS.closed.title,
+      W.closedNotSaved,
     );
+    expect(release.length).toBeGreaterThan(0);
+    expect(screen.queryByText("Not found.")).toBeNull();
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("says a new crew was not saved on a 404 the release does not explain", async () => {
+    answer("post", "/me/crews", () => refuse(404, "not_found", "Not found."));
+    const user = open();
+    await ready(W.newTitle);
+    answer("get", "/me/people", json(home()));
+    await user.type(nameBox(), "Office lunch");
+    await user.click(pick(/Rahul/));
+    await user.click(save());
+    expect(await screen.findByRole("alert")).toHaveTextContent(W.notSaved);
+    expect(screen.queryByText("Not found.")).toBeNull();
+    expect(screen.queryByText(W.closedNotSaved)).toBeNull();
     expect(nav.replace).not.toHaveBeenCalled();
   });
 });
@@ -369,6 +389,7 @@ describe("/people/crews/{crewId}/edit", () => {
     );
     const user = open(GANG.crewId);
     await ready(W.editTitle);
+    answer("get", "/me/people", json(home()));
     answer("get", "/me/crews", json({ crews: [] }));
     await user.click(pick(/Rahul/));
     await user.click(save());
@@ -378,18 +399,41 @@ describe("/people/crews/{crewId}/edit", () => {
     expect(nav.replace).not.toHaveBeenCalled();
   });
 
-  it("says People is closed when a change and the list both answer 404", async () => {
+  it("says People is closed when a change and the release both answer 404", async () => {
     answer("patch", `/me/crews/${GANG.crewId}`, () =>
       refuse(404, "not_found", "Not found."),
     );
     const user = open(GANG.crewId);
     await ready(W.editTitle);
-    answer("get", "/me/crews", () => refuse(404, "not_found", "Not found."));
+    const release = answer("get", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
     await user.click(pick(/Rahul/));
     await user.click(save());
     expect(
-      await screen.findAllByText(PEOPLE_WORDS.closed.title),
+      await screen.findAllByText(
+        new RegExp(`${W.closedNotSaved}|${PEOPLE_WORDS.closed.title}`),
+      ),
     ).not.toHaveLength(0);
+    expect(release.length).toBeGreaterThan(0);
+    expect(screen.queryByText("Not found.")).toBeNull();
+    expect(screen.queryByRole("heading", { name: W.gone.title })).toBeNull();
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("says the change was not saved when the release cannot be read", async () => {
+    answer("patch", `/me/crews/${GANG.crewId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const user = open(GANG.crewId);
+    await ready(W.editTitle);
+    answer("get", "/me/people", () =>
+      refuse(500, "internal_error", "Something went wrong at our end."),
+    );
+    await user.click(pick(/Rahul/));
+    await user.click(save());
+    expect(await screen.findByRole("alert")).toHaveTextContent(W.notSaved);
+    expect(screen.queryByText("Not found.")).toBeNull();
     expect(screen.queryByRole("heading", { name: W.gone.title })).toBeNull();
   });
 
@@ -399,9 +443,11 @@ describe("/people/crews/{crewId}/edit", () => {
     );
     const user = open(GANG.crewId);
     await ready(W.editTitle);
+    answer("get", "/me/people", json(home()));
     await user.click(pick(/Rahul/));
     await user.click(save());
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(W.notSaved);
+    expect(screen.queryByText("Not found.")).toBeNull();
     expect(screen.queryByRole("heading", { name: W.gone.title })).toBeNull();
   });
 

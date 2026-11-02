@@ -5,8 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { isDeadToken } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
-import { isPeopleClosed } from "@/lib/people/use-people";
-import { useMyCrews } from "@/lib/people/use-crews";
+import { crewMissing, useMyCrews } from "@/lib/people/use-crews";
 import { CREWS_WORDS as W, type Crew } from "@/lib/people/crews-words";
 import { PEOPLE_WORDS } from "@/lib/people/people-words";
 import { Screen, type BackTarget } from "@/components/chrome/screen";
@@ -39,7 +38,13 @@ export function CrewsGate({
   const crews = useMyCrews(signedIn === true);
   const [closed, setClosed] = useState<string | null>(null);
 
-  const sessionEnded = crews.isLoadingError && isDeadToken(crews.error);
+  // A later read (on focus, or after a change) that says the sign-in ended
+  // or People closed replaces the crews on screen: they are not true any
+  // more, and Edit and Delete would only answer 404 (as people-screen.tsx).
+  const closedNow = crewMissing(crews.error) === "closed";
+  const ended = crews.isRefetchError && (isDeadToken(crews.error) || closedNow);
+  const sessionEnded =
+    (crews.isLoadingError || ended) && isDeadToken(crews.error);
   useEffect(() => {
     if (sessionEnded) void qc.invalidateQueries({ queryKey: qk.session() });
   }, [sessionEnded, qc]);
@@ -72,7 +77,7 @@ export function CrewsGate({
 
   if (crews.isPending) return <CrewLoading back={back} />;
 
-  if (crews.isLoadingError) {
+  if (crews.isLoadingError || ended) {
     if (sessionEnded) {
       return (
         <CrewShell back={back}>
@@ -84,7 +89,7 @@ export function CrewsGate({
         </CrewShell>
       );
     }
-    if (isPeopleClosed(crews.error)) {
+    if (closedNow) {
       return (
         <CrewShell back={back}>
           <CrewTitle>{PEOPLE_WORDS.closed.title}</CrewTitle>

@@ -1,8 +1,10 @@
 import {
   test,
   expect,
+  type BrowserContext,
   type Locator,
   type Page,
+  type Route,
   type TestInfo,
 } from "@playwright/test";
 
@@ -41,7 +43,6 @@ const W = {
   pickOne: "Pick at least one friend.",
   pickMost: "A crew can have 50 friends at most.",
   save: "Save crew",
-  notFriendTag: "Not your friend now",
   takeOut: "Take them out",
   takenOut: "Taken out. Save the crew again to keep it.",
   edit: "Edit crew",
@@ -52,7 +53,18 @@ const W = {
   goneTitle: "This crew is not there any more",
   goneBody: "It may have been deleted on another device.",
   goneAction: "Back to People",
+  closedNotSaved: "People is closed for now, so this crew was not saved.",
+  closedNotDeleted: "People is closed for now, so this crew was not deleted.",
+  /* From `people-words.ts`: People closed to this traveller. */
+  peopleClosed: "People is not open yet",
 } as const;
+
+/** After `not_friends`: the line naming who left, or the one that cannot. */
+const NOT_FRIEND_NOW =
+  /^(Kiran is not your friend any more, so they cannot be in this crew\.|Someone in this crew is not your friend any more\.)/;
+
+/** The API's own words on a `404`, which a crew screen never shows. */
+const NOT_FOUND = "Not found.";
 
 const picked = (n: number) => `${n} of 50 picked`;
 const deleteTitle = (name: string) => `Delete ${name}?`;
@@ -63,7 +75,8 @@ const crewId = (n: number) =>
 const COLLEGE_GANG = { crewId: crewId(1), name: "College gang" };
 const WHOLE_BATCH = { crewId: crewId(201), name: "Whole batch" };
 const OLD_FLATMATES = { crewId: crewId(301), name: "Old flatmates" };
-const TREK_GROUP = { crewId: crewId(401), name: "Trek group" };
+/* From `mocks/people-fixtures.ts`: Kiran, the first member of College gang. */
+const KIRAN_ID = "00000000-0000-4000-8000-000000000106";
 /** No scenario starts with a crew of this id. */
 const NO_SUCH_CREW = crewId(999);
 
@@ -143,6 +156,44 @@ async function follow(page: Page, link: Locator, scenario: string) {
   await link.click();
   await page.waitForURL((u) => u.pathname === href);
   await page.goto(withScenario(href!, scenario));
+}
+
+/** A call through the app's own proxy, the same session as the page. */
+const proxied = (path: string) => `/api/v1${path}`;
+const scenarioHeader = (scenario: string) => ({
+  "x-yuvoy-scenario": scenario,
+});
+
+/**
+ * The API as it answers once People closed to this traveller: `method` on
+ * `path` and the release read (`GET /me/people`) are both `404`. Everything
+ * else still reaches the mocks. `context.route`, not `page.route`: the mock
+ * worker sits between the page and the network, and only the context's
+ * routes see past it.
+ */
+async function closeOn(context: BrowserContext, method: string, path: string) {
+  const notFound = (route: Route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "not_found",
+          message: NOT_FOUND,
+          requestId: "01JE2EMOCK",
+        },
+      }),
+    });
+  await context.route(
+    (u) => u.pathname === proxied(path),
+    (route) =>
+      route.request().method() === method ? notFound(route) : route.fallback(),
+  );
+  await context.route(
+    (u) => u.pathname === proxied("/me/people"),
+    (route) =>
+      route.request().method() === "GET" ? notFound(route) : route.fallback(),
+  );
 }
 
 async function noSideScroll(page: Page, where: string) {
@@ -235,41 +286,29 @@ test("a crew opens from People and lists its members", async ({
   ).toBeVisible();
 });
 
-test("members who stopped being friends: shown, then taken out on save", async ({
+test("a friend unfriended while the editor is open: Save names them, Take them out saves", async ({
   page,
 }, info) => {
-  const scenario = "people-crews-gone-friend";
+  const scenario = "people";
   await signIn(page, info);
-  await openCrew(page, TREK_GROUP.crewId, scenario);
-  await expect(heading(page, TREK_GROUP.name)).toBeVisible();
-  await expect(page.getByText("5 friends", { exact: true })).toBeVisible();
-  // Somebody who is not a friend now has no first name: their short name.
-  await expect(members(page)).toContainText([
-    "Kiran",
-    "Anjali",
-    "Rahul",
-    "Sameer T.",
-    "Nisha V.",
-  ]);
+  await openEditor(page, COLLEGE_GANG.crewId, scenario);
+  await expect(page.getByText(picked(4), { exact: true })).toBeVisible();
 
-  await openEditor(page, TREK_GROUP.crewId, scenario);
-  await expect(page.getByText(picked(5), { exact: true })).toBeVisible();
-  await page.getByRole("checkbox", { name: "Rahul", exact: true }).uncheck();
+  // Unfriended in another tab, after the editor read the crew: the API takes
+  // Kiran out of the crew too, but this page still has them picked.
+  const unfriended = await page.request.delete(
+    proxied(`/me/friends/${KIRAN_ID}`),
+    { headers: scenarioHeader(scenario) },
+  );
+  expect(unfriended.status()).toBe(204);
+
+  // A change of members sends them all, Kiran with them: 409 not_friends.
+  await page.getByRole("checkbox", { name: "Sneha", exact: true }).uncheck();
   await saveButton(page).click();
-
-  const refused = alerts(page).filter({
-    hasText:
-      "Sameer T. and Nisha V. are not your friends any more, so they cannot be in this crew.",
-  });
+  const refused = alerts(page).filter({ hasText: NOT_FRIEND_NOW });
   await expect(refused).toBeVisible();
-  const picks = page.getByTestId("crew-pick");
-  await expect(picks.filter({ hasText: "Sameer T." })).toContainText(
-    W.notFriendTag,
-  );
-  await expect(picks.filter({ hasText: "Nisha V." })).toContainText(
-    W.notFriendTag,
-  );
   await expect(page).toHaveURL(/\/edit\?/);
+  await expect(status(page, W.saved)).toHaveCount(0);
 
   await refused.getByRole("button", { name: W.takeOut }).click();
   await expect(status(page, W.takenOut)).toBeVisible();
@@ -280,7 +319,7 @@ test("members who stopped being friends: shown, then taken out on save", async (
   await expect(status(page, W.saved)).toBeVisible();
   await expect(page.getByText("2 friends", { exact: true })).toBeVisible();
   await expect(members(page)).toHaveCount(2);
-  await expect(members(page)).toContainText(["Kiran", "Anjali"]);
+  await expect(members(page)).toContainText(["Anjali", "Rahul"]);
 });
 
 test("a crew with nobody in it says so on People and on its page", async ({
@@ -436,6 +475,143 @@ test("a crew id that is not in the list shows the gone state", async ({
       ).toHaveCount(0);
     });
   }
+});
+
+test("a crew deleted elsewhere while editing: Save is 404, the release is read, then gone", async ({
+  page,
+  context,
+}, info) => {
+  const scenario = "people";
+  await signIn(page, info);
+  await openEditor(page, COLLEGE_GANG.crewId, scenario);
+
+  // Deleted on another device: the same session, through the app's proxy.
+  const deleted = await page.request.delete(
+    proxied(`/me/crews/${COLLEGE_GANG.crewId}`),
+    { headers: scenarioHeader(scenario) },
+  );
+  expect(deleted.status()).toBe(204);
+
+  // Every proxied call from here on, in order.
+  const calls: string[] = [];
+  context.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith(proxied("/"))) {
+      calls.push(`${request.method()} ${path.slice(proxied("").length)}`);
+    }
+  });
+  const patch = `PATCH /me/crews/${COLLEGE_GANG.crewId}`;
+  // Whether the gone screen was up when the release read after the PATCH
+  // left the page. It must not be: the read comes first.
+  let goneAtRead: boolean | null = null;
+  await context.route(
+    (u) => u.pathname === proxied("/me/people"),
+    async (route) => {
+      if (
+        route.request().method() === "GET" &&
+        goneAtRead === null &&
+        calls.includes(patch)
+      ) {
+        goneAtRead = await heading(page, W.goneTitle).isVisible();
+      }
+      await route.fallback();
+    },
+  );
+
+  await page.getByLabel(W.nameLabel).fill("Uni gang");
+  await saveButton(page).click();
+
+  await expect(heading(page, W.goneTitle)).toBeVisible();
+  await expect(page.getByText(W.goneBody, { exact: true })).toBeVisible();
+  await expect(backToPeople(page)).toHaveAttribute("href", "/people");
+  await expect(status(page, W.saved)).toHaveCount(0);
+  await expect(saveButton(page)).toHaveCount(0);
+  await expect(page.getByText(NOT_FOUND, { exact: true })).toHaveCount(0);
+
+  const patchAt = calls.indexOf(patch);
+  expect(patchAt, "the PATCH was sent").toBeGreaterThanOrEqual(0);
+  expect(
+    calls.indexOf("GET /me/people", patchAt),
+    "the release is read after the PATCH",
+  ).toBeGreaterThan(patchAt);
+  expect(goneAtRead, "the gone screen waits for the release read").toBe(false);
+});
+
+test("People closed: a crew's page and its editor show People closed, not the crew", async ({
+  page,
+}, info) => {
+  // The release at staff and this traveller not staff: every crew route 404.
+  const scenario = "people-outside";
+  await signIn(page, info);
+  for (const path of [
+    `/people/crews/${COLLEGE_GANG.crewId}`,
+    `/people/crews/${COLLEGE_GANG.crewId}/edit`,
+  ]) {
+    await test.step(path, async () => {
+      await page.goto(withScenario(path, scenario));
+      await expect(heading(page, W.peopleClosed)).toBeVisible();
+      await expect(heading(page, COLLEGE_GANG.name)).toHaveCount(0);
+      await expect(status(page, W.saved)).toHaveCount(0);
+      await expect(members(page)).toHaveCount(0);
+      await expect(saveButton(page)).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: W.delete, exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("link", { name: W.edit, exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: W.edit, exact: true }),
+      ).toHaveCount(0);
+      await expect(page.getByText(NOT_FOUND, { exact: true })).toHaveCount(0);
+    });
+  }
+});
+
+test("Save answers 404 with People closed: not saved, said in our words", async ({
+  page,
+  context,
+}, info) => {
+  await signIn(page, info);
+  await openEditor(page, COLLEGE_GANG.crewId, "people");
+  // People closes while the editor is open.
+  await closeOn(context, "PATCH", `/me/crews/${COLLEGE_GANG.crewId}`);
+
+  await page.getByLabel(W.nameLabel).fill("Uni gang");
+  await saveButton(page).click();
+
+  await expect(
+    alerts(page).filter({ hasText: W.closedNotSaved }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/edit\?/);
+  await expect(status(page, W.saved)).toHaveCount(0);
+  await expect(heading(page, W.goneTitle)).toHaveCount(0);
+  await expect(page.getByText(NOT_FOUND, { exact: true })).toHaveCount(0);
+});
+
+test("Delete answers 404 with People closed: not deleted, the crew stays", async ({
+  page,
+  context,
+}, info) => {
+  const path = `/people/crews/${COLLEGE_GANG.crewId}`;
+  await signIn(page, info);
+  await openCrew(page, COLLEGE_GANG.crewId, "people");
+  await expect(heading(page, COLLEGE_GANG.name)).toBeVisible();
+  // People closes while the crew's page is open.
+  await closeOn(context, "DELETE", `/me/crews/${COLLEGE_GANG.crewId}`);
+
+  const ask = page.getByRole("group", {
+    name: deleteTitle(COLLEGE_GANG.name),
+  });
+  await page.getByRole("button", { name: W.delete, exact: true }).click();
+  await ask.getByRole("button", { name: W.delete, exact: true }).click();
+
+  await expect(
+    alerts(page).filter({ hasText: W.closedNotDeleted }),
+  ).toBeVisible();
+  await expect(heading(page, COLLEGE_GANG.name)).toBeVisible();
+  await expect(page).toHaveURL((u) => u.pathname === path);
+  await expect(page.getByText(NOT_FOUND, { exact: true })).toHaveCount(0);
 });
 
 test("crews down: the failure with Try again, and the rest of People works", async ({

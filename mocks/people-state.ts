@@ -38,7 +38,6 @@ export const PEOPLE_SCENARIOS: ReadonlySet<string> = new Set([
   "people-crews-full",
   "people-crews-big",
   "people-crews-empty",
-  "people-crews-gone-friend",
   "people-crews-down",
 ]);
 
@@ -260,6 +259,23 @@ export function look(s: PeopleState, code: string): Looked {
         : owner,
     relation,
   };
+}
+
+/**
+ * Unfriend, as the API does it: the person leaves the caller's friends and
+ * every one of the caller's crews at once (and the caller theirs, which the
+ * mock does not keep). Ids compare in any case.
+ */
+export function unfriend(s: PeopleState, id: string): void {
+  const gone = id.toLowerCase();
+  const other = (personId: string) => personId.toLowerCase() !== gone;
+  s.friends = s.friends.filter((f) => other(f.personId));
+  // A new object for a crew that changes, so a list read earlier keeps it.
+  s.crews = s.crews.map((c) =>
+    c.members.some((m) => !other(m.personId))
+      ? { ...c, members: c.members.filter((m) => other(m.personId)) }
+      : c,
+  );
 }
 
 /** Forget one session's People, as an under-18 answer closes the account. */

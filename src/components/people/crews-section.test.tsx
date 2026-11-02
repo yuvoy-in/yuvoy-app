@@ -99,6 +99,7 @@ describe("People: the Crews section", () => {
 
   it("hides itself on a 404, People closed", async () => {
     answer("get", "/me/crews", () => refuse(404, "not_found", "Not found."));
+    answer("get", "/me/people", () => refuse(404, "not_found", "Not found."));
     const { client } = show(3);
     await settled(client);
     expect(screen.queryByRole("heading", { name: W.head })).toBeNull();
