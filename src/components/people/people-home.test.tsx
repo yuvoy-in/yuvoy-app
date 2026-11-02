@@ -316,6 +316,8 @@ describe("People: settings", () => {
       sharing: "only_me",
       privateUpcomingGoing: 3,
     });
+    // The re-read after the save finds what was saved.
+    answer("get", "/me/people", json(home()));
     const form = screen.getByRole("form", { name: W.sharingTitle });
     expect(within(form).getByText(W.sharingWhoMe)).toBeInTheDocument();
     await user.click(
@@ -342,6 +344,8 @@ describe("People: settings", () => {
       json(home({ requestEmails: false })),
     );
     const { user } = await open();
+    // The re-read after the save finds what was saved.
+    answer("get", "/me/people", json(home({ requestEmails: false })));
     const toggle = screen.getByRole("switch", { name: W.emailsTitle });
     expect(toggle).toHaveAttribute("aria-checked", "true");
     await user.click(toggle);
@@ -349,5 +353,25 @@ describe("People: settings", () => {
       expect(toggle).toHaveAttribute("aria-checked", "false"),
     );
     expect(patch[0].body).toEqual({ requestEmails: false });
+  });
+
+  it("says People is not open yet when a save answers 404 and the re-read does too", async () => {
+    // A 404 on the save is never "Saved": the page reads the home again.
+    noFriends();
+    const patch = answer("patch", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const { user } = await open();
+    const again = answer("get", "/me/people", () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    await user.click(screen.getByRole("switch", { name: W.emailsTitle }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: W.closed.title }),
+    ).toBeInTheDocument();
+    expect(patch).toHaveLength(1);
+    expect(again.length).toBeGreaterThan(0);
+    expect(screen.queryByRole("switch", { name: W.emailsTitle })).toBeNull();
+    expect(screen.queryByText(W.saved)).toBeNull();
   });
 });

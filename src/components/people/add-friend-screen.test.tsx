@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { PEOPLE_WORDS } from "@/lib/people/people-words";
@@ -181,7 +181,11 @@ describe("/add/{code}", () => {
 
   it("never says Request sent when sending answers 404, and shows the API's sentence", async () => {
     // A 404 there means People is closed to the caller, never "sent".
-    const { user } = open({ state: "ok", owner: PRIYA, relation: "none" });
+    const { lookup, user } = open({
+      state: "ok",
+      owner: PRIYA,
+      relation: "none",
+    });
     const sent = answer("post", "/me/friend-requests", () =>
       refuse(404, "not_found", "Not found."),
     );
@@ -191,6 +195,33 @@ describe("/add/{code}", () => {
     expect(sent).toHaveLength(1);
     expect(screen.queryByText(W.sent)).toBeNull();
     expect(screen.queryByText(W.friends)).toBeNull();
+    // The link is looked up again; still open, the card and the sentence stay.
+    await waitFor(() => expect(lookup).toHaveLength(2));
+    expect(screen.getByRole("alert")).toHaveTextContent("Not found.");
+    expect(screen.getByRole("button", { name: W.send })).toBeInTheDocument();
+    expect(screen.queryByText(W.sent)).toBeNull();
+  });
+
+  it("turns into not open yet when a send answers 404 and the link, looked up again, does too", async () => {
+    signedIn();
+    const lookup = answer(
+      "post",
+      "/friend-links/lookup",
+      json({ state: "ok", owner: PRIYA, relation: "none" }),
+      () => refuse(404, "not_found", "Not found."),
+    );
+    answer("post", "/me/friend-requests", () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const user = userEvent.setup();
+    renderWithQuery(<AddFriendScreen raw={CODE} />);
+    await heading(W.asks("Priya S."));
+    await user.click(screen.getByRole("button", { name: W.send }));
+    await heading(PEOPLE_WORDS.closed.title);
+    expect(lookup).toHaveLength(2);
+    expect(screen.queryByText(W.sent)).toBeNull();
+    expect(screen.queryByRole("button", { name: W.send })).toBeNull();
+    expect(screen.queryByText(/Priya/)).toBeNull();
   });
 
   it("opens the name step when sending needs a name", async () => {
