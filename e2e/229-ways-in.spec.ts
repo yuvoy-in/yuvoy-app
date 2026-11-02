@@ -17,15 +17,27 @@ import AxeBuilder from "@axe-core/playwright";
  * answers is chosen by what is added (`mocks/ways-in-handlers.ts`): an
  * address starting "taken", "kind" or "stale", the number +91 98111 00409
  * (taken) or +91 98111 00503 (door shut), or a code other than 123456.
+ *
+ * The door shuts part way through with `shutTheDoor`: the page's own mock
+ * worker answers `/app-config`, so a Playwright route never sees it, and
+ * the switch is a key in the page's storage that `mocks/handlers.ts` reads.
  */
 
 const CODE = "123456";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
-/** A number of this test's own, the same on every run of it. */
+/*
+  The mock's session is named by the number, and the ways a session added
+  are kept for as long as the mock server runs: a server kept from a run
+  before would still hold this test's email. So each run has numbers of
+  its own.
+*/
+const RUN = `${process.pid}.${Date.now()}`;
+
+/** A number of this test's own, the same all through one run of it. */
 function numberFor(info: TestInfo): string {
   let h = 0;
-  for (const ch of `${info.project.name}|${info.testId}|${info.retry}`) {
+  for (const ch of `${RUN}|${info.project.name}|${info.testId}|${info.retry}`) {
     h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0;
   }
   return `9${String(h % 1e9).padStart(9, "0")}`;
@@ -46,10 +58,18 @@ async function signIn(page: Page, info: TestInfo, scenario: string) {
 
 const waysIn = (page: Page) => page.getByRole("region", { name: "Ways in" });
 
+/** From now on the page's config says the email door is shut. */
+async function shutTheDoor(page: Page) {
+  await page.evaluate(() =>
+    // eslint-disable-next-line no-restricted-syntax -- the mock's own switch, in the browser; no token goes here.
+    localStorage.setItem("yuvoy-mock-email-door", "shut"),
+  );
+}
+
 /** What the page sent and got back, seen past the mock worker. */
 function watch(context: BrowserContext) {
   const seen = {
-    codeRequests: [] as Array<string | undefined>,
+    codeRequests: [] as string[],
     links: [] as unknown[],
     linkAnswers: [] as string[],
     meReads: 0,
@@ -58,7 +78,7 @@ function watch(context: BrowserContext) {
   context.on("request", (request) => {
     const path = new URL(request.url()).pathname;
     if (path.endsWith("/me/sign-in/request")) {
-      seen.codeRequests.push(request.headers()["authorization"]);
+      seen.codeRequests.push(request.url());
     }
     if (path === "/api/session/link") seen.links.push(request.postDataJSON());
     if (path === "/api/v1/me") seen.meReads += 1;
@@ -107,8 +127,11 @@ test("adding an email: the code goes without a session, the link with one, and W
   await signIn(page, info, "email-sign-in");
 
   await sendEmailCode(page, "ravi@example.com");
+  // Straight to the API, never through the app's signed-in /api/v1.
   expect(seen.codeRequests.length).toBeGreaterThan(0);
-  expect(seen.codeRequests.every((auth) => auth === undefined)).toBe(true);
+  for (const sent of seen.codeRequests) {
+    expect(sent).toBe(`${API}/me/sign-in/request`);
+  }
 
   expect(
     (
@@ -267,36 +290,11 @@ test("the door shut on the add: said, the config read again, and nothing offered
   const seen = watch(context);
   await signIn(page, info, "email-sign-in-email-door");
 
-  // The config as the mock serves it, with the door then shut.
-  const open = await page.evaluate(
-    async (url) =>
-      (
-        await fetch(url, {
-          headers: { "x-yuvoy-scenario": "email-sign-in-email-door" },
-        })
-      ).json(),
-    `${API}/app-config`,
-  );
-  let shut = false;
-  await context.route("**/app-config*", (route) =>
-    shut
-      ? route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            ...open,
-            features: {
-              ...open.features,
-              signIn: { ...open.features.signIn, email: false },
-            },
-          }),
-        })
-      : route.fallback(),
-  );
-
   await waysIn(page).getByRole("button", { name: "Add a number" }).click();
   await page.getByLabel("Number", { exact: true }).fill("9811100503");
   await page.getByRole("button", { name: "Send me a code" }).click();
-  shut = true;
+  await expect(page.getByLabel("Code", { exact: true })).toBeVisible();
+  await shutTheDoor(page);
   const readsBefore = seen.configReads;
   await addWithCode(page, "Add this number");
 
@@ -315,44 +313,23 @@ test("the door shut on a number-only account: the section and its alert stay unt
   page,
   context,
 }, info) => {
-  const seen = watch(context);
   await signIn(page, info, "email-sign-in");
-  const open = await page.evaluate(
-    async (url) =>
-      (
-        await fetch(url, { headers: { "x-yuvoy-scenario": "email-sign-in" } })
-      ).json(),
-    `${API}/app-config`,
-  );
-  let shut = false;
-  await context.route("**/app-config*", (route) =>
-    shut
-      ? route.fulfill({
-          contentType: "application/json",
-          body: JSON.stringify({
-            ...open,
-            features: {
-              ...open.features,
-              signIn: { ...open.features.signIn, email: false },
-            },
-          }),
-        })
-      : route.fallback(),
-  );
 
   await sendEmailCode(page, "shut@example.com");
-  shut = true;
-  const readsBefore = seen.configReads;
+  await shutTheDoor(page);
+  const reread = context.waitForEvent("response", (response) =>
+    new URL(response.url()).pathname.endsWith("/app-config"),
+  );
   await addWithCode(page, "Add this email");
 
   const alert = waysIn(page)
     .getByRole("alert")
     .filter({ hasText: "Adding a way in is closed right now" });
   await expect(alert).toBeVisible();
-  await expect.poll(() => seen.configReads).toBeGreaterThan(readsBefore);
-  // The config says shut now, and the section and the alert are still there.
-  await page.waitForTimeout(500);
+  // The config is read again, and the section and the alert stay.
+  await (await reread).finished();
   await expect(alert).toBeVisible();
+  // Close shows what the config said: shut, so nothing is left to offer.
   await alert.getByRole("button", { name: "Close" }).click();
   await expect(waysIn(page)).toHaveCount(0);
 });
@@ -364,9 +341,14 @@ test("a 5xx on the add is a passing failure: the door stays open", async ({
   const seen = watch(context);
   await signIn(page, info, "email-sign-in");
   await sendEmailCode(page, "ravi@example.com");
-  await context.route("**/api/session/link", (route) =>
-    route.fulfill({ status: 503, body: "" }),
-  );
+  /*
+    The config says shut from the moment the 5xx comes back, so a wrong
+    read of it would take "Add an email" away below.
+  */
+  await context.route("**/api/session/link", async (route) => {
+    await shutTheDoor(page);
+    await route.fulfill({ status: 503, body: "" });
+  });
   const readsBefore = seen.configReads;
   await addWithCode(page, "Add this email");
 
@@ -375,11 +357,11 @@ test("a 5xx on the add is a passing failure: the door stays open", async ({
     .filter({ hasText: "We could not connect" });
   await expect(alert).toBeVisible();
   await expect(alert).not.toContainText("closed");
-  expect(seen.configReads).toBe(readsBefore);
   await waysIn(page).getByRole("button", { name: "Not now" }).click();
   await expect(
     waysIn(page).getByRole("button", { name: "Add an email" }),
   ).toBeVisible();
+  expect(seen.configReads).toBe(readsBefore);
 });
 
 test("no answer, but the account holds it: Added", async ({
@@ -403,9 +385,12 @@ test("no answer, but the account holds it: Trips is read again", async ({
   page,
   context,
 }, info) => {
-  const trips = { bookings: 0, invited: 0 };
+  const trips = { bookings: 0, invited: 0, firstRead: 0 };
   context.on("request", (request) => {
     const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/me/bookings" && trips.bookings === 0) {
+      trips.firstRead = Date.now();
+    }
     if (path === "/api/v1/me/bookings") trips.bookings += 1;
     if (path === "/api/v1/me/invited-trips") trips.invited += 1;
   });
@@ -430,6 +415,11 @@ test("no answer, but the account holds it: Trips is read again", async ({
 
   // The accounts are one now, so their trips are read again.
   const before = { ...trips };
+  /*
+    Still well inside the 30 s Trips is kept for, so a read here is the
+    add's doing and not the time running out.
+  */
+  expect(Date.now() - trips.firstRead).toBeLessThan(25_000);
   await bar.getByRole("link", { name: "Trips" }).click();
   await page.waitForURL("**/trips");
   await expect.poll(() => trips.bookings).toBeGreaterThan(before.bookings);

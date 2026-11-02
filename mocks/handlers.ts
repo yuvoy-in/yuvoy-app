@@ -231,6 +231,21 @@ export type Scenario =
   /* An email account (`email-door`'s `GET /me`) with the door open. */
   | "email-sign-in-email-door";
 
+/**
+ * The email door shut part way through a test (yuvoy-app#229): an e2e spec
+ * sets `localStorage["yuvoy-mock-email-door"] = "shut"` in the page, and
+ * the page's own mock worker reads it here. A Playwright route cannot do
+ * this, since it never sees a request the worker answers. Nothing outside
+ * a test sets the key; storage that cannot be read leaves the door alone.
+ */
+function emailDoorShut(): boolean {
+  try {
+    return globalThis.localStorage?.getItem("yuvoy-mock-email-door") === "shut";
+  } catch {
+    return false;
+  }
+}
+
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
   if (fromHeader) return fromHeader as Scenario;
@@ -1215,7 +1230,7 @@ const routes = [
           inviteOnly: false,
           // Off as on dev and production today, unless a scenario opens it.
           signIn: {
-            email: scenario.startsWith("email-sign-in"),
+            email: scenario.startsWith("email-sign-in") && !emailDoorShut(),
             google: false,
             apple: false,
           },

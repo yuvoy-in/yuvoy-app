@@ -90,7 +90,7 @@ test("under 18 closes the account and signs out", async ({ page }, info) => {
   await expect(
     page
       .getByRole("alert")
-      .filter({ hasText: "Yuvoy is for people 18 and over" }),
+      .filter({ hasText: "Yuvoy accounts are for people 18 and over" }),
   ).toBeVisible();
 
   // The session is gone: a fresh Account is the sign-in form.

@@ -140,7 +140,11 @@ describe("People: the age step", () => {
     signedIn();
     answer("get", "/me/people", json(home({ ageConfirmed: false })));
     answer("put", "/me/age", () =>
-      refuse(403, "under_age_sign_up", "Yuvoy is for people 18 and over."),
+      refuse(
+        403,
+        "under_age_sign_up",
+        "Yuvoy accounts are for people 18 and over, so we have closed this one. If you think this is wrong, contact us.",
+      ),
     );
     const user = userEvent.setup();
     show();
@@ -152,7 +156,7 @@ describe("People: the age step", () => {
     await user.click(screen.getByRole("button", { name: W.age.action }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Yuvoy is for people 18 and over.",
+      "Yuvoy accounts are for people 18 and over, so we have closed this one. If you think this is wrong, contact us.",
     );
     // The sign-out has run, and the sentence is still what is shown.
     await waitFor(() =>

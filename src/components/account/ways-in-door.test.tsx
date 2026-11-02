@@ -44,14 +44,17 @@ describe("a 5xx on the add", () => {
     async (_, reply) => {
       const api = numberOnly();
       const reads = { before: 0 };
-      const { user, region } = await addEmail(() => {
+      const { user, region, client } = await addEmail(() => {
         reads.before = api.configReads;
+        // Shut from here on, so a wrong read would take "Add an email" away.
+        api.door = false;
         return reply();
       });
 
       const alert = await within(region).findByRole("alert");
       expect(alert).toHaveTextContent("We could not connect");
       expect(alert).not.toHaveTextContent("closed");
+      expect(client.getQueryState(qk.appConfig())?.isInvalidated).toBe(false);
       expect(api.configReads).toBe(reads.before);
 
       await user.click(within(region).getByRole("button", { name: A.cancel }));
