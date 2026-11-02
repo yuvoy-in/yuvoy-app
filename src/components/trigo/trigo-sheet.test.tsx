@@ -54,7 +54,12 @@ const s = vi.hoisted(() => ({
   remainingToday: 20 as number | null,
   resetsAt: "2026-11-02T18:30:00Z" as string | null,
   sending: false,
-  sent: [] as { key: string; text: string; aboutCardId?: string }[],
+  sent: [] as {
+    key: string;
+    text: string;
+    aboutCardId?: string;
+    conversationId?: string;
+  }[],
   answer: null as
     | null
     | ((vars: {
@@ -115,7 +120,12 @@ vi.mock("@/lib/trigo/api", () => {
     useSendTrigoTurn: () => ({
       isPending: s.sending,
       mutate: (
-        vars: { key: string; text: string; aboutCardId?: string },
+        vars: {
+          key: string;
+          text: string;
+          aboutCardId?: string;
+          conversationId?: string;
+        },
         opts: {
           onSuccess?: (
             r: unknown,
@@ -185,12 +195,15 @@ function answered(
   };
 }
 
-function open(aboutCardId: string | null = null) {
+function open(
+  aboutCardId: string | null = null,
+  conversationId: string | null = null,
+) {
   const onConversation = vi.fn();
   renderWithQuery(
     <TrigoSheet
       open
-      request={{ conversationId: null, aboutCardId }}
+      request={{ conversationId, aboutCardId }}
       destinationKey={null}
       onClose={() => {}}
       onConversation={onConversation}
@@ -385,10 +398,15 @@ describe("Trigo sheet: when a message does not go", () => {
     [{ kind: "in_progress" }],
     [{ kind: "idempotency_in_progress" }],
   ] as [TrigoFailure][])(
-    "%o says the last message is still being answered",
+    "%o says the last message is still being answered, and Try again sends the same key",
     async (failure) => {
-      await failWith(failure);
+      const user = await failWith(failure);
       expect(screen.getByText(IN_PROGRESS_LINE)).toBeInTheDocument();
+      s.answer = null;
+      await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
+      expect(s.sent).toHaveLength(2);
+      expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
+      expect(s.sent[1]?.text).toBe(s.sent[0]?.text);
     },
   );
 
@@ -409,6 +427,40 @@ describe("Trigo sheet: when a message does not go", () => {
 
   it("not released on a send says so", async () => {
     await failWith({ kind: "not_released", message: "Not found." });
+    expect(screen.getByText(NOT_RELEASED_LINE)).toBeInTheDocument();
+    expect(s.sent).toHaveLength(1);
+  });
+
+  it("a 404 on a send to a chat that is gone starts a new chat once, with a new key", async () => {
+    const NEW_CHAT = "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e";
+    const reply = answered("Try the beach huts near Om Beach.");
+    s.answer = (vars) =>
+      s.sent.length === 1
+        ? { failure: { kind: "not_released", message: "Not found." } }
+        : { ok: { ...reply(vars).ok, conversationId: NEW_CHAT } };
+    const { onConversation } = open(null, CONVERSATION);
+    const user = await write("Where to stay in Gokarna?");
+    await user.keyboard("{Enter}");
+    expect(s.sent).toHaveLength(2);
+    expect(s.sent[0]?.conversationId).toBe(CONVERSATION);
+    expect(s.sent[1]?.conversationId).toBeUndefined();
+    expect(s.sent[1]?.text).toBe("Where to stay in Gokarna?");
+    expect(s.sent[1]?.key).not.toBe(s.sent[0]?.key);
+    expect(screen.queryByText(NOT_RELEASED_LINE)).toBeNull();
+    expect(
+      await screen.findByText("Try the beach huts near Om Beach."),
+    ).toBeInTheDocument();
+    expect(onConversation).toHaveBeenCalledWith(NEW_CHAT);
+  });
+
+  it("a 404 again on the new chat says not released, with no third send", async () => {
+    s.answer = () => ({
+      failure: { kind: "not_released", message: "Not found." },
+    });
+    open(null, CONVERSATION);
+    const user = await write("Where to stay in Gokarna?");
+    await user.keyboard("{Enter}");
+    expect(s.sent).toHaveLength(2);
     expect(screen.getByText(NOT_RELEASED_LINE)).toBeInTheDocument();
   });
 

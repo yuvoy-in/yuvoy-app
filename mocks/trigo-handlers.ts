@@ -22,7 +22,8 @@ import {
  *   - `trigo-limit`: the chat reads 3 left today, and a turn is
  *     `429 daily_limit_reached` with `details.resetsAt`, the next midnight in
  *     India.
- *   - `trigo-slow`: as `trigo-reply`, 25 seconds late.
+ *   - `trigo-slow`: as `trigo-reply`, 20 seconds late (under the 30 s
+ *     write stall, so it is an answer and not a timeout).
  *   - `trigo-down`: `503 unavailable`.
  *   - `trigo-consent`: the notice is not accepted yet, and a turn is
  *     `409 consent_required` until `POST /trigo/consent` takes the version in
@@ -318,7 +319,7 @@ export const trigoHandlers = [
         { resetsAt },
       );
     }
-    if (scenario === "trigo-slow") await delay(25_000);
+    if (scenario === "trigo-slow") await delay(20_000);
 
     const now = new Date(mockNow()).toISOString();
     if (!state.conversation) {

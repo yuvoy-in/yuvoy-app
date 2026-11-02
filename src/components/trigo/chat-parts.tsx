@@ -148,10 +148,19 @@ export function StatusLine({
       );
     case "in_progress":
     case "idempotency_in_progress":
+      // Try again sends the same key, which the API answers with the stored
+      // turn once it is done, so it can never be a second message.
       return (
-        <p role="status" className="text-forest text-body text-pretty">
-          {IN_PROGRESS_LINE}
-        </p>
+        <div role="status" className="flex flex-col gap-2">
+          <p className="text-forest text-body text-pretty">
+            {IN_PROGRESS_LINE}
+          </p>
+          <div>
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              {TRY_AGAIN}
+            </Button>
+          </div>
+        </div>
       );
     default:
       return null;
