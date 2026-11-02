@@ -106,10 +106,12 @@ function stateLine(card: TrigoActionCard): string | null {
  *   - declined, expired, superseded: no buttons, and a superseded card is
  *     faded.
  *
- * A failure is drawn by kind (`classifyCardError`): changed and expired show
- * the API's sentence and end the card, so does a 404, a 429 shows the
- * sentence and leaves the card as it was, a 503 or anything else leaves the
- * buttons so a tap is the retry.
+ * A failure is drawn by kind (`classifyCardError`): on a confirm, changed
+ * and expired show the API's sentence and end the card, so does a 404, a 429
+ * shows the sentence and leaves the card as it was, a 503 or anything else
+ * leaves the buttons so a tap is the retry. On a decline, changed and expired
+ * end nothing: the card moved on elsewhere (it may be confirmed in another
+ * tab), so the chat is read again and the card is drawn as the server has it.
  */
 export function ActionCard({
   card,
@@ -143,7 +145,16 @@ export function ActionCard({
       },
     };
     if (which === "decline") {
-      decline.mutate(vars, settled);
+      decline.mutate(vars, {
+        ...settled,
+        onError: (error: unknown) => {
+          const failed = classifyCardError(error);
+          // The re-read draws the card: an ending line here would hide it.
+          if (failed.kind !== "changed" && failed.kind !== "expired") {
+            setFailure(failed);
+          }
+        },
+      });
       return;
     }
     confirm.mutate(vars, {

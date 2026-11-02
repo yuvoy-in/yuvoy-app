@@ -281,6 +281,30 @@ describe("ActionCard, a failure", () => {
     expect(s.push).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["expired", refusal(409, "action_expired", "Expired.")],
+    ["changed", refusal(409, "action_changed", "Changed.", "sold_out")],
+  ])("decline meets %s: drawn as the server has it", async (_, error) => {
+    s.decline = () => ({ error });
+    const { rerender } = draw(card());
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeEnabled();
+
+    // The chat read again: the card was confirmed in another tab.
+    rerender(
+      <ActionCard card={card({ state: "confirmed" })} conversationId={CHAT} />,
+    );
+    expect(screen.getByRole("button", { name: GO_TO_CHECKOUT })).toBeEnabled();
+  });
+
+  it("a decline that fails otherwise shows its line", async () => {
+    s.decline = () => ({ error: refusal(500, "internal", "Raw text.") });
+    draw(card());
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(CARD_FAILURE);
+  });
+
   it("signed out: the sign-in line, and the card ends", async () => {
     s.confirm = () => ({ error: refusal(401, "unauthorized", "x") });
     draw(card());

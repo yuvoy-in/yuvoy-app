@@ -156,8 +156,9 @@ export function useConfirmTrigoAction(): UseMutationResult<
  * `POST /trigo/actions/{id}/decline` (declineTrigoAction). The card reads
  * declined and the server's line ("No problem. Nothing has been booked or
  * changed.") joins the chat by its seq, as a turn's messages do. A 409
- * `action_expired` means the card was confirmed, used or replaced elsewhere:
- * the chat is read again for its state.
+ * `action_expired` or `action_changed` means the card was confirmed, used or
+ * replaced elsewhere: the chat is read again, and the card is drawn as the
+ * server has it (a card confirmed in another tab still offers its checkout).
  */
 export function useDeclineTrigoAction(): UseMutationResult<
   { message: TrigoMessage },
@@ -185,7 +186,10 @@ export function useDeclineTrigoAction(): UseMutationResult<
     },
     onError: (error, vars) => {
       onSignedOut(qc, error);
-      if (error instanceof YuvoyError && error.code === "action_expired") {
+      if (
+        error instanceof YuvoyError &&
+        (error.code === "action_changed" || error.code === "action_expired")
+      ) {
         readChatAgain(qc, vars.conversationId);
       }
     },

@@ -449,4 +449,23 @@ describe("useDeclineTrigoAction", () => {
       "No problem. Nothing has been booked or changed.",
     );
   });
+
+  it.each(["action_expired", "action_changed"])(
+    "reads the chat again on a 409 %s, and leaves the card to that read",
+    async (code) => {
+      __signInAppRouteMock();
+      server.use(http.post(DECLINE, () => envelope(409, code, "Moved on.")));
+      const { client } = renderWithQuery(<Tap which="decline" />);
+      seed(client);
+      fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+      await waitFor(() =>
+        expect(screen.getByText("error")).toBeInTheDocument(),
+      );
+
+      expect(chatOf(client)?.messages[1].actionCard?.state).toBe("proposed");
+      expect(
+        client.getQueryState(qk.trigoConversation(CHAT))?.isInvalidated,
+      ).toBe(true);
+    },
+  );
 });
