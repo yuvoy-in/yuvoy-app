@@ -14,11 +14,25 @@ import { Refusal } from "./people-parts";
 
 const W = PEOPLE_WORDS.age;
 
+/** `400 invalid_input` with `details.birthdayPassed`: the API wants the answer. */
+function asksBirthday(error: unknown): boolean {
+  return (
+    error instanceof YuvoyError &&
+    error.status === 400 &&
+    error.code === "invalid_input" &&
+    "birthdayPassed" in error.details
+  );
+}
+
 /**
  * The age step before People opens (yuvoy-app#222): the year of birth, and
  * whether this year's birthday has passed only for the one year that
  * straddles 18 (`needsBirthday`), as the API asks. The fields are the
  * sign-in year step's (`YearFields`, yuvoy-app#229).
+ *
+ * The browser's clock can disagree with the API's India year near 1 January
+ * (yuvoy-app#228). When `PUT /me/age` answers 400 with `details.birthdayPassed`,
+ * the question opens for the year typed even if `needsBirthday` says no.
  *
  * `under_age_sign_up` is handed up with the API's sentence: the account is
  * closed and the screen above keeps the sentence while it signs out.
@@ -43,10 +57,13 @@ export function AgeStep({
   const [typed, setTyped] = useState("");
   const [birthday, setBirthday] = useState<boolean | undefined>(undefined);
   const [problem, setProblem] = useState<string | null>(null);
+  // The year the API asked the birthday question for (yuvoy-app#228).
+  const [apiAsked, setApiAsked] = useState<number | null>(null);
   const legendId = useId();
 
   const year = birthYearOf(typed);
-  const askBirthday = year !== null && needsBirthday(year);
+  const askBirthday =
+    year !== null && (needsBirthday(year) || apiAsked === year);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -71,6 +88,8 @@ export function AgeStep({
             error.code === "under_age_sign_up"
           ) {
             onUnderAge(error.message);
+          } else if (asksBirthday(error)) {
+            setApiAsked(year);
           }
         },
       },

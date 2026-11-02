@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { PEOPLE_WORDS as W, indiaYear } from "@/lib/people/people-words";
 import { PeopleScreen } from "./people-screen";
@@ -134,6 +135,52 @@ describe("People: the age step", () => {
     await user.click(screen.getByRole("button", { name: W.age.action }));
     await heading(W.title);
     expect(put[0].body).toEqual({ birthYear: boundary, birthdayPassed: true });
+  });
+
+  it("asks the birthday when the API wants it for a year the browser thinks is clear (#228)", async () => {
+    signedIn();
+    noFriends();
+    answer(
+      "get",
+      "/me/people",
+      json(home({ ageConfirmed: false })),
+      json(home()),
+    );
+    // Near 1 January the API's India year is one ahead of the browser's.
+    const put = answer(
+      "put",
+      "/me/age",
+      () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "invalid_input",
+              message: "Tell us whether your birthday has passed.",
+              details: { birthdayPassed: "Needed for this year." },
+            },
+          },
+          { status: 400 },
+        ),
+      noContent(),
+    );
+    const user = userEvent.setup();
+    show();
+    await heading(W.age.title);
+
+    const typed = indiaYear() - 17;
+    await user.type(screen.getByLabelText(W.age.year), String(typed));
+    expect(screen.queryByRole("group", { name: W.age.birthday })).toBeNull();
+    await user.click(screen.getByRole("button", { name: W.age.action }));
+
+    expect(
+      await screen.findByRole("group", { name: W.age.birthday }),
+    ).toBeInTheDocument();
+    expect(put[0].body).toEqual({ birthYear: typed });
+
+    await user.click(screen.getByRole("radio", { name: W.age.no }));
+    await user.click(screen.getByRole("button", { name: W.age.action }));
+    await heading(W.title);
+    expect(put[1].body).toEqual({ birthYear: typed, birthdayPassed: false });
   });
 
   it("keeps the under-18 sentence on screen after it signs out", async () => {
