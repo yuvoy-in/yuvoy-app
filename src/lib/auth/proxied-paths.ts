@@ -232,6 +232,17 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "DELETE", pattern: "/me/friend-link" },
   { method: "POST", pattern: "/friend-links/lookup" },
   { method: "PUT", pattern: "/me/age" },
+  /*
+    Crews (yuvoy-app#227, the web half of yuvoy-mobile#387): a traveller's
+    own named lists of their friends. Session only, and 404 while `people` is
+    closed, like the rest of People. There is no single-crew read: a crew's
+    page reads the list. `POST /plans/{planId}/crew-invites` is not here: no
+    plan screen invites a crew yet.
+  */
+  { method: "GET", pattern: "/me/crews" },
+  { method: "POST", pattern: "/me/crews" },
+  { method: "PATCH", pattern: "/me/crews/{crewId}" },
+  { method: "DELETE", pattern: "/me/crews/{crewId}" },
 ];
 
 /*

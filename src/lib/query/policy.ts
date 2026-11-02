@@ -126,7 +126,22 @@ export const CACHE = {
    */
   getMyPeople: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
   listMyFriends: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
-  lookupFriendLink: { staleTime: 0, gcTime: 0, refetchOnMount: "always" },
+  /*
+    The lookup is a POST. Window focus is off for every query by default
+    (`query/client.ts`); it is said again here so no later default can make a
+    POST run again because a tab came back into view.
+  */
+  lookupFriendLink: {
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  },
+  /**
+   * Crews (yuvoy-app#227). Read again whenever People or a crew opens, so a
+   * crew changed in the app on a phone is not shown as it was.
+   */
+  listMyCrews: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -336,6 +351,8 @@ export const qk = {
   myPeople: () => ["getMyPeople"] as const,
   myFriends: () => ["listMyFriends"] as const,
   friendLink: (code: string) => ["lookupFriendLink", code] as const,
+  /** Crews (yuvoy-app#227): one list, forgotten with People. */
+  myCrews: () => ["listMyCrews"] as const,
   /**
    * One help request, by its reference, and by WHICH credential asked.
    *

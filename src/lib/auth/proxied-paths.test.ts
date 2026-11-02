@@ -184,21 +184,30 @@ describe("what the proxy will forward", () => {
       carries its code in the body, so there is no path with a code in it.
     */
     const person = "6a3c1f8e-2b4d-4c1a-9e0f-1d2c3b4a5f60";
-    const ok: [string, string][] = [
+    // The pattern each path matches: an id in the path answers its pattern.
+    const ok: [string, string, string?][] = [
       ["GET", "/me/people"],
       ["PATCH", "/me/people"],
       ["GET", "/me/friends"],
-      ["DELETE", `/me/friends/${person}`],
+      ["DELETE", `/me/friends/${person}`, "/me/friends/{personId}"],
       ["POST", "/me/friend-requests"],
-      ["POST", `/me/friend-requests/${person}/answer`],
-      ["DELETE", `/me/friend-requests/${person}`],
+      [
+        "POST",
+        `/me/friend-requests/${person}/answer`,
+        "/me/friend-requests/{requestId}/answer",
+      ],
+      [
+        "DELETE",
+        `/me/friend-requests/${person}`,
+        "/me/friend-requests/{requestId}",
+      ],
       ["PUT", "/me/friend-link"],
       ["DELETE", "/me/friend-link"],
       ["POST", "/friend-links/lookup"],
       ["PUT", "/me/age"],
     ];
-    for (const [method, path] of ok) {
-      expect(allowedProxyPath(method, path), `${method} ${path}`).toBe(path);
+    for (const [method, path, pattern = path] of ok) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBe(pattern);
     }
 
     const refused: [string, string][] = [
@@ -217,6 +226,35 @@ describe("what the proxy will forward", () => {
       ["GET", "/me/friends-going"],
       ["GET", "/me/friends/activity"],
       ["GET", `/me/friend-requests/${person}/answer`],
+    ];
+    for (const [method, path] of refused) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBeNull();
+    }
+  });
+
+  it("forwards the four crew calls, and nothing more of crews", () => {
+    // yuvoy-app#227. Session only; a crew's page reads the list.
+    const crew = "7b4d2e9f-3c5a-4d2b-8f1e-2e3d4c5b6a71";
+    expect(allowedProxyPath("GET", "/me/crews")).toBe("/me/crews");
+    expect(allowedProxyPath("POST", "/me/crews")).toBe("/me/crews");
+    expect(allowedProxyPath("PATCH", `/me/crews/${crew}`)).toBe(
+      "/me/crews/{crewId}",
+    );
+    expect(allowedProxyPath("DELETE", `/me/crews/${crew}`)).toBe(
+      "/me/crews/{crewId}",
+    );
+
+    const refused: [string, string][] = [
+      ["PUT", "/me/crews"],
+      ["PATCH", "/me/crews"],
+      ["DELETE", "/me/crews"],
+      ["GET", `/me/crews/${crew}`],
+      ["POST", `/me/crews/${crew}`],
+      ["PUT", `/me/crews/${crew}`],
+      ["PATCH", `/me/crews/${crew}/members`],
+      ["GET", `/me/crews/${crew}/members`],
+      // Inviting a crew to a plan: no screen does it yet.
+      ["POST", `/plans/${crew}/crew-invites`],
     ];
     for (const [method, path] of refused) {
       expect(allowedProxyPath(method, path), `${method} ${path}`).toBeNull();

@@ -139,6 +139,12 @@ export const FOCUSED_ROUTE_PREFIXES = [
     bar would float over it.
   */
   "/plans/",
+  /*
+    A crew and its editor (yuvoy-app#227). Each has a Back to People, and the
+    editor's Save sits at the foot of a list of up to fifty friends, where
+    the bar would float over it.
+  */
+  "/people/crews/",
 ] as const;
 
 /**

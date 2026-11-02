@@ -164,3 +164,32 @@ export function request(
     ...over,
   };
 }
+
+/** A crew member as a crew lists them. */
+export function member(n: number, name: string) {
+  return { ...person(n, `${name} K.`), firstName: name };
+}
+
+/** A crew as `GET /me/crews` lists it (yuvoy-app#227). */
+export function crew(
+  n: number,
+  name: string,
+  members: ReturnType<typeof member>[] = [],
+) {
+  return {
+    crewId: `20000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+    name,
+    members,
+    createdAt: "2026-10-30T10:00:00Z",
+  };
+}
+
+/** `GET /me/crews` with these crews, newest first. */
+export function crews(...list: ReturnType<typeof crew>[]) {
+  return answer("get", "/me/crews", json({ crews: list }));
+}
+
+/** No crews, for screens that do not test them. */
+export function noCrews() {
+  return crews();
+}

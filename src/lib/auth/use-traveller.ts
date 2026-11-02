@@ -88,6 +88,7 @@ function forgetPeople(qc: QueryClient): void {
   qc.removeQueries({ queryKey: qk.myPeople() });
   qc.removeQueries({ queryKey: qk.myFriends() });
   qc.removeQueries({ queryKey: ["lookupFriendLink"] });
+  qc.removeQueries({ queryKey: qk.myCrews() });
 }
 
 function forgetSaved(qc: QueryClient): void {

@@ -128,6 +128,11 @@ export const PRIVATE_ROUTES = [
     friend's private plan to everybody else.
   */
   "/p/",
+  /*
+    People and crews (yuvoy-app#222, yuvoy-app#227). Signed in only, keyed by
+    the reader's session: a crawler is served a sign-in line.
+  */
+  "/people",
 ] as const;
 
 /**

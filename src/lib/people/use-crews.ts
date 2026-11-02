@@ -1,0 +1,150 @@
+"use client";
+
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { createProxyClient } from "@/lib/api/client";
+import { YuvoyError } from "@/lib/api/errors";
+import { CACHE, qk } from "@/lib/query/policy";
+import type { Crew, CrewInput, CrewList, CrewPatch } from "./crews-words";
+
+/**
+ * Crews on the web (yuvoy-app#227): a traveller's own named lists of their
+ * friends. Only they see them and members are never told. Every call goes
+ * through this app's proxy, session only, and each answers `404` while the
+ * `people` release is closed, like the rest of People.
+ *
+ * There is no single-crew read in the contract: a crew's page and its editor
+ * find the crew in the list (at most 20, never paged). The list is cached
+ * under `qk.myCrews()` and forgotten with People on sign in and sign out.
+ */
+
+/** A refusal naming members who are not the caller's friends now. */
+export function isNotFriends(error: unknown): boolean {
+  return error instanceof YuvoyError && error.code === "not_friends";
+}
+
+/** The ids `not_friends` names, lowercased so they compare with ours. */
+export function notFriendsIds(error: unknown): string[] {
+  if (!isNotFriends(error)) return [];
+  const ids = (error as YuvoyError).details.personIds;
+  if (!Array.isArray(ids)) return [];
+  return ids
+    .filter((id): id is string => typeof id === "string")
+    .map((id) => id.toLowerCase());
+}
+
+/** `crew_limit_reached`: 20 crews already. */
+export function isCrewLimit(error: unknown): boolean {
+  return error instanceof YuvoyError && error.code === "crew_limit_reached";
+}
+
+/**
+ * A change's `404`: the crew is not the caller's any more (deleted on
+ * another device), or People closed under them. Both leave nothing to save.
+ */
+export function isCrewGone(error: unknown): boolean {
+  return error instanceof YuvoyError && error.status === 404;
+}
+
+function refreshCrews(qc: QueryClient): Promise<unknown> {
+  return qc.invalidateQueries({ queryKey: qk.myCrews() });
+}
+
+/** Writes a change into the cached list at once, before it is read again. */
+function patchList(qc: QueryClient, change: (crews: Crew[]) => Crew[]): void {
+  qc.setQueryData<CrewList>(qk.myCrews(), (list) =>
+    list ? { crews: change(list.crews) } : list,
+  );
+}
+
+/** `GET /me/crews`, newest first. */
+export function useMyCrews(enabled: boolean) {
+  return useQuery({
+    queryKey: qk.myCrews(),
+    enabled,
+    retry: false,
+    ...CACHE.listMyCrews,
+    queryFn: async ({ signal }) => {
+      const client = createProxyClient();
+      const { data, error } = await client.GET("/me/crews", { signal });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+/** `POST /me/crews`. The new crew goes to the top of the list. */
+export function useCreateCrew() {
+  const qc = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: async (input: CrewInput): Promise<Crew> => {
+      const client = createProxyClient();
+      const { data, error } = await client.POST("/me/crews", { body: input });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (crew) => patchList(qc, (crews) => [crew, ...crews]),
+    onSettled: () => refreshCrews(qc),
+  });
+}
+
+/** `PATCH /me/crews/{crewId}`: a new name, new members, or both. */
+export function useUpdateCrew() {
+  const qc = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: async ({
+      crewId,
+      patch,
+    }: {
+      crewId: string;
+      patch: CrewPatch;
+    }): Promise<Crew> => {
+      const client = createProxyClient();
+      const { data, error } = await client.PATCH("/me/crews/{crewId}", {
+        params: { path: { crewId } },
+        body: patch,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (crew) =>
+      patchList(qc, (crews) =>
+        crews.map((c) => (c.crewId === crew.crewId ? crew : c)),
+      ),
+    onSettled: () => refreshCrews(qc),
+  });
+}
+
+/**
+ * `DELETE /me/crews/{crewId}`. Done only on `204`. A `404` is People closed
+ * to the traveller, not a deleted crew, so it is refused like any failure.
+ */
+export function useDeleteCrew() {
+  const qc = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: async (crewId: string): Promise<void> => {
+      const client = createProxyClient();
+      const { error, response } = await client.DELETE("/me/crews/{crewId}", {
+        params: { path: { crewId } },
+      });
+      if (error) throw error;
+      if (response.status !== 204) {
+        throw new YuvoyError({
+          code: "internal_error",
+          message: "",
+          status: response.status,
+        });
+      }
+    },
+    onSuccess: (_, crewId) =>
+      patchList(qc, (crews) => crews.filter((c) => c.crewId !== crewId)),
+    onSettled: () => refreshCrews(qc),
+  });
+}

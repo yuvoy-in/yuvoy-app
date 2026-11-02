@@ -35,6 +35,7 @@ import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
+import { crewHandlers } from "./crew-handlers";
 import { peopleStageOf } from "./people-state";
 
 /**
@@ -217,7 +218,17 @@ export type Scenario =
   | "people-paused"
   | "people-age-locked"
   | "people-down"
-  | "people-outside";
+  | "people-outside"
+  /*
+    Crews, a traveller's own named lists of friends (yuvoy-app#227). Each
+    opens `people` at `staff`; `crew-handlers.ts` says what each starts with.
+  */
+  | "people-crews-none"
+  | "people-crews-full"
+  | "people-crews-big"
+  | "people-crews-empty"
+  | "people-crews-gone-friend"
+  | "people-crews-down";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -1400,6 +1411,8 @@ const routes = [
   ...planLinkHandlers,
   // People: friend requests and the friend link (yuvoy-app#222).
   ...peopleHandlers,
+  // Crews: named lists of friends (yuvoy-app#227).
+  ...crewHandlers,
 ];
 
 // Under R3's scenarios every answer is dated by their clock (`checked-clock.ts`).
