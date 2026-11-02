@@ -33,13 +33,34 @@ import type {
  * answer.
  *
  * Any 401 reads the session entry again, so the screen falls to its sign-in
- * branch. What the screen says for a refusal comes from `organiserRefusal`.
+ * branch. A 409 on a write the organiser's state decides reads the organiser
+ * again (`afterConflict`). What the screen says for a refusal comes from
+ * `organiserRefusal`.
  */
 
 /** A 401 means the sign-in ended: the session entry is read again. */
 function afterRefusal(qc: QueryClient, error: unknown) {
   if (error instanceof YuvoyError && error.status === 401) {
     void qc.invalidateQueries({ queryKey: qk.session() });
+  }
+}
+
+/**
+ * A 409 on a write: the organiser may have been suspended, closed or not yet
+ * verified since it was read, so it and the person's list are read again and
+ * the actions gated on the old state go. `alsoEvents` reads its events too.
+ */
+function afterConflict(
+  qc: QueryClient,
+  id: string,
+  error: unknown,
+  alsoEvents = false,
+) {
+  if (!(error instanceof YuvoyError) || error.status !== 409) return;
+  void qc.invalidateQueries({ queryKey: qk.organiser(id) });
+  void qc.invalidateQueries({ queryKey: qk.myOrganisers() });
+  if (alsoEvents) {
+    void qc.invalidateQueries({ queryKey: qk.organiserEvents(id) });
   }
 }
 
@@ -76,9 +97,9 @@ export function forgetOrganisers(qc: QueryClient) {
 
 /**
  * Reads every organiser entry again. The age step calls it once the age is
- * confirmed: every read on screen may still hold the 403 `age_required`, and
- * a screen showing a second one would offer the step again, which the API
- * then refuses with 409 `age_locked`.
+ * confirmed: every read on screen may still hold the 403
+ * `adult_confirmation_required`, and a screen still showing one would offer
+ * the step again for an answer that is already kept.
  */
 export function refreshOrganisers(qc: QueryClient) {
   for (const queryKey of ORGANISER_READS) {
@@ -273,6 +294,8 @@ export function useUpdateOrganiser(id: string) {
       qc.setQueryData(qk.organiser(organiser.id), organiser);
       void qc.invalidateQueries({ queryKey: qk.myOrganisers() });
     },
+    // 409 `conflict`: the page was closed since it was read.
+    onError: (error) => afterConflict(qc, id, error),
   });
 }
 
@@ -307,6 +330,8 @@ export function useAddOrganiserHelper(id: string) {
       );
       void qc.invalidateQueries({ queryKey: qk.organiserHelpers(id) });
     },
+    // 409 `conflict`: the organiser is no longer verified.
+    onError: (error) => afterConflict(qc, id, error),
   });
 }
 
@@ -367,6 +392,8 @@ export function usePostOrganiserEvent(id: string) {
         queryKey: ["getOrganiserEventNumbers", id, event.id],
       });
     },
+    // 409 `conflict`: the organiser was suspended or closed since it was read.
+    onError: (error) => afterConflict(qc, id, error, true),
   });
 }
 
@@ -396,7 +423,11 @@ export function useEditOrganiserEvent(id: string) {
       );
       eventChanged(qc, id, change.postId);
     },
-    onError: (_error, change) => eventChanged(qc, id, change.postId),
+    onError: (error, change) => {
+      eventChanged(qc, id, change.postId);
+      // A suspended or closed organiser is a 409 here too.
+      afterConflict(qc, id, error);
+    },
   });
 }
 

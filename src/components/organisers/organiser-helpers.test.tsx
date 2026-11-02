@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http } from "msw";
+import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { OrganiserGate } from "./organiser-gate";
@@ -12,6 +12,7 @@ import { __resetOrganiserMocks } from "../../../mocks/organiser-handlers";
 import {
   HELPER_OF_HELPERS,
   ORG_IDS,
+  ORG_VERIFIED,
   VERIFIED_HELPERS,
 } from "../../../mocks/organiser-fixtures";
 
@@ -132,6 +133,46 @@ describe("OrganiserHelpers", () => {
     await user.click(add);
     expect(posts).toBe(0);
     expect(await screen.findByText(W.noHelpers)).toBeTruthy();
+  });
+
+  it("reads the organiser again after a 409, so Add helper goes off", async () => {
+    const user = userEvent.setup();
+    open(ORG_IDS.verified);
+    await screen.findByTestId("organiser-helpers-list");
+    // Staff suspend the page while it is open.
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () =>
+        HttpResponse.json({ ...ORG_VERIFIED, state: "suspended" }),
+      ),
+      http.post(
+        `${BASE}/organisers/:id/helpers`,
+        () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: "conflict",
+                message: "This organiser page cannot take helpers now.",
+                details: { state: "suspended" },
+                requestId: "req_c",
+              },
+            },
+            { status: 409 },
+          ),
+        { once: true },
+      ),
+    );
+    await user.type(screen.getByLabelText(W.helperEmail), "nisha@example.com");
+    await user.click(screen.getByRole("button", { name: W.addHelper }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("organiser-helpers-off").textContent).toBe(
+        W.suspended,
+      ),
+    );
+    expect(
+      (screen.getByRole("button", { name: W.addHelper }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 
   it("shows a helper the names only, with nothing to add or remove", async () => {

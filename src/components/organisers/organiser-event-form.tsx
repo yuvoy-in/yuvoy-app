@@ -334,7 +334,7 @@ function EventFormBody({
         value={form.title}
         onChange={(e) => set("title", e.target.value)}
         error={errors.title}
-        maxLength={140}
+        maxLength={100}
         className="min-w-0"
       />
 
@@ -413,13 +413,14 @@ function EventFormBody({
         value={form.venueName}
         onChange={(e) => set("venueName", e.target.value)}
         error={errors.venueName}
-        maxLength={160}
+        maxLength={120}
       />
       <Field
         label={W.eventAddress}
         value={form.address}
         onChange={(e) => set("address", e.target.value)}
         error={errors.address}
+        maxLength={240}
       />
 
       <EventPrice
@@ -433,7 +434,7 @@ function EventFormBody({
         label={W.eventPriceNote}
         hint={W.priceNoteHint}
         value={form.priceNote}
-        maxLength={120}
+        maxLength={80}
         onChange={(e) => set("priceNote", e.target.value)}
         error={errors.priceNote}
       />

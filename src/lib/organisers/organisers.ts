@@ -148,13 +148,42 @@ export function organiserInput(form: OrganiserPageForm): OrganiserInput {
   };
   const about = form.about.trim();
   if (about) body.about = about;
-  const links = form.links
-    .map((link) => ({ kind: link.kind, url: link.url.trim() }))
-    .filter((link) => link.url !== "");
+  const links = sentLinkRows(form).map((row) => {
+    const link = form.links[row] as OrganiserLink;
+    return { kind: link.kind, url: link.url.trim() };
+  });
   if (links.length > 0) body.links = links;
   const email = form.contactEmail.trim();
   if (email) body.contactEmail = email;
   return body;
+}
+
+/** The form's link rows `organiserInput` sends, in order: every row with an address. */
+export function sentLinkRows(
+  form: Pick<OrganiserPageForm, "links">,
+): number[] {
+  return form.links.flatMap((link, row) => (link.url.trim() ? [row] : []));
+}
+
+/**
+ * The API's field sentences with each `links.N` moved to the row it names on
+ * screen. The API counts N over the links it was sent, and blank rows are not
+ * sent, so `sent` (from `sentLinkRows`) maps one to the other. A link index
+ * that was never sent goes under the links as a whole.
+ */
+export function onLinkRows(
+  fields: Readonly<Record<string, string>>,
+  sent: readonly number[],
+): Record<string, string> {
+  const moved: Record<string, string> = {};
+  for (const [key, sentence] of Object.entries(fields)) {
+    const at = /^links\.(\d+)$/.exec(key);
+    const row = at ? sent[Number(at[1])] : undefined;
+    if (!at) moved[key] = sentence;
+    else if (row !== undefined) moved[`links.${row}`] = sentence;
+    else moved.links ??= sentence;
+  }
+  return moved;
 }
 
 /** A new page's form. */

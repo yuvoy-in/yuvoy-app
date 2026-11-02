@@ -12,9 +12,12 @@ import { cn } from "@/lib/cn";
 import {
   ORGANISER_ABOUT_MAX,
   ORGANISER_MAX_DEPARTMENTS,
+  ORGANISER_NAME_MAX,
   emptyOrganiserForm,
+  onLinkRows,
   organiserForm,
   organiserInput,
+  sentLinkRows,
   type OrganiserPageForm,
 } from "@/lib/organisers/organisers";
 import {
@@ -201,9 +204,10 @@ function OrganiserFormBody({
     router.replace(`/organiser/${encodeURIComponent(organiser.id)}?made=1`);
   };
 
-  const failed = (error: unknown) => {
+  const failed = (error: unknown, sent: readonly number[]) => {
     const said = organiserRefusal(error);
-    if (said.kind === "fields") setErrors({ ...said.fields });
+    // The API numbers `links.N` over the links sent; the rows on screen include blank ones.
+    if (said.kind === "fields") setErrors(onLinkRows(said.fields, sent));
     if (said.kind === "network" && !editing) {
       // No answer: it may have been made, so the list is read again and nothing is sent by itself.
       void qc.invalidateQueries({ queryKey: qk.myOrganisers() });
@@ -221,7 +225,11 @@ function OrganiserFormBody({
       setRefusal({ kind: "fields", fields: found, message: W.checkFields });
       return;
     }
-    write.mutate(organiserInput(form), { onSuccess: done, onError: failed });
+    const sent = sentLinkRows(form);
+    write.mutate(organiserInput(form), {
+      onSuccess: done,
+      onError: (error) => failed(error, sent),
+    });
   };
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -241,7 +249,7 @@ function OrganiserFormBody({
         value={form.name}
         onChange={(e) => set("name", e.currentTarget.value)}
         error={errors.name}
-        maxLength={160}
+        maxLength={ORGANISER_NAME_MAX}
         autoComplete="organization"
       />
 
