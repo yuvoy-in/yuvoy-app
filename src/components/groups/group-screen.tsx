@@ -160,10 +160,14 @@ function GroupBody({
         </h1>
         <p className="text-body text-pretty break-words">{club.what}</p>
         {meets ? (
-          <p className="text-forest/70 text-body break-words">{meets}</p>
+          <p className="text-forest/70 text-body text-pretty break-words">
+            {meets}
+          </p>
         ) : null}
         {area ? (
-          <p className="text-forest/70 text-body break-words">{area}</p>
+          <p className="text-forest/70 text-body text-pretty break-words">
+            {area}
+          </p>
         ) : null}
         {source ? (
           <a
@@ -182,7 +186,7 @@ function GroupBody({
         </span>
 
         <div className="mt-5 flex flex-col gap-3">
-          {!club.onYuvoy ? (
+          {club.claimable ? (
             signedIn ? (
               <Button block onClick={() => setForm("claim")}>
                 {CLUB_WORDS.claim}

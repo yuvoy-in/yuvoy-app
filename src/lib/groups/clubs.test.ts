@@ -49,6 +49,7 @@ const club: Club = {
   sourceName: "Havelock Reef Runners",
   sourceUrl: "https://reef-runners.example/",
   onYuvoy: false,
+  claimable: true,
 };
 
 const place = (key: string, name: string): PlaceDestination => ({

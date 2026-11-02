@@ -3,14 +3,13 @@ import type { components } from "../src/lib/api/schema.gen";
 /**
  * Made-up groups for the groups directory (yuvoy-mobile#386, web backfill),
  * typed from the pinned contract's `Club`. Ported from mobile's
- * `packages/mocks/src/club-fixtures.ts`, without the follow parts and
- * without `claimable`, which the web's contract does not have.
+ * `packages/mocks/src/club-fixtures.ts`, without the follow parts.
  *
  * Every name is invented and every host is an example host, so nothing here
- * points at a real group or site. Havelock has four groups, in the order the
+ * points at a real group or site. Havelock has five groups, in the order the
  * API sends them (by name): one on Yuvoy, one with `meets` and `area`, one
- * with neither, and one with very long words. Neil has none, for the empty
- * state.
+ * with neither, one with very long words, and one that stays on Yuvoy after
+ * its holder erased their account. Neil has none, for the empty state.
  */
 
 type Club = components["schemas"]["Club"];
@@ -23,14 +22,19 @@ export const CLUB_PLACES = {
 
 /** The slugs a test reaches for by name. */
 export const CLUB_SLUGS = {
-  /** `onYuvoy: true`: a claim is 409 `already_claimed`. */
+  /** `onYuvoy: true`, `claimable: false`: a claim is 409 `already_claimed`. */
   onYuvoy: "havelock-book-club",
-  /** `onYuvoy: false`, meets "Sundays, 6 am", area "Govind Nagar". */
+  /** `onYuvoy: false`, `claimable: true`, meets "Sundays, 6 am", area "Govind Nagar". */
   reefRunners: "havelock-reef-runners",
-  /** `onYuvoy: false`, `meets` and `area` null. */
+  /** `onYuvoy: false`, `claimable: true`, `meets` and `area` null. */
   noMeetsNoArea: "havelock-trek-group",
-  /** `onYuvoy: false`, a very long name, `what` and `sourceName`. */
+  /** `onYuvoy: false`, `claimable: true`, a very long name, `what` and `sourceName`. */
   longNames: "havelock-long-names",
+  /**
+   * `onYuvoy: true` and `claimable: true`: the person who held the group has
+   * erased their account, so it still reads On Yuvoy and a claim is taken.
+   */
+  holderGone: "havelock-walking-circle",
 } as const;
 
 /** Each group's `clubId`, by the same names: the three forms take these. */
@@ -39,6 +43,7 @@ export const CLUB_IDS = {
   reefRunners: "c10b0000-0000-4000-8000-000000000002",
   noMeetsNoArea: "c10b0000-0000-4000-8000-000000000003",
   longNames: "c10b0000-0000-4000-8000-000000000004",
+  holderGone: "c10b0000-0000-4000-8000-000000000005",
 } as const;
 
 /** The sentences the API answers with (yuvoy-api `internal/handler/clubs.go` and `people.go`). */
@@ -102,6 +107,7 @@ export const HAVELOCK_CLUBS: readonly Club[] = [
     sourceName: "Havelock Book Club's page",
     sourceUrl: "https://havelock-book-club.example/about",
     onYuvoy: true,
+    claimable: false,
   },
   {
     clubId: CLUB_IDS.longNames,
@@ -118,6 +124,7 @@ export const HAVELOCK_CLUBS: readonly Club[] = [
     sourceUrl:
       "https://andaman-community-noticeboard.example/havelock/sea-swimmers",
     onYuvoy: false,
+    claimable: true,
   },
   {
     clubId: CLUB_IDS.reefRunners,
@@ -132,6 +139,7 @@ export const HAVELOCK_CLUBS: readonly Club[] = [
     sourceName: "Havelock Reef Runners",
     sourceUrl: "https://reef-runners.example/",
     onYuvoy: false,
+    claimable: true,
   },
   {
     clubId: CLUB_IDS.noMeetsNoArea,
@@ -146,5 +154,21 @@ export const HAVELOCK_CLUBS: readonly Club[] = [
     sourceName: "Trek group noticeboard",
     sourceUrl: "https://trek-group.example/havelock",
     onYuvoy: false,
+    claimable: true,
+  },
+  {
+    clubId: CLUB_IDS.holderGone,
+    slug: CLUB_SLUGS.holderGone,
+    destinationKey: CLUB_PLACES.havelock,
+    name: "Havelock Walking Circle",
+    what: "Walking group",
+    category: "sports",
+    meets: "Saturdays, 7 am",
+    area: "Beach No. 3",
+    emoji: "🚶",
+    sourceName: "Havelock Walking Circle",
+    sourceUrl: "https://walking-circle.example/",
+    onYuvoy: true,
+    claimable: true,
   },
 ];

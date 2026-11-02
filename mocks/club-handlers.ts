@@ -353,7 +353,7 @@ export const clubHandlers = [
     if (scenario === "clubs-claim-limit") return tooMany(M.claimTooMany);
     const club = formTarget(scenario, id);
     if (!club) return notFound();
-    if (club.onYuvoy) {
+    if (!club.claimable) {
       return envelope("conflict", M.claimed, 409, {
         reason: "already_claimed",
       });

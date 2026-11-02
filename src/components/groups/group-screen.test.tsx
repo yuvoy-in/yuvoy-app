@@ -128,6 +128,28 @@ describe("a group's page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(CLUB_WORDS.onYuvoy)).toBeInTheDocument();
     expect(screen.queryByText(CLUB_WORDS.claim)).toBeNull();
+    expect(screen.queryByRole("link", { name: CLUB_WORDS.claim })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: CLUB_WORDS.claim }),
+    ).toBeNull();
+  });
+
+  it("a group whose holder is gone stays on Yuvoy and offers a claim", async () => {
+    groups("/clubs");
+    draw(CLUB_SLUGS.holderGone);
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Havelock Walking Circle",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(CLUB_WORDS.onYuvoy)).toBeInTheDocument();
+    expect(screen.queryByText(CLUB_WORDS.notOnYuvoy)).toBeNull();
+    expect(screen.getByRole("link", { name: CLUB_WORDS.claim })).toHaveAttribute(
+      "href",
+      "/account?next=/groups/havelock-walking-circle",
+    );
   });
 
   it("reads the session's group when signed in, and opens the claim form", async () => {

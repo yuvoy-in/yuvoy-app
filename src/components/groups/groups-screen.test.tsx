@@ -84,11 +84,11 @@ describe("the groups directory", () => {
     );
     expect(screen.getByText(CLUB_WORDS.intro(HAVELOCK))).toBeInTheDocument();
     const list = screen.getByText("Havelock Reef Runners").closest("ul")!;
-    expect(within(list).getAllByRole("listitem")).toHaveLength(4);
+    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
     expect(
       screen.getByText("Havelock Reef Runners").closest("a"),
     ).toHaveAttribute("href", "/groups/havelock-reef-runners");
-    expect(screen.getAllByText(CLUB_WORDS.onYuvoy)).toHaveLength(1);
+    expect(screen.getAllByText(CLUB_WORDS.onYuvoy)).toHaveLength(2);
     expect(screen.getAllByText(CLUB_WORDS.notOnYuvoy)).toHaveLength(3);
     expect(screen.getByText(CLUB_WORDS.footer)).toBeInTheDocument();
     // Follow comes with yuvoy-mobile#392.

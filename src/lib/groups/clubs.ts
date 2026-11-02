@@ -17,8 +17,10 @@ import {
  * The groups directory's logic (yuvoy-mobile#386, web backfill), ported
  * from mobile's `packages/core/src/people/clubs.ts` with the same names.
  *
- * Left out on purpose: Follow (yuvoy-mobile#392) and `claimable`, which the
- * web's pinned contract does not have. Claim shows while `onYuvoy` is false.
+ * Left out on purpose: Follow (yuvoy-mobile#392). Claim shows while the
+ * group's `claimable` is true, not while `onYuvoy` is false: a group whose
+ * holder erased their account stays `onYuvoy` and can still be claimed. The
+ * On Yuvoy label stays on `onYuvoy`.
  * Every answer is read by its status and `error.code`, never its message.
  */
 
