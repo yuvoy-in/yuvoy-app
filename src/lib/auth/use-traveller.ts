@@ -23,6 +23,7 @@ import { forgetAllBookings } from "@/lib/booking/token-store";
 import { resetSavedSession } from "@/lib/feed/account-saved";
 import { oweSignOut } from "./sign-out-owed";
 import { clearDraft as clearTrigoDraft } from "@/lib/trigo/keys";
+import { forgetTrigoCheckouts } from "@/lib/trigo/checkout-prefill";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -85,13 +86,15 @@ function forgetSupportRequests(qc: QueryClient): void {
  *
  * REMOVED rather than invalidated, for the reason `refresh` gives: a chat is
  * the number's own, in the traveller's own words. The unsent text goes too,
- * so the next person never sends the previous one's message under its key.
+ * so the next person never sends the previous one's message under its key,
+ * and so does each card's checkout, so they never book under its card key.
  */
 function forgetTrigo(qc: QueryClient): void {
   qc.removeQueries({ queryKey: qk.trigoConsent() });
   qc.removeQueries({ queryKey: qk.trigoConversations() });
   qc.removeQueries({ queryKey: ["getTrigoConversation"] });
   clearTrigoDraft();
+  forgetTrigoCheckouts();
 }
 
 function forgetSaved(qc: QueryClient): void {

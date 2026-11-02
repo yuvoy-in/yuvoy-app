@@ -3,6 +3,7 @@ import {
   MAX_AGE_MS,
   clearTrigoCheckout,
   dropTrigoTotal,
+  forgetTrigoCheckouts,
   readTrigoCheckout,
   saveTrigoCheckout,
   trigoCheckoutFor,
@@ -83,6 +84,20 @@ describe("the prefill", () => {
     expect(readTrigoCheckout(SLUG, NOW)).toBeNull();
   });
 
+  it("is forgotten for every listing, and nothing else is", () => {
+    saveTrigoCheckout(ACTION, CHECKOUT, NOW);
+    saveTrigoCheckout(
+      OTHER_CARD,
+      { ...CHECKOUT, experienceSlug: "sunset-kayak" },
+      NOW,
+    );
+    sessionStorage.setItem("yuvoy.trigo.draft", "kept");
+    forgetTrigoCheckouts();
+    expect(readTrigoCheckout(SLUG, NOW)).toBeNull();
+    expect(readTrigoCheckout("sunset-kayak", NOW)).toBeNull();
+    expect(sessionStorage.getItem("yuvoy.trigo.draft")).toBe("kept");
+  });
+
   it("loses only its total after a price_moved refusal", () => {
     saveTrigoCheckout(ACTION, CHECKOUT, NOW);
     dropTrigoTotal(SLUG);
@@ -102,6 +117,10 @@ describe("the prefill", () => {
     expect(readTrigoCheckout(SLUG, NOW)).toBeNull();
     expect(() => dropTrigoTotal(SLUG)).not.toThrow();
     expect(() => clearTrigoCheckout(SLUG)).not.toThrow();
+    vi.spyOn(Storage.prototype, "key").mockImplementation(() => {
+      throw new Error("refused");
+    });
+    expect(() => forgetTrigoCheckouts()).not.toThrow();
     const parts = trigoCheckoutFor(SLUG, ACTION, A_TWO, NOW);
     expect(parts).toBeNull();
   });

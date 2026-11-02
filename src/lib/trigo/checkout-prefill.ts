@@ -122,6 +122,24 @@ export function clearTrigoCheckout(slug: string): void {
 }
 
 /**
+ * Forgets every listing's prefill, on both sides of a change of who is
+ * signed in: the card's key settles the card for whoever books under it, so
+ * the next person must never book under the previous one's key.
+ */
+export function forgetTrigoCheckouts(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith(PREFIX)) keys.push(key);
+    }
+    for (const key of keys) sessionStorage.removeItem(key);
+  } catch {
+    // Nothing kept when storage is refused, so nothing to forget.
+  }
+}
+
+/**
  * After `409 price_moved` under the card's total, the next tap sends the
  * total on screen: the card's total is no longer one the traveller can agree
  * to, and sending it again would be refused again. The key stays, as a
