@@ -73,6 +73,8 @@ export const CREWS_WORDS = {
   notDeleted: "This crew was not deleted. Try again.",
   /** The list answered `404` and the release could not be read to say why. */
   notChecked: "We could not check People just now. Try again.",
+  /** The list answered `404` although People answered open. */
+  notLoaded: "People is open, but the list did not come through. Try again.",
   gone: {
     title: "This crew is not there any more",
     body: "It may have been deleted on another device.",

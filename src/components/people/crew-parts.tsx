@@ -17,8 +17,8 @@ import { UnderAgeClosed, refusalText } from "./people-parts";
  * What a crew's page and the crew editor share (yuvoy-app#227): the frame,
  * and the gate in front of both. The gate answers signed out, an expired
  * sign-in, People closed (a list `404` that `GET /me/people` confirms) and a
- * list that did not load, then hands the crews to the page. There is no single-crew read: the page finds its
- * crew in the list.
+ * list that did not load, then hands the crews to the page. There is no
+ * single-crew read: the page finds its crew in the list.
  *
  * An under-18 answer in the age step closes the account and signs out. Its
  * sentence is held here, above the signed-in check, as on People.
@@ -106,7 +106,11 @@ export function CrewsGate({
         <div role="alert">
           <CrewTitle>{W.failed}</CrewTitle>
           <CrewBody>
-            {why === null ? refusalText(crews.error) : W.notChecked}
+            {why === null
+              ? refusalText(crews.error)
+              : why === "open"
+                ? W.notLoaded
+                : W.notChecked}
           </CrewBody>
         </div>
         <Button

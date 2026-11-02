@@ -38,8 +38,9 @@ export function CrewScreen({
     Held here, not in the crew's view: a delete takes the crew out of the
     list before it answers, and the view goes with it. Once it is done this
     page says "Crew deleted", not that the crew is gone. Only a `204` is done:
-    a `404` reads the release again and is said under the button (People
-    closed, or not deleted), and the crew stays.
+    a `404` reads the release again and the line shows under the button; the
+    list read after it decides whether the crew stays (People closed replaces
+    it).
   */
   const remove = useDeleteCrew();
   const done = remove.isSuccess;

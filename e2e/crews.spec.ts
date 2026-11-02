@@ -169,6 +169,7 @@ const PEOPLE_ROUTES = [
   "/me/friend-requests",
   "/me/friend-link",
   "/me/crews",
+  "/friend-links/lookup",
 ].map(proxied);
 
 /**
@@ -600,7 +601,9 @@ test("Save answers 404 with People closed: People closed, nothing saved", async 
   await saveButton(page).click();
 
   // The 404 refreshes People, the list answers 404 too, and the page closes.
-  await expectPeopleClosed(page, "Uni gang");
+  await expectPeopleClosed(page, COLLEGE_GANG.name);
+  // The editor itself is gone, not only the crew's name.
+  await expect(heading(page, W.editTitle)).toHaveCount(0);
   await expect(page.getByLabel(W.nameLabel)).toHaveCount(0);
   await expect(heading(page, W.goneTitle)).toHaveCount(0);
 });

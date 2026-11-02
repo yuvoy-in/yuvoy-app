@@ -50,10 +50,12 @@ export function isCrewLimit(error: unknown): boolean {
  * shared rule: a `404` is never success). The release is read again first,
  * as People does: `GET /me/people` answers `404` while People is closed to
  * the caller. Then, for a change to one crew, the list: a list without it
- * means the crew is gone. Anything else, or a read that fails, is `unknown`,
- * and the page says the change did not happen.
+ * means the crew is gone. For the list itself, a release that answers `200`
+ * is `open`: People is open and only the list did not load. Anything else, or
+ * a read that fails, is `unknown`, and the page says the change did not
+ * happen, or that People could not be checked.
  */
-export type CrewMissing = "gone" | "closed" | "unknown";
+export type CrewMissing = "gone" | "closed" | "open" | "unknown";
 
 const missing = new WeakMap<object, CrewMissing>();
 
@@ -81,7 +83,7 @@ async function whyMissing(
     if (home.error) {
       return { why: is404(home.error) ? "closed" : "unknown" };
     }
-    if (!crewId) return { why: "unknown", home: home.data };
+    if (!crewId) return { why: "open", home: home.data };
     const list = await client.GET("/me/crews", { signal });
     if (list.error) return { why: "unknown", home: home.data };
     const id = crewId.toLowerCase();

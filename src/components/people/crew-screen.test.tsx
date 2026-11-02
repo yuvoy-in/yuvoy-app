@@ -116,7 +116,8 @@ describe("/people/crews/{crewId}", () => {
     answer("get", "/me/people", json(home()));
     show();
     await heading(W.failed);
-    expect(screen.getByText(W.notChecked)).toBeInTheDocument();
+    expect(screen.getByText(W.notLoaded)).toBeInTheDocument();
+    expect(screen.queryByText(W.notChecked)).toBeNull();
     expect(screen.queryByText("Not found.")).toBeNull();
     expect(
       screen.queryByRole("heading", { name: PEOPLE_WORDS.closed.title }),
