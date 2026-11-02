@@ -306,7 +306,11 @@ test.describe("organiser pages", () => {
           requestAnimationFrame(() => requestAnimationFrame(done)),
         ),
     );
-    await expect(page.locator('a[href="/guides"]').first()).toBeVisible();
+    // The Account body has drawn. Not the first `/guides` link: on a phone
+    // that one is in the desktop rail, which is hidden.
+    await expect(
+      page.getByRole("button", { name: "Sign out on this device" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Organiser pages", exact: true }),
     ).toHaveCount(0);
