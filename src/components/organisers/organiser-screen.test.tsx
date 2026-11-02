@@ -3,6 +3,7 @@ import { screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
+import { DOOR_WORDS } from "@/lib/organisers/door-words";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { OrganiserGate } from "./organiser-gate";
 import { OrganiserScreen } from "./organiser-screen";
@@ -111,6 +112,30 @@ describe("OrganiserScreen", () => {
     expect(await screen.findByText(W.suspended)).toBeTruthy();
     expect(linkTo(W.postEvent)).toBeNull();
     expect(linkTo(W.helpers)).toBeTruthy();
+  });
+
+  it("offers Check people in on a verified page, to its owner", async () => {
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () => HttpResponse.json(ORG_VERIFIED)),
+    );
+    open(ORG_IDS.verified);
+    await screen.findByRole("heading", { level: 1, name: ORG_VERIFIED.name });
+    expect(linkTo(DOOR_WORDS.entry)?.getAttribute("href")).toBe("/door");
+  });
+
+  it("offers Check people in to a helper of a verified page too", async () => {
+    open(ORG_IDS.helperOf);
+    await screen.findByTestId("organiser-events");
+    expect(linkTo(DOOR_WORDS.entry)?.getAttribute("href")).toBe("/door");
+  });
+
+  it("leaves out Check people in on a page still waiting for its check", async () => {
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () => HttpResponse.json(ORG_PENDING)),
+    );
+    open(ORG_IDS.pending);
+    await screen.findByRole("heading", { level: 1, name: ORG_PENDING.name });
+    expect(linkTo(DOOR_WORDS.entry)).toBeNull();
   });
 
   it("says the thanks line after setting up", async () => {

@@ -8,6 +8,7 @@ import { organiserRefusal } from "@/lib/organisers/refusal";
 import type { Organiser } from "@/lib/organisers/types";
 import { useMyOrganisers } from "@/lib/organisers/use-organisers";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
+import { DoorLink } from "./door-screen-parts";
 import { OrganiserRefusalBlock } from "./organiser-gate";
 import {
   BACK_TO_ACCOUNT,
@@ -22,8 +23,10 @@ import {
  * Account's "Organiser pages": the person's organisers in the API's order,
  * each with its name, its state and the person's role, and with none the
  * setup prompt. Under `OrganiserGate`, so it reads only signed in with
- * `supply` open. Left out from the phone: the group cards (`clubsToLink`) and
- * "Check people in" (the door), which the web does not build.
+ * `supply` open. "Check people in" (the door, yuvoy-app#226) leads the page
+ * while the person is a member of a verified organiser: every organiser in
+ * the list is one they own or help at. Left out from the phone: the group
+ * cards (`clubsToLink`).
  */
 export function OrganiserHub() {
   const organisers = useMyOrganisers(true);
@@ -51,10 +54,12 @@ export function OrganiserHub() {
   }
 
   const items = organisers.data;
+  const door = items.some((organiser) => organiser.state === "verified");
   return (
     <Screen back={BACK_TO_ACCOUNT}>
       <OrganiserHeading>{W.title}</OrganiserHeading>
       <RefetchNotice query={organisers} />
+      {door ? <DoorLink className="mt-6" /> : null}
       {items.length === 0 ? (
         <Panel
           tone="outline"

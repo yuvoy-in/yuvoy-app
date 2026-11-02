@@ -15,6 +15,7 @@ import {
 } from "./organiser-fields";
 import {
   adults,
+  asksAge,
   nextId,
   scenarioOf,
   storeOf,
@@ -47,8 +48,11 @@ export {
  *   - `organisers-closed-release`: `supply` is `off` and every organiser
  *     route is `404`, as the API answers outside the release.
  *
- * Club and claims routes, and the door check-in, are not mocked: the web
- * does not build them.
+ *   - `organisers-door`, `organisers-door-paused`, `organisers-door-age`:
+ *     the caller owns one verified organiser; `organiser-door.ts` answers
+ *     the door (yuvoy-app#226). The age one asks the age as `organisers-age`.
+ *
+ * Club and claims routes are not mocked: the web does not build them.
  */
 
 type Organiser = components["schemas"]["Organiser"];
@@ -101,7 +105,7 @@ function refused(request: Request): Response | null {
   if (scenario === "organisers-closed-release") {
     return envelope("not_found", "We could not find that.", 404);
   }
-  if (scenario === "organisers-age" && !adults.has(auth)) {
+  if (asksAge(scenario) && !adults.has(auth)) {
     return envelope(
       "adult_confirmation_required",
       "Organiser pages are for people 18 and over. Confirm your age first.",

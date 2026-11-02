@@ -35,6 +35,7 @@ import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
+import { doorHandlers } from "./organiser-door";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -213,7 +214,14 @@ export type Scenario =
   | "organisers-empty"
   | "organisers-paused"
   | "organisers-age"
-  | "organisers-closed-release";
+  | "organisers-closed-release"
+  /*
+    The door (yuvoy-app#226): the caller owns one verified organiser and
+    `organiser-door.ts` answers the codes; paused and age as named.
+  */
+  | "organisers-door"
+  | "organisers-door-paused"
+  | "organisers-door-age";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -422,6 +430,8 @@ const routes = [
 
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
+  /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */
+  ...doorHandlers,
 
   /* ------------------------------------------------------------- catalog */
 

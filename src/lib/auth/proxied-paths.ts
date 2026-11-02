@@ -229,6 +229,8 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
   { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
   { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  // Check people in at the door (yuvoy-app#226, the web half of yuvoy-mobile#394).
+  { method: "POST", pattern: "/organiser-check-ins" },
   // Confirm your age, asked once before the organiser pages.
   { method: "PUT", pattern: "/me/age" },
 ];
