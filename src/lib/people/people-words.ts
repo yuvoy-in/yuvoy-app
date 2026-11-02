@@ -168,6 +168,8 @@ export const PEOPLE_WORDS = {
     sending: "Sending",
     /** `202` whatever happened behind it. Never "declined". */
     sent: "Request sent",
+    /** A send that answered 404 while the link still opens: our words, never the API's. */
+    notSent: "Your request was not sent. Try again.",
     acceptIn: (shortName: string) => `${shortName} already asked you`,
     friends: "Friends",
     friendsBody: "You are already friends.",

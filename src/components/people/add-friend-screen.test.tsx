@@ -179,7 +179,7 @@ describe("/add/{code}", () => {
     },
   );
 
-  it("never says Request sent when sending answers 404, and shows the API's sentence", async () => {
+  it("never says Request sent when sending answers 404, and never shows the API's sentence", async () => {
     // A 404 there means People is closed to the caller, never "sent".
     const { lookup, user } = open({
       state: "ok",
@@ -195,9 +195,10 @@ describe("/add/{code}", () => {
     expect(sent).toHaveLength(1);
     expect(screen.queryByText(W.sent)).toBeNull();
     expect(screen.queryByText(W.friends)).toBeNull();
-    // The link is looked up again; still open, the card and the sentence stay.
+    // The link is looked up again; still open, the card stays with our line.
     await waitFor(() => expect(lookup).toHaveLength(2));
-    expect(screen.getByRole("alert")).toHaveTextContent("Not found.");
+    expect(screen.getByRole("alert")).toHaveTextContent(W.notSent);
+    expect(screen.queryByText("Not found.")).toBeNull();
     expect(screen.getByRole("button", { name: W.send })).toBeInTheDocument();
     expect(screen.queryByText(W.sent)).toBeNull();
   });
