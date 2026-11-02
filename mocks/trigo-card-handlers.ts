@@ -21,12 +21,15 @@ import { availabilityFor } from "./fixtures";
  *   - `trigo-card-date-alert`, `trigo-card-trip-draft`: confirm answers
  *     `done` with the alert's or the draft's id and the card reads `used`.
  *   - `trigo-card-move`, `trigo-card-add-people`: a change card; confirm
- *     answers `change` (no web screen for it yet, yuvoy-mobile#398).
+ *     is `409 action_expired`, as in the API until R6-T2 (no web screen for
+ *     it yet, yuvoy-mobile#398).
  *   - `trigo-card-long`: a book card with the contract's 8 lines.
  *
  * A card already past `proposed`: `trigo-card-confirmed`, `trigo-card-used`
  * (with `bookingReference`), `trigo-card-expired`, `trigo-card-declined`,
- * `trigo-card-superseded`.
+ * `trigo-card-superseded`. A confirmed or used card's confirm answers its
+ * first answer again, 200 with the card's own state, as the API replays it:
+ * a used book card answers its checkout with `state: used`.
  *
  * One per refusal of confirm, all on a book card but the date alerts one:
  *   - `trigo-card-sold-out`, `trigo-card-price-moved`, `trigo-card-time-moved`,
@@ -39,6 +42,9 @@ import { availabilityFor } from "./fixtures";
  *   - `trigo-card-rate-limited`: `429 rate_limited`.
  *   - `trigo-card-down`: `503 unavailable`.
  *
+ * Checked in the API's order (`internal/trigo/actions_confirm.go`): a change
+ * card, then a replay, then a card no longer `proposed`, then the refusals.
+ *
  * Decline answers Trigo's line under every scenario, and a card no longer
  * `proposed` is `409 action_expired`, as in the API.
  */
@@ -49,6 +55,8 @@ type TrigoActionConfirmation = components["schemas"]["TrigoActionConfirmation"];
 
 /** The API's sentences (yuvoy-api `internal/handler/trigo_actions.go`). */
 const NO_CARD = "We could not find that card.";
+/** yuvoy-api `internal/handler/trigo.go` trigoDown. */
+const TRIGO_DOWN = "Trigo is not available right now. Try again later.";
 const CARD_CHANGED = "This changed since I made this card. Ask Trigo again.";
 const CARD_EXPIRED = "This card has expired. Ask Trigo again.";
 const ALERTS_FULL = "You have 50 date alerts waiting. Stop one to add another.";
@@ -228,20 +236,6 @@ function confirmation(
       next: { done: { draftId: crypto.randomUUID() } },
     };
   }
-  if (card.kind === "move_booking" || card.kind === "add_people") {
-    return {
-      actionId: card.actionId,
-      state: "confirmed",
-      next: {
-        change: {
-          bookingReference: CARD_REFERENCE,
-          kind: card.kind === "move_booking" ? "move" : "add_people",
-          expectTotalPaise: 0,
-          needsScreening: false,
-        },
-      },
-    };
-  }
   const { slug, slot, total } = slotOf(scenario);
   return {
     actionId: card.actionId,
@@ -292,11 +286,27 @@ export function trigoCardHandlers(deps: CardMockDeps) {
         );
       }
       if (scenario === "trigo-card-down") {
-        return envelope(
-          "unavailable",
-          "Trigo can't do that right now. Try again later.",
-          503,
+        return envelope("unavailable", TRIGO_DOWN, 503);
+      }
+      // Nothing makes a move or add people card yet (R6-T2).
+      if (card.kind === "move_booking" || card.kind === "add_people") {
+        return envelope("action_expired", CARD_EXPIRED, 409);
+      }
+      // Confirmed or used before: the first answer again, in its own state.
+      if (card.state === "confirmed" || card.state === "used") {
+        return HttpResponse.json(
+          { ...confirmation(scenario, card), state: card.state },
+          { headers: headers() },
         );
+      }
+      if (
+        scenario === "trigo-card-expired-confirm" ||
+        card.state !== "proposed"
+      ) {
+        if (card.state === "proposed") {
+          setState(chat.messages, index, "expired");
+        }
+        return envelope("action_expired", CARD_EXPIRED, 409);
       }
       const reason = CHANGED[scenario];
       if (reason) {
@@ -304,16 +314,6 @@ export function trigoCardHandlers(deps: CardMockDeps) {
       }
       if (scenario === "trigo-card-alerts-full") {
         return envelope("date_alerts_full", ALERTS_FULL, 409);
-      }
-      const reopen = card.state === "confirmed" && card.kind === "book";
-      if (
-        scenario === "trigo-card-expired-confirm" ||
-        (card.state !== "proposed" && !reopen)
-      ) {
-        if (card.state === "proposed") {
-          setState(chat.messages, index, "expired");
-        }
-        return envelope("action_expired", CARD_EXPIRED, 409);
       }
       const result = confirmation(scenario, card);
       setState(chat.messages, index, result.state);
