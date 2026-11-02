@@ -108,7 +108,7 @@ export const TRIGO_CARD_SCENARIOS: ReadonlySet<string> = new Set([
 ]);
 
 function rupees(paise: number): string {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${new Intl.NumberFormat("en-IN").format(paise / 100)}`;
 }
 
 function slotOf(scenario: string) {

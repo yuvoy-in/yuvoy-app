@@ -187,7 +187,8 @@ export interface TrigoReservationParts {
 }
 
 /**
- * Read at the checkout's tap (an event handler, so `now` is the tap's).
+ * Read at the checkout's tap (an event handler, so `now` is the tap's; it
+ * defaults to the clock here, so the form never reads the clock itself).
  * `cardId` is the checkout address's `?card=`. Null when the traveller did
  * not come from a Trigo card for this listing, or came to this checkout
  * another way than the card's own address.
@@ -196,7 +197,7 @@ export function trigoCheckoutFor(
   slug: string,
   cardId: string | null,
   body: { slotId: string; guests: number },
-  now: number,
+  now: number = Date.now(),
 ): TrigoReservationParts | null {
   if (!cardId) return null;
   const prefill = readTrigoCheckout(slug, now);
