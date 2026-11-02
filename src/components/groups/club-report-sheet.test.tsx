@@ -145,7 +145,9 @@ describe("reporting a group", () => {
     const user = userEvent.setup();
     open();
 
-    await user.click(screen.getByRole("button", { name: "It isn't a real group" }));
+    await user.click(
+      screen.getByRole("button", { name: "It isn't a real group" }),
+    );
     await user.click(sendButton());
 
     expect(
@@ -159,7 +161,9 @@ describe("reporting a group", () => {
     const user = userEvent.setup();
     open();
 
-    await user.click(screen.getByRole("button", { name: "It isn't a real group" }));
+    await user.click(
+      screen.getByRole("button", { name: "It isn't a real group" }),
+    );
     await user.click(sendButton());
 
     expect(await screen.findByText(PEOPLE_ERROR_WORDS.age)).toBeInTheDocument();
@@ -172,7 +176,9 @@ describe("reporting a group", () => {
     const user = userEvent.setup();
     const { onLeave } = open();
 
-    await user.click(screen.getByRole("button", { name: "It isn't a real group" }));
+    await user.click(
+      screen.getByRole("button", { name: "It isn't a real group" }),
+    );
     await user.click(sendButton());
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -192,7 +198,9 @@ describe("reporting a group", () => {
     const user = userEvent.setup();
     const { onClose, onLeave } = open();
 
-    await user.click(screen.getByRole("button", { name: "It isn't a real group" }));
+    await user.click(
+      screen.getByRole("button", { name: "It isn't a real group" }),
+    );
     await user.click(sendButton());
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

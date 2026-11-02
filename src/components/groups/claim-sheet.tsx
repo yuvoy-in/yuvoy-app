@@ -58,9 +58,7 @@ export function ClaimSheet({
   const claim = useClaimClub(clubId);
   const noteId = useId();
   const [form, setForm] = useState<ClaimForm>(EMPTY);
-  const [fields, setFields] = useState<Partial<Record<ClaimField, string>>>(
-    {},
-  );
+  const [fields, setFields] = useState<Partial<Record<ClaimField, string>>>({});
   const [line, setLine] = useState<string | null>(null);
   const [held, setHeld] = useState(false);
   const [sent, setSent] = useState<string | null>(null);

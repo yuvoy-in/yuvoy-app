@@ -44,7 +44,10 @@ function refusal(status: number, code: string, message: string) {
 function claims(
   respond: () => Response | Promise<Response> = () =>
     HttpResponse.json(
-      { claimId: "c1a10000-0000-4000-8000-000000000001", message: M.claimReceived },
+      {
+        claimId: "c1a10000-0000-4000-8000-000000000001",
+        message: M.claimReceived,
+      },
       { status: 202 },
     ),
 ) {
@@ -76,7 +79,10 @@ function open() {
 }
 
 async function fill(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(W.roleText), "  I run the Sunday route  ");
+  await user.type(
+    screen.getByLabelText(W.roleText),
+    "  I run the Sunday route  ",
+  );
   await user.type(
     screen.getByLabelText(W.contactEmail),
     "  runner@example.com ",
@@ -101,7 +107,9 @@ describe("claiming a group", () => {
     expect(
       await screen.findByText(CLAIM_FIELD_WORDS.roleText),
     ).toBeInTheDocument();
-    expect(screen.getByText(CLAIM_FIELD_WORDS.contactEmail)).toBeInTheDocument();
+    expect(
+      screen.getByText(CLAIM_FIELD_WORDS.contactEmail),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(W.roleText)).toHaveAttribute(
       "aria-invalid",
       "true",
@@ -119,7 +127,10 @@ describe("claiming a group", () => {
 
     expect(await screen.findByText(M.claimReceived)).toBeInTheDocument();
     expect(bodies).toEqual([
-      { roleText: "I run the Sunday route", contactEmail: "runner@example.com" },
+      {
+        roleText: "I run the Sunday route",
+        contactEmail: "runner@example.com",
+      },
     ]);
 
     await user.click(screen.getByRole("button", { name: W.done }));
@@ -145,7 +156,10 @@ describe("claiming a group", () => {
 
     answer(
       HttpResponse.json(
-        { claimId: "c1a10000-0000-4000-8000-000000000002", message: M.claimReceived },
+        {
+          claimId: "c1a10000-0000-4000-8000-000000000002",
+          message: M.claimReceived,
+        },
         { status: 202 },
       ),
     );

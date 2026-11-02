@@ -37,16 +37,13 @@ type Sent = { body: unknown; auth: string | null };
 function removals(respond: () => Response) {
   const sent: Sent[] = [];
   server.use(
-    http.post(
-      `${BASE}/clubs/:clubId/removal-requests`,
-      async ({ request }) => {
-        sent.push({
-          body: await request.json(),
-          auth: request.headers.get("authorization"),
-        });
-        return respond();
-      },
-    ),
+    http.post(`${BASE}/clubs/:clubId/removal-requests`, async ({ request }) => {
+      sent.push({
+        body: await request.json(),
+        auth: request.headers.get("authorization"),
+      });
+      return respond();
+    }),
   );
   return sent;
 }
@@ -79,7 +76,9 @@ describe("asking for a listing to come down", () => {
   it("holds Send until a reason is picked", () => {
     removals(receipt(false, M.removalQueued));
     open();
-    expect(screen.getByText(W.lead("Havelock Reef Runners"))).toBeInTheDocument();
+    expect(
+      screen.getByText(W.lead("Havelock Reef Runners")),
+    ).toBeInTheDocument();
     expect(sendButton()).toBeDisabled();
   });
 
@@ -88,11 +87,15 @@ describe("asking for a listing to come down", () => {
     const user = userEvent.setup();
     const { onClose, onLeave } = open();
 
-    await user.click(screen.getByRole("button", { name: "It isn't a real group" }));
+    await user.click(
+      screen.getByRole("button", { name: "It isn't a real group" }),
+    );
     await user.click(sendButton());
 
     expect(await screen.findByText(M.removalQueued)).toBeInTheDocument();
-    expect(sent).toEqual([{ body: { reason: "not_a_real_group" }, auth: null }]);
+    expect(sent).toEqual([
+      { body: { reason: "not_a_real_group" }, auth: null },
+    ]);
 
     await user.click(screen.getByRole("button", { name: W.done }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -133,7 +136,13 @@ describe("asking for a listing to come down", () => {
     people("off");
     removals(() =>
       HttpResponse.json(
-        { error: { code: "not_found", message: M.notOpen, requestId: "01JTEST" } },
+        {
+          error: {
+            code: "not_found",
+            message: M.notOpen,
+            requestId: "01JTEST",
+          },
+        },
         { status: 404 },
       ),
     );
@@ -158,7 +167,13 @@ describe("asking for a listing to come down", () => {
     people("all");
     removals(() =>
       HttpResponse.json(
-        { error: { code: "not_found", message: M.notFound, requestId: "01JTEST" } },
+        {
+          error: {
+            code: "not_found",
+            message: M.notFound,
+            requestId: "01JTEST",
+          },
+        },
         { status: 404 },
       ),
     );

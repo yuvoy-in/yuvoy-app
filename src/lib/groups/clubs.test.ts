@@ -178,7 +178,10 @@ describe("claimBody", () => {
         proofUrl: "   ",
         note: "",
       }),
-    ).toEqual({ roleText: "Organiser", contactEmail: "a@reef-runners.example" });
+    ).toEqual({
+      roleText: "Organiser",
+      contactEmail: "a@reef-runners.example",
+    });
   });
 });
 
@@ -192,7 +195,11 @@ describe("claimMissing", () => {
 
   it("counts spaces alone as empty", () => {
     expect(
-      claimMissing({ ...emptyForm, roleText: "  ", contactEmail: "a@b.example" }),
+      claimMissing({
+        ...emptyForm,
+        roleText: "  ",
+        contactEmail: "a@b.example",
+      }),
     ).toEqual({ roleText: CLAIM_FIELD_WORDS.roleText });
   });
 
@@ -270,7 +277,12 @@ describe("clubFailure", () => {
       expect(
         clubFailure(
           action,
-          refused(404, "not_found", undefined, "People isn't open to your account yet."),
+          refused(
+            404,
+            "not_found",
+            undefined,
+            "People isn't open to your account yet.",
+          ),
         ),
       ).toEqual({ kind: "gone", line: CLUB_API_WORDS.gone });
       expect(clubFailure(action, refused(404, "not_found"))).toEqual({
@@ -310,7 +322,10 @@ describe("clubFailure", () => {
 
   it("puts a report's refused note on the note", () => {
     expect(
-      clubFailure("report", refused(400, "invalid_input", { note: "1 to 500" })),
+      clubFailure(
+        "report",
+        refused(400, "invalid_input", { note: "1 to 500" }),
+      ),
     ).toEqual({
       kind: "fields",
       fields: { note: CLUB_REPORT_WORDS.noteTooLong },
@@ -353,7 +368,10 @@ describe("clubFailure", () => {
       ),
     ).toEqual({ kind: "paused", line: PEOPLE_ERROR_WORDS.paused });
     expect(
-      clubFailure("claim", refused(403, "people_paused", { standing: "removed" })),
+      clubFailure(
+        "claim",
+        refused(403, "people_paused", { standing: "removed" }),
+      ),
     ).toEqual({ kind: "paused", line: PEOPLE_ERROR_WORDS.ended });
   });
 
@@ -366,7 +384,10 @@ describe("clubFailure", () => {
 
   it("says waiting or claimed on a 409 conflict, by its reason", () => {
     expect(
-      clubFailure("claim", refused(409, "conflict", { reason: "claim_waiting" })),
+      clubFailure(
+        "claim",
+        refused(409, "conflict", { reason: "claim_waiting" }),
+      ),
     ).toEqual({ kind: "waiting", line: CLUB_API_WORDS.claimWaiting });
     expect(
       clubFailure(
@@ -375,7 +396,10 @@ describe("clubFailure", () => {
       ),
     ).toEqual({ kind: "claimed", line: "Claimed." });
     expect(
-      clubFailure("claim", refused(409, "conflict", { reason: "already_claimed" })),
+      clubFailure(
+        "claim",
+        refused(409, "conflict", { reason: "already_claimed" }),
+      ),
     ).toEqual({ kind: "claimed", line: CLUB_API_WORDS.alreadyClaimed });
   });
 
@@ -403,7 +427,10 @@ describe("clubFailure", () => {
 
   it("keeps the API's 429 message when there is one", () => {
     expect(
-      clubFailure("report", refused(429, "rate_limited", undefined, "Slow down.")),
+      clubFailure(
+        "report",
+        refused(429, "rate_limited", undefined, "Slow down."),
+      ),
     ).toEqual({ kind: "limit", line: "Slow down." });
   });
 

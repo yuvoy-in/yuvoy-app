@@ -59,7 +59,9 @@ function lists(path: "/clubs" | "/me/clubs") {
 }
 
 function draw(remembered: string | null = null, place: string | null = null) {
-  return renderWithQuery(<GroupsScreen place={place} remembered={remembered} />);
+  return renderWithQuery(
+    <GroupsScreen place={place} remembered={remembered} />,
+  );
 }
 
 afterEach(() => {
@@ -102,9 +104,7 @@ describe("the groups directory", () => {
     __signInAppRouteMock();
     draw();
 
-    expect(
-      await screen.findByText("Havelock Trek Group"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Havelock Trek Group")).toBeInTheDocument();
     expect(mine).toEqual([CLUB_PLACES.havelock]);
     expect(open).toEqual([]);
   });
@@ -113,9 +113,7 @@ describe("the groups directory", () => {
     const asked = lists("/clubs");
     draw(CLUB_PLACES.empty);
 
-    expect(
-      await screen.findByText(CLUB_WORDS.empty(NEIL)),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(CLUB_WORDS.empty(NEIL))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: NEIL })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -131,9 +129,7 @@ describe("the groups directory", () => {
     await screen.findByText("Havelock Reef Runners");
     await user.click(screen.getByRole("button", { name: NEIL }));
 
-    expect(
-      await screen.findByText(CLUB_WORDS.empty(NEIL)),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(CLUB_WORDS.empty(NEIL))).toBeInTheDocument();
     expect(screen.queryByText(CLUB_WORDS.footer)).toBeNull();
     expect(screen.queryByText("Havelock Reef Runners")).toBeNull();
   });
@@ -196,16 +192,20 @@ describe("the groups directory", () => {
     server.use(
       http.get(`${BASE}/clubs`, () =>
         HttpResponse.json(
-          { error: { code: "not_found", message: M.notFound, requestId: "01JTEST" } },
+          {
+            error: {
+              code: "not_found",
+              message: M.notFound,
+              requestId: "01JTEST",
+            },
+          },
           { status: 404 },
         ),
       ),
     );
     draw();
 
-    expect(
-      await screen.findByText(NOT_FOUND_WORDS.title),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(NOT_FOUND_WORDS.title)).toBeInTheDocument();
     expect(screen.queryByText(PEOPLE_CLOSED_WORDS.title)).toBeNull();
     expect(screen.queryByText(CLUB_WORDS.empty(HAVELOCK))).toBeNull();
   });

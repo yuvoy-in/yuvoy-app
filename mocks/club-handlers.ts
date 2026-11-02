@@ -86,7 +86,9 @@ export function clubPeopleStageOf(scenario: string): "staff" | "all" | null {
 
 /** Whether `GET /me` answers `cohort: staff` under the scenario. */
 export function clubStaffCohort(scenario: string): boolean {
-  return clubPeopleStageOf(scenario) === "staff" && scenario !== "clubs-outside";
+  return (
+    clubPeopleStageOf(scenario) === "staff" && scenario !== "clubs-outside"
+  );
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -115,7 +117,12 @@ function envelope(
 ) {
   return HttpResponse.json(
     {
-      error: { code, message, ...(details ? { details } : {}), requestId: rid() },
+      error: {
+        code,
+        message,
+        ...(details ? { details } : {}),
+        requestId: rid(),
+      },
     },
     { status, headers: headers() },
   );

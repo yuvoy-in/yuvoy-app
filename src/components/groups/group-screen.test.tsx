@@ -105,10 +105,9 @@ describe("a group's page", () => {
     expect(source).toHaveAttribute("rel", "noopener noreferrer");
 
     // Claim and report need a sign-in, and come back here after it.
-    expect(screen.getByRole("link", { name: CLUB_WORDS.claim })).toHaveAttribute(
-      "href",
-      "/account?next=/groups/havelock-reef-runners",
-    );
+    expect(
+      screen.getByRole("link", { name: CLUB_WORDS.claim }),
+    ).toHaveAttribute("href", "/account?next=/groups/havelock-reef-runners");
     expect(
       screen.getByRole("link", { name: CLUB_WORDS.report }),
     ).toHaveAttribute("href", "/account?next=/groups/havelock-reef-runners");
@@ -124,14 +123,15 @@ describe("a group's page", () => {
     draw(CLUB_SLUGS.onYuvoy);
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Havelock Book Club" }),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Havelock Book Club",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText(CLUB_WORDS.onYuvoy)).toBeInTheDocument();
     expect(screen.queryByText(CLUB_WORDS.claim)).toBeNull();
     expect(screen.queryByRole("link", { name: CLUB_WORDS.claim })).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: CLUB_WORDS.claim }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: CLUB_WORDS.claim })).toBeNull();
   });
 
   it("a group whose holder is gone stays on Yuvoy and offers a claim", async () => {
@@ -146,10 +146,9 @@ describe("a group's page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(CLUB_WORDS.onYuvoy)).toBeInTheDocument();
     expect(screen.queryByText(CLUB_WORDS.notOnYuvoy)).toBeNull();
-    expect(screen.getByRole("link", { name: CLUB_WORDS.claim })).toHaveAttribute(
-      "href",
-      "/account?next=/groups/havelock-walking-circle",
-    );
+    expect(
+      screen.getByRole("link", { name: CLUB_WORDS.claim }),
+    ).toHaveAttribute("href", "/account?next=/groups/havelock-walking-circle");
   });
 
   it("reads the session's group when signed in, and opens the claim form", async () => {
@@ -174,9 +173,7 @@ describe("a group's page", () => {
     groups("/clubs");
     draw("havelock-no-such-group");
 
-    expect(
-      await screen.findByText(NOT_FOUND_WORDS.title),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(NOT_FOUND_WORDS.title)).toBeInTheDocument();
     expect(screen.queryByText(PEOPLE_CLOSED_WORDS.title)).toBeNull();
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
@@ -244,7 +241,9 @@ describe("a group's page", () => {
     await user.click(
       screen.getByRole("button", { name: "We run it and want it off Yuvoy" }),
     );
-    await user.click(screen.getByRole("button", { name: "Remove the listing" }));
+    await user.click(
+      screen.getByRole("button", { name: "Remove the listing" }),
+    );
 
     expect(await screen.findByText(M.removedNow)).toBeInTheDocument();
     // The page is read again and now answers 404; the message stays.
