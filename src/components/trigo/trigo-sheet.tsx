@@ -380,6 +380,7 @@ function ChatSheet({
         ) : null}
         <MessageList
           messages={chat.messages}
+          conversationId={conversationId}
           typing={turn.isPending}
           retrySeq={last?.outcome === "timed_out" ? last.seq : null}
           onRetry={retryFresh}

@@ -9,6 +9,11 @@ import { finishInCash } from "@/lib/booking/cash-booking";
 import { PAY_AT_COUNTER, paymentLine } from "@/lib/booking/listing-lines";
 import { readAttribution } from "@/lib/booking/attribution";
 import {
+  clearTrigoCheckout,
+  dropTrigoTotal,
+  trigoCheckoutFor,
+} from "@/lib/trigo/checkout-prefill";
+import {
   ScreeningFields,
   bandMeetsMinimum,
   type AgeBand,
@@ -386,6 +391,10 @@ function CheckoutFields({
       ) {
         onRefused?.(error.message);
       }
+      // A Trigo card's total that moved is not sent again (yuvoy-app#223).
+      if (error instanceof YuvoyError && error.code === "price_moved") {
+        dropTrigoTotal(experience.slug);
+      }
       /*
         A 401 is the exception worth acting on rather than only showing. The
         proxy has already dropped the cookie by the time it arrives, so the
@@ -410,7 +419,17 @@ function CheckoutFields({
       exists". Absent when the visit made no claim; a checkout must not fail
       over a marketing field.
     */
-    const attribution = readAttribution();
+    /*
+      From a Trigo book card (yuvoy-app#223 part 2): attribution trigo with
+      the card's id, and, while the departure and party are still the card's,
+      the card's key and the total it was checked at. Null otherwise.
+    */
+    const trigo = trigoCheckoutFor(
+      experience.slug,
+      { slotId: slot.id, guests },
+      Date.now(),
+    );
+    const attribution = trigo?.attribution ?? readAttribution();
 
     const reservation = await create.mutateAsync({
       slotId: slot.id,
@@ -436,8 +455,11 @@ function CheckoutFields({
         Written like this, a misspelt key is a compile error. `undefined`
         leaves it out of the JSON and out of the idempotency fingerprint.
       */
-      expectTotalPaise: total?.amountMinor,
+      expectTotalPaise: trigo?.expectTotalPaise ?? total?.amountMinor,
       authenticated: contact.authenticated,
+      ...(trigo?.idempotencyKey
+        ? { idempotencyKey: trigo.idempotencyKey }
+        : {}),
       contact: {
         ...contact.contactFor({ name, phone: whatsapp, email }),
         /*
@@ -482,6 +504,7 @@ function CheckoutFields({
         ? { answers: toBookingAnswers(questions, answers) }
         : {}),
     });
+    if (trigo) clearTrigoCheckout(experience.slug);
 
     if (!reservation.statusToken) {
       // Booked, and no way in. Say so, with the way in that does exist.
