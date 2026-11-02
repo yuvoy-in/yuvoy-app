@@ -461,7 +461,7 @@ function InviteEntry({
       <p className="text-sm font-bold text-balance">Enter your invite code</p>
       <p className="text-forest/70 text-body mt-1.5 text-pretty">
         Yuvoy is by invitation for now. Enter the code you were given, once, and
-        this number is in on any phone you sign in on.
+        you are in on any phone you sign in on.
       </p>
       <InviteCodeForm onAdmitted={onAdmitted} />
       {/*

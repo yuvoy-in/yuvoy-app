@@ -123,7 +123,7 @@ describe("the landing, for somebody signed out", () => {
       screen.getByText(/^Find something worth doing, and book a seat on it\./),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Have a code? Sign in with your number, then enter it."),
+      screen.getByText("Have a code? Sign in, then enter it."),
     ).toBeInTheDocument();
     // Not a bare form: the number is asked for only once somebody asks to.
     expect(screen.queryByLabelText("Your WhatsApp number")).toBeNull();
@@ -247,8 +247,24 @@ describe("the code screen", () => {
     expect(field).toHaveAccessibleDescription(
       /8 letters and numbers, like K7QM-4XRD/,
     );
-    // Admission belongs to the number, so the number is named.
+    // Admission belongs to the account, so the number is named.
     expect(screen.getByText("+91 ••••••3210")).toBeInTheDocument();
+  });
+
+  it("names the proven email of an account with no number", async () => {
+    const { client } = renderWithQuery(
+      <InviteGate view="code" variant="page" purpose="browse" />,
+    );
+    client.setQueryData(qk.myAccount(), {
+      phone: null,
+      provenEmail: "asha@example.com",
+      admitted: false,
+    });
+    expect(await screen.findByText("asha@example.com")).toBeInTheDocument();
+    expect(screen.getByText(/^Signed in as/)).toHaveTextContent(
+      "Signed in as asha@example.com. Not you?",
+    );
+    expect(screen.getByText(/you are in on any phone/)).toBeInTheDocument();
   });
 
   it("says in words why a typo cannot be a code, and sends nothing", async () => {
@@ -326,7 +342,7 @@ describe("the code screen", () => {
       }),
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "This number was already in, so your code was not used.",
+      "You were already in, so your code was not used.",
     );
   });
 
@@ -365,7 +381,7 @@ describe("the code screen", () => {
     const { field } = await typeCode("K7QM-4XRD");
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Too many tries for now");
-    expect(alert).toHaveTextContent(/each number can try only a few an hour/);
+    expect(alert).toHaveTextContent(/each account can try only a few an hour/);
     expect(alert).toHaveTextContent(/Wait a while, up to an hour/);
     expect(field).toHaveValue("K7QM-4XRD");
     // No "Try again" button over a throttle: waiting is the only fix.

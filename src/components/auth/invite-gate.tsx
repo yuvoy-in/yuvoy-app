@@ -37,7 +37,7 @@ import { cn } from "@/lib/cn";
  * invitation (yuvoy-api#195).
  *
  * The owner's posture is "public pages only": the feed, search, saving and
- * booking need a number that is admitted, and everything a link leads to stays
+ * booking need a traveller who is admitted, and everything a link leads to stays
  * open. So this is drawn in three places, by three containers that each decide
  * WHAT to show and hand it down as a `view`:
  *
@@ -51,9 +51,9 @@ import { cn } from "@/lib/cn";
  *   - `checking`: not known yet. Never drawn as a refusal or as a yes.
  *   - `signed-out`: what Yuvoy is, and how in: sign in, then a code. The steps
  *     are the Account screen's own, asked for in place, so nothing on the page
- *     behind is lost to a round trip. A number that is already admitted goes
+ *     behind is lost to a round trip. A traveller who is already admitted goes
  *     straight through; it never sees a code screen.
- *   - `code`: the code screen, for a signed-in number that is not admitted.
+ *   - `code`: the code screen, for a signed-in traveller who is not admitted.
  *   - `in`: admitted, while the page catches up.
  *
  * For people with no code, one line leads to the marketing site's waitlist.
@@ -108,8 +108,9 @@ export function InviteGate({
   purpose: GatePurpose;
   /**
    * The signed-in number, as the server read it, for the code screen to name.
-   * Admission belongs to the number, so somebody signed in with the wrong one
-   * needs to see which. The browser's own read replaces it once hydrated.
+   * Admission belongs to the account, so somebody signed in with the wrong one
+   * needs to see which. The browser's own read replaces it once hydrated, and
+   * names the proven email when the account has no number (yuvoy-api#351).
    */
   phone?: string | null;
   /** After the inline sign-in has made a session. */
@@ -239,9 +240,9 @@ function SignedOut({
   const flow = useSignInFlow();
   const [signingIn, setSigningIn] = useState(variant !== "page");
   /*
-    Signed in, and the answer to "is this number in" is on its way: the page
-    or the sheet moves on when it lands. Until then this says so, rather than
-    putting the number field back as though nothing had happened.
+    Signed in, and the answer to "is this traveller in" is on its way: the
+    page or the sheet moves on when it lands. Until then this says so, rather
+    than putting the sign-in form back as though nothing had happened.
   */
   const [checking, setChecking] = useState(false);
 
@@ -249,10 +250,7 @@ function SignedOut({
 
   const why = WHY[purpose];
   // The year step says why it asks; the under step says it itself.
-  const intro = signInSentence(
-    flow,
-    "Have a code? Sign in with your number, then enter it.",
-  );
+  const intro = signInSentence(flow, "Have a code? Sign in, then enter it.");
   const body =
     variant === "page"
       ? "text-forest/70 text-body mt-3 text-pretty"
@@ -345,9 +343,12 @@ function CodeScreen({
   const mounted = useHasMounted();
   /*
     The browser's own read once hydrated, the server's until then, so the
-    first client render says exactly what the HTML did.
+    first client render says exactly what the HTML did. An account with no
+    number is named by its proven email, which only the browser's read has.
   */
   const number = (mounted ? account.data?.phone : undefined) ?? phone ?? null;
+  const email = mounted && !number ? (account.data?.provenEmail ?? null) : null;
+  const who = number ? maskPhone(number) : email;
   const why = WHY[purpose];
   const body =
     variant === "page"
@@ -365,14 +366,13 @@ function CodeScreen({
         <p className={body}>
           {why && variant === "sheet" ? `${why} ` : ""}
           Yuvoy is by invitation for now. Enter the code you were given, once,
-          and this number is in on any phone.
+          and you are in on any phone.
         </p>
       )}
 
-      {number ? (
+      {who ? (
         <p className="text-forest/70 text-body mt-3 text-pretty">
-          Signed in as{" "}
-          <span className="text-forest font-bold">{maskPhone(number)}</span>.{" "}
+          Signed in as <span className="text-forest font-bold">{who}</span>.{" "}
           <button
             type="button"
             onClick={() => void signOut()}
@@ -466,7 +466,7 @@ export function InviteCodeForm({
     return (
       <p role="status" className="text-forest mt-6 text-sm font-bold">
         {redeem.data?.alreadyAdmitted
-          ? "This number was already in, so your code was not used."
+          ? "You were already in, so your code was not used."
           : "Code accepted. You are in."}
       </p>
     );
@@ -589,7 +589,7 @@ export function redeemFailure(error: unknown): {
     return {
       panel: {
         title: "Too many tries for now",
-        body: "To keep codes safe, each number can try only a few an hour. Wait a while, up to an hour, then try again. Nothing is wrong with your account.",
+        body: "To keep codes safe, each account can try only a few an hour. Wait a while, up to an hour, then try again. Nothing is wrong with your account.",
         requestId: error.requestId,
       },
     };
@@ -634,7 +634,7 @@ function In({
   retryLabel?: string;
 }) {
   const note = alreadyAdmitted
-    ? "This number was already in, so your code was not used. You can pass it on to somebody else."
+    ? "You were already in, so your code was not used. You can pass it on to somebody else."
     : null;
 
   if (variant === "panel") {
