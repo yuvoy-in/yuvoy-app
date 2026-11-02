@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
+import { useSessionAfter401 } from "@/lib/auth/session-after-401";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { CACHE, qk } from "@/lib/query/policy";
 import {
@@ -55,11 +56,14 @@ const clubFollowsQuery = {
 
 /**
  * The groups this traveller follows, newest first. Kept five minutes and
- * read again on every mount (policy.ts), so a page that opens reads it again. `retry: false`: a 401 is a sign-in that ended
- * and People closed does not open by asking again at once.
+ * read again on every mount (policy.ts), so a page that opens reads it
+ * again. `retry: false`: a 401 is a sign-in that ended, and reads the
+ * session again; People closed does not open by asking again at once.
  */
 export function useMyClubFollows(enabled: boolean) {
-  return useQuery({ ...clubFollowsQuery, enabled, retry: false });
+  const query = useQuery({ ...clubFollowsQuery, enabled, retry: false });
+  useSessionAfter401(query.error);
+  return query;
 }
 
 /**

@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  useInfiniteQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
+import { YuvoyError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema.gen";
+import { useSessionAfter401 } from "@/lib/auth/session-after-401";
 import { CACHE, qk } from "@/lib/query/policy";
 
 /**
@@ -25,10 +31,9 @@ export const MY_PLANS_PAGE_SIZE = 50;
  * retries neither (`plans_unavailable` is in NEVER_RETRY); it still retries a
  * GET that never arrived.
  */
-export function useMyPlans(when: "upcoming" | "past", enabled: boolean) {
-  return useInfiniteQuery({
+function myPlansQuery(when: "upcoming" | "past") {
+  return infiniteQueryOptions({
     queryKey: qk.myPlans(when),
-    enabled,
     retry: false,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
@@ -55,6 +60,28 @@ export function useMyPlans(when: "upcoming" | "past", enabled: boolean) {
       last.complete ? undefined : (last.nextCursor ?? undefined),
     ...CACHE.listMyPlans,
   });
+}
+
+/** The plans read; a 401 on it reads the session again. */
+export function useMyPlans(when: "upcoming" | "past", enabled: boolean) {
+  const query = useInfiniteQuery({ ...myPlansQuery(when), enabled });
+  useSessionAfter401(query.error);
+  return query;
+}
+
+/**
+ * The upcoming plans read again as the plans signal: true when it answers
+ * 404, which this read gives only while plans is closed to the caller. Any
+ * other outcome, a page or a failure, is false. The crew invite asks it
+ * after a 404, since the config can lag the API by minutes.
+ */
+export async function plansShutByList(qc: QueryClient): Promise<boolean> {
+  try {
+    await qc.fetchInfiniteQuery({ ...myPlansQuery("upcoming"), staleTime: 0 });
+    return false;
+  } catch (readError) {
+    return readError instanceof YuvoyError && readError.status === 404;
+  }
 }
 
 /**

@@ -53,6 +53,15 @@ function followsOpen() {
   );
 }
 
+/** `GET /me/plans` answering a page: plans open to the caller. */
+function plansOpen() {
+  server.use(
+    http.get(`${BASE}/me/plans`, () =>
+      HttpResponse.json({ items: [], complete: true }),
+    ),
+  );
+}
+
 function invites(answer: () => Response) {
   const sent: { planId: string; body: unknown }[] = [];
   server.use(
@@ -111,6 +120,7 @@ describe("Invite to a plan", () => {
   it("reads a 404 with both releases open as the plan not there, and reads plans again", async () => {
     releases({ people: "all", plans: "all" });
     followsOpen();
+    plansOpen();
     invites(() => notFound("We could not find that plan."));
     const { client } = renderWithQuery(<Probe />);
     client.setQueryData(["listMyPlans", "upcoming"], {
@@ -130,6 +140,21 @@ describe("Invite to a plan", () => {
     releases({ people: "all", plans: "off" });
     followsOpen();
     invites(() => notFound("We could not find that plan."));
+    renderWithQuery(<Probe />);
+    fireEvent.click(screen.getByText("invite"));
+    await says("plansClosed");
+  });
+
+  it("reads a 404 as plans closed when the plans list says so though the config is open", async () => {
+    // The config can lag the API by minutes, for plans as for People.
+    releases({ people: "all", plans: "all" });
+    followsOpen();
+    invites(() => notFound("We could not find that plan."));
+    server.use(
+      http.get(`${BASE}/me/plans`, () =>
+        notFound("We could not find that plan."),
+      ),
+    );
     renderWithQuery(<Probe />);
     fireEvent.click(screen.getByText("invite"));
     await says("plansClosed");
@@ -170,6 +195,7 @@ describe("Invite to a plan", () => {
     releases(null);
     invites(() => notFound("We could not find that plan."));
     followsOpen();
+    plansOpen();
     renderWithQuery(<Probe />);
     fireEvent.click(screen.getByText("invite"));
     await says("gone");

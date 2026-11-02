@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { qk } from "@/lib/query/policy";
@@ -125,6 +125,26 @@ describe("the follows list", () => {
     renderWithQuery(<Probe />);
     await shows("said", "closed");
     expect(screen.getByTestId("ids")).toHaveTextContent("unread");
+  });
+
+  it("reads the session again when the list answers 401", async () => {
+    server.use(
+      http.get(`${BASE}/me/club-follows`, () =>
+        HttpResponse.json(
+          { error: { code: "unauthorized", message: "Sign in again." } },
+          { status: 401 },
+        ),
+      ),
+    );
+    function ListOnly() {
+      const list = useMyClubFollows(true);
+      return <p>{list.isLoadingError ? "failed" : "reading"}</p>;
+    }
+    const { client } = renderWithQuery(<ListOnly />);
+    const asked = vi.spyOn(client, "invalidateQueries");
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith({ queryKey: qk.session() }),
+    );
   });
 });
 

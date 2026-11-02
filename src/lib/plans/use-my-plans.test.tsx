@@ -1,10 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
-import { useInvitablePlans, type PlanSummary } from "./use-my-plans";
+import { qk } from "@/lib/query/policy";
+import {
+  useInvitablePlans,
+  useMyPlans,
+  type PlanSummary,
+} from "./use-my-plans";
 
 /**
  * What Invite to a plan offers (yuvoy-mobile#392, web half): every upcoming
@@ -67,5 +72,27 @@ describe("the plans a crew can be invited to", () => {
       expect(screen.getByTestId("offered")).toHaveTextContent("mine"),
     );
     expect(cursors).toEqual([null, "p2"]);
+  });
+
+  it("reads the session again when the plans read answers 401", async () => {
+    server.use(
+      http.get(`${BASE}/me/plans`, () =>
+        HttpResponse.json(
+          { error: { code: "unauthorized", message: "Sign in again." } },
+          { status: 401 },
+        ),
+      ),
+    );
+    function Read() {
+      const plans = useMyPlans("upcoming", true);
+      return (
+        <p data-testid="read">{plans.isLoadingError ? "failed" : "reading"}</p>
+      );
+    }
+    const { client } = renderWithQuery(<Read />);
+    const asked = vi.spyOn(client, "invalidateQueries");
+    await waitFor(() =>
+      expect(asked).toHaveBeenCalledWith({ queryKey: qk.session() }),
+    );
   });
 });

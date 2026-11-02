@@ -6,6 +6,7 @@ import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { peopleShutByFollows } from "@/lib/groups/use-follows";
+import { plansShutByList } from "@/lib/plans/use-my-plans";
 import { qk } from "@/lib/query/policy";
 import { PlansShutError } from "./crew-invite";
 import {
@@ -24,8 +25,9 @@ import {
  * `PeopleShutError`, plans closed into `PlansShutError`, and with both open
  * the 404 stays and says the plan is not there. The follows list (which
  * answers 404 only for People closed) is asked too, since the config can lag
- * the API or not be readable at all. Either way the plans list and the crews
- * are read again.
+ * the API or not be readable at all, and for the same reason the plans list
+ * is asked about plans. Either way the plans list and the crews are read
+ * again.
  */
 
 export interface CrewInviteResult {
@@ -65,6 +67,8 @@ export function useInviteCrewToPlan(crewId: string) {
           // The config can lag the API by minutes, so the follows list is asked too.
           if (await peopleShutByFollows(qc)) throw new PeopleShutError();
           if (open && !open("plans")) throw new PlansShutError();
+          // The same lag for plans: the plans list answers 404 only while plans is closed.
+          if (await plansShutByList(qc)) throw new PlansShutError();
           throw error;
         }
         throw error;
