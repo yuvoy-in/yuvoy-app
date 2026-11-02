@@ -46,9 +46,10 @@ const W = PEOPLE_WORDS.add;
  * `friends` (they had already asked). `request_in` is answered the same way:
  * asking back somebody who asked is what makes two people friends.
  *
- * A `404` on sending is never "Request sent": the API's sentence shows and
- * the link is looked up again, so a release closed meanwhile turns the page
- * into "not open yet", as `/people` does.
+ * A `404` on sending is never "Request sent": the link is looked up again,
+ * so a release closed meanwhile turns the page into "not open yet", as
+ * `/people` does. While the link still opens, our own "not sent" line shows,
+ * never the API's 404 sentence.
  */
 export function AddFriendScreen({ raw }: { raw: string }) {
   const qc = useQueryClient();
@@ -245,7 +246,11 @@ function LinkOwner({
         </p>
       )}
 
-      {ask.error && !isStepRefusal(ask.error) ? (
+      {ask.error && isPeopleClosed(ask.error) ? (
+        <p role="alert" className="text-terra-deep mt-4 text-sm">
+          {W.notSent}
+        </p>
+      ) : ask.error && !isStepRefusal(ask.error) ? (
         <Refusal error={ask.error} className="mt-4" />
       ) : null}
 
