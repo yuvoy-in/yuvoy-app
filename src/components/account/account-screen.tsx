@@ -26,6 +26,7 @@ import { YourLinks } from "@/components/creator/your-links";
 import { PeopleRow } from "@/components/people/people-row";
 import { InviteEntry, counts, memberSince } from "./account-parts";
 import { AgeClosed, CONFIRM_AGE_WORDS, ConfirmAgePanel } from "./confirm-age";
+import { WaysIn } from "./ways-in";
 
 /*
   NOT "booking never needs one" while invitations are on (yuvoy-api#195).
@@ -383,6 +384,8 @@ function SignedIn({
           {CONFIRM_AGE_WORDS.done}
         </p>
       ) : null}
+
+      {me ? <WaysIn me={me} /> : null}
 
       <ButtonLink href="/trips" size="lg" block className="mt-6">
         Go to my trips
