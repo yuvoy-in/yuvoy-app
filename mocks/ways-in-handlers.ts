@@ -80,7 +80,9 @@ export const waysInHandlers = [
     // No session: a sign-in, which booking-handlers answers.
     if (!auth) return undefined;
 
-    // In the API's order: the door, the body, then the session.
+    // In the API's order (SignInVerify, yuvoy-api master): with a session the
+    // email door is checked first, before the body is read, for a number as
+    // much as an address; then the body's 400s; then the session and the code.
     let body: Record<string, unknown> | null = null;
     try {
       body = (await request.json()) as Record<string, unknown> | null;

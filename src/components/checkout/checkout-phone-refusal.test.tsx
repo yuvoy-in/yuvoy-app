@@ -70,7 +70,9 @@ describe("the number refused at checkout", () => {
   });
 
   it("any other value is the API's sentence, shown as sent", async () => {
-    const said = "That number cannot get WhatsApp messages.";
+    // The API's only other value (reservations.go), lower case as sent.
+    const said =
+      "that does not look like a phone number we can reach on WhatsApp";
     refuseNumber(said);
     await book();
 
