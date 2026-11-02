@@ -1,6 +1,6 @@
-import { civilFromDate } from "@/lib/format/date";
 import {
   civilAsWritten,
+  realDay,
   typedRupees,
   writtenInIndia,
   type OrganiserEventForm,
@@ -58,7 +58,8 @@ export function eventTimeOf(box: string, kept = ""): string | null {
 /** A date as typed, `YYYY-MM-DD`, or null when it is not a real date. */
 export function typedDay(text: string): string | null {
   const value = text.trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && civilFromDate(value)
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match && realDay(Number(match[1]), Number(match[2]), Number(match[3]))
     ? value
     : null;
 }
