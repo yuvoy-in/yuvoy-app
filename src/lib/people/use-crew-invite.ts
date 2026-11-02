@@ -7,6 +7,7 @@ import { YuvoyError } from "@/lib/api/errors";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { peopleShutByFollows } from "@/lib/groups/use-follows";
 import { qk } from "@/lib/query/policy";
+import { PlansShutError } from "./crew-invite";
 import {
   PeopleShutError,
   readCrewsAgain,
@@ -20,10 +21,11 @@ import {
  * A 404 is never success (decision A). The API answers 404 while People or
  * plans is closed to the caller and for a plan or crew that is not theirs.
  * So after one the releases are read again: People closed turns into
- * `PeopleShutError`; plans closed, or both open, stays the 404 and says the
- * plan is not there. When the releases cannot be read, the follows list
- * (which answers 404 only for People closed) is the People signal. Either
- * way the plans list and the crews are read again.
+ * `PeopleShutError`, plans closed into `PlansShutError`, and with both open
+ * the 404 stays and says the plan is not there. The follows list (which
+ * answers 404 only for People closed) is asked too, since the config can lag
+ * the API or not be readable at all. Either way the plans list and the crews
+ * are read again.
  */
 
 export interface CrewInviteResult {
@@ -60,9 +62,9 @@ export function useInviteCrewToPlan(crewId: string) {
             "plans",
           ]);
           if (open && !open("people")) throw new PeopleShutError();
-          if (!open && (await peopleShutByFollows(qc))) {
-            throw new PeopleShutError();
-          }
+          // The config can lag the API by minutes, so the follows list is asked too.
+          if (await peopleShutByFollows(qc)) throw new PeopleShutError();
+          if (open && !open("plans")) throw new PlansShutError();
           throw error;
         }
         throw error;

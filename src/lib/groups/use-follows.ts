@@ -145,7 +145,9 @@ export function useFollowClub() {
         throw error;
       }
     },
-    onSuccess: (_data, { clubId, club }) => {
+    onSuccess: async (_data, { clubId, club }) => {
+      // A read still out (the list reads again on mount) would land after this and undo it.
+      await qc.cancelQueries({ queryKey: qk.myClubFollows() });
       qc.setQueryData<ClubFollows>(qk.myClubFollows(), (old) =>
         followsAfter(old, clubId, true, club),
       );
@@ -182,7 +184,8 @@ export function useUnfollowClub() {
         throw error;
       }
     },
-    onSuccess: (_data, { clubId }) => {
+    onSuccess: async (_data, { clubId }) => {
+      await qc.cancelQueries({ queryKey: qk.myClubFollows() });
       qc.setQueryData<ClubFollows>(qk.myClubFollows(), (old) =>
         followsAfter(old, clubId, false),
       );

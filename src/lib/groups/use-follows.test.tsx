@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import { qk } from "@/lib/query/policy";
 import { renderWithQuery } from "@/test/render";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
@@ -137,6 +138,33 @@ describe("Follow", () => {
     await shows("ids", `${CLUB},${OTHER}`);
     expect(sent).toEqual([CLUB]);
     expect(screen.getByTestId("done")).toHaveTextContent("taken");
+  });
+
+  it("keeps the follow when a list read still out lands after it", async () => {
+    follows([OTHER]);
+    writes("put", () => new HttpResponse(null, { status: 204 }));
+    const { client } = renderWithQuery(<Probe />);
+    await shows("ids", OTHER);
+    // A read of the old list that answers only after the follow is taken.
+    let answer = () => {};
+    const held = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    server.use(
+      http.get(`${BASE}/me/club-follows`, async () => {
+        await held;
+        return HttpResponse.json({
+          clubIds: [OTHER],
+          clubs: [{ clubId: OTHER, slug: OTHER, name: OTHER }],
+        });
+      }),
+    );
+    void client.refetchQueries({ queryKey: qk.myClubFollows() });
+    fireEvent.click(screen.getByText("follow"));
+    await shows("done", "taken");
+    answer();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByTestId("ids")).toHaveTextContent(`${CLUB},${OTHER}`);
   });
 
   it("reads a 404 with People open as the group not there, and reads the directory again", async () => {

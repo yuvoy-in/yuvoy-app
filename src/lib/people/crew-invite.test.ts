@@ -4,6 +4,7 @@ import { invitablePlans, type PlanSummary } from "@/lib/plans/use-my-plans";
 import {
   CREW_INVITE_WORDS,
   PLAN_CLOSED_WORDS,
+  PlansShutError,
   crewInviteFailure,
   crewInviteLine,
   planPickerLine,
@@ -55,6 +56,14 @@ describe("what a failed invite says", () => {
     expect(f.kind).toBe("peopleClosed");
     expect(f.line).toBe(PEOPLE_SHUT_LINE);
     expect(f.retry).toBe(false);
+  });
+
+  it("says plans closed for the plans closed error, like the picker", () => {
+    expect(crewInviteFailure(new PlansShutError())).toEqual({
+      kind: "plansClosed",
+      line: CREW_INVITE_WORDS.plansClosed,
+      retry: false,
+    });
   });
 
   it("reads a 404 that stayed a 404 as the plan not being there", () => {
@@ -117,8 +126,14 @@ describe("what a failed invite says", () => {
       retry: true,
     });
     expect(crewInviteFailure(new NetworkError()).retry).toBe(true);
-    expect(crewInviteFailure(refusal(400, "invalid_input")).kind).toBe("fault");
     expect(crewInviteFailure(new Error("boom")).kind).toBe("fault");
+  });
+
+  it("offers no Try again on a 400, since the same request cannot help", () => {
+    expect(crewInviteFailure(refusal(400, "invalid_input"))).toMatchObject({
+      kind: "fault",
+      retry: false,
+    });
   });
 });
 
@@ -148,7 +163,7 @@ describe("the plan picker", () => {
     expect(offered.map((p) => p.id)).toEqual(["open", "decided"]);
   });
 
-  it("says no plans when plans are closed, and paused when paused", () => {
+  it("says plans closed on a 404, and paused when paused", () => {
     expect(planPickerLine(refusal(404, "not_found"))).toEqual({
       line: CREW_INVITE_WORDS.plansClosed,
       retry: false,

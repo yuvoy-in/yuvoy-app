@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema.gen";
@@ -18,9 +19,11 @@ export const MY_PLANS_PAGE_SIZE = 50;
 
 /**
  * Plans, upcoming or past, page by page. Kept five minutes and read again on
- * every mount (policy.ts), so the picker reads them again each time it opens. `retry: false`: a 404 is the plans release
- * closed and a 503 is plans paused, and neither changes by asking again at
- * once. The client wrapper still retries a GET that never arrived.
+ * every mount (policy.ts), so the picker reads them again each time it opens.
+ * `retry: false`: a 404 is the plans release closed and a 503 is plans
+ * paused, and neither changes by asking again at once. The client wrapper
+ * retries neither (`plans_unavailable` is in NEVER_RETRY); it still retries a
+ * GET that never arrived.
  */
 export function useMyPlans(when: "upcoming" | "past", enabled: boolean) {
   return useInfiniteQuery({
@@ -65,4 +68,33 @@ export function invitablePlans(items: readonly PlanSummary[]): PlanSummary[] {
       plan.role === "planner" &&
       (plan.state === "open" || plan.state === "decided"),
   );
+}
+
+/**
+ * What Invite to a plan offers: every upcoming page read, then filtered.
+ * Page 1 alone is not enough, since the plans this traveller made can sit on
+ * a later page behind ones they only joined. `complete` says every page is
+ * in, so "no plans" is shown only then; a page that fails stops the reading
+ * and leaves the error for the picker's Try again.
+ */
+export function useInvitablePlans(enabled: boolean) {
+  const query = useMyPlans("upcoming", enabled);
+  const {
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  } = query;
+  useEffect(() => {
+    // A page that failed stops here, so the reading cannot loop on it.
+    if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
+  const items = query.data?.pages.flatMap((page) => page.items) ?? [];
+  return {
+    ...query,
+    plans: invitablePlans(items),
+    complete: query.data !== undefined && !hasNextPage,
+  };
 }

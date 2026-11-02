@@ -17,7 +17,7 @@ export const CREW_INVITE_WORDS = Object.freeze({
   noPlans:
     "You have no plans coming up. Make one first, then invite your crew.",
   plansPaused: "Plans are paused right now. Try again in a little while.",
-  /** Ours: `GET /me/plans` answered 404, so plans are not open to this account. */
+  /** Ours: plans are not open to this account (a 404 on the plans read or an invite). */
   plansClosed: "Plans aren't open to your account yet.",
   gone: "That plan isn't there any more, so nobody was invited.",
   /** Added to the empty crews line on mobile: "..., and invite them to plans in one tap." */
@@ -68,6 +68,7 @@ export type CrewInviteFailureKind =
   | "paused"
   | "ended"
   | "plansPaused"
+  | "plansClosed"
   | "signIn"
   | "noSignal"
   | "fault";
@@ -79,6 +80,18 @@ export interface CrewInviteFailure {
   retry: boolean;
   /** For `closed`: why the plan takes no more invites. */
   reason?: PlanClosedReason;
+}
+
+/**
+ * Thrown by the invite hook in place of a 404 once the releases, read again,
+ * say plans is closed to this reader while People is open. The API answers
+ * that state 404 (decision A: never success), and the picker says the same.
+ */
+export class PlansShutError extends Error {
+  constructor() {
+    super("Plans is closed to this reader.");
+    this.name = "PlansShutError";
+  }
 }
 
 function planClosedReason(error: YuvoyError): PlanClosedReason {
@@ -101,12 +114,20 @@ function said(error: YuvoyError, fallback: string): string {
 
 /**
  * What a failed invite says. A 404 is never success (decision A): once the
- * hook has read the releases again it is People closed (`PeopleShutError`)
- * or the plan is not there, and nobody was invited.
+ * hook has read the releases again it is People closed (`PeopleShutError`),
+ * plans closed (`PlansShutError`) or the plan is not there, and nobody was
+ * invited.
  */
 export function crewInviteFailure(error: unknown): CrewInviteFailure {
   if (error instanceof PeopleShutError) {
     return { kind: "peopleClosed", line: PEOPLE_SHUT_LINE, retry: false };
+  }
+  if (error instanceof PlansShutError) {
+    return {
+      kind: "plansClosed",
+      line: CREW_INVITE_WORDS.plansClosed,
+      retry: false,
+    };
   }
   if (error instanceof NetworkError) {
     return {
@@ -152,6 +173,10 @@ export function crewInviteFailure(error: unknown): CrewInviteFailure {
   }
   if (error.status === 401) {
     return { kind: "signIn", line: PEOPLE_FAILURE_WORDS.signIn, retry: false };
+  }
+  // A 400 is this app sending something wrong: the same request again cannot help.
+  if (error.status === 400) {
+    return { kind: "fault", line: PEOPLE_FAILURE_WORDS.fault, retry: false };
   }
   return { kind: "fault", line: PEOPLE_FAILURE_WORDS.fault, retry: true };
 }

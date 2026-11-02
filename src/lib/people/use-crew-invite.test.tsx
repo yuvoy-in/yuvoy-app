@@ -44,6 +44,15 @@ function releases(stages: { people: string; plans: string } | null) {
   );
 }
 
+/** `GET /me/club-follows` answering a list: People open to the caller. */
+function followsOpen() {
+  server.use(
+    http.get(`${BASE}/me/club-follows`, () =>
+      HttpResponse.json({ clubIds: [], clubs: [] }),
+    ),
+  );
+}
+
 function invites(answer: () => Response) {
   const sent: { planId: string; body: unknown }[] = [];
   server.use(
@@ -101,6 +110,7 @@ describe("Invite to a plan", () => {
 
   it("reads a 404 with both releases open as the plan not there, and reads plans again", async () => {
     releases({ people: "all", plans: "all" });
+    followsOpen();
     invites(() => notFound("We could not find that plan."));
     const { client } = renderWithQuery(<Probe />);
     client.setQueryData(["listMyPlans", "upcoming"], {
@@ -116,12 +126,25 @@ describe("Invite to a plan", () => {
     );
   });
 
-  it("reads a 404 as the plan not there when only plans is closed", async () => {
+  it("reads a 404 as plans closed when only plans is closed, as the picker says", async () => {
     releases({ people: "all", plans: "off" });
+    followsOpen();
     invites(() => notFound("We could not find that plan."));
     renderWithQuery(<Probe />);
     fireEvent.click(screen.getByText("invite"));
-    await says("gone");
+    await says("plansClosed");
+  });
+
+  it("reads a 404 as People closed when the follows list says so though the config is open", async () => {
+    // The config can lag the API by minutes.
+    releases({ people: "all", plans: "all" });
+    invites(() => notFound("Not found."));
+    server.use(
+      http.get(`${BASE}/me/club-follows`, () => notFound("Not found.")),
+    );
+    renderWithQuery(<Probe />);
+    fireEvent.click(screen.getByText("invite"));
+    await says("peopleClosed");
   });
 
   it("reads a 404 as People closed when the release no longer admits the caller", async () => {
@@ -146,11 +169,7 @@ describe("Invite to a plan", () => {
   it("keeps the 404 as not there when nothing says People closed", async () => {
     releases(null);
     invites(() => notFound("We could not find that plan."));
-    server.use(
-      http.get(`${BASE}/me/club-follows`, () =>
-        HttpResponse.json({ clubIds: [], clubs: [] }),
-      ),
-    );
+    followsOpen();
     renderWithQuery(<Probe />);
     fireEvent.click(screen.getByText("invite"));
     await says("gone");

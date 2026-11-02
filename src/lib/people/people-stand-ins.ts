@@ -55,7 +55,9 @@ export class PeopleShutError extends Error {
 }
 
 /** Whether an error is People closed, as the hooks here throw it. */
-// Swap for isPeopleClosed from #222 once it merges.
+// Swap for #386's isPeopleClosed (an instanceof check on PeopleClosedError)
+// once it merges. Not #222's isPeopleClosed: that one is a raw 404 check and
+// would read a "gone" 404 as People closed.
 export function isPeopleShut(error: unknown): boolean {
   return error instanceof PeopleShutError;
 }
