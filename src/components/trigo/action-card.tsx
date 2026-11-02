@@ -108,10 +108,11 @@ function stateLine(card: TrigoActionCard): string | null {
  *   - declined, expired, superseded: no buttons, and a superseded card is
  *     faded.
  *
- * The buttons wait for `releases.trigoActions`. The server proposes cards only
- * while it is open, but a card made before it closed would answer a confirm
- * 404: while it is closed the card keeps its heading and lines, offers no
- * button and says it can't be used right now.
+ * Confirm and Go to checkout wait for `releases.trigoActions`. The server
+ * proposes cards only while it is open, but a card made before it closed would
+ * answer a confirm 404: while it is closed the card keeps its heading and
+ * lines, offers only Not now and says it can't be used right now. Decline is
+ * not behind the release in the API, so Not now always stays.
  *
  * A failure is drawn by kind (`classifyCardError`): on a confirm, changed
  * and expired show the API's sentence and end the card, so does a 404, a 429
@@ -178,7 +179,7 @@ export function ActionCard({
 
   const proposed = card.state === "proposed" && !over;
   const reopen = card.state === "confirmed" && book && !over;
-  // No buttons while the release is still being read, and no line until known.
+  // No confirm while the release is still being read, and no line until known.
   const shut = (proposed || reopen) && !actions.open && !actions.pending;
   const line = over ? null : stateLine(card);
   const reference = card.bookingReference ?? null;
@@ -233,9 +234,9 @@ export function ActionCard({
         </p>
       ) : null}
 
-      {proposed && actions.open ? (
+      {proposed ? (
         <div className="flex flex-wrap gap-2">
-          {canConfirm ? (
+          {canConfirm && actions.open ? (
             <Button
               size="sm"
               disabled={pending}

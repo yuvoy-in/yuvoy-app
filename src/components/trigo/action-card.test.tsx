@@ -157,14 +157,29 @@ describe("ActionCard, drawn as sent", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(8);
   });
 
-  it("keeps its heading and lines but offers nothing while actions are closed", () => {
+  it("keeps its heading, lines and Not now but no confirm while actions are closed", async () => {
     // Made before releases.trigoActions closed: a confirm would answer 404.
     s.release = { open: false, pending: false, stage: "off" };
+    s.decline = () => ({ ok: { message: {} } });
     draw(card());
     expect(
       screen.getByRole("group", { name: `${CARD_LABEL}: Check before I book` }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText(CARD_ACTIONS_CLOSED)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
+
+    // Decline is not behind the release in the API: Not now still says no.
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(s.declined).toEqual([
+      { actionId: ACTION, kind: "book", conversationId: CHAT },
+    ]);
+    expect(s.confirmed).toHaveLength(0);
+  });
+
+  it("offers no Go to checkout on a confirmed card while actions are closed", () => {
+    s.release = { open: false, pending: false, stage: "off" };
+    draw(card({ state: "confirmed" }));
     expect(screen.getByText(CARD_ACTIONS_CLOSED)).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
   });
