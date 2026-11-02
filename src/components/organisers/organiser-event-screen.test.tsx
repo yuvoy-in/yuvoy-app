@@ -87,9 +87,9 @@ describe("OrganiserEventScreen", () => {
 
   it("gives the desk's reason on a not accepted event, with no change and no cancel", async () => {
     open(ORG_IDS.verified, EVENT_IDS.notAccepted);
-    expect(await screen.findByTestId("organiser-event-state")).toHaveTextContent(
-      "It does not look like a real event",
-    );
+    expect(
+      await screen.findByTestId("organiser-event-state"),
+    ).toHaveTextContent("It does not look like a real event");
     expect(screen.getByTestId("organiser-event-no-change")).toHaveTextContent(
       W.notAcceptedNoChange,
     );
@@ -99,9 +99,9 @@ describe("OrganiserEventScreen", () => {
 
   it("says an ended event can no longer be changed", async () => {
     open(ORG_IDS.verified, EVENT_IDS.ended);
-    expect(await screen.findByTestId("organiser-event-no-change")).toHaveTextContent(
-      W.endedNoChange,
-    );
+    expect(
+      await screen.findByTestId("organiser-event-no-change"),
+    ).toHaveTextContent(W.endedNoChange);
     expect(screen.queryByRole("link", { name: W.change })).toBeNull();
   });
 
@@ -112,17 +112,21 @@ describe("OrganiserEventScreen", () => {
       ),
     );
     open(ORG_IDS.suspended, EVENT_IDS.live);
-    expect(await screen.findByTestId("organiser-event-no-change")).toHaveTextContent(
-      W.suspended,
-    );
+    expect(
+      await screen.findByTestId("organiser-event-no-change"),
+    ).toHaveTextContent(W.suspended);
     expect(screen.queryByRole("link", { name: W.change })).toBeNull();
-    expect(screen.getByRole("button", { name: W.cancelEvent })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: W.cancelEvent }),
+    ).toBeInTheDocument();
   });
 
   it("cancels only after the confirm, then shows the event as cancelled", async () => {
     const user = userEvent.setup();
     open(ORG_IDS.verified, EVENT_IDS.inChecking);
-    await user.click(await screen.findByRole("button", { name: W.cancelEvent }));
+    await user.click(
+      await screen.findByRole("button", { name: W.cancelEvent }),
+    );
     const sheet = await screen.findByRole("dialog", {
       name: W.cancelConfirmTitle,
     });
@@ -131,7 +135,9 @@ describe("OrganiserEventScreen", () => {
       W.eventStateLabel("in_checking"),
     );
 
-    await user.click(await screen.findByRole("button", { name: W.cancelEvent }));
+    await user.click(
+      await screen.findByRole("button", { name: W.cancelEvent }),
+    );
     const again = await screen.findByRole("dialog", {
       name: W.cancelConfirmTitle,
     });
@@ -153,7 +159,9 @@ describe("OrganiserEventScreen", () => {
     const block = await screen.findByTestId("organiser-event-numbers-block");
     expect(block).toHaveTextContent(W.numbers(liveNumbers(null)));
     // The series starts on this date, so there is no week before it.
-    expect(screen.getAllByTestId("organiser-event-numbers-block")).toHaveLength(1);
+    expect(screen.getAllByTestId("organiser-event-numbers-block")).toHaveLength(
+      1,
+    );
   });
 
   it("adds last week's numbers for a weekly event that has had a date before", async () => {
@@ -174,13 +182,15 @@ describe("OrganiserEventScreen", () => {
     );
     open(ORG_IDS.verified, EVENT_IDS.live);
     await waitFor(() =>
-      expect(screen.getAllByTestId("organiser-event-numbers-block")).toHaveLength(
-        2,
-      ),
+      expect(
+        screen.getAllByTestId("organiser-event-numbers-block"),
+      ).toHaveLength(2),
     );
     const [now, last] = screen.getAllByTestId("organiser-event-numbers-block");
     const thisWeek = liveNumbers(null);
-    const weekBefore = new Date(Date.parse(`${thisWeek.on}T00:00:00Z`) - 7 * 86_400_000)
+    const weekBefore = new Date(
+      Date.parse(`${thisWeek.on}T00:00:00Z`) - 7 * 86_400_000,
+    )
       .toISOString()
       .slice(0, 10);
     expect(now).toHaveTextContent(W.numbers(thisWeek));
@@ -203,8 +213,8 @@ describe("OrganiserEventScreen", () => {
 
   it("says an event that is not on the list cannot be found", async () => {
     open(ORG_IDS.verified, "9a3e5c20-0000-4000-8000-000000000000");
-    expect(await screen.findByTestId("organiser-event-missing")).toHaveTextContent(
-      W.eventNotFound,
-    );
+    expect(
+      await screen.findByTestId("organiser-event-missing"),
+    ).toHaveTextContent(W.eventNotFound);
   });
 });

@@ -355,7 +355,9 @@ export function OrganiserWriteError({
     case "signedOut":
       return <SignInPrompt expired />;
     case "age":
-      return <AgeAsk message={refusal.message} onDone={onRetry} ask={refusal} />;
+      return (
+        <AgeAsk message={refusal.message} onDone={onRetry} ask={refusal} />
+      );
     case "paused":
       return (
         <div role="alert" className="mt-4">

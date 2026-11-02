@@ -11,10 +11,7 @@ import {
   organiserRefusal,
   type OrganiserRefusal,
 } from "@/lib/organisers/refusal";
-import type {
-  Organiser,
-  OrganiserHelperListed,
-} from "@/lib/organisers/types";
+import type { Organiser, OrganiserHelperListed } from "@/lib/organisers/types";
 import {
   useAddOrganiserHelper,
   useOrganiser,
@@ -229,7 +226,10 @@ function HelperList({
 
   if (items.length === 0) {
     return (
-      <p className="text-forest/75 text-pretty" data-testid="organiser-helpers-empty">
+      <p
+        className="text-forest/75 text-pretty"
+        data-testid="organiser-helpers-empty"
+      >
         {W.noHelpers}
       </p>
     );

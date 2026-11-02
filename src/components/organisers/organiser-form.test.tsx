@@ -52,7 +52,10 @@ function editForm(id: string) {
 
 /** Fills the new form with a page the API takes. */
 async function fill(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(await screen.findByLabelText(W.name), "Sample Tide Pool Club");
+  await user.type(
+    await screen.findByLabelText(W.name),
+    "Sample Tide Pool Club",
+  );
   await user.click(await screen.findByRole("button", { name: "Port Blair" }));
   await user.click(screen.getByRole("button", { name: "Adventure" }));
   await user.click(screen.getByLabelText(W.runsIt));
@@ -152,7 +155,10 @@ describe("NewOrganiserForm", () => {
     newForm();
     await fill(user);
     await user.click(screen.getByRole("button", { name: W.addLink }));
-    await user.type(screen.getByLabelText(W.linkUrl), "http://plain.example.com");
+    await user.type(
+      screen.getByLabelText(W.linkUrl),
+      "http://plain.example.com",
+    );
     await user.click(screen.getByRole("button", { name: W.send }));
 
     expect(
@@ -234,7 +240,9 @@ describe("NewOrganiserForm", () => {
     await fill(user);
     const send = screen.getByTestId("organiser-form-send");
     await user.click(send);
-    await waitFor(() => expect(send.getAttribute("aria-disabled")).toBe("true"));
+    await waitFor(() =>
+      expect(send.getAttribute("aria-disabled")).toBe("true"),
+    );
     expect(send.textContent).toContain(W.sending);
     await user.click(send);
     await waitFor(() =>

@@ -45,7 +45,9 @@ describe("OrganiserHub", () => {
     expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual(
       MY_ORGANISERS.map((o) => W.rowLabel(o.name, o.state, o.role)),
     );
-    expect(rows[0]?.getAttribute("href")).toBe(`/organiser/${ORG_IDS.verified}`);
+    expect(rows[0]?.getAttribute("href")).toBe(
+      `/organiser/${ORG_IDS.verified}`,
+    );
     expect(rows[0]?.textContent).toContain(
       `${W.stateLabel("verified")} · ${W.roleLabel("owner")}`,
     );

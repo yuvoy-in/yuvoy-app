@@ -94,15 +94,15 @@ describe("repeatBounds", () => {
 
 describe("checkEventForm", () => {
   it("passes a whole form with its times written in India", () => {
-    expect(checkEventForm(form({ end: "2026-11-08T08:00" }), NONE, NOW)).toEqual(
-      {
-        ok: true,
-        times: {
-          startsAt: "2026-11-08T06:30:00+05:30",
-          endsAt: "2026-11-08T08:00:00+05:30",
-        },
+    expect(
+      checkEventForm(form({ end: "2026-11-08T08:00" }), NONE, NOW),
+    ).toEqual({
+      ok: true,
+      times: {
+        startsAt: "2026-11-08T06:30:00+05:30",
+        endsAt: "2026-11-08T08:00:00+05:30",
       },
-    );
+    });
   });
 
   it("leaves the end out when it is empty", () => {

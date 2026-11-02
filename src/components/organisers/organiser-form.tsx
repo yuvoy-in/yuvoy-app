@@ -329,13 +329,16 @@ function OrganiserFormBody({
                 setErrors((was) => withoutKey(was, "runsIt"));
               }}
               aria-invalid={errors.runsIt ? true : undefined}
-              className="accent-forest mt-0.5 size-5 shrink-0"
+              className="accent-forest size-6 shrink-0"
             />
             <label htmlFor={runsItId} className="text-pretty">
               {W.runsIt}
             </label>
           </div>
-          <FieldLine text={errors.runsIt} testId="organiser-form-runs-it-error" />
+          <FieldLine
+            text={errors.runsIt}
+            testId="organiser-form-runs-it-error"
+          />
         </div>
       )}
 

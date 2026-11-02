@@ -160,7 +160,10 @@ describe("OrganiserRefusalBlock", () => {
 
   it("says the sign-in has ended, with the way back in", () => {
     renderWithQuery(
-      <OrganiserRefusalBlock refusal={{ kind: "signedOut" }} onRetry={() => {}} />,
+      <OrganiserRefusalBlock
+        refusal={{ kind: "signedOut" }}
+        onRetry={() => {}}
+      />,
     );
     expect(screen.getByRole("alert").textContent).toContain(W.signIn);
     expect(screen.getByRole("link", { name: W.signInButton })).toBeTruthy();
@@ -235,7 +238,9 @@ describe("OrganiserRefusalBlock", () => {
       screen.getByRole("button", { name: BIRTH_YEAR_WORDS.send }),
     );
     expect(
-      await screen.findByRole("heading", { name: CONFIRM_AGE_WORDS.closedTitle }),
+      await screen.findByRole("heading", {
+        name: CONFIRM_AGE_WORDS.closedTitle,
+      }),
     ).toBeTruthy();
     // Signed out now, and still the closed sentence, never the sign-in prompt.
     await waitFor(() =>
@@ -351,8 +356,8 @@ describe("OrganiserWriteError", () => {
       screen.getByRole("button", { name: BIRTH_YEAR_WORDS.send }),
     );
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-    expect(
-      (screen.getByLabelText("Name") as HTMLInputElement).value,
-    ).toBe("Island Walkers");
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe(
+      "Island Walkers",
+    );
   });
 });
