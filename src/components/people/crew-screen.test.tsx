@@ -116,9 +116,55 @@ describe("/people/crews/{crewId}", () => {
     answer("get", "/me/people", json(home()));
     show();
     await heading(W.failed);
+    expect(screen.getByText(W.notChecked)).toBeInTheDocument();
+    expect(screen.queryByText("Not found.")).toBeNull();
     expect(
       screen.queryByRole("heading", { name: PEOPLE_WORDS.closed.title }),
     ).toBeNull();
+  });
+
+  it("never shows the API's 404 sentence when the release read after it fails", async () => {
+    signedIn();
+    answer("get", "/me/crews", () =>
+      refuse(404, "not_found", "People isn't open to your account yet."),
+    );
+    answer("get", "/me/people", () =>
+      refuse(503, "unavailable", "Try again in a minute."),
+    );
+    show();
+    await heading(W.failed);
+    expect(screen.getByText(W.notChecked)).toBeInTheDocument();
+    expect(
+      screen.queryByText("People isn't open to your account yet."),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: PEOPLE_WORDS.retry }),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the crew when a later list read answers 404 and the release read fails", async () => {
+    signedIn();
+    answer("get", "/me/crews", json({ crews: [GANG] }), () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    answer("get", "/me/people", () =>
+      refuse(503, "unavailable", "Try again in a minute."),
+    );
+    answer("delete", `/me/crews/${GANG.crewId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const user = show();
+    await heading("College gang");
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    await user.click(screen.getByRole("button", { name: W.delete }));
+    await heading(W.failed);
+    expect(screen.getByText(W.notChecked)).toBeInTheDocument();
+    expect(screen.queryByText("College gang")).toBeNull();
+    expect(screen.queryByRole("link", { name: W.edit })).toBeNull();
+    expect(screen.queryByRole("button", { name: W.delete })).toBeNull();
+    expect(screen.queryByText(W.deleted)).toBeNull();
+    expect(screen.queryByText("Not found.")).toBeNull();
+    expect(nav.replace).not.toHaveBeenCalled();
   });
 
   it("drops Edit and Delete when People closes while the crew is open", async () => {

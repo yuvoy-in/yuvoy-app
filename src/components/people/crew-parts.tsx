@@ -16,8 +16,8 @@ import { UnderAgeClosed, refusalText } from "./people-parts";
 /**
  * What a crew's page and the crew editor share (yuvoy-app#227): the frame,
  * and the gate in front of both. The gate answers signed out, an expired
- * sign-in, People closed (`404`) and a list that did not load, then hands
- * the crews to the page. There is no single-crew read: the page finds its
+ * sign-in, People closed (a list `404` that `GET /me/people` confirms) and a
+ * list that did not load, then hands the crews to the page. There is no single-crew read: the page finds its
  * crew in the list.
  *
  * An under-18 answer in the age step closes the account and signs out. Its
@@ -39,10 +39,14 @@ export function CrewsGate({
   const [closed, setClosed] = useState<string | null>(null);
 
   // A later read (on focus, or after a change) that says the sign-in ended
-  // or People closed replaces the crews on screen: they are not true any
-  // more, and Edit and Delete would only answer 404 (as people-screen.tsx).
-  const closedNow = crewMissing(crews.error) === "closed";
-  const ended = crews.isRefetchError && (isDeadToken(crews.error) || closedNow);
+  // or answers 404 replaces the crews on screen: they are not true any more,
+  // and Edit and Delete would only answer 404 (as people-screen.tsx). A 404
+  // the release read cannot explain is not known to be closed, so it shows
+  // our own "could not check" line with Try again, never the old crews.
+  const why = crewMissing(crews.error);
+  const closedNow = why === "closed";
+  const ended =
+    crews.isRefetchError && (isDeadToken(crews.error) || why !== null);
   const sessionEnded =
     (crews.isLoadingError || ended) && isDeadToken(crews.error);
   useEffect(() => {
@@ -101,7 +105,9 @@ export function CrewsGate({
       <CrewShell back={back}>
         <div role="alert">
           <CrewTitle>{W.failed}</CrewTitle>
-          <CrewBody>{refusalText(crews.error)}</CrewBody>
+          <CrewBody>
+            {why === null ? refusalText(crews.error) : W.notChecked}
+          </CrewBody>
         </div>
         <Button
           size="lg"

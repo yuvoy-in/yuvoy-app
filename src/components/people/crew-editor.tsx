@@ -57,9 +57,10 @@ import {
  *     name step here, as the friend link page does, and the form comes back
  *     as it was once the step is done;
  *   - `crew_limit_reached` says why there can be no more;
- *   - a change's `404` reads the list again: a crew not in it is gone, a
- *     list that answers `404` is People closed, and a new crew's `404` is
- *     only People closed;
+ *   - a `404` reads `GET /me/people` first: a `404` there is People closed.
+ *     Then a change reads the list: a crew not in it is gone. Anything else,
+ *     a new crew's `404` included, is "not saved" or "not deleted", in our
+ *     words (`crewMissing` in use-crews.ts);
  *   - anything else, a lost connection included, is said under Save.
  */
 export function CrewEditorScreen({ crewId }: { crewId?: string }) {

@@ -4,7 +4,6 @@ import {
   type BrowserContext,
   type Locator,
   type Page,
-  type Route,
   type TestInfo,
 } from "@playwright/test";
 
@@ -53,8 +52,7 @@ const W = {
   goneTitle: "This crew is not there any more",
   goneBody: "It may have been deleted on another device.",
   goneAction: "Back to People",
-  closedNotSaved: "People is closed for now, so this crew was not saved.",
-  closedNotDeleted: "People is closed for now, so this crew was not deleted.",
+  deleted: "Crew deleted",
   /* From `people-words.ts`: People closed to this traveller. */
   peopleClosed: "People is not open yet",
 } as const;
@@ -164,36 +162,57 @@ const scenarioHeader = (scenario: string) => ({
   "x-yuvoy-scenario": scenario,
 });
 
+/** Every People route: they all sit behind the same release gate in the API. */
+const PEOPLE_ROUTES = [
+  "/me/people",
+  "/me/friends",
+  "/me/friend-requests",
+  "/me/friend-link",
+  "/me/crews",
+].map(proxied);
+
 /**
- * The API as it answers once People closed to this traveller: `method` on
- * `path` and the release read (`GET /me/people`) are both `404`. Everything
- * else still reaches the mocks. `context.route`, not `page.route`: the mock
- * worker sits between the page and the network, and only the context's
- * routes see past it.
+ * The API as it answers once People closed to this traveller: every People
+ * route answers `404`, reads and writes alike, as the API's one release gate
+ * does (yuvoy-api `peopleGate`). Everything else still reaches the mocks.
+ * `context.route`, not `page.route`: the mock worker sits between the page
+ * and the network, and only the context's routes see past it.
  */
-async function closeOn(context: BrowserContext, method: string, path: string) {
-  const notFound = (route: Route) =>
-    route.fulfill({
-      status: 404,
-      contentType: "application/json",
-      body: JSON.stringify({
-        error: {
-          code: "not_found",
-          message: NOT_FOUND,
-          requestId: "01JE2EMOCK",
-        },
+async function closePeople(context: BrowserContext) {
+  await context.route(
+    (u) =>
+      PEOPLE_ROUTES.some(
+        (p) => u.pathname === p || u.pathname.startsWith(`${p}/`),
+      ),
+    (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: "not_found",
+            message: NOT_FOUND,
+            requestId: "01JE2EMOCK",
+          },
+        }),
       }),
-    });
-  await context.route(
-    (u) => u.pathname === proxied(path),
-    (route) =>
-      route.request().method() === method ? notFound(route) : route.fallback(),
   );
-  await context.route(
-    (u) => u.pathname === proxied("/me/people"),
-    (route) =>
-      route.request().method() === "GET" ? notFound(route) : route.fallback(),
-  );
+}
+
+/** People closed: its title, and nothing of the crew or its controls. */
+async function expectPeopleClosed(page: Page, crewName: string) {
+  await expect(heading(page, W.peopleClosed)).toBeVisible();
+  await expect(heading(page, crewName)).toHaveCount(0);
+  await expect(saveButton(page)).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: W.edit, exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: W.delete, exact: true }),
+  ).toHaveCount(0);
+  await expect(status(page, W.saved)).toHaveCount(0);
+  await expect(page.getByText(W.deleted, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(NOT_FOUND, { exact: true })).toHaveCount(0);
 }
 
 async function noSideScroll(page: Page, where: string) {
@@ -568,28 +587,25 @@ test("People closed: a crew's page and its editor show People closed, not the cr
   }
 });
 
-test("Save answers 404 with People closed: not saved, said in our words", async ({
+test("Save answers 404 with People closed: People closed, nothing saved", async ({
   page,
   context,
 }, info) => {
   await signIn(page, info);
   await openEditor(page, COLLEGE_GANG.crewId, "people");
-  // People closes while the editor is open.
-  await closeOn(context, "PATCH", `/me/crews/${COLLEGE_GANG.crewId}`);
+  // People closes while the editor is open: every People route answers 404.
+  await closePeople(context);
 
   await page.getByLabel(W.nameLabel).fill("Uni gang");
   await saveButton(page).click();
 
-  await expect(
-    alerts(page).filter({ hasText: W.closedNotSaved }),
-  ).toBeVisible();
-  await expect(page).toHaveURL(/\/edit\?/);
-  await expect(status(page, W.saved)).toHaveCount(0);
+  // The 404 refreshes People, the list answers 404 too, and the page closes.
+  await expectPeopleClosed(page, "Uni gang");
+  await expect(page.getByLabel(W.nameLabel)).toHaveCount(0);
   await expect(heading(page, W.goneTitle)).toHaveCount(0);
-  await expect(page.getByText(NOT_FOUND, { exact: true })).toHaveCount(0);
 });
 
-test("Delete answers 404 with People closed: not deleted, the crew stays", async ({
+test("Delete answers 404 with People closed: People closed, nothing deleted", async ({
   page,
   context,
 }, info) => {
@@ -597,8 +613,8 @@ test("Delete answers 404 with People closed: not deleted, the crew stays", async
   await signIn(page, info);
   await openCrew(page, COLLEGE_GANG.crewId, "people");
   await expect(heading(page, COLLEGE_GANG.name)).toBeVisible();
-  // People closes while the crew's page is open.
-  await closeOn(context, "DELETE", `/me/crews/${COLLEGE_GANG.crewId}`);
+  // People closes while the crew's page is open: every People route answers 404.
+  await closePeople(context);
 
   const ask = page.getByRole("group", {
     name: deleteTitle(COLLEGE_GANG.name),
@@ -606,12 +622,9 @@ test("Delete answers 404 with People closed: not deleted, the crew stays", async
   await page.getByRole("button", { name: W.delete, exact: true }).click();
   await ask.getByRole("button", { name: W.delete, exact: true }).click();
 
-  await expect(
-    alerts(page).filter({ hasText: W.closedNotDeleted }),
-  ).toBeVisible();
-  await expect(heading(page, COLLEGE_GANG.name)).toBeVisible();
+  await expectPeopleClosed(page, COLLEGE_GANG.name);
   await expect(page).toHaveURL((u) => u.pathname === path);
-  await expect(page.getByText(NOT_FOUND, { exact: true })).toHaveCount(0);
+  await expect(heading(page, W.goneTitle)).toHaveCount(0);
 });
 
 test("crews down: the failure with Try again, and the rest of People works", async ({

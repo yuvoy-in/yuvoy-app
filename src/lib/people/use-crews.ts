@@ -71,26 +71,42 @@ function is404(error: unknown): error is YuvoyError {
   return error instanceof YuvoyError && error.status === 404;
 }
 
-async function whyMissing(crewId?: string): Promise<CrewMissing> {
+async function whyMissing(
+  crewId?: string,
+  signal?: AbortSignal,
+): Promise<{ why: CrewMissing; home?: unknown }> {
   try {
     const client = createProxyClient();
-    const home = await client.GET("/me/people");
-    if (home.error) return is404(home.error) ? "closed" : "unknown";
-    if (!crewId) return "unknown";
-    const list = await client.GET("/me/crews");
-    if (list.error) return "unknown";
+    const home = await client.GET("/me/people", { signal });
+    if (home.error) {
+      return { why: is404(home.error) ? "closed" : "unknown" };
+    }
+    if (!crewId) return { why: "unknown", home: home.data };
+    const list = await client.GET("/me/crews", { signal });
+    if (list.error) return { why: "unknown", home: home.data };
     const id = crewId.toLowerCase();
-    return list.data.crews.some((c) => c.crewId.toLowerCase() === id)
+    const why = list.data.crews.some((c) => c.crewId.toLowerCase() === id)
       ? "unknown"
       : "gone";
+    return { why, home: home.data };
   } catch {
-    return "unknown";
+    return { why: "unknown" };
   }
 }
 
-/** Reads the release again after a `404` and keeps the answer on the error. */
-async function explain(error: unknown, crewId?: string): Promise<void> {
-  if (is404(error)) missing.set(error, await whyMissing(crewId));
+/**
+ * Reads the release again after a `404` and keeps the answer on the error.
+ * Returns the People home it read, when it read one.
+ */
+async function explain(
+  error: unknown,
+  crewId?: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  if (!is404(error)) return undefined;
+  const { why, home } = await whyMissing(crewId, signal);
+  missing.set(error, why);
+  return home;
 }
 
 /**
@@ -123,9 +139,12 @@ export function useMyCrews(enabled: boolean) {
       const { data, error } = await client.GET("/me/crews", { signal });
       if (error) {
         if (is404(error)) {
-          await explain(error);
-          // Not the crews list itself: that would read it again in a loop.
-          void qc.invalidateQueries({ queryKey: qk.myPeople() });
+          const home = await explain(error, undefined, signal);
+          // The People home just read goes into its cache, so the home does
+          // not read it a second time; a closed or failed read makes the
+          // home read itself. Not the crews list: that would loop.
+          if (home !== undefined) qc.setQueryData(qk.myPeople(), home);
+          else void qc.invalidateQueries({ queryKey: qk.myPeople() });
           void qc.invalidateQueries({ queryKey: qk.myAccount() });
         }
         throw error;
