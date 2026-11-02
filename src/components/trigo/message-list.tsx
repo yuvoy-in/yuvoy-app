@@ -130,6 +130,16 @@ function MessageItem({
         ) : null}
         <span>{text}</span>
       </p>
+      {/*
+        The checked answer the server put beside the reply, under its fixed
+        label. The reply may lean on it, so it is never left out.
+      */}
+      {message.safetyAnswer && !message.removed ? (
+        <p className={cn(BUBBLE, OTHER)}>
+          <span className="label mb-1 block">{message.safetyAnswer.label}</span>
+          <span>{message.safetyAnswer.text}</span>
+        </p>
+      ) : null}
       {message.handoffOffer || canRetry ? (
         <div className="flex flex-wrap gap-2">
           {canRetry ? (
