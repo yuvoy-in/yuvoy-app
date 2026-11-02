@@ -217,3 +217,89 @@ test.describe("Ask Trigo", () => {
     await expectAccessible(page);
   });
 });
+
+/**
+ * The confirm cards under a reply (yuvoy-app#223 part 2, yuvoy-mobile#391),
+ * under the `trigo-card-*` scenarios of `mocks/trigo-card-handlers.ts`: every
+ * reply there carries one card.
+ */
+test.describe("Trigo's cards", () => {
+  const card = (page: Page) =>
+    sheet(page).getByRole("group", {
+      name: "Trigo's card: Book Try-dive at Nemo Reef",
+    });
+
+  test("a reply's card is drawn as sent and passes axe", async ({
+    page,
+  }, info) => {
+    await openChat(page, info, "trigo-card-book");
+    await send(page, "Beginner dive Saturday for two");
+    await expect(card(page)).toBeVisible();
+    await expect(card(page)).toHaveAttribute("data-state", "proposed");
+    await expect(card(page).getByText("2 people")).toBeVisible();
+    await expect(
+      card(page).getByRole("button", { name: "Book" }),
+    ).toBeVisible();
+    await expect(
+      card(page).getByRole("button", { name: "Not now" }),
+    ).toBeVisible();
+    await expectAccessible(page);
+  });
+
+  test("Book opens the checkout with the departure, date and party", async ({
+    page,
+  }, info) => {
+    await openChat(page, info, "trigo-card-book");
+    await send(page, "Beginner dive Saturday for two");
+    await card(page).getByRole("button", { name: "Book" }).click();
+    await expect(page).toHaveURL(
+      /\/e\/try-dive-nemo-reef\/book\?date=\d{4}-\d{2}-\d{2}&slot=slot_try-dive-nemo-reef_a&guests=2/,
+    );
+    const kept = await page.evaluate(() => ({
+      session: sessionStorage.getItem(
+        "yuvoy.trigo.checkout.try-dive-nemo-reef",
+      ),
+      /*
+        eslint-disable no-restricted-syntax --
+        The rule bans `localStorage` in app code. This runs in the browser
+        and proves the card's checkout was not put there.
+      */
+      local: Object.keys(localStorage).filter((k) => k.includes("trigo")),
+      /* eslint-enable no-restricted-syntax */
+    }));
+    expect(kept.session).toContain('"idempotencyKey":"trg_');
+    expect(kept.local).toEqual([]);
+  });
+
+  test("Not now says so and Trigo's line joins the chat", async ({
+    page,
+  }, info) => {
+    await openChat(page, info, "trigo-card-book");
+    await send(page, "Beginner dive Saturday for two");
+    await card(page).getByRole("button", { name: "Not now" }).click();
+    await expect(card(page)).toHaveAttribute("data-state", "declined");
+    await expect(card(page).getByText("You said not now.")).toBeVisible();
+    await expect(card(page).getByRole("button")).toHaveCount(0);
+    const log = sheet(page).getByRole("log", { name: "Messages" });
+    await expect(
+      log.getByText("No problem. Nothing has been booked or changed."),
+    ).toHaveCount(1);
+    await expectAccessible(page);
+  });
+
+  test("a card whose departure sold out shows the API's sentence", async ({
+    page,
+  }, info) => {
+    await openChat(page, info, "trigo-card-sold-out");
+    await send(page, "Beginner dive Saturday for two");
+    await card(page).getByRole("button", { name: "Book" }).click();
+    await expect(
+      card(page).getByText(
+        "This changed since I made this card. Ask Trigo again.",
+      ),
+    ).toBeVisible();
+    await expect(card(page).getByRole("button")).toHaveCount(0);
+    await expect(page).not.toHaveURL(/\/book/);
+    await expectAccessible(page);
+  });
+});
