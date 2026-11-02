@@ -175,7 +175,14 @@ function subscribe(listener: () => void) {
  * (see `RouteTrail` for why that cannot wait for `markStepBack`).
  */
 export function recordVisit(href: string, traversed = false) {
-  set(visit(traversed ? { ...state, stepBack: true } : state, href));
+  // A traversal seen inside the event is the step back itself: any landing an
+  // older back was still waiting for no longer counts.
+  set(
+    visit(
+      traversed ? { ...state, stepBack: true, backTo: undefined } : state,
+      href,
+    ),
+  );
 }
 
 /**

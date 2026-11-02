@@ -222,4 +222,24 @@ describe("the browser's back, in any order (yuvoy-app#215)", () => {
     t.recordVisit("/e/a");
     expect(paths(t.__routeTrail())).toEqual(["/e/a", "/o/op", "/e/a"]);
   });
+
+  it("is a step back inside the event even with an older back still pending", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    t.noteShown("/e/b");
+    t.recordVisit("/e/b");
+    // A back to the business's page whose landing is never recorded there:
+    // the page sends the browser on to another path on the client.
+    t.markStepBack("/o/op");
+    t.noteShown("/o/c");
+    t.recordVisit("/o/c");
+    expect(t.__routeTrail().backTo).toBe("/o/op");
+    // The next back is drawn inside the event: it spends the step back, and
+    // the older landing it was waiting for no longer counts.
+    t.noteShown("/e/b");
+    t.recordVisit("/e/b", true);
+    t.markStepBack("/e/b");
+    expect(paths(t.__routeTrail())).toEqual(["/e/a", "/o/op", "/e/b"]);
+    expect(t.__routeTrail().stepBack).toBe(false);
+  });
 });
