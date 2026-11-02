@@ -80,7 +80,12 @@ export function missing(
   return found;
 }
 
-/** A place's name from the list the person can pick, as #224 shows a place; empty when it is not there. */
+/**
+ * A place's name from the list the person can pick, as #224 shows a place;
+ * empty when it is not there. A group's place can be outside every list the
+ * app can read, so its line stays hidden rather than guess a name from the key,
+ * until the API sends the name itself (yuvoy-in/yuvoy-api#596).
+ */
 export function placeName(
   places: PlaceList | undefined,
   key: string,
