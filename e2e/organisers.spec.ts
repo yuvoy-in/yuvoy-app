@@ -292,9 +292,20 @@ test.describe("organiser pages", () => {
 
     await signIn(page);
 
+    // The release is read in the browser, so wait for `GET /app-config` to
+    // answer and two frames for a gate that opened to draw. `networkidle`
+    // never comes on Account (creator-links.spec.ts says the same).
+    const config = page.waitForResponse((r) =>
+      new URL(r.url()).pathname.endsWith("/app-config"),
+    );
     await page.goto(withScenario("/account", scenario));
-    // The release is read in the browser, so wait for it to have answered.
-    await page.waitForLoadState("networkidle");
+    await config;
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
     await expect(page.locator('a[href="/guides"]').first()).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Organiser pages", exact: true }),
