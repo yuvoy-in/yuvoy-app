@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { FormLine, FormSent } from "./form-parts";
+import { FormGone, FormLine, FormSent } from "./form-parts";
 
 const W = CLAIM_WORDS;
 const EMPTY: ClaimForm = {
@@ -31,8 +31,9 @@ const EMPTY: ClaimForm = {
  * The two required fields left empty are asked for on each before anything
  * is sent. One claim goes however often Send claim is pressed. The answer:
  *   - 202: the API's message, and Done;
- *   - 404: the group is not shown now: its message, and Done goes back to
- *     the directory (`onLeave`);
+ *   - 404: People closed, or the group is not there (read again): that line
+ *     as an alert, never a receipt, and its one button goes back to the
+ *     directory (`onLeave`);
  *   - a 400 naming a field: said on that field;
  *   - 403 `adult_confirmation_required`, 409 `name_required`, 403
  *     `people_paused`: said in words (the web has no age or name step yet),
@@ -123,19 +124,21 @@ export function ClaimSheet({
     }
   };
 
-  if (gone !== null || sent !== null) {
+  if (gone !== null) return <FormGone line={gone} onLeave={onLeave} />;
+
+  if (sent !== null) {
     return (
       <Sheet
         open
-        onClose={gone !== null ? onLeave : onClose}
+        onClose={onClose}
         title={W.title(name)}
         footer={
-          <Button block onClick={gone !== null ? onLeave : onClose}>
+          <Button block onClick={onClose}>
             {W.done}
           </Button>
         }
       >
-        <FormSent text={gone ?? sent ?? ""} />
+        <FormSent text={sent} />
       </Sheet>
     );
   }

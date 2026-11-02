@@ -6,12 +6,16 @@ import {
   CLUB_REPORT_WORDS,
   type ClubReportReason,
 } from "@/lib/groups/club-words";
-import { clubFailure, clubReportBody, reportNeedsNote } from "@/lib/groups/clubs";
+import {
+  clubFailure,
+  clubReportBody,
+  reportNeedsNote,
+} from "@/lib/groups/clubs";
 import { useReportClub } from "@/lib/groups/use-clubs";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { FormLine, FormSent, ReasonChips } from "./form-parts";
+import { FormGone, FormLine, FormSent, ReasonChips } from "./form-parts";
 
 const W = CLUB_REPORT_WORDS;
 
@@ -24,8 +28,9 @@ const W = CLUB_REPORT_WORDS;
  *
  * One report goes however often Send is pressed. The answer:
  *   - 202: the API's message, and Done;
- *   - 404: the group is not shown now: its message, and Done goes back to
- *     the directory (`onLeave`);
+ *   - 404: People closed, or the group is not there (read again): that line
+ *     as an alert, never a receipt, and its one button goes back to the
+ *     directory (`onLeave`);
  *   - a 400 naming the note: said on the note;
  *   - the age, name or paused refusals: said in words (no step on the web yet);
  *   - 429: the API's message, and Send stays held;
@@ -96,19 +101,21 @@ export function ClubReportSheet({
     }
   };
 
-  if (gone !== null || sent !== null) {
+  if (gone !== null) return <FormGone line={gone} onLeave={onLeave} />;
+
+  if (sent !== null) {
     return (
       <Sheet
         open
-        onClose={gone !== null ? onLeave : onClose}
+        onClose={onClose}
         title={W.title(name)}
         footer={
-          <Button block onClick={gone !== null ? onLeave : onClose}>
+          <Button block onClick={onClose}>
             {W.done}
           </Button>
         }
       >
-        <FormSent text={gone ?? sent ?? ""} />
+        <FormSent text={sent} />
       </Sheet>
     );
   }

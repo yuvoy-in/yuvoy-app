@@ -6,6 +6,8 @@ import { renderWithQuery } from "@/test/render";
 import {
   CLAIM_FIELD_WORDS,
   CLAIM_WORDS as W,
+  CLUB_API_WORDS,
+  FORM_GONE_WORDS,
   PEOPLE_ERROR_WORDS,
 } from "@/lib/groups/club-words";
 import { PEOPLE_CLOSED_LINE } from "@/lib/groups/clubs";
@@ -215,13 +217,19 @@ describe("claiming a group", () => {
     await fill(user);
     await user.click(sendButton());
 
-    expect(await screen.findByText(PEOPLE_CLOSED_LINE)).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      PEOPLE_CLOSED_LINE,
+    );
     expect(screen.queryByText(M.claimReceived)).toBeNull();
-    await user.click(screen.getByRole("button", { name: W.done }));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: W.done })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: FORM_GONE_WORDS.back }),
+    );
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it("ends with Done back to the directory when the group is gone", async () => {
+  it("says the group is not there, as an alert and not a receipt, when it is gone", async () => {
     people("all");
     claims(() => refusal(404, "not_found", M.notFound));
     const user = userEvent.setup();
@@ -230,8 +238,15 @@ describe("claiming a group", () => {
     await fill(user);
     await user.click(sendButton());
 
-    expect(await screen.findByText(M.notFound)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: W.done }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      CLUB_API_WORDS.gone,
+    );
+    expect(screen.queryByText(M.claimReceived)).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: W.done })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: FORM_GONE_WORDS.back }),
+    );
     expect(onLeave).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
   });

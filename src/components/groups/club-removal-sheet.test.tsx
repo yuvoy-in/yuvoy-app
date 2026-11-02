@@ -3,7 +3,11 @@ import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
-import { CLUB_REMOVAL_WORDS as W } from "@/lib/groups/club-words";
+import {
+  CLUB_API_WORDS,
+  CLUB_REMOVAL_WORDS as W,
+  FORM_GONE_WORDS,
+} from "@/lib/groups/club-words";
 import { PEOPLE_CLOSED_LINE } from "@/lib/groups/clubs";
 import { ClubRemovalSheet } from "./club-removal-sheet";
 import { server } from "../../../mocks/server";
@@ -139,12 +143,18 @@ describe("asking for a listing to come down", () => {
     await user.click(screen.getByRole("button", { name: "Something else" }));
     await user.click(sendButton());
 
-    expect(await screen.findByText(PEOPLE_CLOSED_LINE)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: W.done }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      PEOPLE_CLOSED_LINE,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: W.done })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: FORM_GONE_WORDS.back }),
+    );
     expect(onLeave).toHaveBeenCalledTimes(1);
   });
 
-  it("ends with Done back to the directory when the group is gone", async () => {
+  it("says the group is not there, as an alert and not a receipt, when it is gone", async () => {
     people("all");
     removals(() =>
       HttpResponse.json(
@@ -153,14 +163,21 @@ describe("asking for a listing to come down", () => {
       ),
     );
     const user = userEvent.setup();
-    const { onLeave } = open();
+    const { onClose, onLeave } = open();
 
     await user.click(screen.getByRole("button", { name: "Something else" }));
     await user.click(sendButton());
 
-    expect(await screen.findByText(M.notFound)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: W.done }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      CLUB_API_WORDS.gone,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: W.done })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: FORM_GONE_WORDS.back }),
+    );
     expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("says too many requests in the API's words, and holds Send", async () => {

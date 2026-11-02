@@ -135,6 +135,16 @@ export const PEOPLE_CLOSED_WORDS = Object.freeze({
   body: "When it opens to you, it shows on Account.",
 });
 
+/**
+ * Ours: a form that ends because People closed or the group is gone. It is
+ * not a receipt, so it has no form title and no Done, only the line and the
+ * way back to the directory.
+ */
+export const FORM_GONE_WORDS = Object.freeze({
+  title: CLUB_WORDS.entry,
+  back: "Back to groups",
+});
+
 /** The API's sentences (yuvoy-api `internal/handler/clubs.go`), for an answer without one. */
 export const CLUB_API_WORDS = Object.freeze({
   gone: "We couldn't find that group.",

@@ -2,9 +2,11 @@
 
 import { cn } from "@/lib/cn";
 import { YuvoyError } from "@/lib/api/errors";
-import { PEOPLE_CLOSED_WORDS } from "@/lib/groups/club-words";
+import { FORM_GONE_WORDS, PEOPLE_CLOSED_WORDS } from "@/lib/groups/club-words";
 import { PeopleClosedError } from "@/lib/groups/clubs";
 import { EmptyState } from "@/components/states";
+import { Button } from "@/components/ui/button";
+import { Sheet } from "@/components/ui/sheet";
 
 /**
  * Small parts the three group forms share (yuvoy-mobile#386): the reason
@@ -67,6 +69,34 @@ export function FormSent({ text }: { text: string }) {
     <p role="status" className="text-body text-pretty">
       {text}
     </p>
+  );
+}
+
+/**
+ * What a form shows when a 404 means People closed or the group is gone. It
+ * is not a receipt: the line is an alert, not a status, the sheet carries no
+ * form title and no Done, and the one button leaves for the directory.
+ */
+export function FormGone({
+  line,
+  onLeave,
+}: {
+  line: string;
+  onLeave: () => void;
+}) {
+  return (
+    <Sheet
+      open
+      onClose={onLeave}
+      title={FORM_GONE_WORDS.title}
+      footer={
+        <Button block onClick={onLeave}>
+          {FORM_GONE_WORDS.back}
+        </Button>
+      }
+    >
+      <FormLine text={line} />
+    </Sheet>
   );
 }
 

@@ -10,9 +10,12 @@ import { clubFailure } from "@/lib/groups/clubs";
 import { useRequestClubRemoval } from "@/lib/groups/use-clubs";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import { FormLine, FormSent, ReasonChips } from "./form-parts";
+import { FormGone, FormLine, FormSent, ReasonChips } from "./form-parts";
 
 const W = CLUB_REMOVAL_WORDS;
+
+/** The API's message after a 202, and whether Done leaves for the directory. */
+type Sent = { text: string; leaves: boolean };
 
 /**
  * Remove this listing (yuvoy-mobile#386), for anyone, signed in or not. One
@@ -24,7 +27,9 @@ const W = CLUB_REMOVAL_WORDS;
  *     to the directory, read again (`onLeave`);
  *   - 202 `removed: false`: a person will look and the group stays. The API's
  *     message, and Done closes the form;
- *   - 404: not shown any more, the same as hidden;
+ *   - 404: People closed, or the group is not there (read again): that line
+ *     as an alert, never a receipt, and its one button goes back to the
+ *     directory (`onLeave`). A 404 is never the same as hidden;
  *   - 429: the API's message, and the button stays held;
  *   - anything else: a line, with the reason still picked, to send again.
  *
@@ -46,7 +51,7 @@ export function ClubRemovalSheet({
   const [reason, setReason] = useState<ClubRemovalReason | null>(null);
   const [line, setLine] = useState<string | null>(null);
   const [held, setHeld] = useState(false);
-  const [sent, setSent] = useState<string | null>(null);
+  const [sent, setSent] = useState<Sent | null>(null);
   const [gone, setGone] = useState<string | null>(null);
   const busy = useRef(false);
   const done = useRef(false);
@@ -58,8 +63,7 @@ export function ClubRemovalSheet({
     try {
       const receipt = await removal.mutateAsync({ reason });
       done.current = true;
-      if (receipt.removed) setGone(receipt.message);
-      else setSent(receipt.message);
+      setSent({ text: receipt.message, leaves: receipt.removed });
     } catch (error) {
       const why = clubFailure("removal", error);
       if (why.kind === "gone" || why.kind === "closed") {
@@ -74,19 +78,22 @@ export function ClubRemovalSheet({
     }
   };
 
-  if (gone !== null || sent !== null) {
+  if (gone !== null) return <FormGone line={gone} onLeave={onLeave} />;
+
+  if (sent !== null) {
+    const leave = sent.leaves ? onLeave : onClose;
     return (
       <Sheet
         open
-        onClose={gone !== null ? onLeave : onClose}
+        onClose={leave}
         title={W.title}
         footer={
-          <Button block onClick={gone !== null ? onLeave : onClose}>
+          <Button block onClick={leave}>
             {W.done}
           </Button>
         }
       >
-        <FormSent text={gone ?? sent ?? ""} />
+        <FormSent text={sent.text} />
       </Sheet>
     );
   }
@@ -108,7 +115,9 @@ export function ClubRemovalSheet({
         </Button>
       }
     >
-      <p className="text-body text-forest/70 mb-5 text-pretty">{W.lead(name)}</p>
+      <p className="text-body text-forest/70 mb-5 text-pretty">
+        {W.lead(name)}
+      </p>
 
       <ReasonChips
         legend={W.reasons}
