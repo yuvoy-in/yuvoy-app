@@ -1701,9 +1701,14 @@ for (const f of files) {
   const saysCodeSent = [
     /\bcode\s+we(?:['’]ve|\s+have)?\s+(?:just\s+)?sent\b/i,
     /\bwe(?:['’]ve|\s+have)?\s+(?:just\s+)?sent\s+(?:you\s+)?(?:a|an|the|your|another|one)\b[^"'`]{0,30}?\bcode\b/i,
-    /\bcode\s+(?:was|has\s+been|is|got)\s+(?:just\s+)?sent\b/i,
-    /\bcode\s+sent\b/i,
-    /["'`>]\s*sent\s*[.!]/i,
+    // "was" and "has been" report a send; "A code is sent only to..." is a
+    // rule and passes.
+    /\bcode\s+(?:was|has\s+been|got)\s+(?:just\s+)?sent\b/i,
+    // "Code sent" as a line of its own; "the code sent to" mid-sentence passes.
+    /["'`>]\s*(?:a\s+)?(?:new\s+)?code\s+sent\b/i,
+    // "Sent." only where a code or the inbox follows, so "Sent." after a
+    // report or a booking message passes.
+    /["'`>]\s*sent\s*[.!][^"'`<]{0,60}\b(?:code|check\s+your\s+(?:email|inbox))\b/i,
     /\b(?:emailed|texted|messaged)\s+(?:you\s+)?(?:a|an|the|your)?\s*(?:new\s+)?(?:sign-in\s+)?code\b/i,
   ];
   if (saysCodeSent.some((r) => r.test(s))) {
