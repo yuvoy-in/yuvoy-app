@@ -213,8 +213,8 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   /*
     Ask Trigo (yuvoy-app#223, R5-T5). Every Trigo call is session only in the
     contract: the chat belongs to the account, and the team replies to the
-    account. `src/lib/trigo/api.ts` is the caller of each. Hand-off, report,
-    the confirm cards and Trigo's memory have no screen yet and are not here.
+    account. `src/lib/trigo/api.ts` and `src/lib/trigo/actions.ts` call them.
+    Hand-off, report and Trigo's memory have no screen yet and are not here.
   */
   // One typed message and its answer, with an Idempotency-Key per message.
   { method: "POST", pattern: "/trigo/turns" },
@@ -230,6 +230,10 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "POST", pattern: "/trigo/consent" },
   // Turn off Trigo, `?surface=web`.
   { method: "DELETE", pattern: "/trigo/consent" },
+  // Yes on a card under a reply: a checkout to open, or an alert or draft made.
+  { method: "POST", pattern: "/trigo/actions/{id}/confirm" },
+  // Not now on a card: Trigo's line "Nothing has been booked or changed."
+  { method: "POST", pattern: "/trigo/actions/{id}/decline" },
   /*
     The year a person was born, asked by Trigo's age check (`403
     adult_confirmation_required`) for an account made before the year was
