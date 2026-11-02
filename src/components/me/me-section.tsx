@@ -76,7 +76,12 @@ function Section({ className }: { className?: string }) {
   return (
     <div className={className}>
       <div className="space-y-8">
-        {list.didYouGo.length > 0 ? <DidYouGo items={list.didYouGo} /> : null}
+        {/*
+          Always mounted, even with no question left: the answer's own
+          refusal line lives in DidYouGo, and an unmounted mutation observer
+          never hears that the last question came back refused.
+        */}
+        <DidYouGo items={list.didYouGo} />
         {listFailed ? <Failed /> : <LifeListTabs />}
         {badges.data ? (
           <Badges earned={badges.data.earned} inProgress={badges.data.inProgress} />

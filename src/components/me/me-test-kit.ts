@@ -266,7 +266,16 @@ export function meRoutes(
     http.post(`${BASE}/me/went/:eventId`, async ({ request }) => {
       await note(at.answer, request);
       if (over.answer) return failure(over.answer)();
-      return new HttpResponse(null, { status: 204 });
+      // The contract's 200 WentAnswer, though the page reads none of it.
+      const went = (at.answer.bodies.at(-1) as { went?: boolean } | undefined)?.went ?? true;
+      return HttpResponse.json({
+        went,
+        rating: null,
+        tags: [],
+        proof: "self",
+        answeredAt: "2026-10-30T12:00:00Z",
+        visibility: "friends",
+      });
     }),
   );
   return at;

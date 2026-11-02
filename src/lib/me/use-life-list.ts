@@ -211,17 +211,19 @@ export function useSetEntryVisibility() {
           : { ...e, visibility },
       );
     },
-    onError: (error, { entry }, context) => {
+    onError: (_error, { entry }, context) => {
+      // A later change still on its way shows what the person chose last;
+      // putting this one's old value back would undo it on the card.
+      if (qc.isMutating({ mutationKey: VISIBILITY_KEY }) > 1) return;
       if (context) {
         changeEntry(qc, entry.entryId, (e) => ({
           ...e,
           visibility: context.was,
         }));
       }
-      // Closed to them since the read: read again, and the section goes.
-      if (isMeClosed(error)) {
-        void qc.invalidateQueries({ queryKey: qk.myLifeList() });
-      }
+      // Then read again: after several taps the old value held here may not
+      // be what the server has, and a section closed since the read goes.
+      void qc.invalidateQueries({ queryKey: qk.myLifeList() });
     },
   });
 }
