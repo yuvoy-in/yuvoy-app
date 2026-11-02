@@ -7,6 +7,7 @@ import {
 } from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
+import { linkedWaysFor } from "./ways-in-handlers";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
 import {
   PEOPLE_SCENARIOS,
@@ -453,9 +454,12 @@ function answerMe(request: Request): Response {
   /*
     Signed in through the email door with no number proved
     (`?__scenario=email-door`, yuvoy-api#304): `phone` is null and the
-    proven email is the way in.
+    proven email is the way in. `email-sign-in-email-door` is the same
+    account with the door open, so Ways in offers a number (yuvoy-app#229).
   */
-  const emailDoor = scenarioOf(request) === "email-door";
+  const emailDoor =
+    scenarioOf(request) === "email-door" ||
+    scenarioOf(request) === "email-sign-in-email-door";
   /*
     People (yuvoy-app#222): under its scenarios the name and the age answer
     are the session's, so the name and age steps change what this says, and
@@ -464,13 +468,16 @@ function answerMe(request: Request): Response {
   const auth = request.headers.get("authorization")!;
   const peopleAccount = peopleAccountFor(auth, scenarioOf(request));
   const peopleSummary = peopleSummaryFor(auth, scenarioOf(request));
+  // A way in this session added (`ways-in-handlers.ts`, yuvoy-app#229).
+  const added = linkedWaysFor(auth);
+  const provenEmail = emailDoor ? "asha@example.com" : (added.email ?? null);
   return HttpResponse.json(
     {
-      phone: emailDoor ? null : "+919000000000",
+      phone: emailDoor ? (added.phone ?? null) : "+919000000000",
       name: peopleAccount ? peopleAccount.name : fresh ? null : "Asha Menon",
       email: fresh ? null : "asha@example.com",
-      emailProven: emailDoor,
-      provenEmail: emailDoor ? "asha@example.com" : null,
+      emailProven: provenEmail !== null,
+      provenEmail,
       /*
         Who sees releases early (R0-T2): nobody, unless
         `?__scenario=cohort-staff` or `cohort-early` says so, or one of

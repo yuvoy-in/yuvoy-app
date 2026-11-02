@@ -15,6 +15,7 @@ import {
   SAMPLE_SECOND_MARKET,
 } from "./fixtures";
 import { bookingHandlers } from "./booking-handlers";
+import { waysInHandlers } from "./ways-in-handlers";
 import { savedHandlers } from "./saved-handlers";
 import {
   foundHandlers,
@@ -226,7 +227,9 @@ export type Scenario =
   */
   | "email-sign-in"
   | "email-sign-in-closed"
-  | "email-sign-in-limited";
+  | "email-sign-in-limited"
+  /* An email account (`email-door`'s `GET /me`) with the door open. */
+  | "email-sign-in-email-door";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -1404,6 +1407,8 @@ const routes = [
     );
   }),
 
+  // Adding a way in (yuvoy-app#229): verify with a bearer, ahead of the sign-in.
+  ...waysInHandlers,
   ...bookingHandlers,
   ...savedHandlers,
   ...foundHandlers,
