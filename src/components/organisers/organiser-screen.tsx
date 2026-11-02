@@ -38,7 +38,8 @@ import {
  * waits for a check), "Post an event" while the state allows it, "Edit page"
  * and "Helpers" for an owner, and the events in the API's order, each opening
  * its own screen. A group's form that met `409 club_already_linked` opens
- * the group's organiser here with the API's sentence, once. Left out from
+ * the group's organiser here with the API's sentence, once, and the sentence
+ * shows even when the organiser cannot be read. Left out from
  * the phone: "Check people in" (the door), which the web does not build.
  */
 export function OrganiserScreen({ id }: { id: string }) {
@@ -56,6 +57,7 @@ export function OrganiserScreen({ id }: { id: string }) {
     return (
       <Screen back={BACK_TO_HUB}>
         <OrganiserHeading>{W.title}</OrganiserHeading>
+        <LinkedLine text={linked} />
         <OrganiserRefusalBlock
           refusal={organiserRefusal(organiser.error)}
           onRetry={() => void organiser.refetch()}
@@ -87,16 +89,7 @@ export function OrganiserScreen({ id }: { id: string }) {
           <p className="text-pretty">{madeLine}</p>
         </Panel>
       ) : null}
-      {linked ? (
-        <Panel
-          tone="outline"
-          role="status"
-          className="mt-4 px-4 py-4"
-          data-testid="organiser-linked"
-        >
-          <p className="text-pretty">{linked}</p>
-        </Panel>
-      ) : null}
+      <LinkedLine text={linked} />
       <RefetchNotice query={organiser} />
 
       <StateCard organiser={page} showsCode={actions.copyCode} />
@@ -123,6 +116,21 @@ export function OrganiserScreen({ id }: { id: string }) {
 
       <OrganiserEvents id={page.id} base={base} />
     </Screen>
+  );
+}
+
+/** The sentence a group's form handed over, or nothing. */
+function LinkedLine({ text }: { text: string | null }) {
+  if (!text) return null;
+  return (
+    <Panel
+      tone="outline"
+      role="status"
+      className="mt-4 px-4 py-4"
+      data-testid="organiser-linked"
+    >
+      <p className="text-pretty">{text}</p>
+    </Panel>
   );
 }
 

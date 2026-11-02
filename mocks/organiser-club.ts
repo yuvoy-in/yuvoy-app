@@ -132,7 +132,8 @@ export function clubCreate(
     role: "owner",
     clubId: club.clubId,
   };
-  store.organisers.unshift(org);
+  // The API lists the person's organisers oldest first.
+  store.organisers.push(org);
   store.linked.set(club.clubId, org.id);
   store.clubsToLink = store.clubsToLink.filter(
     (c) => c.clubId !== club.clubId,
@@ -142,7 +143,9 @@ export function clubCreate(
 
 /**
  * `PATCH /organisers/{id}` on a group's organiser: the name and place must be
- * sent back exactly as stored. Null for any other organiser, or when both are.
+ * sent back as stored (trimmed, as the API reads them), and every other
+ * field's problem comes in the same 400. Null for any other organiser, or
+ * when nothing is wrong.
  */
 export function clubKept(
   org: Organiser,
@@ -150,9 +153,9 @@ export function clubKept(
 ): Refusal | null {
   if (org.clubId === null) return null;
   const problems: Record<string, string> = {};
-  if (body.name !== org.name) problems.name = SAID.keepsName;
-  if (body.destinationKey !== org.destinationKey) {
+  if (text(body.name) !== org.name.trim()) problems.name = SAID.keepsName;
+  if (text(body.destinationKey) !== org.destinationKey.trim()) {
     problems.destinationKey = SAID.keepsPlace;
   }
-  return fieldsRefused(problems);
+  return fieldsRefused({ ...problems, ...restProblems(body) });
 }

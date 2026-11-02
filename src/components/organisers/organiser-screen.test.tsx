@@ -196,4 +196,31 @@ describe("OrganiserScreen, a group's page (yuvoy-app#225)", () => {
     ).toBeTruthy();
     expect(screen.queryByTestId("organiser-linked")).toBeNull();
   });
+
+  it("keeps the handed-over sentence when the page cannot be read", async () => {
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "internal",
+              message: "",
+              details: {},
+              requestId: "req_f",
+            },
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+    handOverLinked(ORG_IDS.verified, W.clubLinked);
+    open(ORG_IDS.verified);
+    expect(
+      (await screen.findByTestId("organiser-linked")).textContent,
+    ).toBe(W.clubLinked);
+    expect(
+      screen.getByRole("heading", { level: 1, name: W.title }),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("organiser-state-card")).toBeNull();
+  });
 });

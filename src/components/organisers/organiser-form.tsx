@@ -38,6 +38,7 @@ import {
 import { qk } from "@/lib/query/policy";
 import { useVocabulary } from "@/lib/search/use-search-reels";
 import { usePlaceList } from "@/lib/site/use-place";
+import { clubOfferChanged, useOpenClubOrganiser } from "./organiser-club-parts";
 import { OrganiserRefusalBlock, OrganiserWriteError } from "./organiser-gate";
 import {
   DepartmentPicker,
@@ -74,7 +75,8 @@ import {
  *
  * A group's page (yuvoy-app#225): `/organiser/new?club={clubId}` is the same
  * form for a group the person holds, found in the hub's `clubsToLink`, never
- * taken from the address alone. Its name and place are fixed text and are
+ * taken from the address alone (one set up already opens its page instead,
+ * `organiser-club-parts.ts`). Its name and place are fixed text and are
  * not sent; after the 201 the page opens with `?made=club`, which says it is
  * checked already. A `409 club_already_linked` opens the group's organiser
  * with the API's sentence. The edit of a group's organiser (`clubId` set)
@@ -127,6 +129,10 @@ function ClubFormBody({ clubId }: { clubId: string }) {
   const [kept, setKept] = useState<ClubToLink | null>(null);
   if (found !== null && kept?.clubId !== found.clubId) setKept(found);
   const club = kept ?? found;
+  const opening = useOpenClubOrganiser(
+    clubId,
+    club === null ? organisers.data?.items : undefined,
+  );
 
   if (club !== null) {
     return (
@@ -139,7 +145,7 @@ function ClubFormBody({ clubId }: { clubId: string }) {
     );
   }
 
-  if (organisers.isPending) return <FormLoading />;
+  if (organisers.isPending || opening) return <FormLoading />;
 
   if (organisers.data === undefined) {
     return (
@@ -299,8 +305,12 @@ function OrganiserFormBody({
       return;
     }
     if (said.kind === "fields") setErrors({ ...said.fields });
-    if (said.kind === "network" && !editing) {
+    if (
+      (said.kind === "network" && !editing) ||
+      (clubId !== undefined && clubOfferChanged(error))
+    ) {
       // No answer: it may have been made, so the list is read again and nothing is sent by itself.
+      // A group no longer to offer: the list is read again so the hub stops offering it.
       void qc.invalidateQueries({ queryKey: qk.myOrganisers() });
     }
     setRefusal(said);

@@ -344,7 +344,7 @@ describe("A group's organiser page (yuvoy-app#225)", () => {
     const mine = (await (
       await asked("/me/organisers", "organisers-club")
     ).json()) as { items: Organiser[]; clubsToLink: { clubId: string }[] };
-    const made = mine.items[0];
+    const made = mine.items.find((org) => org.clubId === runners.clubId);
     expect(to).toBe(`/organiser/${made?.id}?made=club`);
     expect(made?.state).toBe("verified");
     expect(made?.clubId).toBe(runners.clubId);

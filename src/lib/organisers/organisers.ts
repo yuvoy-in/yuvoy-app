@@ -189,8 +189,8 @@ export function organiserForm(organiser: Organiser): OrganiserPageForm {
 /**
  * The setup form for a group the person holds (yuvoy-app#225): #224's empty
  * form with the group's name and place, and the group's category ticked when
- * it is one of the departments the form draws. One it cannot draw could not
- * be unticked, so it is left out.
+ * it is a key of `ORGANISER_DEPARTMENTS`, the app's own list. A category
+ * outside that list is left unticked, even when the vocabulary offers it.
  */
 export function clubPageForm(club: ClubToLink): OrganiserPageForm {
   const { category } = club;
