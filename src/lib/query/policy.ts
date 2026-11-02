@@ -318,6 +318,15 @@ export const qk = {
    */
   myCreatorLinks: () => ["listMyCreatorLinks"] as const,
   /**
+   * Me (yuvoy-mobile#444): the life list, its badges and the settings it
+   * shows. Not keyed by anything, for the reason `myBookings` gives, and
+   * belonging to a number, so removed on sign in and sign out with the rest.
+   * The life list holds five-minute photo links and lives in memory only.
+   */
+  myLifeList: () => ["getMyLifeList"] as const,
+  myBadges: () => ["getMyBadges"] as const,
+  mySettings: () => ["getMySettings"] as const,
+  /**
    * One help request, by its reference, and by WHICH credential asked.
    *
    * The same reference can be asked for by the session and by a booking's

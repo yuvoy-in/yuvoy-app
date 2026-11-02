@@ -178,6 +178,39 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/me/creator-links/C-K7QM2XPA")).toBeNull();
   });
 
+  it("forwards Me's life list, badges and two settings, and nothing beside them", () => {
+    /*
+      yuvoy-mobile#444. Who sees a trip or a table goes by its entry, who sees
+      a went entry only by its event. A friend's life list and the cheers are
+      not built on the web yet, so they are not here.
+    */
+    const entry = "/me/life-list/trip:b0a11000-0000-4000-8000-000000000001";
+    const event = "/me/went/e7e10000-0000-4000-8000-000000000009";
+    expect(allowedProxyPath("GET", "/me/life-list")).toBe("/me/life-list");
+    expect(allowedProxyPath("PATCH", entry)).toBe("/me/life-list/{entryId}");
+    expect(allowedProxyPath("POST", event)).toBe("/me/went/{eventId}");
+    expect(allowedProxyPath("PATCH", event)).toBe("/me/went/{eventId}");
+    expect(allowedProxyPath("GET", "/me/badges")).toBe("/me/badges");
+    expect(allowedProxyPath("POST", "/me/badges/seen")).toBe("/me/badges/seen");
+    expect(allowedProxyPath("GET", "/me/settings")).toBe("/me/settings");
+    expect(allowedProxyPath("PATCH", "/me/settings")).toBe("/me/settings");
+
+    expect(allowedProxyPath("POST", "/me/life-list")).toBeNull();
+    expect(allowedProxyPath("GET", entry)).toBeNull();
+    expect(allowedProxyPath("DELETE", entry)).toBeNull();
+    expect(allowedProxyPath("GET", event)).toBeNull();
+    expect(allowedProxyPath("DELETE", event)).toBeNull();
+    expect(allowedProxyPath("POST", "/me/badges")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/badges/seen")).toBeNull();
+    expect(allowedProxyPath("PUT", "/me/settings")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/me/settings")).toBeNull();
+    const person = "/people/a1b2c3d4-0000-4000-8000-000000000001";
+    expect(allowedProxyPath("GET", `${person}/life-list`)).toBeNull();
+    expect(
+      allowedProxyPath("POST", `${person}/life-list/went:e7e1/cheer`),
+    ).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();
