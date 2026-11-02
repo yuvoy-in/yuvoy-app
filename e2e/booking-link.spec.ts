@@ -46,9 +46,25 @@ async function backToTrips(page: Page) {
   await page.waitForURL(/\/trips/);
 }
 
+/**
+ * One trip's card, by the reference printed on it, and never "the first card".
+ *
+ * The list a tab press replaces fades out as a copy (`fadeCopy`, 100ms), and
+ * that copy's links still match `CARD`. It cannot be tapped, but it can be
+ * read: right after pressing Past, the first card was the old Upcoming list's
+ * in 6 of 100 runs, and in 31 of 100 once Upcoming had drawn first
+ * (yuvoy-app#211). So a test that read "the first card" and then tapped it
+ * could read one trip and tap another.
+ */
+function tripCard(page: Page, reference: string) {
+  return page.locator(CARD).filter({ hasText: reference });
+}
+
 async function openPastTab(page: Page) {
   await page.getByRole("tab", { name: /past/i }).click();
-  await page.waitForSelector(CARD);
+  const card = tripCard(page, "YV-PASTONE");
+  await card.waitFor();
+  return card;
 }
 
 test("a past trip opened after arriving on a booking link is not called dead", async ({
@@ -62,8 +78,8 @@ test("a past trip opened after arriving on a booking link is not called dead", a
 
   // Then the owner's journey: back to Trips, into Past, tap a trip.
   await backToTrips(page);
-  await openPastTab(page);
-  await page.locator(CARD).first().click();
+  const past = await openPastTab(page);
+  await past.click();
   await page.waitForURL(/\/booking/);
 
   /*
@@ -126,12 +142,10 @@ test("the token sent to the API is the one the traveller tapped", async ({
   await signIn(page);
   await page.goto("/booking#t=tok_other_phone");
   await backToTrips(page);
-  await openPastTab(page);
+  const past = await openPastTab(page);
 
-  const wanted = (await page.locator(CARD).first().getAttribute("href"))?.split(
-    "#t=",
-  )[1];
-  await page.locator(CARD).first().click();
+  const wanted = (await past.getAttribute("href"))?.split("#t=")[1];
+  await past.click();
   await page.waitForURL(/\/booking/);
   await expect(page.getByText(DEAD_LINK)).toHaveCount(0);
 
@@ -156,8 +170,8 @@ test("the address bar keeps a link that is safe to copy", async ({ page }) => {
   await signIn(page);
   await page.goto("/booking#t=tok_other_phone");
   await backToTrips(page);
-  await openPastTab(page);
-  await page.locator(CARD).first().click();
+  const past = await openPastTab(page);
+  await past.click();
   await page.waitForURL(/\/booking/);
 
   await expect(async () => {
@@ -180,10 +194,10 @@ test("every tab lists its own trips, and each one opens", async ({ page }) => {
     ["Cancelled", "YV-CALLOFF"],
   ] as const) {
     await page.getByRole("tab", { name: new RegExp(tab, "i") }).click();
-    await page.waitForSelector(CARD);
-    await expect(page.getByText(reference)).toBeVisible();
+    const card = tripCard(page, reference);
+    await expect(card).toBeVisible();
 
-    await page.locator(CARD).first().click();
+    await card.click();
     await page.waitForURL(/\/booking/);
     // A row from `/me/bookings` carries a token that opens that booking.
     await expect(page.getByText(DEAD_LINK)).toHaveCount(0);
