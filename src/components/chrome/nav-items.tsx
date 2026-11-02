@@ -198,10 +198,17 @@ export function NavList({ orientation }: { orientation: "bar" | "rail" }) {
         navigation: hidden from assistive technology, out of the tab order,
         and its names are drawn by CSS (`data-label`) so no text is
         duplicated for anyone to find twice.
+
+        `data-motion` keeps it out of the global reduced-motion rule. That rule
+        gives every unmarked element a 0.001ms transition on all properties, so
+        the clip would become a real CSS transition, and WebKit reports the old
+        clip for that moment (yuvoy-app#213). The paper has no transition of its
+        own: under reduced motion the clip simply changes.
       */}
       <ul
         aria-hidden="true"
         inert
+        data-motion=""
         data-tab-lit=""
         className="tab-lit pointer-events-none absolute inset-0 flex items-center gap-1"
       >
