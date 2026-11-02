@@ -12,7 +12,11 @@ import {
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { __resetOrganiserMocks } from "../../../mocks/organiser-handlers";
-import { EVENT_IDS, ORG_IDS } from "../../../mocks/organiser-fixtures";
+import {
+  EVENT_IDS,
+  ORG_IDS,
+  ORG_VERIFIED,
+} from "../../../mocks/organiser-fixtures";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -196,6 +200,37 @@ describe("NewOrganiserEvent", () => {
     expect(screen.getByLabelText(W.eventTitle)).toHaveValue("Sunrise walk");
     await user.click(screen.getByRole("button", { name: W.tryAgain }));
     await waitFor(() => expect(nav.replace).toHaveBeenCalledTimes(1));
+  });
+
+  it("reads the organiser again after a 409, so a page suspended meanwhile shows no form", async () => {
+    postOn(ORG_IDS.verified);
+    const user = await fillIn();
+    // Staff suspend the page while the form is open.
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () =>
+        HttpResponse.json({ ...ORG_VERIFIED, state: "suspended" }),
+      ),
+      http.post(`${BASE}/organisers/:id/events`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "conflict",
+              message: "This organiser page cannot post events now.",
+              details: { state: "suspended" },
+              requestId: "req_c",
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: W.sendEvent(false) }));
+
+    expect(
+      await screen.findByTestId("organiser-event-form-refused"),
+    ).toHaveTextContent(W.suspended);
+    expect(screen.queryByTestId("organiser-event-form")).toBeNull();
+    expect(nav.replace).not.toHaveBeenCalled();
   });
 
   it("shows no form on a suspended organiser", async () => {

@@ -167,6 +167,34 @@ describe("NewOrganiserForm", () => {
     expect(nav.replace).not.toHaveBeenCalled();
   });
 
+  it("puts a link's sentence under its own row when a blank row was not sent", async () => {
+    let sent: Record<string, unknown> | null = null;
+    const line = "That site cannot be linked.";
+    server.use(
+      http.post(`${BASE}/organisers`, async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return envelope("invalid_input", line, 400, { "links.0": line });
+      }),
+    );
+    const user = userEvent.setup();
+    newForm();
+    await fill(user);
+    await user.click(screen.getByRole("button", { name: W.addLink }));
+    await user.click(screen.getByRole("button", { name: W.addLink }));
+    const second = screen.getAllByLabelText(W.linkUrl)[1] as HTMLInputElement;
+    await user.type(second, "https://blocked.example.com");
+    await user.click(screen.getByRole("button", { name: W.send }));
+
+    const row = await screen.findByTestId("organiser-form-link-1");
+    expect(await within(row).findByText(line)).toBeTruthy();
+    expect(
+      within(screen.getByTestId("organiser-form-link-0")).queryByText(line),
+    ).toBeNull();
+    expect(sent).toMatchObject({
+      links: [{ kind: "website", url: "https://blocked.example.com" }],
+    });
+  });
+
   it("says the pause with Try again, keeping everything typed", async () => {
     server.use(
       http.post(`${BASE}/organisers`, () =>
@@ -246,6 +274,27 @@ describe("EditOrganiserForm", () => {
       contactEmail: "walkers@example.com",
     });
     expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("reads the page again after a 409, so a page closed meanwhile shows closed", async () => {
+    const user = userEvent.setup();
+    editForm(ORG_IDS.verified);
+    await screen.findByLabelText(W.name);
+    // Staff close the page while the form is open.
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () =>
+        HttpResponse.json({ ...ORG_VERIFIED, state: "closed" }),
+      ),
+      http.patch(`${BASE}/organisers/:id`, () =>
+        envelope("conflict", "This organiser page is closed.", 409, {
+          state: "closed",
+        }),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: W.save }));
+
+    expect(await screen.findByTestId("organiser-edit-closed")).toBeTruthy();
+    expect(screen.queryByTestId("organiser-form")).toBeNull();
   });
 
   it("is an owner's only", async () => {
