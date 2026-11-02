@@ -1782,6 +1782,11 @@ for (const f of files) {
       "src/components/found/see-details.tsx",
       "the leaving sheet, opened by See details",
     ],
+    ["src/components/groups/claim-sheet.tsx", "a sheet, opened by Claim"],
+    [
+      "src/components/groups/club-report-sheet.tsx",
+      "a sheet, opened by Report",
+    ],
     [
       "src/components/plans/guest-plan.tsx",
       "the guest's first name, drawn once the plan has loaded in the browser",

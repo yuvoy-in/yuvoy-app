@@ -143,26 +143,26 @@ export function useClubs(destinationKey: string | null) {
     retry: false,
     queryFn: ({ signal }): Promise<ClubList> =>
       checked(qc, Boolean(signedIn), async () => {
-      const query = { destinationKey: key };
-      if (signedIn) {
-        try {
-          const { data } = await createProxyClient().GET("/me/clubs", {
-            params: { query },
-            signal,
-          });
-          if (data) return data;
-        } catch (cause) {
-          endedSession(qc, cause);
+        const query = { destinationKey: key };
+        if (signedIn) {
+          try {
+            const { data } = await createProxyClient().GET("/me/clubs", {
+              params: { query },
+              signal,
+            });
+            if (data) return data;
+          } catch (cause) {
+            endedSession(qc, cause);
+          }
         }
-      }
-      const { data, error } = await api.GET("/clubs", {
-        params: { query },
-        signal,
-      });
-      if (error || !data)
-        throw error ?? new Error("GET /clubs answered no list.");
-      return data;
-    }),
+        const { data, error } = await api.GET("/clubs", {
+          params: { query },
+          signal,
+        });
+        if (error || !data)
+          throw error ?? new Error("GET /clubs answered no list.");
+        return data;
+      }),
   });
 }
 
@@ -177,26 +177,26 @@ export function useClub(slug: string) {
     retry: false,
     queryFn: ({ signal }): Promise<Club> =>
       checked(qc, Boolean(signedIn), async () => {
-      const params = { path: { slug } };
-      if (signedIn) {
-        try {
-          const { data } = await createProxyClient().GET("/me/clubs/{slug}", {
-            params,
-            signal,
-          });
-          if (data) return data;
-        } catch (cause) {
-          endedSession(qc, cause);
+        const params = { path: { slug } };
+        if (signedIn) {
+          try {
+            const { data } = await createProxyClient().GET("/me/clubs/{slug}", {
+              params,
+              signal,
+            });
+            if (data) return data;
+          } catch (cause) {
+            endedSession(qc, cause);
+          }
         }
-      }
-      const { data, error } = await api.GET("/clubs/{slug}", {
-        params,
-        signal,
-      });
-      if (error || !data)
-        throw error ?? new Error("GET /clubs/{slug} answered no group.");
-      return data;
-    }),
+        const { data, error } = await api.GET("/clubs/{slug}", {
+          params,
+          signal,
+        });
+        if (error || !data)
+          throw error ?? new Error("GET /clubs/{slug} answered no group.");
+        return data;
+      }),
   });
 }
 
@@ -210,13 +210,14 @@ export function useClaimClub(clubId: string) {
     retry: false,
     mutationFn: (body: ClubClaimInput): Promise<ClubClaimReceipt> =>
       checked(qc, true, async () => {
-      const { data, error } = await createProxyClient().POST(
-        "/clubs/{clubId}/claims",
-        { params: { path: { clubId } }, body },
-      );
-      if (error || !data) throw error ?? new Error("The claim had no receipt.");
-      return data;
-    }),
+        const { data, error } = await createProxyClient().POST(
+          "/clubs/{clubId}/claims",
+          { params: { path: { clubId } }, body },
+        );
+        if (error || !data)
+          throw error ?? new Error("The claim had no receipt.");
+        return data;
+      }),
     onError: (error) => onRefused(qc, error),
   });
 }
@@ -233,15 +234,15 @@ export function useRequestClubRemoval(clubId: string) {
     retry: false,
     mutationFn: (body: ClubRemovalRequest): Promise<ClubRemovalReceipt> =>
       checked(qc, Boolean(signedIn), async () => {
-      const client = signedIn ? createProxyClient() : api;
-      const { data, error } = await client.POST(
-        "/clubs/{clubId}/removal-requests",
-        { params: { path: { clubId } }, body },
-      );
-      if (error || !data)
-        throw error ?? new Error("The removal request had no receipt.");
-      return data;
-    }),
+        const client = signedIn ? createProxyClient() : api;
+        const { data, error } = await client.POST(
+          "/clubs/{clubId}/removal-requests",
+          { params: { path: { clubId } }, body },
+        );
+        if (error || !data)
+          throw error ?? new Error("The removal request had no receipt.");
+        return data;
+      }),
     onSuccess: (data) => {
       if (data.removed) void readGroupsAgain(qc);
     },
@@ -256,14 +257,14 @@ export function useReportClub(clubId: string) {
     retry: false,
     mutationFn: (body: ClubReport): Promise<ClubReportReceipt> =>
       checked(qc, true, async () => {
-      const { data, error } = await createProxyClient().POST(
-        "/clubs/{clubId}/reports",
-        { params: { path: { clubId } }, body },
-      );
-      if (error || !data)
-        throw error ?? new Error("The report had no receipt.");
-      return data;
-    }),
+        const { data, error } = await createProxyClient().POST(
+          "/clubs/{clubId}/reports",
+          { params: { path: { clubId } }, body },
+        );
+        if (error || !data)
+          throw error ?? new Error("The report had no receipt.");
+        return data;
+      }),
     onError: (error) => onRefused(qc, error),
   });
 }
