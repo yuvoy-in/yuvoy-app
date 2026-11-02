@@ -17,7 +17,12 @@ import {
   Skeleton,
 } from "@/components/states";
 import { ClubCard } from "./club-card";
-import { NOT_FOUND_WORDS, isNotFound } from "./form-parts";
+import {
+  NOT_FOUND_WORDS,
+  PeopleClosed,
+  isNotFound,
+  isPeopleClosed,
+} from "./form-parts";
 
 /** Until People has its Groups tab (yuvoy-app#222), back goes to the feed. */
 const BACK = { href: "/", label: "the feed" };
@@ -54,8 +59,9 @@ function NotFound() {
  * Read again each time it opens and on each chip: no copy of a list is kept
  * past its use. States: loading; no places; empty ("No groups listed for
  * {city} yet."); an error with a retry, never the empty line; and a 404,
- * which is what the API answers while People is closed to this reader, as
- * the app's not-found screen. Follow comes with yuvoy-mobile#392, not here.
+ * never the empty line either: the release is read again, and it is People
+ * closed when that says People is closed to this reader, else the app's
+ * not-found screen. Follow comes with yuvoy-mobile#392, not here.
  */
 export function GroupsScreen({
   place,
@@ -121,8 +127,16 @@ function GroupsList({
   const shown = chips.find((d) => d.key === picked) ?? chips[0]!;
   const list = useClubs(shown.key);
 
-  // People closed to this reader answers 404 for every place: the app's
-  // not-found screen, never an error that names People, never the empty line.
+  // A 404 is never an empty list (decision A). The hooks read the release
+  // again: closed to this reader is People closed; still open, the place is
+  // not there, which is the app's not-found screen.
+  if (isPeopleClosed(list.error)) {
+    return (
+      <Screen back={BACK}>
+        <PeopleClosed />
+      </Screen>
+    );
+  }
   if (isNotFound(list.error)) {
     return (
       <Screen back={BACK}>

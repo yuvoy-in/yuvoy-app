@@ -7,12 +7,22 @@ import {
   CLUB_REPORT_WORDS as W,
   PEOPLE_ERROR_WORDS,
 } from "@/lib/groups/club-words";
+import { PEOPLE_CLOSED_LINE } from "@/lib/groups/clubs";
 import { ClubReportSheet } from "./club-report-sheet";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { CLUB_IDS, CLUB_MESSAGES as M } from "../../../mocks/club-fixtures";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+
+/** `GET /app-config` with People at `stage`: what reading the release again after a 404 finds. */
+function people(stage: "all" | "off") {
+  server.use(
+    http.get(`${BASE}/app-config`, () =>
+      HttpResponse.json({ releases: { people: stage } }),
+    ),
+  );
+}
 
 /**
  * Something wrong? Tell us (yuvoy-mobile#386). Nothing goes until a reason
@@ -154,7 +164,22 @@ describe("reporting a group", () => {
     expect(sendButton()).toBeDisabled();
   });
 
+  it("says People closed, never sent, when a 404 finds the release closed", async () => {
+    people("off");
+    reports(() => refusal(404, "not_found", M.notOpen));
+    const user = userEvent.setup();
+    const { onLeave } = open();
+
+    await user.click(screen.getByRole("button", { name: "It isn't a real group" }));
+    await user.click(sendButton());
+
+    expect(await screen.findByText(PEOPLE_CLOSED_LINE)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: W.done }));
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
   it("ends with Done back to the directory when the group is gone", async () => {
+    people("all");
     reports(() => refusal(404, "not_found", M.notFound));
     const user = userEvent.setup();
     const { onClose, onLeave } = open();

@@ -3,7 +3,7 @@ import { screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
-import { CLUB_WORDS } from "@/lib/groups/club-words";
+import { CLUB_WORDS, PEOPLE_CLOSED_WORDS } from "@/lib/groups/club-words";
 import { GroupsScreen } from "./groups-screen";
 import { NOT_FOUND_WORDS } from "./form-parts";
 import { server } from "../../../mocks/server";
@@ -15,6 +15,15 @@ import {
 } from "../../../mocks/club-fixtures";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+
+/** `GET /app-config` with People at `stage`: what reading the release again after a 404 finds. */
+function people(stage: "all" | "off") {
+  server.use(
+    http.get(`${BASE}/app-config`, () =>
+      HttpResponse.json({ releases: { people: stage } }),
+    ),
+  );
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -169,14 +178,35 @@ describe("the groups directory", () => {
     expect(calls).toBe(failed + 1);
   });
 
-  it("is the not-found screen while People is closed to this reader", async () => {
+  it("is People closed on a 404 when the release, read again, is closed", async () => {
     // No scenario: the club mocks answer 404 for every place.
+    people("off");
+    draw();
+
+    expect(
+      await screen.findByText(PEOPLE_CLOSED_WORDS.title),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(NOT_FOUND_WORDS.title)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.queryByText(CLUB_WORDS.empty(HAVELOCK))).toBeNull();
+  });
+
+  it("is the not-found screen on a 404 with People still open", async () => {
+    people("all");
+    server.use(
+      http.get(`${BASE}/clubs`, () =>
+        HttpResponse.json(
+          { error: { code: "not_found", message: M.notFound, requestId: "01JTEST" } },
+          { status: 404 },
+        ),
+      ),
+    );
     draw();
 
     expect(
       await screen.findByText(NOT_FOUND_WORDS.title),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.queryByText(PEOPLE_CLOSED_WORDS.title)).toBeNull();
     expect(screen.queryByText(CLUB_WORDS.empty(HAVELOCK))).toBeNull();
   });
 

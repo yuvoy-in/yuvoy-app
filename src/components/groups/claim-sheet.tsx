@@ -94,6 +94,7 @@ export function ClaimSheet({
     } catch (error) {
       const why = clubFailure("claim", error);
       switch (why.kind) {
+        case "closed":
         case "gone":
           done.current = true;
           setGone(why.line);

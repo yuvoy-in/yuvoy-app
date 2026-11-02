@@ -4,12 +4,22 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { CLUB_REMOVAL_WORDS as W } from "@/lib/groups/club-words";
+import { PEOPLE_CLOSED_LINE } from "@/lib/groups/clubs";
 import { ClubRemovalSheet } from "./club-removal-sheet";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { CLUB_IDS, CLUB_MESSAGES as M } from "../../../mocks/club-fixtures";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+
+/** `GET /app-config` with People at `stage`: what reading the release again after a 404 finds. */
+function people(stage: "all" | "off") {
+  server.use(
+    http.get(`${BASE}/app-config`, () =>
+      HttpResponse.json({ releases: { people: stage } }),
+    ),
+  );
+}
 
 /**
  * Remove this listing (yuvoy-mobile#386). Anyone may ask: signed out it
@@ -115,7 +125,27 @@ describe("asking for a listing to come down", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("says People closed, never sent, when a 404 finds the release closed", async () => {
+    people("off");
+    removals(() =>
+      HttpResponse.json(
+        { error: { code: "not_found", message: M.notOpen, requestId: "01JTEST" } },
+        { status: 404 },
+      ),
+    );
+    const user = userEvent.setup();
+    const { onLeave } = open();
+
+    await user.click(screen.getByRole("button", { name: "Something else" }));
+    await user.click(sendButton());
+
+    expect(await screen.findByText(PEOPLE_CLOSED_LINE)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: W.done }));
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
   it("ends with Done back to the directory when the group is gone", async () => {
+    people("all");
     removals(() =>
       HttpResponse.json(
         { error: { code: "not_found", message: M.notFound, requestId: "01JTEST" } },

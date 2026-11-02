@@ -2,6 +2,9 @@
 
 import { cn } from "@/lib/cn";
 import { YuvoyError } from "@/lib/api/errors";
+import { PEOPLE_CLOSED_WORDS } from "@/lib/groups/club-words";
+import { PeopleClosedError } from "@/lib/groups/clubs";
+import { EmptyState } from "@/components/states";
 
 /**
  * Small parts the three group forms share (yuvoy-mobile#386): the reason
@@ -67,7 +70,25 @@ export function FormSent({ text }: { text: string }) {
   );
 }
 
-/** A 404: the group, or People itself, is not shown to this reader. */
+/**
+ * People is closed to this reader: a 404, and the release read again says so
+ * (`PeopleClosedError`, from the hooks in `@/lib/groups/use-clubs`).
+ */
+export function isPeopleClosed(error: unknown): boolean {
+  return error instanceof PeopleClosedError;
+}
+
+/** People closed, as a page: never an error, never the empty list. */
+export function PeopleClosed() {
+  return (
+    <EmptyState
+      title={PEOPLE_CLOSED_WORDS.title}
+      body={PEOPLE_CLOSED_WORDS.body}
+    />
+  );
+}
+
+/** A 404 with People still open: the group or the place is not there. */
 export function isNotFound(error: unknown): boolean {
   return error instanceof YuvoyError && error.status === 404;
 }

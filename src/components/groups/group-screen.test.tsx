@@ -3,7 +3,11 @@ import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
-import { CLAIM_WORDS, CLUB_WORDS } from "@/lib/groups/club-words";
+import {
+  CLAIM_WORDS,
+  CLUB_WORDS,
+  PEOPLE_CLOSED_WORDS,
+} from "@/lib/groups/club-words";
 import { GroupScreen } from "./group-screen";
 import { NOT_FOUND_WORDS } from "./form-parts";
 import { server } from "../../../mocks/server";
@@ -15,6 +19,15 @@ import {
 } from "../../../mocks/club-fixtures";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+
+/** `GET /app-config` with People at `stage`: what reading the release again after a 404 finds. */
+function people(stage: "all" | "off") {
+  server.use(
+    http.get(`${BASE}/app-config`, () =>
+      HttpResponse.json({ releases: { people: stage } }),
+    ),
+  );
+}
 
 const router = vi.hoisted(() => ({
   push: vi.fn(),
@@ -134,14 +147,27 @@ describe("a group's page", () => {
     expect(open.count).toBe(0);
   });
 
-  it("is the not-found screen for a group not shown", async () => {
+  it("is the not-found screen for a group not shown, with People open", async () => {
+    people("all");
     groups("/clubs");
     draw("havelock-no-such-group");
 
     expect(
       await screen.findByText(NOT_FOUND_WORDS.title),
     ).toBeInTheDocument();
+    expect(screen.queryByText(PEOPLE_CLOSED_WORDS.title)).toBeNull();
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+
+  it("is People closed on a 404 when the release, read again, is closed", async () => {
+    people("off");
+    groups("/clubs");
+    draw("havelock-no-such-group");
+
+    expect(
+      await screen.findByText(PEOPLE_CLOSED_WORDS.title),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(NOT_FOUND_WORDS.title)).toBeNull();
   });
 
   it("shows an error with a retry, and reads again on Try again", async () => {

@@ -62,7 +62,7 @@ export function ClubRemovalSheet({
       else setSent(receipt.message);
     } catch (error) {
       const why = clubFailure("removal", error);
-      if (why.kind === "gone") {
+      if (why.kind === "gone" || why.kind === "closed") {
         done.current = true;
         setGone(why.line);
         return;

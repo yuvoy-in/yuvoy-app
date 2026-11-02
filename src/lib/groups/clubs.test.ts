@@ -9,6 +9,8 @@ import {
   PEOPLE_ERROR_WORDS,
 } from "./club-words";
 import {
+  PEOPLE_CLOSED_LINE,
+  PeopleClosedError,
   claimBody,
   claimMissing,
   clubCardLabel,
@@ -260,17 +262,28 @@ describe("clubFailure", () => {
     });
   });
 
-  it("is gone on a 404, with the API's message or ours", () => {
+  it("is gone on a 404 with People open, always in our words", () => {
+    // The API's 404 message can say People is not open; the release read
+    // again has said it is, so the not-there line is ours.
     for (const action of actions) {
       expect(
         clubFailure(
           action,
-          refused(404, "not_found", undefined, "That group is gone."),
+          refused(404, "not_found", undefined, "People isn't open to your account yet."),
         ),
-      ).toEqual({ kind: "gone", line: "That group is gone." });
+      ).toEqual({ kind: "gone", line: CLUB_API_WORDS.gone });
       expect(clubFailure(action, refused(404, "not_found"))).toEqual({
         kind: "gone",
         line: CLUB_API_WORDS.gone,
+      });
+    }
+  });
+
+  it("is People closed when the release read again after a 404 is closed", () => {
+    for (const action of actions) {
+      expect(clubFailure(action, new PeopleClosedError())).toEqual({
+        kind: "closed",
+        line: PEOPLE_CLOSED_LINE,
       });
     }
   });

@@ -21,8 +21,10 @@ import { ClubRemovalSheet } from "./club-removal-sheet";
 import { ClubReportSheet } from "./club-report-sheet";
 import {
   NOT_FOUND_WORDS,
+  PeopleClosed,
   groupsHref,
   isNotFound,
+  isPeopleClosed,
   signInHref,
 } from "./form-parts";
 
@@ -47,9 +49,10 @@ function sourceLink(url: string): string | null {
  * listing" and "Something wrong? Tell us". Nothing here shows a phone
  * number, an email, or who follows the group.
  *
- * The session is read first, so the page knows which read to make. A 404
- * (hidden, removed, unknown, or People closed to this reader) is the app's
- * not-found screen. Any other failure is an error with a retry.
+ * The session is read first, so the page knows which read to make. On a 404
+ * the release is read again: closed to this reader is People closed; still
+ * open (hidden, removed, unknown) is the app's not-found screen. Any other
+ * failure is an error with a retry.
  *
  * Claim and report need a sign-in: signed out, they go to sign in and come
  * back here. Removal works for anyone. A form that finds the group gone, or
@@ -90,7 +93,9 @@ export function GroupScreen({ slug }: { slug: string }) {
   if (!club.data || club.isRefetchError) {
     return (
       <Screen back={BACK}>
-        {isNotFound(club.error) ? (
+        {isPeopleClosed(club.error) ? (
+          <PeopleClosed />
+        ) : isNotFound(club.error) ? (
           <EmptyState
             title={NOT_FOUND_WORDS.title}
             body={NOT_FOUND_WORDS.body}

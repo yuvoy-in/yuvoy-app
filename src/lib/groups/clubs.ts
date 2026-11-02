@@ -7,6 +7,7 @@ import {
   CLUB_API_WORDS,
   CLUB_REPORT_WORDS,
   CLUB_WORDS,
+  PEOPLE_CLOSED_WORDS,
   PEOPLE_ERROR_WORDS,
   type ClaimField,
   type ClubReportReason,
@@ -152,15 +153,32 @@ export function clubReportBody(
   return text ? { reason, note: text } : { reason };
 }
 
+/**
+ * A 404 from a People call after the release was read again and is closed to
+ * this reader. The hooks in `./use-clubs` throw it in place of the 404, so a
+ * screen can tell "People is closed to you" from "this group is not there".
+ */
+export class PeopleClosedError extends Error {
+  constructor() {
+    super("People is closed to this reader.");
+    this.name = "PeopleClosedError";
+  }
+}
+
+/** People closed, as one line for a form. */
+export const PEOPLE_CLOSED_LINE = `${PEOPLE_CLOSED_WORDS.title}. ${PEOPLE_CLOSED_WORDS.body}`;
+
 /** Which form a refusal came from: each has its own 429 sentence. */
 export type ClubAction = "claim" | "removal" | "report";
 
 /**
  * What a refused claim, removal or report means for the screen, by the
  * status and `error.code`:
- *   - `gone` (404): the group is not shown now (hidden, removed, or the
- *     release closed): back to the directory, read again, with the API's
- *     message;
+ *   - `closed` (`PeopleClosedError`): a 404, and the release read again is
+ *     closed to this reader: People closed, back to the directory;
+ *   - `gone` (404, the release still open): the group is not shown now
+ *     (hidden or removed): back to the directory, read again, with our
+ *     "not there" line. Never a success: no receipt is shown;
  *   - `fields` (400 `invalid_input` naming a field of the form): each said
  *     on its field;
  *   - `age` (403 `adult_confirmation_required`), `name` (409
@@ -173,6 +191,7 @@ export type ClubAction = "claim" | "removal" | "report";
  *     never cause), a line to show, with what was typed kept to send again.
  */
 export type ClubFailure =
+  | { kind: "closed"; line: string }
   | { kind: "gone"; line: string }
   | { kind: "fields"; fields: Partial<Record<ClaimField, string>> }
   | { kind: "age"; line: string }
@@ -213,6 +232,9 @@ function refusedFields(
 }
 
 export function clubFailure(action: ClubAction, error: unknown): ClubFailure {
+  if (error instanceof PeopleClosedError) {
+    return { kind: "closed", line: PEOPLE_CLOSED_LINE };
+  }
   if (error instanceof NetworkError) {
     return { kind: "say", line: PEOPLE_ERROR_WORDS.noSignal };
   }
@@ -223,7 +245,9 @@ export function clubFailure(action: ClubAction, error: unknown): ClubFailure {
   const details = error.details;
   switch (error.status) {
     case 404:
-      return { kind: "gone", line: said ?? CLUB_API_WORDS.gone };
+      // Our words, not the API's: its 404 message can say People is not
+      // open, and the release read again has just said it is.
+      return { kind: "gone", line: CLUB_API_WORDS.gone };
     case 400:
       if (error.code === "invalid_input") {
         const fields = refusedFields(action, details);

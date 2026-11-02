@@ -73,6 +73,7 @@ export function ClubReportSheet({
     } catch (error) {
       const why = clubFailure("report", error);
       switch (why.kind) {
+        case "closed":
         case "gone":
           done.current = true;
           setGone(why.line);

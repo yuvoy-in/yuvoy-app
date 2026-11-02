@@ -124,6 +124,17 @@ export const CLUB_REPORT_REASONS: readonly ReasonOf<ClubReportReason>[] =
     { key: "other", label: "Something else" },
   ]);
 
+/**
+ * A 404 that the release, read again, puts down to People being closed to
+ * this reader (decision A, 2 Nov: a 404 is never success). The words
+ * yuvoy-app#222 gives the People home (`PEOPLE_WORDS.closed`); use those once
+ * #222 is on dev.
+ */
+export const PEOPLE_CLOSED_WORDS = Object.freeze({
+  title: "People is not open yet",
+  body: "When it opens to you, it shows on Account.",
+});
+
 /** The API's sentences (yuvoy-api `internal/handler/clubs.go`), for an answer without one. */
 export const CLUB_API_WORDS = Object.freeze({
   gone: "We couldn't find that group.",

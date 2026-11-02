@@ -10,6 +10,9 @@ import { api, createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { useTravellerSession } from "@/lib/auth/use-traveller";
 import { CACHE, qk } from "@/lib/query/policy";
+import { myAccountQuery } from "@/lib/auth/use-my-account";
+import { releaseOpen, releaseStage } from "@/lib/site/app-config";
+import { appConfigQuery } from "@/lib/site/use-release";
 import { isSignedOut } from "@/lib/tables/use-table";
 import type {
   Club,
@@ -21,6 +24,7 @@ import type {
   ClubReport,
   ClubReportReceipt,
 } from "./clubs";
+import { PeopleClosedError } from "./clubs";
 
 /**
  * The groups directory's reads and writes (yuvoy-mobile#386, web backfill).
@@ -48,8 +52,13 @@ import type {
  * Never cached (`CACHE.listClubs`): the API answers no-store, because a
  * group can be hidden at any moment. A 401 means the session ended: the
  * session is read again, and a read falls back to the public pair rather
- * than drawing a failure. A 404 from a form reads the directory and the page
- * again: the group is not shown now.
+ * than drawing a failure.
+ *
+ * A 404 is never success (decision A, 2 Nov). Every read and form here reads
+ * the release again on a 404: closed to this reader, it throws a
+ * `PeopleClosedError` in place of the 404 (People closed); still open, the
+ * 404 stays ("not there"). A 404 from a form also reads the directory and the
+ * page again.
  */
 
 /** Read the public answer after a 401 on the `/me/` pair, as `usePlaceList` does. */
@@ -66,13 +75,58 @@ function readGroupsAgain(qc: QueryClient): Promise<void> {
   ]).then(() => undefined);
 }
 
+/**
+ * What a 404 from a People call means, found by reading the release again,
+ * with the cohort when its stage needs one: a `PeopleClosedError` when it is
+ * closed to this reader, else the 404 itself. Any other error comes back as
+ * it is. When the release cannot be read the 404 stays, which still shows no
+ * success.
+ */
+async function afterNotFound(
+  qc: QueryClient,
+  signedIn: boolean,
+  error: unknown,
+): Promise<unknown> {
+  if (!(error instanceof YuvoyError && error.status === 404)) return error;
+  try {
+    const config = await qc.fetchQuery({ ...appConfigQuery, staleTime: 0 });
+    const stage = releaseStage(config, "people");
+    const byCohort = stage === "early" || stage === "staff";
+    const account =
+      byCohort && signedIn
+        ? await qc.fetchQuery({ ...myAccountQuery, staleTime: 0 })
+        : null;
+    return releaseOpen(stage, account?.cohort ?? null)
+      ? error
+      : new PeopleClosedError();
+  } catch {
+    return error;
+  }
+}
+
+/** Runs one call; a 404 it throws goes through `afterNotFound` first. */
+async function checked<T>(
+  qc: QueryClient,
+  signedIn: boolean,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw await afterNotFound(qc, signedIn, error);
+  }
+}
+
 /** What every form does with a refusal. */
 function onRefused(qc: QueryClient, error: unknown): void {
   if (isSignedOut(error)) {
     void qc.invalidateQueries({ queryKey: qk.session() });
     return;
   }
-  if (error instanceof YuvoyError && error.status === 404) {
+  if (
+    error instanceof PeopleClosedError ||
+    (error instanceof YuvoyError && error.status === 404)
+  ) {
     void readGroupsAgain(qc);
   }
 }
@@ -87,7 +141,8 @@ export function useClubs(destinationKey: string | null) {
     queryKey: qk.clubs(Boolean(signedIn), key),
     enabled: signedIn !== undefined && key !== "",
     retry: false,
-    queryFn: async ({ signal }): Promise<ClubList> => {
+    queryFn: ({ signal }): Promise<ClubList> =>
+      checked(qc, Boolean(signedIn), async () => {
       const query = { destinationKey: key };
       if (signedIn) {
         try {
@@ -107,7 +162,7 @@ export function useClubs(destinationKey: string | null) {
       if (error || !data)
         throw error ?? new Error("GET /clubs answered no list.");
       return data;
-    },
+    }),
   });
 }
 
@@ -120,7 +175,8 @@ export function useClub(slug: string) {
     queryKey: qk.club(Boolean(signedIn), slug),
     enabled: signedIn !== undefined && slug !== "",
     retry: false,
-    queryFn: async ({ signal }): Promise<Club> => {
+    queryFn: ({ signal }): Promise<Club> =>
+      checked(qc, Boolean(signedIn), async () => {
       const params = { path: { slug } };
       if (signedIn) {
         try {
@@ -140,7 +196,7 @@ export function useClub(slug: string) {
       if (error || !data)
         throw error ?? new Error("GET /clubs/{slug} answered no group.");
       return data;
-    },
+    }),
   });
 }
 
@@ -152,14 +208,15 @@ export function useClaimClub(clubId: string) {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: async (body: ClubClaimInput): Promise<ClubClaimReceipt> => {
+    mutationFn: (body: ClubClaimInput): Promise<ClubClaimReceipt> =>
+      checked(qc, true, async () => {
       const { data, error } = await createProxyClient().POST(
         "/clubs/{clubId}/claims",
         { params: { path: { clubId } }, body },
       );
       if (error || !data) throw error ?? new Error("The claim had no receipt.");
       return data;
-    },
+    }),
     onError: (error) => onRefused(qc, error),
   });
 }
@@ -174,9 +231,8 @@ export function useRequestClubRemoval(clubId: string) {
   const { signedIn } = useTravellerSession();
   return useMutation({
     retry: false,
-    mutationFn: async (
-      body: ClubRemovalRequest,
-    ): Promise<ClubRemovalReceipt> => {
+    mutationFn: (body: ClubRemovalRequest): Promise<ClubRemovalReceipt> =>
+      checked(qc, Boolean(signedIn), async () => {
       const client = signedIn ? createProxyClient() : api;
       const { data, error } = await client.POST(
         "/clubs/{clubId}/removal-requests",
@@ -185,7 +241,7 @@ export function useRequestClubRemoval(clubId: string) {
       if (error || !data)
         throw error ?? new Error("The removal request had no receipt.");
       return data;
-    },
+    }),
     onSuccess: (data) => {
       if (data.removed) void readGroupsAgain(qc);
     },
@@ -198,7 +254,8 @@ export function useReportClub(clubId: string) {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: async (body: ClubReport): Promise<ClubReportReceipt> => {
+    mutationFn: (body: ClubReport): Promise<ClubReportReceipt> =>
+      checked(qc, true, async () => {
       const { data, error } = await createProxyClient().POST(
         "/clubs/{clubId}/reports",
         { params: { path: { clubId } }, body },
@@ -206,7 +263,7 @@ export function useReportClub(clubId: string) {
       if (error || !data)
         throw error ?? new Error("The report had no receipt.");
       return data;
-    },
+    }),
     onError: (error) => onRefused(qc, error),
   });
 }

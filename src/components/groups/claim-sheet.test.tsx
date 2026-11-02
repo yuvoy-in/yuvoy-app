@@ -8,12 +8,22 @@ import {
   CLAIM_WORDS as W,
   PEOPLE_ERROR_WORDS,
 } from "@/lib/groups/club-words";
+import { PEOPLE_CLOSED_LINE } from "@/lib/groups/clubs";
 import { ClaimSheet } from "./claim-sheet";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { CLUB_IDS, CLUB_MESSAGES as M } from "../../../mocks/club-fixtures";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+
+/** `GET /app-config` with People at `stage`: what reading the release again after a 404 finds. */
+function people(stage: "all" | "off") {
+  server.use(
+    http.get(`${BASE}/app-config`, () =>
+      HttpResponse.json({ releases: { people: stage } }),
+    ),
+  );
+}
 
 /**
  * Claim it (yuvoy-mobile#386). What matters is what is sent: nothing while a
@@ -196,7 +206,23 @@ describe("claiming a group", () => {
     );
   });
 
+  it("says People closed, never sent, when a 404 finds the release closed", async () => {
+    people("off");
+    claims(() => refusal(404, "not_found", M.notOpen));
+    const user = userEvent.setup();
+    const { onLeave } = open();
+
+    await fill(user);
+    await user.click(sendButton());
+
+    expect(await screen.findByText(PEOPLE_CLOSED_LINE)).toBeInTheDocument();
+    expect(screen.queryByText(M.claimReceived)).toBeNull();
+    await user.click(screen.getByRole("button", { name: W.done }));
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
   it("ends with Done back to the directory when the group is gone", async () => {
+    people("all");
     claims(() => refusal(404, "not_found", M.notFound));
     const user = userEvent.setup();
     const { onClose, onLeave } = open();
