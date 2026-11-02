@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   TRIGO_DRAFT_MAX,
   clearDraft,
+  clearDraftFor,
   freshTurnKey,
   readDraft,
   writeDraft,
@@ -111,5 +112,18 @@ describe("when sessionStorage throws", () => {
     writeDraft("Something calm with my parents");
     expect(readDraft()).toBeNull();
     expect(() => clearDraft()).not.toThrow();
+  });
+
+  it("clearDraftFor the sent key forgets this page load's copy, so the same text gets a new key", () => {
+    const key = writeDraft("Beginner dive Saturday for two")?.key ?? "";
+    expect(key).toMatch(API_KEY_SHAPE);
+    clearDraftFor(key);
+    expect(writeDraft("Beginner dive Saturday for two")?.key).not.toBe(key);
+  });
+
+  it("clearDraftFor an older key keeps what was typed since", () => {
+    const typed = writeDraft("Free things today");
+    clearDraftFor("trg-web-somethingelseentirely00");
+    expect(writeDraft("Free things today")?.key).toBe(typed?.key);
   });
 });

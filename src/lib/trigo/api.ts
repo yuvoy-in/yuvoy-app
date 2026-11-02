@@ -14,7 +14,7 @@ import { StalledError } from "@/lib/api/deadline";
 import { NetworkError, YuvoyError } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
 import type { components } from "@/lib/api/schema.gen";
-import { clearDraft, readDraft } from "./keys";
+import { clearDraftFor } from "./keys";
 
 /**
  * Trigo's calls for the web chat (yuvoy-app#223, R5-T5; behaviour from
@@ -370,7 +370,7 @@ export function useSendTrigoTurn(): UseMutationResult<
         resetsAt: result.resetsAt,
         pollAfterSeconds: old?.pollAfterSeconds ?? 0,
       }));
-      if (readDraft()?.key === vars.key) clearDraft();
+      clearDraftFor(vars.key);
       void qc.invalidateQueries({ queryKey: qk.trigoConversations() });
       void qc.invalidateQueries({ queryKey: key });
     },
@@ -378,12 +378,15 @@ export function useSendTrigoTurn(): UseMutationResult<
       onSignedOut(qc, error);
       if (
         error instanceof YuvoyError &&
-        error.code === "idempotency_in_progress" &&
-        vars.conversationId
+        error.code === "idempotency_in_progress"
       ) {
-        void qc.invalidateQueries({
-          queryKey: qk.trigoConversation(vars.conversationId),
-        });
+        // A first message has no id yet: the list is where its chat shows up.
+        void qc.invalidateQueries({ queryKey: qk.trigoConversations() });
+        if (vars.conversationId) {
+          void qc.invalidateQueries({
+            queryKey: qk.trigoConversation(vars.conversationId),
+          });
+        }
       }
     },
   });

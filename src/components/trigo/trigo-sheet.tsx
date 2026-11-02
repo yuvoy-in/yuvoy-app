@@ -163,7 +163,12 @@ function ChatSheet({
   const atLimit = chat.remainingToday === 0 || failure?.kind === "limit";
   const sendOff = !online || atLimit;
 
-  const send = (draft: TrigoDraft) => {
+  /**
+   * Sends one message. `fresh` leaves the chat id out, for a resend after the
+   * chat it was meant for turned out to be gone.
+   */
+  const send = (draft: TrigoDraft, opts?: { fresh?: boolean }) => {
+    const sentTo = opts?.fresh ? undefined : (conversationId ?? undefined);
     if (!online) {
       setFailure({ kind: "offline" });
       return;
@@ -180,7 +185,7 @@ function ChatSheet({
       {
         key: draft.key,
         text: draft.text,
-        conversationId: conversationId ?? undefined,
+        conversationId: sentTo,
         destinationKey: destinationKey ?? undefined,
         aboutCardId: aboutCardId ?? undefined,
       },
@@ -208,14 +213,35 @@ function ChatSheet({
             captureEvent(EVENTS.trigoLimitReached);
           }
         },
-        onError: (error) => failed(classifyTrigoError(error), draft),
+        onError: (error) => failed(classifyTrigoError(error), draft, sentTo),
         onSettled: () => field.current?.focus(),
       },
     );
   };
 
-  const failed = (next: TrigoFailure, draft: TrigoDraft) => {
+  const failed = (
+    next: TrigoFailure,
+    draft: TrigoDraft,
+    sentTo: string | undefined,
+  ) => {
     switch (next.kind) {
+      case "not_released":
+        // The API answers 404 for a chat that is gone as it does for a
+        // closed release. With an id, take it as the chat: drop it and send
+        // the same text once more as a new chat, under a new key (the old
+        // key stands for the old chat's turn). A 404 then is the release.
+        if (sentTo) {
+          setGone(sentTo);
+          setChosenId(null);
+          clearDraft();
+          const again = writeDraft(draft.text) ?? {
+            text: draft.text,
+            key: freshTurnKey(),
+          };
+          send(again, { fresh: true });
+          return;
+        }
+        break;
       case "signed_out":
         void qc.invalidateQueries({ queryKey: sessionQuery.queryKey });
         break;
@@ -232,11 +258,11 @@ function ChatSheet({
         break;
       case "in_progress":
       case "idempotency_in_progress":
-        // Read the chat for the answer that is coming; never send again.
-        if (conversationId) {
-          void qc.invalidateQueries({
-            queryKey: qk.trigoConversation(conversationId),
-          });
+        // Read the chat for the answer that is coming. A first message has
+        // no id yet, so the list is read too: that is where its chat shows up.
+        void qc.invalidateQueries({ queryKey: qk.trigoConversations() });
+        if (sentTo) {
+          void qc.invalidateQueries({ queryKey: qk.trigoConversation(sentTo) });
         }
         break;
     }
@@ -269,11 +295,14 @@ function ChatSheet({
 
   // Read up to the newest message on screen, once per new message.
   const newest = chat.messages.at(-1)?.seq ?? 0;
-  const marked = useRef(0);
+  const marked = useRef<{ id: string; seq: number } | null>(null);
   useEffect(() => {
-    if (!open || !conversationId || newest <= marked.current) return;
+    if (!open || !conversationId) return;
+    const had = marked.current;
+    if (had && had.id === conversationId && newest <= had.seq) return;
+    if (newest === 0) return;
     if (document.visibilityState === "hidden") return;
-    marked.current = newest;
+    marked.current = { id: conversationId, seq: newest };
     markRead(newest);
   }, [open, conversationId, newest, markRead]);
 

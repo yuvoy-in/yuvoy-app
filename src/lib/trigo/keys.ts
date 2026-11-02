@@ -118,3 +118,12 @@ export function clearDraft(): void {
     // Nothing kept, so nothing to clear.
   }
 }
+
+/**
+ * After a 200 answer for that key: clears the draft only when it is still the
+ * one that was sent, read from storage or, when storage throws, from this
+ * page load's copy. Text typed since keeps its own key.
+ */
+export function clearDraftFor(key: string): void {
+  if (currentDraft()?.key === key) clearDraft();
+}
