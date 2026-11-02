@@ -16,7 +16,7 @@ import {
   friendCode,
   type PersonRef,
 } from "@/lib/people/people-words";
-import { isDeadToken } from "@/lib/api/errors";
+import { YuvoyError, isDeadToken } from "@/lib/api/errors";
 import { qk } from "@/lib/query/policy";
 import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -118,11 +118,9 @@ export function AddFriendScreen({ raw }: { raw: string }) {
 
   const found = lookup.data;
   if (found.state === "expired" || found.state === "full") {
-    const words = found.state === "expired" ? W.expired : W.full;
     return (
       <Shell>
-        <Title>{words.title}</Title>
-        <Body>{words.body}</Body>
+        <LinkEnded state={found.state} />
       </Shell>
     );
   }
@@ -171,6 +169,16 @@ function LinkOwner({
         else if (needsName(error)) setStep("name");
       },
     });
+
+  // The link ran out or filled up after it was looked up: every tap would
+  // get the same answer, so the page becomes the one the lookup would show.
+  if (ask.error instanceof YuvoyError) {
+    if (ask.error.code === "friend_link_expired") {
+      return <LinkEnded state="expired" />;
+    }
+    if (ask.error.code === "friend_link_full")
+      return <LinkEnded state="full" />;
+  }
 
   // What the latest answer makes true, over what the lookup said before it.
   const now: Relation = ask.data
@@ -233,6 +241,16 @@ function LinkOwner({
           {W.toPeople}
         </ButtonLink>
       ) : null}
+    </>
+  );
+}
+
+function LinkEnded({ state }: { state: "expired" | "full" }) {
+  const words = state === "expired" ? W.expired : W.full;
+  return (
+    <>
+      <Title>{words.title}</Title>
+      <Body>{words.body}</Body>
     </>
   );
 }

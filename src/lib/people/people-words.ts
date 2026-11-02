@@ -227,7 +227,7 @@ export function friendCode(raw: string): string | null {
   } catch {
     return null;
   }
-  return /^[A-Za-z0-9-]{4,32}$/.test(code) ? code : null;
+  return /^[A-Za-z0-9-]{4,16}$/.test(code) ? code : null;
 }
 
 /** The year in India now, which is the year the API's 18 is counted in. */

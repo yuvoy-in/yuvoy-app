@@ -126,7 +126,13 @@ export const CACHE = {
    */
   getMyPeople: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
   listMyFriends: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
-  lookupFriendLink: { staleTime: 0, gcTime: 0, refetchOnMount: "always" },
+  // A POST limited to 30 a minute: never again on window focus.
+  lookupFriendLink: {
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */

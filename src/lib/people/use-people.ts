@@ -9,14 +9,9 @@ import {
 } from "@tanstack/react-query";
 import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
+import type { paths } from "@/lib/api/schema.gen";
 import { CACHE, qk } from "@/lib/query/policy";
-import type {
-  Friend,
-  FriendLink,
-  PeopleHome,
-  PersonRef,
-  Sharing,
-} from "./people-words";
+import type { Friend, FriendLink, PeopleHome, Sharing } from "./people-words";
 
 /**
  * People on the web (yuvoy-app#222): the home, the friends list, the friend
@@ -161,37 +156,39 @@ export function useAnswerRequest() {
   });
 }
 
-/** Take back a request this traveller sent. A `404` means it already went. */
+/**
+ * Take back a request this traveller sent. "Nothing to withdraw" is a `204`;
+ * a `404` only means People is closed to the caller, so it is an error.
+ */
 export function useWithdrawRequest() {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
     mutationFn: async (requestId: string) => {
       const client = createProxyClient();
-      const { error, response } = await client.DELETE(
-        "/me/friend-requests/{requestId}",
-        { params: { path: { requestId } } },
-      );
-      if (error && response.status !== 404) throw error;
+      const { error } = await client.DELETE("/me/friend-requests/{requestId}", {
+        params: { path: { requestId } },
+      });
+      if (error) throw error;
     },
     onSettled: () => refreshPeople(qc),
   });
 }
 
-/** Unfriend. A `404` means they are already not a friend: the same outcome. */
+/**
+ * Unfriend. "Not friends" is a `204`; a `404` only means People is closed to
+ * the caller, so it is an error.
+ */
 export function useRemoveFriend() {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
     mutationFn: async (personId: string) => {
       const client = createProxyClient();
-      const { error, response } = await client.DELETE(
-        "/me/friends/{personId}",
-        {
-          params: { path: { personId } },
-        },
-      );
-      if (error && response.status !== 404) throw error;
+      const { error } = await client.DELETE("/me/friends/{personId}", {
+        params: { path: { personId } },
+      });
+      if (error) throw error;
     },
     onSettled: () => refreshPeople(qc),
   });
@@ -223,30 +220,32 @@ export function usePutFriendLink() {
   });
 }
 
-/** Switch the friend link off. */
+/**
+ * Switch the friend link off. Only a `204` is success: a `404` means People
+ * is closed to the caller and the link may still be live. The home is read
+ * again either way.
+ */
 export function useDeleteFriendLink() {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
     mutationFn: async () => {
       const client = createProxyClient();
-      const { error, response } = await client.DELETE("/me/friend-link");
-      if (error && response.status !== 404) throw error;
+      const { error } = await client.DELETE("/me/friend-link");
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.setQueryData<PeopleHome>(qk.myPeople(), (old) =>
         old ? { ...old, friendLink: null } : old,
       );
     },
+    onSettled: () => refreshPeople(qc),
   });
 }
 
 /** What a friend link says, for `/add/{code}`. */
-export type LinkLookup = {
-  state: "ok" | "expired" | "full" | "unavailable";
-  owner?: PersonRef;
-  relation?: "self" | "none" | "requested" | "request_in" | "friends";
-};
+export type LinkLookup =
+  paths["/friend-links/lookup"]["post"]["responses"][200]["content"]["application/json"];
 
 /**
  * `POST /friend-links/lookup`, read as a query because it changes nothing:

@@ -25,6 +25,10 @@ import { Initial, Refusal, isStepRefusal } from "./people-parts";
  * who asked, so nothing here ever says "declined".
  */
 
+/**
+ * Only on answering: there a `404` is "not a request waiting for you". On
+ * the DELETEs a `404` means People is closed to the caller, so it shows.
+ */
 const is404 = (e: unknown) => e instanceof YuvoyError && e.status === 404;
 
 function SectionTitle({ id, children }: { id: string; children: string }) {
@@ -135,12 +139,11 @@ export function RequestsIn({
   );
 }
 
-/** One request sent: Take back. A 404 means it already went: the same end. */
+/** One request sent: Take back. Nothing to take back is a 204. */
 function RequestOut({ request }: { request: FriendRequest }) {
   const withdraw = useWithdrawRequest();
   const nameId = useId();
-  const failure =
-    withdraw.error && !is404(withdraw.error) ? withdraw.error : null;
+  const failure = withdraw.error;
   return (
     <li
       className="flex flex-wrap items-center gap-3 py-4"
@@ -184,7 +187,7 @@ function FriendRow({ friend }: { friend: Friend }) {
   const remove = useRemoveFriend();
   const [asking, setAsking] = useState(false);
   const nameId = useId();
-  const failure = remove.error && !is404(remove.error) ? remove.error : null;
+  const failure = remove.error;
   return (
     <li className="py-4" data-testid="friend">
       <div className="flex flex-wrap items-center gap-3">

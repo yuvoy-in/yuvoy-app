@@ -142,8 +142,23 @@ describe("/add/{code}", () => {
   });
 
   it.each([
-    [410, "friend_link_expired", "This link has expired. Ask for a new one."],
-    [409, "friend_link_full", "This link has taken all the requests it can."],
+    [410, "friend_link_expired", W.expired],
+    [409, "friend_link_full", W.full],
+  ] as const)(
+    "a %s %s on sending turns the page into the ended link",
+    async (status, code, words) => {
+      const { user } = open({ state: "ok", owner: PRIYA, relation: "none" });
+      answer("post", "/me/friend-requests", () =>
+        refuse(status, code, "The API's sentence."),
+      );
+      await heading(W.asks("Priya S."));
+      await user.click(screen.getByRole("button", { name: W.send }));
+      await heading(words.title);
+      expect(screen.queryByRole("button", { name: W.send })).toBeNull();
+    },
+  );
+
+  it.each([
     [
       409,
       "friend_limit_reached",

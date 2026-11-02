@@ -30,7 +30,6 @@ const UNDER_AGE =
   "Yuvoy is for people 18 and over, so we have closed your account. We have sent you an email about it.";
 const AGE_LOCKED =
   "Your age can only be changed by the Yuvoy team. Write to us from Help.";
-const ANSWER_PAUSED = "Your use of People is paused for now.";
 const ASK_PAUSED = "You can't ask anyone to be your friend for now.";
 
 /** A phone number in any form the account could hold one. */
@@ -468,16 +467,17 @@ async function openPeopleStep(page: Page, scenario: string, title: string) {
 
 /* ---------------------------------------------------------- refusals */
 
-test("paused: answering and asking show the API's sentence", async ({
+test("paused: answering still works, asking shows the API's sentence", async ({
   page,
 }, info) => {
+  // As the API: `requests_paused` stops only new requests.
   await signIn(page, info);
   await openPeople(page, "people-paused");
   await expect(status(page, W.requestsPaused)).toBeVisible();
   const priya = requestIn(page, PRIYA.shortName);
   await priya.getByRole("button", { name: W.accept }).click();
-  await expect(alerts(page).filter({ hasText: ANSWER_PAUSED })).toBeVisible();
-  await expect(priya).toHaveCount(1);
+  await expect(priya).toHaveCount(0);
+  await expect(friendRows(page).first()).toContainText("Priya");
 
   await openAdd(page, CODES.none, "people-paused");
   await page.getByRole("button", { name: W.add.send }).click();
