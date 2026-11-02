@@ -221,8 +221,17 @@ export function meRoutes(
         : json(v === undefined ? fallback : v);
 
   const list = pick(over.list, page([trip()]));
-  const badges = pick(over.badges, { earned: [badge()], inProgress: [] });
-  const read = pick(over.settings, settings());
+  // A body (or none) is held, as the server would: Nice marks its badges
+  // seen and Languages changes what the next read answers, so a test can
+  // render again and see what a restart would.
+  let heldBadges = (over.badges ?? { earned: [badge()], inProgress: [] }) as {
+    earned: Badge[];
+    inProgress: BadgeProgress[];
+  };
+  const badges: Answer =
+    typeof over.badges === "function" || typeof over.badges === "number"
+      ? pick(over.badges, undefined)
+      : () => HttpResponse.json(heldBadges);
   let held = (over.settings && typeof over.settings === "object"
     ? over.settings
     : settings()) as MySettings;
@@ -238,11 +247,19 @@ export function meRoutes(
     }),
     http.post(`${BASE}/me/badges/seen`, async ({ request }) => {
       await note(at.seen, request);
-      return over.seen ? failure(over.seen)() : new HttpResponse(null, { status: 204 });
+      if (over.seen) return failure(over.seen)();
+      const keys = (at.seen.bodies.at(-1) as { keys?: string[] } | undefined)?.keys ?? [];
+      heldBadges = {
+        ...heldBadges,
+        earned: heldBadges.earned.map((b) => (keys.includes(b.key) ? { ...b, seen: true } : b)),
+      };
+      return new HttpResponse(null, { status: 204 });
     }),
     http.get(`${BASE}/me/settings`, async ({ request }) => {
       await note(at.settings, request);
-      return read(request);
+      return typeof over.settings === "number"
+        ? failure(over.settings)()
+        : HttpResponse.json(held);
     }),
     http.patch(`${BASE}/me/settings`, async ({ request }) => {
       await note(at.patchSettings, request);

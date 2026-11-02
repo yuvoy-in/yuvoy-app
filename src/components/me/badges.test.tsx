@@ -112,6 +112,21 @@ describe("a new badge (case 18)", () => {
     expect(screen.queryByRole("status", { name: "New badge: First trip" })).toBeNull();
   });
 
+  it("does not show again when Account is opened again after Nice", async () => {
+    const user = userEvent.setup();
+    const at = meRoutes({ badges: { earned: [fresh()], inProgress: [] } });
+    const first = renderWithQuery(<MeSection />);
+    const panel = await screen.findByRole("status", { name: "New badge: First night out" });
+    await user.click(within(panel).getByRole("button", { name: "Nice" }));
+    await waitFor(() => expect(at.seen.count).toBe(1));
+    first.unmount();
+    // A new client, as after a reload: only the server's answer is left.
+    renderWithQuery(<MeSection />);
+    expect(await screen.findByText("First night out")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "New badge: First night out" })).toBeNull();
+    expect(at.badges.count).toBe(2);
+  });
+
   it("comes back with a line when Nice did not save", async () => {
     const user = userEvent.setup();
     meRoutes({ badges: { earned: [fresh()], inProgress: [] }, seen: 503 });

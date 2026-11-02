@@ -44,6 +44,22 @@ describe("languages", () => {
     );
   });
 
+  it("sends Hindi with English, and reads it back after a reload", async () => {
+    const user = userEvent.setup();
+    openMe();
+    const at = meRoutes({ settings: settings({ languages: ["en"] }) });
+    const first = renderWithQuery(<MeSettings />);
+    await user.click(within(await languages()).getByRole("button", { name: "Hindi" }));
+    await waitFor(() => expect(at.patchSettings.bodies).toEqual([{ languages: ["en", "hi"] }]));
+    first.unmount();
+    renderWithQuery(<MeSettings />);
+    const chips = await languages();
+    await waitFor(() =>
+      expect(within(chips).getByRole("button", { name: "Hindi" })).toHaveAttribute("aria-pressed", "true"),
+    );
+    expect(within(chips).getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("sends exactly the chips tapped, in the chips' order, and nothing else", async () => {
     const user = userEvent.setup();
     openMe();

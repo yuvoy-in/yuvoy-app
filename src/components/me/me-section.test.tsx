@@ -7,6 +7,7 @@ import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { __seedSavedMock } from "../../../mocks/saved-handlers";
 import { EXPERIENCES } from "../../../mocks/fixtures";
 import { useRelease } from "@/lib/site/use-release";
+import type { LifeEntry } from "@/lib/me/types";
 import { MeCounts, MeSection } from "./me-section";
 import {
   ASKED_EVENT,
@@ -157,6 +158,45 @@ describe("the Done tab (cases 2, 3, 4, 5)", () => {
     expect(await card("Kayak at dawn")).toBeInTheDocument();
     expect(new URL(at.list.urls.at(-1)!).searchParams.get("cursor")).toBe("c1");
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("reads page after page and stops where nextCursor is null", async () => {
+    const user = userEvent.setup();
+    const kayak = trip({ entryId: "trip:66666666-6666-4666-8666-666666666666", title: "Kayak at dawn" });
+    const snorkel = trip({ entryId: "trip:77777777-7777-4777-8777-777777777777", title: "Snorkel at noon" });
+    const at = meRoutes({
+      list: (request: Request) => {
+        const cursor = new URL(request.url).searchParams.get("cursor");
+        return HttpResponse.json(
+          cursor === "c2"
+            ? page([snorkel])
+            : cursor === "c1"
+              ? page([kayak], { nextCursor: "c2" })
+              : page([trip()], { nextCursor: "c1" }),
+        );
+      },
+    });
+    renderWithQuery(<MeSection />);
+    await card("Try-dive at Nemo Reef");
+    await user.click(screen.getByRole("button", { name: "Show more" }));
+    await card("Kayak at dawn");
+    await user.click(screen.getByRole("button", { name: "Show more" }));
+    expect(await card("Snorkel at noon")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+    expect(at.list.urls.map((u) => new URL(u).searchParams.get("cursor"))).toEqual([null, "c1", "c2"]);
+  });
+
+  it("never draws an entry it has no proof line for", async () => {
+    const odd = trip({
+      entryId: "trip:88888888-8888-4888-8888-888888888888",
+      title: "Something new",
+      proof: "a_proof_from_later" as LifeEntry["proof"],
+    });
+    meRoutes({ list: page([trip(), odd]) });
+    renderWithQuery(<MeSection />);
+    await card("Try-dive at Nemo Reef");
+    expect(screen.queryByRole("article", { name: "Something new" })).toBeNull();
+    expect(screen.queryByText("Something new")).toBeNull();
   });
 
   it("keeps the first page and says so when the next one fails", async () => {
