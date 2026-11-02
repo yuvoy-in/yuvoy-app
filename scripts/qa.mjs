@@ -1666,7 +1666,12 @@ for (const f of files) {
  *
  * "The code we sent" and "we sent a code" go too: the API answers every
  * number the same way so it never confirms a send, and a screen that does
- * tells anybody that the number has booked.
+ * tells anybody that the number has booked. Every way of saying it goes:
+ * "We've sent", "we have sent you a code", "A code was sent", "Code sent",
+ * a line that opens "Sent." and "We emailed you a code", with a straight or
+ * curly apostrophe and with the words split over lines in JSX. "Nothing was
+ * sent" and "We have sent you an email about it" are not about a code and
+ * pass (mobile's copy-guard has the same rule, yuvoy-mobile#340).
  *
  * And "the email on your latest booking" goes (yuvoy-api#303): a booking's
  * email gets no code since the address typed at a guest checkout stopped
@@ -1693,11 +1698,15 @@ for (const f of files) {
         `\`codeSentSentence\` instead.`,
     );
   }
-  if (
-    /\bcode we sent\b|\bwe sent (you )?(a|the|your)\b[^"'`\n]{0,30}\bcode\b/i.test(
-      s,
-    )
-  ) {
+  const saysCodeSent = [
+    /\bcode\s+we(?:['’]ve|\s+have)?\s+(?:just\s+)?sent\b/i,
+    /\bwe(?:['’]ve|\s+have)?\s+(?:just\s+)?sent\s+(?:you\s+)?(?:a|an|the|your|another|one)\b[^"'`]{0,30}?\bcode\b/i,
+    /\bcode\s+(?:was|has\s+been|is|got)\s+(?:just\s+)?sent\b/i,
+    /\bcode\s+sent\b/i,
+    /["'`>]\s*sent\s*[.!]/i,
+    /\b(?:emailed|texted|messaged)\s+(?:you\s+)?(?:a|an|the|your)?\s*(?:new\s+)?(?:sign-in\s+)?code\b/i,
+  ];
+  if (saysCodeSent.some((r) => r.test(s))) {
     problems.push(
       `${rel(f)}: says a code was sent. The API answers every number the ` +
         `same way so it never confirms one, and a screen that does tells ` +
