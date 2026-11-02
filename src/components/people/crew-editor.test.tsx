@@ -110,6 +110,19 @@ describe("/people/crews/new", () => {
     });
   });
 
+  it("sends one crew when Save is pressed again after it saved", async () => {
+    const made = crew(5, "Office lunch", [member(13, "Rahul")]);
+    const sent = answer("post", "/me/crews", json(made, 201));
+    const user = open();
+    await ready(W.newTitle);
+    await user.type(nameBox(), "Office lunch");
+    await user.click(pick(/Rahul/));
+    await user.click(save());
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledTimes(1));
+    await user.click(save());
+    expect(sent).toHaveLength(1);
+  });
+
   it("says there can be no more on crew_limit_reached", async () => {
     answer("post", "/me/crews", () =>
       refuse(409, "crew_limit_reached", "You have 20 crews."),
@@ -294,6 +307,43 @@ describe("/people/crews/{crewId}/edit", () => {
       name: "Hostel gang",
       memberIds: [KIRAN.personId],
     });
+  });
+
+  it("shows a refused change in the API's words and keeps the form", async () => {
+    answer("patch", `/me/crews/${GANG.crewId}`, () =>
+      refuse(403, "people_paused", "People is paused on your account."),
+    );
+    const user = open(GANG.crewId);
+    await ready(W.editTitle);
+    await user.click(pick(/Rahul/));
+    await user.click(save());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "People is paused on your account.",
+    );
+    expect(nameBox()).toHaveValue(GANG.name);
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("still says so on not_friends when the API names nobody picked", async () => {
+    answer("patch", `/me/crews/${GANG.crewId}`, () =>
+      HttpResponse.json(
+        {
+          error: {
+            code: "not_friends",
+            message: "Some of these people are not your friends.",
+          },
+        },
+        { status: 409 },
+      ),
+    );
+    const user = open(GANG.crewId);
+    await ready(W.editTitle);
+    await user.click(pick(/Rahul/));
+    await user.click(save());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      notFriendsLine([]),
+    );
+    expect(screen.queryByRole("button", { name: W.takeOut })).toBeNull();
   });
 
   it("says the crew is gone when a change answers 404 and the list has it no more", async () => {

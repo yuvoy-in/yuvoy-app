@@ -159,7 +159,9 @@ function CrewEditor({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (save.isPending) return;
+    // After a save the page is about to change: a second submit would make
+    // a second crew.
+    if (save.isPending || save.isSuccess) return;
     const length = crewNameLength(name);
     const nameProblem =
       length === 0
@@ -334,33 +336,35 @@ function CrewEditor({
         </ButtonLink>
       </div>
 
-      {isNotFriends(save.error) && stillLeftIn ? (
+      {isNotFriends(save.error) ? (
         <div role="alert" className="mt-4">
           <p className="text-terra-deep text-sm">
-            {notFriendsLine(leftOutNames)}
+            {notFriendsLine(stillLeftIn ? leftOutNames : [])}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={takeThemOut}
-          >
-            {W.takeOut}
-          </Button>
+          {stillLeftIn ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={takeThemOut}
+            >
+              {W.takeOut}
+            </Button>
+          ) : null}
         </div>
       ) : isCrewLimit(save.error) ? (
         <p role="alert" className="text-terra-deep mt-4 text-sm">
           {W.limit}
         </p>
-      ) : crew ? (
-        crewMissing(save.error) === "closed"
-      ) : isPeopleClosed(save.error) ? (
+      ) : (
+          crew
+            ? crewMissing(save.error) === "closed"
+            : isPeopleClosed(save.error)
+        ) ? (
         <p role="alert" className="text-terra-deep mt-4 text-sm">
           {PEOPLE_WORDS.closed.title}
         </p>
-      ) : save.error &&
-        !isStepRefusal(save.error) &&
-        !isNotFriends(save.error) ? (
+      ) : save.error && !isStepRefusal(save.error) ? (
         <Refusal error={save.error} className="mt-4" />
       ) : null}
 

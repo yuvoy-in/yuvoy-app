@@ -51,6 +51,8 @@ function refreshPeople(qc: QueryClient): Promise<unknown> {
     qc.invalidateQueries({ queryKey: qk.myPeople() }),
     qc.invalidateQueries({ queryKey: qk.myFriends() }),
     qc.invalidateQueries({ queryKey: qk.myAccount() }),
+    // An unfriended person stays in crews under a short name (yuvoy-app#227).
+    qc.invalidateQueries({ queryKey: qk.myCrews() }),
   ]);
 }
 

@@ -90,7 +90,9 @@ type Read<T> = { ok: T } | { no: Response };
 /** A crew name as sent: trimmed, 1 to 40 characters. */
 export function readName(name: unknown): Read<string> {
   const trimmed = typeof name === "string" ? name.trim() : "";
-  if (trimmed.length < 1 || trimmed.length > 40) {
+  // Counted in characters, as the editor counts them, not UTF-16 units.
+  const length = [...trimmed].length;
+  if (length < 1 || length > 40) {
     return {
       no: envelope("invalid_input", "Give the crew a name.", 400, {
         name: "1 to 40 characters.",
