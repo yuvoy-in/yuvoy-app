@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
+import type { components } from "@/lib/api/schema.gen";
 import { qk } from "@/lib/query/policy";
 import {
   useSendTrigoTurn,
+  useTrigoChat,
   type SendTurnVars,
   type TrigoChatData,
   type TrigoMessage,
@@ -20,6 +22,7 @@ import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
   header the browser sends is what is under test.
 */
 const TURNS = "*/api/v1/trigo/turns";
+const CHAT_READ = "*/api/v1/trigo/conversations/:id";
 
 const CHAT = "6f1c2d3e-4a5b-4c6d-8e7f-8091a2b3c4d5";
 
@@ -60,6 +63,20 @@ function Send({ vars }: { vars: SendTurnVars }) {
         Send
       </button>
       <p>{send.status}</p>
+    </>
+  );
+}
+
+/** Sends, then reads the chat the answer names, as the sheet does. */
+function SendThenRead({ vars }: { vars: SendTurnVars }) {
+  const send = useSendTrigoTurn();
+  const chat = useTrigoChat(send.data?.conversationId ?? null, true);
+  return (
+    <>
+      <button type="button" onClick={() => send.mutate(vars)}>
+        Send
+      </button>
+      <p data-testid="seqs">{chat.messages.map((m) => m.seq).join(",")}</p>
     </>
   );
 }
@@ -148,6 +165,60 @@ describe("useSendTrigoTurn", () => {
     const chat = client.getQueryData<TrigoChatData>(qk.trigoConversation(CHAT));
     expect(chat?.messages.map((m) => m.seq)).toEqual([3, 4]);
     expect(chat?.remainingToday).toBe(17);
+  });
+
+  it("reads in full a chat the server continued under a new id", async () => {
+    __signInAppRouteMock();
+    // The traveller's own closed chat: the server continues the open one.
+    const NEW = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
+    const held = [msg(1, "Kayaks near Calangute?"), msg(2, "Two shops")];
+    const page = [...held, ...RESULT.messages];
+    const reads: (string | null)[] = [];
+    server.use(
+      http.post(TURNS, () =>
+        HttpResponse.json({ ...RESULT, conversationId: NEW }),
+      ),
+      http.get(CHAT_READ, ({ request }) => {
+        const after = new URL(request.url).searchParams.get("after");
+        reads.push(after);
+        const body: components["schemas"]["TrigoConversationPage"] = {
+          conversation: {
+            id: NEW,
+            state: "open",
+            startedAt: "2026-11-02T04:00:00Z",
+            lastMessageAt: "2026-11-02T04:31:00Z",
+            team: { state: "none", openNow: true },
+            unread: 0,
+            textRemoved: false,
+          },
+          messages: page.filter((m) => m.seq > Number(after ?? 0)),
+          more: false,
+          hasOlder: false,
+          remainingToday: 17,
+          resetsAt: RESULT.resetsAt,
+          pollAfterSeconds: 0,
+        };
+        return HttpResponse.json(body);
+      }),
+    );
+    const { client } = renderWithQuery(
+      <SendThenRead
+        vars={{
+          key: "trg-web-bbbbbbbbbbbbbbbbbbbbbbbb",
+          text: "Beginner dive Saturday for two",
+          conversationId: CHAT,
+        }}
+      />,
+    );
+    seed(client);
+    client.setQueryDefaults(qk.trigoConversation(NEW), { gcTime: Infinity });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("seqs")).toHaveTextContent("1,2,3,4"),
+    );
+    // The answer alone is not the chat: the first read asks for all of it.
+    expect(reads[0]).toBeNull();
   });
 
   it("keeps the draft and is not retried when the send fails", async () => {

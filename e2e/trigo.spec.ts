@@ -198,6 +198,26 @@ test.describe("Ask Trigo", () => {
     await expectAccessible(page);
   });
 
+  test("a message in an earlier, closed chat goes on in the open one, all of it", async ({
+    page,
+  }, info) => {
+    // `TRIGO_CLOSED_CHAT_ID` in `mocks/trigo-handlers.ts`.
+    const closed = "3b9e2f4a-6c1d-4e8b-9a7f-2d5c8e1b4f60";
+    await signIn(page, info);
+    await page.goto(`/?__scenario=trigo-continue&trigo=${closed}`);
+    const log = sheet(page).getByRole("log", { name: "Messages" });
+    await expect(log.getByText("Kayaks near Calangute?")).toBeVisible();
+
+    await send(page, "Sunset on the water?");
+    await expect(log.getByText("Sunset on the water?")).toBeVisible();
+    // The answer names the open chat, and the address follows it.
+    await expect(page).not.toHaveURL(new RegExp(closed));
+    await expect(page).toHaveURL(/[?&]trigo=[0-9a-f-]{36}/);
+    // The open chat's older messages load with the answer.
+    await expect(log.getByText("What should I do this weekend?")).toBeVisible();
+    await expect(log.getByText("Kayaks near Calangute?")).toHaveCount(0);
+  });
+
   test("Trigo down shows the API's sentence and keeps the message", async ({
     page,
   }, info) => {

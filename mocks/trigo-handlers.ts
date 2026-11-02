@@ -17,6 +17,10 @@ import { mockHeaders, mockNow } from "./fixtures";
  *   - `trigo-limit`: the chat reads 3 left today, and a turn is
  *     `429 daily_limit_reached` with `details.resetsAt`, the next midnight in
  *     India.
+ *   - `trigo-continue`: an earlier chat, closed, with the id
+ *     `TRIGO_CLOSED_CHAT_ID`, and the open chat of `trigo-limit` with 20 left.
+ *     A turn that names the closed chat goes on in the open one, and its
+ *     answer names the open chat's id, as the API does.
  *   - `trigo-slow`: as `trigo-reply`, 20 seconds late (under the 30 s
  *     write stall, so it is an answer and not a timeout).
  *   - `trigo-down`: `503 unavailable`.
@@ -77,6 +81,7 @@ export const TRIGO_SCENARIOS: ReadonlySet<string> = new Set([
   "trigo-reply",
   "trigo-fixed-reply",
   "trigo-limit",
+  "trigo-continue",
   "trigo-slow",
   "trigo-down",
   "trigo-consent",
@@ -112,15 +117,25 @@ export const REPLY_TEXT =
 export const TIMED_OUT_TEXT =
   "I couldn't finish that in time. Try again, or ask the team.";
 
+/** The closed chat of `trigo-continue`, to open with `?trigo=` in e2e. */
+export const TRIGO_CLOSED_CHAT_ID = "3b9e2f4a-6c1d-4e8b-9a7f-2d5c8e1b4f60";
+
 const NOT_RELEASED = "Trigo isn't open to your account yet.";
 const NO_CHAT = "We could not find that chat.";
 const DAILY = 20;
 
 const TEAM: TrigoTeam = { state: "none", openNow: true };
 
+interface OwnChat {
+  conversation: TrigoConversation;
+  messages: TrigoMessage[];
+}
+
 interface TrigoState {
   conversation: TrigoConversation | null;
   messages: TrigoMessage[];
+  /** The traveller's earlier chats, closed. */
+  earlier: OwnChat[];
   seq: number;
   remaining: number;
   consentAccepted: boolean;
@@ -139,17 +154,39 @@ function stateOf(request: Request, auth: string): TrigoState {
     state = {
       conversation: null,
       messages: [],
+      earlier: [],
       seq: 0,
       remaining: scenario === "trigo-limit" ? 3 : DAILY,
       consentAccepted: scenario !== "trigo-consent",
       ageConfirmed: scenario !== "trigo-age",
       keys: new Map(),
     };
+    if (scenario === "trigo-continue") {
+      const at = new Date(mockNow() - 2 * 24 * 60 * 60_000).toISOString();
+      state.earlier.push({
+        conversation: {
+          id: TRIGO_CLOSED_CHAT_ID,
+          state: "closed",
+          startedAt: at,
+          lastMessageAt: at,
+          team: TEAM,
+          unread: 0,
+          textRemoved: false,
+        },
+        messages: [
+          message(state, "traveller", "Kayaks near Calangute?", false),
+          message(state, "trigo", REPLY_TEXT, false),
+        ],
+      });
+      // Each chat counts its own messages from 1.
+      state.seq = 0;
+    }
     /*
       `trigo-limit` starts with a chat 17 answers into the day, so the read
-      before the refused turn shows 3 left.
+      before the refused turn shows 3 left. `trigo-continue` has the same
+      open chat.
     */
-    if (scenario === "trigo-limit") {
+    if (scenario === "trigo-limit" || scenario === "trigo-continue") {
       const at = new Date(mockNow() - 10 * 60_000).toISOString();
       state.conversation = {
         id: uuid(),
@@ -223,6 +260,15 @@ function listed(state: TrigoState): TrigoConversation | null {
   return state.conversation ? { ...state.conversation, unread: 0 } : null;
 }
 
+/** One of the traveller's own chats, the open one or an earlier one. */
+function ownChat(state: TrigoState, id: string): OwnChat | null {
+  const open = listed(state);
+  if (open && open.id === id) {
+    return { conversation: open, messages: state.messages };
+  }
+  return state.earlier.find((c) => c.conversation.id === id) ?? null;
+}
+
 export const trigoHandlers = [
   http.post(url("/trigo/turns"), async ({ request }) => {
     const auth = sessionOf(request);
@@ -267,9 +313,14 @@ export const trigoHandlers = [
       });
     }
 
+    /*
+      Any chat of the traveller's own goes on in the open one, or in a new
+      one when none is open, and the answer names that chat. Only an id
+      that is not theirs is 404.
+    */
     if (
       typeof body?.conversationId === "string" &&
-      body.conversationId !== state.conversation?.id
+      !ownChat(state, body.conversationId)
     ) {
       return envelope("not_found", NO_CHAT, 404);
     }
@@ -353,9 +404,11 @@ export const trigoHandlers = [
   http.get(url("/trigo/conversations"), ({ request }) => {
     const auth = sessionOf(request);
     if (auth instanceof Response) return auth;
-    const conversation = listed(stateOf(request, auth));
+    const state = stateOf(request, auth);
+    const open = listed(state);
+    const earlier = state.earlier.map((c) => c.conversation);
     return HttpResponse.json(
-      { conversations: conversation ? [conversation] : [] },
+      { conversations: open ? [open, ...earlier] : earlier },
       { headers: mockHeaders(rid()) },
     );
   }),
@@ -364,21 +417,19 @@ export const trigoHandlers = [
     const auth = sessionOf(request);
     if (auth instanceof Response) return auth;
     const state = stateOf(request, auth);
-    const conversation = listed(state);
-    if (!conversation || conversation.id !== String(params.id)) {
-      return envelope("not_found", NO_CHAT, 404);
-    }
+    const chat = ownChat(state, String(params.id));
+    if (!chat) return envelope("not_found", NO_CHAT, 404);
     const after = Number(new URL(request.url).searchParams.get("after") ?? 0);
     const messages =
       after > 0
-        ? state.messages.filter((m) => m.seq > after)
-        : state.messages.slice(-50);
+        ? chat.messages.filter((m) => m.seq > after)
+        : chat.messages.slice(-50);
     return HttpResponse.json(
       {
-        conversation,
+        conversation: chat.conversation,
         messages,
         more: false,
-        hasOlder: after > 0 ? false : state.messages.length > 50,
+        hasOlder: after > 0 ? false : chat.messages.length > 50,
         remainingToday: state.remaining,
         resetsAt: nextIndianMidnight(mockNow()),
         pollAfterSeconds: 0,
@@ -390,8 +441,7 @@ export const trigoHandlers = [
   http.post(url("/trigo/conversations/:id/read"), ({ request, params }) => {
     const auth = sessionOf(request);
     if (auth instanceof Response) return auth;
-    const state = stateOf(request, auth);
-    if (state.conversation?.id !== String(params.id)) {
+    if (!ownChat(stateOf(request, auth), String(params.id))) {
       return envelope("not_found", NO_CHAT, 404);
     }
     return new HttpResponse(null, { status: 204, headers: mockHeaders(rid()) });

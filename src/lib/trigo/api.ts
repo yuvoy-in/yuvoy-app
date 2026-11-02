@@ -251,7 +251,13 @@ export function useTrigoChat(
     retry: false,
     queryFn: async ({ signal }): Promise<TrigoChatData> => {
       const old = qc.getQueryData<TrigoChatData>(qk.trigoConversation(id));
-      const after = old && old.messages.length > 0 ? maxSeq(old.messages) : 0;
+      /*
+        Only a page sets `conversation`. Without one, the cache holds just a
+        turn's answer: a chat the server continued under a new id has older
+        messages before it, so the read has no `after` (yuvoy-app#223).
+      */
+      const after =
+        old?.conversation && old.messages.length > 0 ? maxSeq(old.messages) : 0;
       const client = createProxyClient();
       const { data, error } = await client.GET("/trigo/conversations/{id}", {
         params: {
