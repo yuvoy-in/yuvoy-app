@@ -45,6 +45,14 @@ export interface TrailState {
   trail: readonly Visit[];
   /** The next visit is a step back: Back was pressed, or the browser's back. */
   stepBack: boolean;
+  /**
+   * The screen the browser's back landed on, when the listener saw it first.
+   * Only a visit there spends the step back: the screen it left may not be
+   * recorded yet, and its visit, still to come, is a step forward. Unset for
+   * our Back link and for a traversal seen inside the event, whose next visit
+   * is the step back.
+   */
+  backTo?: string;
 }
 
 /** Far more than anybody walks; it only stops the array growing for ever. */
@@ -62,21 +70,31 @@ export function visit(state: TrailState, href: string): TrailState {
   const path = pathOf(href);
   const { trail } = state;
   const top = trail.at(-1);
+  // Whether this visit is the one a pending step back is for. A browser back
+  // that beat the recording of the screen it left (yuvoy-app#215) is for the
+  // screen it landed on; the left screen's own visit, still to come, is a
+  // step forward and leaves it pending.
+  const spends =
+    state.stepBack && (state.backTo === undefined || state.backTo === path);
+  const after: Pick<TrailState, "stepBack" | "backTo"> =
+    state.stepBack && !spends
+      ? { stepBack: true, backTo: state.backTo }
+      : { stepBack: false };
 
   // The same screen with a new query (a search typed): the latest one stands.
   if (top?.path === path) {
-    if (top.href === href && !state.stepBack) return state;
-    return { trail: [...trail.slice(0, -1), { path, href }], stepBack: false };
+    if (top.href === href && !spends) return state;
+    return { trail: [...trail.slice(0, -1), { path, href }], ...after };
   }
 
   const before = trail.at(-2);
-  if (state.stepBack && before?.path === path) {
+  if (spends && before?.path === path) {
     return { trail: [...trail.slice(0, -2), { path, href }], stepBack: false };
   }
 
   return {
     trail: [...trail, { path, href }].slice(-MAX_TRAIL),
-    stepBack: false,
+    ...after,
   };
 }
 
@@ -131,6 +149,15 @@ export function originOf(href: string): { href: string; label: string } | null {
 let state: TrailState = EMPTY_TRAIL;
 const listeners = new Set<() => void>();
 
+/**
+ * The pathname on screen now, set by `RouteTrail` in the same commit that
+ * draws it. The trail's last entry can lag behind it: a visit is recorded in
+ * a passive effect, and with a view transition React runs those only once
+ * the transition is ready, a frame or more after the screen is drawn.
+ * Nothing renders from it, so it is not part of the store.
+ */
+let shown: string | undefined;
+
 function set(next: TrailState) {
   if (next === state) return;
   state = next;
@@ -158,8 +185,25 @@ export function recordVisit(href: string, traversed = false) {
  * back button) stays on this screen and is not a step anywhere.
  */
 export function markStepBack(landedOn?: string) {
-  if (landedOn !== undefined && state.trail.at(-1)?.path === landedOn) return;
-  if (!state.stepBack) set({ ...state, stepBack: true });
+  // Asked of the screen on screen, not of the trail's last entry. A back
+  // pressed before the screen it left was recorded found that entry still
+  // on the screen before, took it for a fragment move and marked nothing; both
+  // visits then came in as steps forward, and the listing offered Back to the
+  // business's page, the loop the trail is for (yuvoy-app#215).
+  const here = shown ?? state.trail.at(-1)?.path;
+  if (landedOn !== undefined && here === landedOn) return;
+  if (state.stepBack && state.backTo === landedOn) return;
+  set({ ...state, stepBack: true, backTo: landedOn });
+}
+
+/** Called by `RouteTrail` as each screen is drawn (see `shown`). */
+export function noteShown(pathname: string) {
+  shown = pathname;
+}
+
+/** The store as it stands, for tests. */
+export function __routeTrail(): TrailState {
+  return state;
 }
 
 /**
