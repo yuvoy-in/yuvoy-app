@@ -72,7 +72,10 @@ export function MessageList({
         ))}
       </ol>
       {typing ? (
-        <p className="text-forest/70 text-body text-pretty mt-3" data-testid="trigo-typing">
+        <p
+          className="text-forest/70 text-body mt-3 text-pretty"
+          data-testid="trigo-typing"
+        >
           {TYPING}
         </p>
       ) : null}
@@ -106,7 +109,7 @@ function MessageItem({
 
   if (message.role === "system") {
     return (
-      <li className="text-forest/70 text-body text-pretty text-center">
+      <li className="text-forest/70 text-body text-center text-pretty">
         <p>{text}</p>
       </li>
     );

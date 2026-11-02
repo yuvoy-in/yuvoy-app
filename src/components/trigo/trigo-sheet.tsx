@@ -200,7 +200,9 @@ function ChatSheet({
           captureEvent(EVENTS.trigoReplyShown, {
             outcome: result.outcome,
             cards: cardsIn(result.messages),
-            latencyBucket: latencyBucket(Date.now() - start.startedAt),
+            latencyBucket: latencyBucket(
+              start ? Date.now() - start.startedAt : 0,
+            ),
           });
           if (result.remainingToday === 0) {
             captureEvent(EVENTS.trigoLimitReached);
@@ -305,7 +307,9 @@ function ChatSheet({
     failure?.kind === "not_released" ||
     (consent.isLoadingError && consentFailure?.kind === "not_released")
   ) {
-    body = <p className="text-forest text-body text-pretty">{NOT_RELEASED_LINE}</p>;
+    body = (
+      <p className="text-forest text-body text-pretty">{NOT_RELEASED_LINE}</p>
+    );
   } else if (consent.isPending) {
     body = loading;
   } else if (consent.isLoadingError) {

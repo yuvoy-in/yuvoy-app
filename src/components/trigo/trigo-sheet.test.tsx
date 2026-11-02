@@ -131,8 +131,7 @@ vi.mock("@/lib/trigo/api", () => {
         if (!out) return;
         if ("ok" in out) {
           opts.onSuccess?.(out.ok, vars, { startedAt: Date.now() });
-        }
-        else opts.onError?.({ failure: out.failure });
+        } else opts.onError?.({ failure: out.failure });
         opts.onSettled?.();
       },
     }),

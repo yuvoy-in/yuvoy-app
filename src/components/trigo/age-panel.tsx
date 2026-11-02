@@ -98,7 +98,7 @@ export function AgePanel({ onDone }: { onDone: () => void }) {
         />
         {askBirthday ? (
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-forest text-body text-pretty mb-2">
+            <legend className="text-forest text-body mb-2 text-pretty">
               {AGE_BIRTHDAY_QUESTION}
             </legend>
             <div className="flex gap-2">

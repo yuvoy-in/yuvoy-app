@@ -145,7 +145,9 @@ test.describe("Ask Trigo", () => {
     await page.goto("/e/try-dive-nemo-reef?__scenario=trigo-reply");
     await page.getByRole("button", { name: "Ask Trigo about this" }).click();
     await expect(sheet(page)).toBeVisible();
-    await expect(page).toHaveURL(/[?&]trigo=about%3Aexp%3Atry-dive-nemo-reef|[?&]trigo=about:exp:try-dive-nemo-reef/);
+    await expect(page).toHaveURL(
+      /[?&]trigo=about%3Aexp%3Atry-dive-nemo-reef|[?&]trigo=about:exp:try-dive-nemo-reef/,
+    );
     await expect(sheet(page).getByText("Do I need to swim?")).toBeVisible();
   });
 
@@ -153,7 +155,9 @@ test.describe("Ask Trigo", () => {
     page,
   }, info) => {
     await openChat(page, info, "trigo-consent");
-    const notice = sheet(page).getByRole("region", { name: "Before you start" });
+    const notice = sheet(page).getByRole("region", {
+      name: "Before you start",
+    });
     await expect(notice).toBeVisible();
     await expectAccessible(page);
     await notice.getByRole("button", { name: "I understand" }).click();
@@ -204,7 +208,9 @@ test.describe("Ask Trigo", () => {
         "Trigo is not available right now. Try again later.",
       ),
     ).toBeVisible();
-    await expect(sheet(page).getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(
+      sheet(page).getByRole("button", { name: "Try again" }),
+    ).toBeVisible();
     await expect(sheet(page).getByLabel("Message to Trigo")).toHaveValue(
       "Beginner dive Saturday for two",
     );
