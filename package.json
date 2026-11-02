@@ -39,6 +39,7 @@
     "next-mdx-remote": "^6.0.0",
     "openapi-fetch": "^0.17.0",
     "posthog-js": "^1.422.5",
+    "qrcode-generator": "2.0.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "^3.6.0",

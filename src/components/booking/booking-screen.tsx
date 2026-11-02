@@ -27,6 +27,8 @@ import {
   cashToGetBack,
 } from "@/lib/booking/cash-booking";
 import { ReviewForm } from "./review-form";
+import { CheckInBlock } from "./check-in-block";
+import { checkInView } from "@/lib/booking/check-in";
 import { Screen } from "@/components/chrome/screen";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -284,6 +286,7 @@ function StatusBody({
   */
   const [opened] = useState(() => Date.now() + clockOffsetMs());
   const now = useServerClock(opened);
+  const checkIn = checkInView(status, now);
 
   // Confirmed and still ahead of us: sharing and cancelling both make sense.
   // A trip that has already left can do neither.
@@ -551,6 +554,15 @@ function StatusBody({
           </p>
         </Panel>
       ) : null}
+
+      {/*
+        SHOW AT CHECK-IN (yuvoy-app#218). Under what to bring and above the
+        details, where the app has it: the thing to hold up at the jetty. The
+        API decides whether there is one; `checkInView` only hides it once the
+        trip's day is over. On the offline copy too, since a jetty is where
+        the signal goes.
+      */}
+      {checkIn ? <CheckInBlock view={checkIn} /> : null}
 
       {token && status.state === "holding" ? (
         /*

@@ -7,6 +7,7 @@ import {
 } from "./fixtures";
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
+import { mockCheckIn } from "./check-in";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
 
 type Experience = components["schemas"]["Experience"];
@@ -1174,6 +1175,11 @@ export const bookingHandlers = [
               ] satisfies OperatorUpdates,
             }
           : {}),
+        ...mockCheckIn(
+          scenario,
+          state,
+          record.cashBookingReference ?? record.reference,
+        ),
         ...(state === "declined"
           ? {
               refund: {
