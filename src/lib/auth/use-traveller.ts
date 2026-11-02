@@ -167,6 +167,9 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getTable"] });
     // And share links are the number's own, with their counts.
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    // So are the groups it follows and its plans (yuvoy-mobile#392).
+    qc.removeQueries({ queryKey: qk.myClubFollows() });
+    qc.removeQueries({ queryKey: ["listMyPlans"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
@@ -245,6 +248,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getEvent"] });
     qc.removeQueries({ queryKey: ["getTable"] });
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    qc.removeQueries({ queryKey: qk.myClubFollows() });
+    qc.removeQueries({ queryKey: ["listMyPlans"] });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     qc.setQueryData(qk.session(), { signedIn: false });

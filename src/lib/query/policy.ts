@@ -116,6 +116,30 @@ export const CACHE = {
     gcTime: 0,
     refetchOnMount: "always",
   },
+
+  /**
+   * The groups a traveller follows (yuvoy-mobile#392). Read again on every
+   * mount, because a group taken out of the directory drops out of it on the
+   * API's side. Kept five minutes so a card and the group screen agree at
+   * once after a tap while the read runs; sign in and sign out remove it.
+   */
+  listMyClubFollows: {
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchOnMount: "always",
+  },
+
+  /**
+   * The traveller's own plans, for the crew invite's picker
+   * (yuvoy-mobile#392). Read again each time the picker opens: a plan made
+   * or closed a minute ago must be right in the list. Removed on sign in and
+   * sign out with the rest of what belongs to a number.
+   */
+  listMyPlans: {
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchOnMount: "always",
+  },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -317,6 +341,17 @@ export const qk = {
    * sign out with the rest of what belongs to a number.
    */
   myCreatorLinks: () => ["listMyCreatorLinks"] as const,
+  /**
+   * The groups the signed-in traveller follows (yuvoy-mobile#392). Not keyed
+   * by anything, for the reason `myBookings` gives; removed on sign in and
+   * sign out.
+   */
+  myClubFollows: () => ["listMyClubFollows"] as const,
+  /**
+   * The signed-in traveller's plans, upcoming or past (yuvoy-mobile#392's
+   * invite picker reads `upcoming`). Removed on sign in and sign out.
+   */
+  myPlans: (when: "upcoming" | "past") => ["listMyPlans", when] as const,
   /**
    * One help request, by its reference, and by WHICH credential asked.
    *
