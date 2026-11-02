@@ -1,6 +1,10 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { fetchWithin } from "@/lib/api/deadline";
 import { WRITE_STALL_MS } from "@/lib/api/client";
 import { qk } from "@/lib/query/policy";
@@ -129,20 +133,26 @@ export function useAddWay() {
       }
     },
     /*
-      Its trips, saves and invitations follow the one account now. The
-      account is waited for, so `mutateAsync` resolves once `/me` names the
-      way just added: until then Ways in would read the old account and offer
-      to add it again beside "Added.".
+      The account is waited for, so `mutateAsync` resolves once `/me` names
+      the way just added: until then Ways in would read the old account and
+      offer to add it again beside "Added.".
     */
-    onSuccess: () => {
-      const account = qc.invalidateQueries({ queryKey: qk.myAccount() });
-      void qc.invalidateQueries({ queryKey: [qk.myBookings()[0]] });
-      void qc.invalidateQueries({ queryKey: qk.invitedTrips() });
-      void qc.invalidateQueries({ queryKey: qk.savedList("account") });
-      void qc.invalidateQueries({ queryKey: qk.savedIds("account") });
-      return account;
-    },
+    onSuccess: () => readJoinedAccountAgain(qc),
   });
+}
+
+/**
+ * After a way in is added, by an answer or found on the account after a lost
+ * one: its trips, saves and invitations follow the one account now, so each
+ * is read again. Resolves when the account itself has been read again.
+ */
+export function readJoinedAccountAgain(qc: QueryClient): Promise<void> {
+  const account = qc.invalidateQueries({ queryKey: qk.myAccount() });
+  void qc.invalidateQueries({ queryKey: [qk.myBookings()[0]] });
+  void qc.invalidateQueries({ queryKey: qk.invitedTrips() });
+  void qc.invalidateQueries({ queryKey: qk.savedList("account") });
+  void qc.invalidateQueries({ queryKey: qk.savedIds("account") });
+  return account;
 }
 
 /**

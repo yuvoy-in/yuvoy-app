@@ -399,6 +399,43 @@ test("no answer, but the account holds it: Added", async ({
   await expect(waysIn(page).getByText("ravi@example.com")).toBeVisible();
 });
 
+test("no answer, but the account holds it: Trips is read again", async ({
+  page,
+  context,
+}, info) => {
+  const trips = { bookings: 0, invited: 0 };
+  context.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === "/api/v1/me/bookings") trips.bookings += 1;
+    if (path === "/api/v1/me/invited-trips") trips.invited += 1;
+  });
+  const bar = page.locator('nav[aria-label="Primary"]:visible');
+  await signIn(page, info, "email-sign-in");
+
+  // Trips read once and kept: inside its 30 s it would not be read again.
+  await bar.getByRole("link", { name: "Trips" }).click();
+  await page.waitForURL("**/trips");
+  await expect.poll(() => trips.bookings).toBeGreaterThan(0);
+  await expect.poll(() => trips.invited).toBeGreaterThan(0);
+  await page.goBack();
+  await page.waitForURL("**/account?__scenario=email-sign-in");
+
+  await sendEmailCode(page, "ravi@example.com");
+  await context.route("**/api/session/link", async (route) => {
+    await route.fetch();
+    await route.abort("internetdisconnected");
+  });
+  await addWithCode(page, "Add this email");
+  await expect(added(page)).toBeVisible();
+
+  // The accounts are one now, so their trips are read again.
+  const before = { ...trips };
+  await bar.getByRole("link", { name: "Trips" }).click();
+  await page.waitForURL("**/trips");
+  await expect.poll(() => trips.bookings).toBeGreaterThan(before.bookings);
+  await expect.poll(() => trips.invited).toBeGreaterThan(before.invited);
+});
+
 test("no answer, and the account does not hold it: could not confirm", async ({
   page,
   context,

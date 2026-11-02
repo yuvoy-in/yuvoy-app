@@ -15,6 +15,7 @@ import {
   ADD_WAY_WORDS as A,
   WAYS_IN_WORDS as W,
   canAddWay,
+  readJoinedAccountAgain,
   showsWaysIn,
   useAddWay,
   useAddedAfterAll,
@@ -224,6 +225,8 @@ function AddWay({
         const there = await addedAfterAll(kind);
         setChecking(false);
         if (there) {
+          // The same reads as an add that was answered (useAddWay's onSuccess).
+          void readJoinedAccountAgain(qc);
           onAdded();
           return;
         }
