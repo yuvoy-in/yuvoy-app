@@ -286,8 +286,14 @@ export function useTrigoChat(
     queryFn: async ({ signal }): Promise<TrigoChatData> => {
       const old = qc.getQueryData<TrigoChatData>(qk.trigoConversation(id));
       const ask = fullReads.get(qc)?.get(id);
+      /*
+        Only a page sets `conversation`. Without one, the cache holds just a
+        turn's answer: a chat the server continued under a new id has older
+        messages before it, so the read has no `after` (yuvoy-app#223). A card
+        action's full read has no `after` either.
+      */
       const after =
-        ask === undefined && old && old.messages.length > 0
+        ask === undefined && old?.conversation && old.messages.length > 0
           ? maxSeq(old.messages)
           : 0;
       const client = createProxyClient();
@@ -443,7 +449,8 @@ export type TrigoFailure =
   | { kind: "idempotency_in_progress" } // 409 idempotency_in_progress: read the chat, do not resend
   | { kind: "busy"; message: string } // 503: show the API's sentence, Try again with the same key
   | { kind: "offline" } // no connection / navigator.onLine false
-  | { kind: "failure" }; // anything else (500, idempotency_key_reuse, unknown)
+  | { kind: "rejected" } // 400, 409 idempotency_key_reuse: the same send gets the same answer
+  | { kind: "failure" }; // anything else (500, unknown)
 
 function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
@@ -473,6 +480,7 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
   }
   if (!(error instanceof YuvoyError)) return { kind: "failure" };
   const { status, code } = error;
+  if (status === 400) return { kind: "rejected" };
   if (status === 401) return { kind: "signed_out" };
   if (status === 404) return { kind: "not_released", message: error.message };
   if (status === 403 && code === "adult_confirmation_required") {
@@ -489,6 +497,7 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
     if (code === "idempotency_in_progress") {
       return { kind: "idempotency_in_progress" };
     }
+    if (code === "idempotency_key_reuse") return { kind: "rejected" };
     return { kind: "failure" };
   }
   if (status === 429) {

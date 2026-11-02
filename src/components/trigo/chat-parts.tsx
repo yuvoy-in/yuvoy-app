@@ -140,6 +140,13 @@ export function StatusLine({
           </div>
         </div>
       );
+    case "rejected":
+      // The same key and text would get the same answer: no Try again.
+      return (
+        <p role="alert" className="text-forest text-body text-pretty">
+          {FAILURE_LINE}
+        </p>
+      );
     case "rate_limited":
       return (
         <p role="alert" className="text-forest text-body text-pretty">

@@ -213,6 +213,7 @@ export type Scenario =
   | "trigo-reply"
   | "trigo-fixed-reply"
   | "trigo-limit"
+  | "trigo-continue"
   | "trigo-slow"
   | "trigo-down"
   | "trigo-consent"

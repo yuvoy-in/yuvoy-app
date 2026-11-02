@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, screen } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import type { TrigoFailure, TrigoMessage } from "@/lib/trigo/api";
@@ -329,6 +329,37 @@ describe("Trigo sheet: the chat", () => {
     expect(s.marked).toEqual([9]);
   });
 
+  it("draws a reply's safety answer under it, with the server's label", () => {
+    s.messages = [
+      message(2, "trigo", "Swim only between the flags.", {
+        safetyAnswer: {
+          id: "5c4d3e2f-1a0b-4c9d-8e7f-6a5b4c3d2e1f",
+          topic: "sea_swimming",
+          text: "Lifeguards watch the flagged stretch from 8 to 6.",
+          label: "Safety answer checked by the Yuvoy team",
+        },
+      }),
+    ];
+    renderWithQuery(
+      <TrigoSheet
+        open
+        request={{ conversationId: CONVERSATION, aboutCardId: null }}
+        destinationKey={null}
+        onClose={() => {}}
+        onConversation={() => {}}
+      />,
+    );
+    const log = screen.getByRole("log");
+    expect(
+      within(log).getByText("Safety answer checked by the Yuvoy team"),
+    ).toBeInTheDocument();
+    expect(
+      within(log).getByText(
+        "Lifeguards watch the flagged stretch from 8 to 6.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("says how many messages are left from 5 down", () => {
     s.remainingToday = 3;
     open();
@@ -381,6 +412,17 @@ describe("Trigo sheet: when a message does not go", () => {
     s.answer = null;
     await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
     expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
+  });
+
+  it("a refusal the same send would get again keeps the text and offers no Try again", async () => {
+    await failWith({ kind: "rejected" });
+    expect(screen.getByText(FAILURE_LINE)).toBeInTheDocument();
+    expect(screen.getByLabelText(COMPOSER_LABEL)).toHaveValue(
+      "Where to stay in Gokarna?",
+    );
+    expect(
+      screen.queryByRole("button", { name: TRY_AGAIN }),
+    ).not.toBeInTheDocument();
   });
 
   it.each([
