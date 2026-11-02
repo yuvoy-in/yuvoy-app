@@ -121,7 +121,7 @@ export function trigoActionsStageOf(scenario: string): "all" | "off" {
 }
 
 function rupees(paise: number): string {
-  return `₹${(paise / 100).toLocaleString("en-IN")}`;
+  return `₹${new Intl.NumberFormat("en-IN").format(paise / 100)}`;
 }
 
 function slotOf(scenario: string) {

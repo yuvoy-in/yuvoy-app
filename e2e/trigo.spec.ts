@@ -279,13 +279,8 @@ test.describe("Trigo's cards", () => {
       session: sessionStorage.getItem(
         "yuvoy.trigo.checkout.try-dive-nemo-reef",
       ),
-      /*
-        eslint-disable no-restricted-syntax --
-        The rule bans `localStorage` in app code. This runs in the browser
-        and proves the card's checkout was not put there.
-      */
+      // Runs in the browser: proves the card's checkout was not put in localStorage.
       local: Object.keys(localStorage).filter((k) => k.includes("trigo")),
-      /* eslint-enable no-restricted-syntax */
     }));
     expect(kept.session).toContain('"idempotencyKey":"trg_');
     expect(kept.local).toEqual([]);

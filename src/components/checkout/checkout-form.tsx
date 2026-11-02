@@ -441,7 +441,6 @@ function CheckoutFields({
       experience.slug,
       trigoCardId,
       { slotId: slot.id, guests },
-      Date.now(),
     );
     const attribution = trigo?.attribution ?? readAttribution();
 
