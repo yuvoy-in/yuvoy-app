@@ -162,7 +162,7 @@ export function ActionCard({
       onSuccess: (result) => {
         // A used card is booked already: it shows Booked, never a checkout.
         if ("checkout" in result.next && result.state === "confirmed") {
-          router.push(trigoCheckoutHref(result.next.checkout));
+          router.push(trigoCheckoutHref(result.next.checkout, card.actionId));
         }
       },
     });

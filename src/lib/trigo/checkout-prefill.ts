@@ -6,17 +6,25 @@ import { readAttribution, type Attribution } from "@/lib/booking/attribution";
  * yuvoy-mobile#391), carried from the card to `/e/{slug}/book`.
  *
  * The departure, date and party ride in the address the checkout already
- * reads (`?date=&slot=&guests=`). What the address cannot carry is kept here,
- * in sessionStorage under the listing's slug: the card's id, its
- * `idempotencyKey` and the total it was checked at. sessionStorage, never
- * localStorage: the tab is the visit, and nothing here outlives it.
+ * reads (`?date=&slot=&guests=`), and so does the card's id (`&card=`). What
+ * the address cannot carry is kept here, in sessionStorage under the
+ * listing's slug: the card's id again, its `idempotencyKey` and the total it
+ * was checked at. sessionStorage, never localStorage: the tab is the visit,
+ * and nothing here outlives it.
+ *
+ * The prefill counts only on a checkout whose address names its card. A
+ * checkout of the same listing opened another way (from the listing page,
+ * after an abandoned card checkout) is a booking of its own, with no Trigo
+ * attribution, key or total. Not cut off at the card's `expiresAt`: a
+ * confirmed request card stays live past it, and a prefill lost there would
+ * mint a new key and allow a second request.
  *
  * At the checkout's tap, `trigoCheckoutFor` says what the reservation sends:
  *
- *   - attribution `placement: trigo`, `campaign: <actionId>` on every
- *     reservation of this listing from the tab while the prefill stands. The
- *     API marks the card used from that too (its own traveller only), so a
- *     party changed on the form still closes the card.
+ *   - attribution `placement: trigo`, `campaign: <actionId>` on a
+ *     reservation from the card's checkout while the prefill stands. The API
+ *     marks the card used from that too (its own traveller only), so a party
+ *     changed on the form still closes the card.
  *   - the card's `idempotencyKey` and `expectTotalPaise` only while the
  *     departure and the party are the card's. Change either and the form's
  *     own key and total are used: the card's key was checked for the card's
@@ -43,6 +51,9 @@ export interface TrigoCheckoutPrefill extends Omit<
 }
 
 const PREFIX = "yuvoy.trigo.checkout.";
+
+/** The checkout address's name for its card: `?card=<actionId>`. */
+export const CARD_PARAM = "card";
 
 /** A card's checkout is a hold's length at most; two hours is generous. */
 export const MAX_AGE_MS = 2 * 60 * 60_000;
@@ -130,12 +141,19 @@ export function dropTrigoTotal(slug: string): void {
   }
 }
 
-/** Where a book card's checkout opens: the checkout's own address. */
-export function trigoCheckoutHref(checkout: Checkout): string {
+/**
+ * Where a book card's checkout opens: the checkout's own address, with the
+ * card's id, so the prefill applies to this checkout and no other.
+ */
+export function trigoCheckoutHref(
+  checkout: Checkout,
+  actionId: string,
+): string {
   const q = new URLSearchParams({
     date: checkout.localDate,
     slot: checkout.slotId,
     guests: String(checkout.guests),
+    [CARD_PARAM]: actionId,
   });
   const slug = encodeURIComponent(checkout.experienceSlug);
   return `/e/${slug}/book?${q.toString()}`;
@@ -152,15 +170,19 @@ export interface TrigoReservationParts {
 
 /**
  * Read at the checkout's tap (an event handler, so `now` is the tap's).
- * Null when the traveller did not come from a Trigo card for this listing.
+ * `cardId` is the checkout address's `?card=`. Null when the traveller did
+ * not come from a Trigo card for this listing, or came to this checkout
+ * another way than the card's own address.
  */
 export function trigoCheckoutFor(
   slug: string,
+  cardId: string | null,
   body: { slotId: string; guests: number },
   now: number,
 ): TrigoReservationParts | null {
+  if (!cardId) return null;
   const prefill = readTrigoCheckout(slug, now);
-  if (!prefill) return null;
+  if (!prefill || prefill.actionId !== cardId) return null;
   const attribution: Attribution = {
     ...readAttribution(),
     placement: "trigo",

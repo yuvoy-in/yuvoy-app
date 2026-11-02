@@ -253,7 +253,7 @@ test.describe("Trigo's cards", () => {
     await send(page, "Beginner dive Saturday for two");
     await card(page).getByRole("button", { name: "Book" }).click();
     await expect(page).toHaveURL(
-      /\/e\/try-dive-nemo-reef\/book\?date=\d{4}-\d{2}-\d{2}&slot=slot_try-dive-nemo-reef_a&guests=2/,
+      /\/e\/try-dive-nemo-reef\/book\?date=\d{4}-\d{2}-\d{2}&slot=slot_try-dive-nemo-reef_a&guests=2&card=[0-9a-f-]{36}/,
     );
     const kept = await page.evaluate(() => ({
       session: sessionStorage.getItem(

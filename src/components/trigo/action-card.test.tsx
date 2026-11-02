@@ -186,7 +186,7 @@ describe("ActionCard, a line for each state", () => {
     expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: GO_TO_CHECKOUT }));
     expect(s.push).toHaveBeenCalledWith(
-      "/e/try-dive/book?date=2026-11-07&slot=slot_a&guests=2",
+      `/e/try-dive/book?date=2026-11-07&slot=slot_a&guests=2&card=${ACTION}`,
     );
   });
 });
@@ -217,7 +217,7 @@ describe("ActionCard, a tap", () => {
       { actionId: ACTION, kind: "book", conversationId: CHAT },
     ] satisfies CardActionVars[]);
     expect(s.push).toHaveBeenCalledWith(
-      "/e/try-dive/book?date=2026-11-07&slot=slot_a&guests=2",
+      `/e/try-dive/book?date=2026-11-07&slot=slot_a&guests=2&card=${ACTION}`,
     );
   });
 

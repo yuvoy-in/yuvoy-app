@@ -83,6 +83,7 @@ export function CheckoutForm({
   onGuestsChange,
   onRefused,
   arrive = false,
+  trigoCardId = null,
 }: {
   experience: Experience;
   slot: Slot;
@@ -103,6 +104,11 @@ export function CheckoutForm({
    * traveller looks next.
    */
   onRefused?: (message: string) => void;
+  /**
+   * The address's `?card=`: the Trigo card this checkout was opened from.
+   * A card's prefill applies only when it names that card (yuvoy-app#223).
+   */
+  trigoCardId?: string | null;
 }) {
   /*
     THE DEAD FORM, REFUSED BEFORE IT RENDERS — yuvoy-app#28.
@@ -140,6 +146,7 @@ export function CheckoutForm({
       onGuestsChange={onGuestsChange}
       onRefused={onRefused}
       arrive={arrive}
+      trigoCardId={trigoCardId}
     />
   );
 }
@@ -151,6 +158,7 @@ function CheckoutFields({
   onGuestsChange,
   onRefused,
   arrive,
+  trigoCardId,
 }: {
   experience: Experience;
   slot: Slot;
@@ -158,6 +166,7 @@ function CheckoutFields({
   onGuestsChange?: (guests: number) => void;
   onRefused?: (message: string) => void;
   arrive: boolean;
+  trigoCardId: string | null;
 }) {
   const router = useRouter();
   const create = useCreateReservation();
@@ -422,10 +431,12 @@ function CheckoutFields({
     /*
       From a Trigo book card (yuvoy-app#223 part 2): attribution trigo with
       the card's id, and, while the departure and party are still the card's,
-      the card's key and the total it was checked at. Null otherwise.
+      the card's key and the total it was checked at. Only on the checkout
+      the card opened (its `?card=`). Null otherwise.
     */
     const trigo = trigoCheckoutFor(
       experience.slug,
+      trigoCardId,
       { slotId: slot.id, guests },
       Date.now(),
     );

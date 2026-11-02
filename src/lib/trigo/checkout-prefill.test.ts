@@ -29,6 +29,11 @@ const CHECKOUT = {
   mode: "allotment" as const,
 };
 
+const OTHER_CARD = "9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a";
+
+/** The card's departure and party, as the checkout sends them. */
+const A_TWO = { slotId: "slot_a", guests: 2 };
+
 afterEach(() => {
   vi.restoreAllMocks();
   sessionStorage.clear();
@@ -36,8 +41,8 @@ afterEach(() => {
 
 describe("trigoCheckoutHref", () => {
   it("opens the listing's checkout with the date, departure and party", () => {
-    expect(trigoCheckoutHref(CHECKOUT)).toBe(
-      "/e/try-dive/book?date=2026-11-07&slot=slot_a&guests=2",
+    expect(trigoCheckoutHref(CHECKOUT, ACTION)).toBe(
+      `/e/try-dive/book?date=2026-11-07&slot=slot_a&guests=2&card=${ACTION}`,
     );
   });
 });
@@ -97,25 +102,33 @@ describe("the prefill", () => {
     expect(readTrigoCheckout(SLUG, NOW)).toBeNull();
     expect(() => dropTrigoTotal(SLUG)).not.toThrow();
     expect(() => clearTrigoCheckout(SLUG)).not.toThrow();
-    const parts = trigoCheckoutFor(SLUG, { slotId: "slot_a", guests: 2 }, NOW);
+    const parts = trigoCheckoutFor(SLUG, ACTION, A_TWO, NOW);
     expect(parts).toBeNull();
   });
 });
 
 describe("trigoCheckoutFor", () => {
   it("is null when the traveller did not come from a card", () => {
-    const parts = trigoCheckoutFor(SLUG, { slotId: "slot_a", guests: 2 }, NOW);
+    const parts = trigoCheckoutFor(SLUG, ACTION, A_TWO, NOW);
     expect(parts).toBeNull();
   });
 
   it("sends the card's key, total and attribution for the card's party", () => {
     saveTrigoCheckout(ACTION, CHECKOUT, NOW);
-    const parts = trigoCheckoutFor(SLUG, { slotId: "slot_a", guests: 2 }, NOW);
+    const parts = trigoCheckoutFor(SLUG, ACTION, A_TWO, NOW);
     expect(parts).toMatchObject({
       attribution: { placement: "trigo", campaign: ACTION },
       idempotencyKey: CHECKOUT.idempotencyKey,
       expectTotalPaise: 900000,
     });
+  });
+
+  it("is null unless the checkout's address names the card", () => {
+    saveTrigoCheckout(ACTION, CHECKOUT, NOW);
+    expect(trigoCheckoutFor(SLUG, null, A_TWO, NOW)).toBeNull();
+    expect(trigoCheckoutFor(SLUG, OTHER_CARD, A_TWO, NOW)).toBeNull();
+    // The prefill still stands for the card's own checkout.
+    expect(trigoCheckoutFor(SLUG, ACTION, A_TWO, NOW)).not.toBeNull();
   });
 
   it("keeps the attribution and drops the key when the party changes", () => {
@@ -124,7 +137,7 @@ describe("trigoCheckoutFor", () => {
       { slotId: "slot_a", guests: 3 },
       { slotId: "slot_b", guests: 2 },
     ]) {
-      const parts = trigoCheckoutFor(SLUG, body, NOW);
+      const parts = trigoCheckoutFor(SLUG, ACTION, body, NOW);
       expect(parts?.attribution).toMatchObject({
         placement: "trigo",
         campaign: ACTION,
@@ -137,7 +150,7 @@ describe("trigoCheckoutFor", () => {
   it("sends the key without the total after a price_moved refusal", () => {
     saveTrigoCheckout(ACTION, CHECKOUT, NOW);
     dropTrigoTotal(SLUG);
-    const parts = trigoCheckoutFor(SLUG, { slotId: "slot_a", guests: 2 }, NOW);
+    const parts = trigoCheckoutFor(SLUG, ACTION, A_TWO, NOW);
     expect(parts?.idempotencyKey).toBe(CHECKOUT.idempotencyKey);
     expect(parts && "expectTotalPaise" in parts).toBe(false);
   });
