@@ -71,7 +71,7 @@ describe("People: requests", () => {
     await waitFor(() => expect(decline).toHaveLength(1));
     expect(accept[0].body).toEqual({ answer: "accept" });
     expect(decline[0].body).toEqual({ answer: "decline" });
-    expect(document.body).not.toHaveTextContent(/declined/i);
+    expect(document.body).not.toHaveTextContent(/\bdeclined\b/i);
   });
 
   it("says a request is gone on a 404", async () => {
@@ -227,6 +227,19 @@ describe("People: the friend link", () => {
     expect(off).toHaveLength(1);
     expect(read.length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: W.getLink })).toBeInTheDocument();
+  });
+
+  it("keeps the link on screen when switching off answers 404", async () => {
+    // A 404 there means People is closed to the caller, not "already off".
+    noFriends();
+    answer("delete", "/me/friend-link", () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const { user } = await open({ friendLink: LINK });
+    await user.click(screen.getByRole("button", { name: W.switchOff }));
+    expect(await screen.findAllByRole("alert")).not.toHaveLength(0);
+    expect(screen.queryByText(W.linkOff)).toBeNull();
+    expect(screen.getByText(LINK.url)).toBeInTheDocument();
   });
 
   it.each([

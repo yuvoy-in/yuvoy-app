@@ -27,7 +27,8 @@ import { UnderAgeClosed, refusalText } from "./people-parts";
  * yuvoy-mobile#366).
  *
  * In order: signed out asks to sign in and comes back; a `401` says the
- * sign-in expired; a `404` is the release closed ("not open yet", no list);
+ * sign-in expired; a `404` is the release closed ("not open yet", no list),
+ * also when a later read answers them over a home already shown;
  * a standing of `restricted` or `removed` says so and shows nothing else;
  * then the age step, the name step and the first sharing choice, each until
  * it is answered; then requests in, requests sent, friends, crews
@@ -70,7 +71,13 @@ export function PeopleScreen() {
 
   if (home.isPending) return <Loading />;
 
-  if (home.isLoadingError) {
+  // A later read (after a change, or on focus) that says the sign-in ended
+  // or People closed replaces the old home: it is not true any more.
+  const ended =
+    home.isRefetchError &&
+    (isDeadToken(home.error) || isPeopleClosed(home.error));
+
+  if (home.isLoadingError || ended) {
     if (isDeadToken(home.error)) {
       return (
         <Shell>
@@ -179,6 +186,12 @@ export function PeopleScreen() {
 
   return (
     <Shell>
+      {home.isRefetchError ? (
+        <div role="alert" className="mb-4">
+          <p className="text-sm font-bold">{W.failed}</p>
+          <p className="text-forest/70 text-sm">{refusalText(home.error)}</p>
+        </div>
+      ) : null}
       <PeopleHomeView home={data} onStep={onStep} />
     </Shell>
   );

@@ -184,13 +184,13 @@ describe("what the proxy will forward", () => {
       carries its code in the body, so there is no path with a code in it.
     */
     const person = "6a3c1f8e-2b4d-4c1a-9e0f-1d2c3b4a5f60";
-    // The pattern each path matches: an id in the path answers its pattern.
-    const ok: [string, string, string?][] = [
-      ["GET", "/me/people"],
-      ["PATCH", "/me/people"],
-      ["GET", "/me/friends"],
+    // [method, path, the pattern it matches]
+    const ok: [string, string, string][] = [
+      ["GET", "/me/people", "/me/people"],
+      ["PATCH", "/me/people", "/me/people"],
+      ["GET", "/me/friends", "/me/friends"],
       ["DELETE", `/me/friends/${person}`, "/me/friends/{personId}"],
-      ["POST", "/me/friend-requests"],
+      ["POST", "/me/friend-requests", "/me/friend-requests"],
       [
         "POST",
         `/me/friend-requests/${person}/answer`,
@@ -201,12 +201,12 @@ describe("what the proxy will forward", () => {
         `/me/friend-requests/${person}`,
         "/me/friend-requests/{requestId}",
       ],
-      ["PUT", "/me/friend-link"],
-      ["DELETE", "/me/friend-link"],
-      ["POST", "/friend-links/lookup"],
-      ["PUT", "/me/age"],
+      ["PUT", "/me/friend-link", "/me/friend-link"],
+      ["DELETE", "/me/friend-link", "/me/friend-link"],
+      ["POST", "/friend-links/lookup", "/friend-links/lookup"],
+      ["PUT", "/me/age", "/me/age"],
     ];
-    for (const [method, path, pattern = path] of ok) {
+    for (const [method, path, pattern] of ok) {
       expect(allowedProxyPath(method, path), `${method} ${path}`).toBe(pattern);
     }
 

@@ -43,11 +43,43 @@ export function isCrewLimit(error: unknown): boolean {
 }
 
 /**
- * A change's `404`: the crew is not the caller's any more (deleted on
- * another device), or People closed under them. Both leave nothing to save.
+ * What a change's `404` turned out to be. In the contract that `404` is
+ * either a crew that is not the caller's any more (deleted on another
+ * device) or the `people` release closed to them, so it proves neither on
+ * its own: the list is read again, and only its answer decides (the shared
+ * rule, a `404` is never success). A read that fails decides nothing, and
+ * the change is then refused like any failure.
  */
+export type CrewMissing = "gone" | "closed";
+
+const missing = new WeakMap<object, CrewMissing>();
+
+/** Why a change answered `404`, once the list was read again; else null. */
+export function crewMissing(error: unknown): CrewMissing | null {
+  return error instanceof YuvoyError ? (missing.get(error) ?? null) : null;
+}
+
+/** The list read again says the crew is not the caller's any more. */
 export function isCrewGone(error: unknown): boolean {
-  return error instanceof YuvoyError && error.status === 404;
+  return crewMissing(error) === "gone";
+}
+
+async function whyMissing(crewId: string): Promise<CrewMissing | null> {
+  try {
+    const client = createProxyClient();
+    const { data, error } = await client.GET("/me/crews");
+    if (error) {
+      return error instanceof YuvoyError && error.status === 404
+        ? "closed"
+        : null;
+    }
+    const id = crewId.toLowerCase();
+    return data.crews.some((c) => c.crewId.toLowerCase() === id)
+      ? null
+      : "gone";
+  } catch {
+    return null;
+  }
 }
 
 function refreshCrews(qc: QueryClient): Promise<unknown> {
@@ -93,7 +125,10 @@ export function useCreateCrew() {
   });
 }
 
-/** `PATCH /me/crews/{crewId}`: a new name, new members, or both. */
+/**
+ * `PATCH /me/crews/{crewId}`: a new name, new members, or both. A `404`
+ * reads the list again before it is thrown (`crewMissing`).
+ */
 export function useUpdateCrew() {
   const qc = useQueryClient();
   return useMutation({
@@ -110,7 +145,13 @@ export function useUpdateCrew() {
         params: { path: { crewId } },
         body: patch,
       });
-      if (error) throw error;
+      if (error) {
+        if (error instanceof YuvoyError && error.status === 404) {
+          const why = await whyMissing(crewId);
+          if (why) missing.set(error, why);
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: (crew) =>

@@ -4,11 +4,13 @@ import { useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   friendsOf,
+  isPeopleClosed,
   needsAge,
   needsName,
   useMyFriends,
 } from "@/lib/people/use-people";
 import {
+  crewMissing,
   isCrewGone,
   isCrewLimit,
   isNotFriends,
@@ -56,7 +58,9 @@ import {
  *     name step here, as the friend link page does, and the form comes back
  *     as it was once the step is done;
  *   - `crew_limit_reached` says why there can be no more;
- *   - a change's `404` is a crew that is gone;
+ *   - a change's `404` reads the list again: a crew not in it is gone, a
+ *     list that answers `404` is People closed, and a new crew's `404` is
+ *     only People closed;
  *   - anything else, a lost connection included, is said under Save.
  */
 export function CrewEditorScreen({ crewId }: { crewId?: string }) {
@@ -257,7 +261,7 @@ function CrewEditor({
                   <label className="flex cursor-pointer items-center gap-3 py-3">
                     <input
                       type="checkbox"
-                      className="accent-forest size-5 shrink-0"
+                      className="accent-forest size-6 shrink-0"
                       checked={on}
                       disabled={!on && (full || gone)}
                       onChange={(e) => toggle(row.personId, e.target.checked)}
@@ -348,7 +352,9 @@ function CrewEditor({
         <p role="alert" className="text-terra-deep mt-4 text-sm">
           {W.limit}
         </p>
-      ) : !crew && isCrewGone(save.error) ? (
+      ) : crew ? (
+        crewMissing(save.error) === "closed"
+      ) : isPeopleClosed(save.error) ? (
         <p role="alert" className="text-terra-deep mt-4 text-sm">
           {PEOPLE_WORDS.closed.title}
         </p>

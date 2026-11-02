@@ -126,11 +126,7 @@ export const CACHE = {
    */
   getMyPeople: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
   listMyFriends: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
-  /*
-    The lookup is a POST. Window focus is off for every query by default
-    (`query/client.ts`); it is said again here so no later default can make a
-    POST run again because a tab came back into view.
-  */
+  // A POST limited to 30 a minute: never again on window focus.
   lookupFriendLink: {
     staleTime: 0,
     gcTime: 0,

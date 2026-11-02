@@ -1783,6 +1783,22 @@ for (const f of files) {
       "the leaving sheet, opened by See details",
     ],
     [
+      "src/components/people/age-step.tsx",
+      "the age step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/name-step.tsx",
+      "the name step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/crew-editor.tsx",
+      "drawn once the crews list has loaded in the browser",
+    ],
+    [
+      "src/components/people/people-settings.tsx",
+      "drawn once the People home has loaded in the browser",
+    ],
+    [
       "src/components/plans/guest-plan.tsx",
       "the guest's first name, drawn once the plan has loaded in the browser",
     ],

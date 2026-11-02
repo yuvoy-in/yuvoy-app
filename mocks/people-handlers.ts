@@ -40,7 +40,8 @@ import {
  *     `403 under_age_sign_up`; the year that turns 18 this year needs
  *     `birthdayPassed` (`400` without it, under 18 with false).
  *   - `people-paused`: `people` with standing `requests_paused` for a week:
- *     asking and answering are `403 people_paused`.
+ *     asking is `403 people_paused`; answering and the link still work, as
+ *     the API refuses only new requests under that standing.
  *   - `people-age-locked`: no age answer, and the age step is
  *     `409 age_locked`.
  *   - `people-down`: every People route is `500`. `GET /me` still has
@@ -307,7 +308,8 @@ export const peopleHandlers = [
       const g = gate(request);
       if (g instanceof Response) return g;
       const { s } = g;
-      if (s.standing !== "ok") {
+      // As the API: `requests_paused` stops only asking, not answering.
+      if (s.standing === "restricted" || s.standing === "removed") {
         return paused(s, "Your use of People is paused for now.");
       }
       const { answer } = await bodyOf(request);
@@ -349,6 +351,9 @@ export const peopleHandlers = [
     const g = gate(request);
     if (g instanceof Response) return g;
     const { s } = g;
+    if (s.standing === "restricted" || s.standing === "removed") {
+      return paused(s, "Your use of People is paused for now.");
+    }
     const no = adultWithName(s);
     if (no) return no;
     const { rotate } = await bodyOf(request);
@@ -374,7 +379,7 @@ export const peopleHandlers = [
     const g = gate(request);
     if (g instanceof Response) return g;
     const { code } = await bodyOf(request);
-    if (typeof code !== "string" || !/^[A-Za-z0-9-]{1,32}$/.test(code)) {
+    if (typeof code !== "string" || !/^[A-Za-z0-9-]{1,16}$/.test(code)) {
       return envelope("invalid_input", "Send the link's code.", 400);
     }
     return json(look(g.s, code));

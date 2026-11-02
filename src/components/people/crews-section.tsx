@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { isPeopleClosed } from "@/lib/people/use-people";
 import { useMyCrews } from "@/lib/people/use-crews";
 import {

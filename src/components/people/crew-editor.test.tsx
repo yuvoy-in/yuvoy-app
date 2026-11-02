@@ -296,7 +296,37 @@ describe("/people/crews/{crewId}/edit", () => {
     });
   });
 
-  it("says the crew is gone when a change answers 404", async () => {
+  it("says the crew is gone when a change answers 404 and the list has it no more", async () => {
+    answer("patch", `/me/crews/${GANG.crewId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const user = open(GANG.crewId);
+    await ready(W.editTitle);
+    answer("get", "/me/crews", json({ crews: [] }));
+    await user.click(pick(/Rahul/));
+    await user.click(save());
+    expect(
+      await screen.findByRole("heading", { level: 1, name: W.gone.title }),
+    ).toBeInTheDocument();
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("says People is closed when a change and the list both answer 404", async () => {
+    answer("patch", `/me/crews/${GANG.crewId}`, () =>
+      refuse(404, "not_found", "Not found."),
+    );
+    const user = open(GANG.crewId);
+    await ready(W.editTitle);
+    answer("get", "/me/crews", () => refuse(404, "not_found", "Not found."));
+    await user.click(pick(/Rahul/));
+    await user.click(save());
+    expect(
+      await screen.findAllByText(PEOPLE_WORDS.closed.title),
+    ).not.toHaveLength(0);
+    expect(screen.queryByRole("heading", { name: W.gone.title })).toBeNull();
+  });
+
+  it("never calls a crew gone on a 404 alone, while the list still has it", async () => {
     answer("patch", `/me/crews/${GANG.crewId}`, () =>
       refuse(404, "not_found", "Not found."),
     );
@@ -304,10 +334,8 @@ describe("/people/crews/{crewId}/edit", () => {
     await ready(W.editTitle);
     await user.click(pick(/Rahul/));
     await user.click(save());
-    expect(
-      await screen.findByRole("heading", { level: 1, name: W.gone.title }),
-    ).toBeInTheDocument();
-    expect(nav.replace).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: W.gone.title })).toBeNull();
   });
 
   it("says the crew is gone when it is not in the list", async () => {
