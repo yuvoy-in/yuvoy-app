@@ -177,6 +177,14 @@ describe("ActionCard, drawn as sent", () => {
     expect(s.confirmed).toHaveLength(0);
   });
 
+  it("offers Not now but no confirm and no closed line while actions are read", () => {
+    s.release = { open: false, pending: true, stage: "off" };
+    draw(card());
+    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
+    expect(screen.queryByText(CARD_ACTIONS_CLOSED)).toBeNull();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeEnabled();
+  });
+
   it("offers no Go to checkout on a confirmed card while actions are closed", () => {
     s.release = { open: false, pending: false, stage: "off" };
     draw(card({ state: "confirmed" }));
@@ -308,12 +316,13 @@ describe("ActionCard, a failure", () => {
     ["sold out", refusal(409, "action_changed", "Changed.", "sold_out")],
     ["price moved", refusal(409, "action_changed", "Moved.", "price_moved")],
     ["expired", refusal(409, "action_expired", "Expired.")],
+    // The release is read again first, and the mock's app-config has it open.
     ["not found", refusal(404, "not_found", "No card.")],
   ])("%s: the API's sentence, and the card ends", async (_, error) => {
     s.confirm = () => ({ error });
     draw(card());
     await userEvent.click(screen.getByRole("button", { name: "Book" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(error.message);
+    expect(await screen.findByRole("alert")).toHaveTextContent(error.message);
     expect(screen.queryByRole("button")).toBeNull();
     expect(s.push).not.toHaveBeenCalled();
   });
