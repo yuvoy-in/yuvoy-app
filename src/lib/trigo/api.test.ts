@@ -140,6 +140,32 @@ describe("classifyTrigoError", () => {
     ).toEqual({ kind: "failure" });
   });
 
+  it("carries the answer's Retry-After on the kinds that offer Try again", () => {
+    const wait = (status: number, code: string) =>
+      new YuvoyError({ status, code, message: "x", retryAfterSeconds: 3 });
+    expect(classifyTrigoError(wait(409, "idempotency_in_progress"))).toEqual({
+      kind: "idempotency_in_progress",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(409, "turn_in_progress"))).toEqual({
+      kind: "in_progress",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(503, "unavailable"))).toEqual({
+      kind: "busy",
+      message: "x",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(500, "internal_error"))).toEqual({
+      kind: "failure",
+      retryAfterSeconds: 3,
+    });
+    // Without one, nothing waits: the kind has no retryAfterSeconds at all.
+    expect(
+      classifyTrigoError(apiError(409, "idempotency_in_progress")),
+    ).not.toHaveProperty("retryAfterSeconds");
+  });
+
   it("reads a request that never arrived as offline, and a stalled one as a failure", () => {
     expect(classifyTrigoError(new NetworkError())).toEqual({ kind: "offline" });
     expect(

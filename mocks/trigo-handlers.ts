@@ -22,14 +22,17 @@ import { mockHeaders, mockNow } from "./fixtures";
  *     A turn that names the closed chat goes on in the open one, and its
  *     answer names the open chat's id, as the API does.
  *   - `trigo-slow`: as `trigo-reply`, 20 seconds late (under the 30 s
- *     write stall, so it is an answer and not a timeout).
+ *     write stall, so it is an answer and not a timeout). The same key sent
+ *     again while it is out is `409 idempotency_in_progress` with
+ *     `Retry-After: 2`, as the API answers it.
  *   - `trigo-down`: `503 unavailable`.
  *   - `trigo-consent`: the notice is not accepted yet, and a turn is
  *     `409 consent_required` until `POST /trigo/consent` takes the version in
  *     force.
  *   - `trigo-age`: a turn is `403 adult_confirmation_required` until
  *     `PUT /me/age` is `200`; then it is answered.
- *   - `trigo-busy`: `409 turn_in_progress`.
+ *   - `trigo-busy`: `409 turn_in_progress`, with no `Retry-After`: the API
+ *     sends one only on `idempotency_in_progress`.
  *   - `trigo-not-released`: `trigo` stays `off`, so the turn and accept are
  *     `404`. The reads are not behind the release, as in the API.
  *
@@ -54,6 +57,7 @@ function envelope(
   message: string,
   status: number,
   details?: Record<string, unknown>,
+  headers?: Record<string, string>,
 ) {
   return HttpResponse.json(
     {
@@ -64,7 +68,7 @@ function envelope(
         ...(details ? { details } : {}),
       },
     },
-    { status, headers: mockHeaders(rid()) },
+    { status, headers: { ...mockHeaders(rid()), ...headers } },
   );
 }
 
@@ -142,6 +146,8 @@ interface TrigoState {
   ageConfirmed: boolean;
   /** Idempotency-Key to the text it carried and the stored turn. */
   keys: Map<string, { text: string; result: TrigoTurnResult }>;
+  /** Keys whose turn is still being answered (`trigo-slow`). */
+  inFlight: Set<string>;
 }
 
 const states = new Map<string, TrigoState>();
@@ -160,6 +166,7 @@ function stateOf(request: Request, auth: string): TrigoState {
       consentAccepted: scenario !== "trigo-consent",
       ageConfirmed: scenario !== "trigo-age",
       keys: new Map(),
+      inFlight: new Set(),
     };
     if (scenario === "trigo-continue") {
       const at = new Date(mockNow() - 2 * 24 * 60 * 60_000).toISOString();
@@ -300,6 +307,16 @@ export const trigoHandlers = [
     }
     const state = stateOf(request, auth);
 
+    if (state.inFlight.has(key)) {
+      return envelope(
+        "idempotency_in_progress",
+        "Trigo is still answering this message. Read the chat for the answer.",
+        409,
+        undefined,
+        { "Retry-After": "2" },
+      );
+    }
+
     const stored = state.keys.get(key);
     if (stored) {
       if (stored.text !== text) {
@@ -363,7 +380,11 @@ export const trigoHandlers = [
         { resetsAt },
       );
     }
-    if (scenario === "trigo-slow") await delay(20_000);
+    if (scenario === "trigo-slow") {
+      state.inFlight.add(key);
+      await delay(20_000);
+      state.inFlight.delete(key);
+    }
 
     const now = new Date(mockNow()).toISOString();
     if (!state.conversation) {

@@ -5,10 +5,12 @@ import { renderWithQuery } from "@/test/render";
 import type { components } from "@/lib/api/schema.gen";
 import { qk } from "@/lib/query/policy";
 import {
+  classifyTrigoError,
   useSendTrigoTurn,
   useTrigoChat,
   type SendTurnVars,
   type TrigoChatData,
+  type TrigoFailure,
   type TrigoMessage,
   type TrigoTurnResult,
 } from "./api";
@@ -78,6 +80,27 @@ function SendThenRead({ vars }: { vars: SendTurnVars }) {
       </button>
       <p data-testid="seqs">{chat.messages.map((m) => m.seq).join(",")}</p>
     </>
+  );
+}
+
+/** Sends once and hands over the failure as the sheet reads it. */
+function SendAndClassify({
+  vars,
+  onFailure,
+}: {
+  vars: SendTurnVars;
+  onFailure: (failure: TrigoFailure) => void;
+}) {
+  const send = useSendTrigoTurn();
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        send.mutate(vars, { onError: (e) => onFailure(classifyTrigoError(e)) })
+      }
+    >
+      Send
+    </button>
   );
 }
 
@@ -247,4 +270,46 @@ describe("useSendTrigoTurn", () => {
     expect(calls).toBe(1);
     expect(readDraft()).toEqual(draft);
   });
+
+  it.each([
+    ["3", 3],
+    [null, undefined],
+    ["soon", undefined],
+  ] as const)(
+    "reads Retry-After %o on 409 idempotency_in_progress as a wait of %o seconds",
+    async (header, seconds) => {
+      __signInAppRouteMock();
+      server.use(
+        http.post(TURNS, () =>
+          HttpResponse.json(
+            {
+              error: {
+                code: "idempotency_in_progress",
+                message: "Trigo is still answering this message.",
+                requestId: "01JTEST",
+              },
+            },
+            {
+              status: 409,
+              headers: header === null ? {} : { "Retry-After": header },
+            },
+          ),
+        ),
+      );
+      const failures: TrigoFailure[] = [];
+      renderWithQuery(
+        <SendAndClassify
+          vars={{ key: "trg-web-cccccccccccccccccccccccc", text: "Hi" }}
+          onFailure={(f) => failures.push(f)}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      await waitFor(() => expect(failures).toHaveLength(1));
+
+      expect(failures[0]).toEqual({
+        kind: "idempotency_in_progress",
+        retryAfterSeconds: seconds,
+      });
+    },
+  );
 });

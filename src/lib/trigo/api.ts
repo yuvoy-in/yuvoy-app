@@ -405,12 +405,12 @@ export type TrigoFailure =
   | { kind: "consent"; noticeVersion: string | null } // 409 consent_required, details.noticeVersion
   | { kind: "limit"; resetsAt: string | null; message: string } // 429 daily_limit_reached, details.resetsAt
   | { kind: "rate_limited"; message: string } // 429 rate_limited
-  | { kind: "in_progress" } // 409 turn_in_progress
-  | { kind: "idempotency_in_progress" } // 409 idempotency_in_progress: read the chat, do not resend
-  | { kind: "busy"; message: string } // 503: show the API's sentence, Try again with the same key
+  | { kind: "in_progress"; retryAfterSeconds?: number } // 409 turn_in_progress
+  | { kind: "idempotency_in_progress"; retryAfterSeconds?: number } // 409 idempotency_in_progress: read the chat, do not resend
+  | { kind: "busy"; message: string; retryAfterSeconds?: number } // 503: show the API's sentence, Try again with the same key
   | { kind: "offline" } // no connection / navigator.onLine false
   | { kind: "rejected" } // 400, 409 idempotency_key_reuse: the same send gets the same answer
-  | { kind: "failure" }; // anything else (500, unknown)
+  | { kind: "failure"; retryAfterSeconds?: number }; // anything else (500, unknown)
 
 function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
@@ -419,6 +419,17 @@ function isOffline(): boolean {
 function stringDetail(error: YuvoyError, name: string): string | null {
   const v = error.details[name];
   return typeof v === "string" ? v : null;
+}
+
+/**
+ * The answer's `Retry-After`, for the kinds that offer Try again: the API
+ * sends `2` on `409 idempotency_in_progress`, and Try again waits that long.
+ * Nothing when there was none, so those kinds read as they always did.
+ */
+function waitOf(error: YuvoyError): { retryAfterSeconds?: number } {
+  return error.retryAfterSeconds === undefined
+    ? {}
+    : { retryAfterSeconds: error.retryAfterSeconds };
 }
 
 /**
@@ -453,12 +464,14 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
         noticeVersion: stringDetail(error, "noticeVersion"),
       };
     }
-    if (code === "turn_in_progress") return { kind: "in_progress" };
+    if (code === "turn_in_progress") {
+      return { kind: "in_progress", ...waitOf(error) };
+    }
     if (code === "idempotency_in_progress") {
-      return { kind: "idempotency_in_progress" };
+      return { kind: "idempotency_in_progress", ...waitOf(error) };
     }
     if (code === "idempotency_key_reuse") return { kind: "rejected" };
-    return { kind: "failure" };
+    return { kind: "failure", ...waitOf(error) };
   }
   if (status === 429) {
     if (code === "daily_limit_reached") {
@@ -470,8 +483,10 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
     }
     return { kind: "rate_limited", message: error.message };
   }
-  if (status === 503) return { kind: "busy", message: error.message };
-  return { kind: "failure" };
+  if (status === 503) {
+    return { kind: "busy", message: error.message, ...waitOf(error) };
+  }
+  return { kind: "failure", ...waitOf(error) };
 }
 
 /* ----------------------------------------------------------------- age */

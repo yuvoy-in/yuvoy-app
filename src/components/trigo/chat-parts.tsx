@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { nextParamFor } from "@/lib/site/next-path";
 import type { TrigoFailure, TrigoMessage } from "@/lib/trigo/api";
@@ -13,6 +13,7 @@ import {
   OFFLINE_LINE,
   SIGNED_OUT_LINE,
   TRY_AGAIN,
+  TRY_AGAIN_SOON,
 } from "@/lib/trigo/words";
 import { CHAT_FAILED, SIGN_IN } from "./ui-words";
 
@@ -104,7 +105,61 @@ export function Failed({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-/** The one line under the chat that says why a message did not go. */
+/** The seconds a failure's `Retry-After` asked for, 0 when none. */
+function retryAfterOf(failure: TrigoFailure | null): number {
+  if (!failure || !("retryAfterSeconds" in failure)) return 0;
+  return failure.retryAfterSeconds ?? 0;
+}
+
+/**
+ * Whether Try again is still waiting out the failure's `Retry-After`.
+ *
+ * Each failure is a new object, so a new one starts its own wait and the
+ * cleanup drops the last one's timer, as unmounting does. No clock is read:
+ * the timer alone ends the wait, by naming the failure it waited for.
+ */
+export function useRetryHold(failure: TrigoFailure | null): boolean {
+  const [waited, setWaited] = useState<TrigoFailure | null>(null);
+  const seconds = retryAfterOf(failure);
+  useEffect(() => {
+    if (!failure || seconds <= 0) return;
+    const timer = setTimeout(() => setWaited(failure), seconds * 1000);
+    return () => clearTimeout(timer);
+  }, [failure, seconds]);
+  return seconds > 0 && waited !== failure;
+}
+
+/** Try again, off while `held`, with the reason said beside it. */
+function TryAgain({ held, onRetry }: { held: boolean; onRetry: () => void }) {
+  const reasonId = useId();
+  return (
+    <>
+      {held ? (
+        <p id={reasonId} className="text-forest/75 label">
+          {TRY_AGAIN_SOON}
+        </p>
+      ) : null}
+      <div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={held}
+          aria-describedby={held ? reasonId : undefined}
+          onClick={onRetry}
+        >
+          {TRY_AGAIN}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * The one line under the chat that says why a message did not go.
+ *
+ * Where the answer carried `Retry-After`, Try again stays off until it has
+ * passed (`useRetryHold`); without one it is on at once, as before.
+ */
 export function StatusLine({
   failure,
   online,
@@ -116,6 +171,7 @@ export function StatusLine({
   busy: boolean;
   onRetry: () => void;
 }) {
+  const held = useRetryHold(failure);
   if (!online || failure?.kind === "offline") {
     return (
       <p role="status" className="text-forest text-body text-pretty">
@@ -133,11 +189,7 @@ export function StatusLine({
           <p className="text-forest text-body text-pretty">
             {failure.kind === "busy" ? failure.message : FAILURE_LINE}
           </p>
-          <div>
-            <Button variant="outline" size="sm" onClick={onRetry}>
-              {TRY_AGAIN}
-            </Button>
-          </div>
+          <TryAgain held={held} onRetry={onRetry} />
         </div>
       );
     case "rejected":
@@ -162,11 +214,7 @@ export function StatusLine({
           <p className="text-forest text-body text-pretty">
             {IN_PROGRESS_LINE}
           </p>
-          <div>
-            <Button variant="outline" size="sm" onClick={onRetry}>
-              {TRY_AGAIN}
-            </Button>
-          </div>
+          <TryAgain held={held} onRetry={onRetry} />
         </div>
       );
     default:

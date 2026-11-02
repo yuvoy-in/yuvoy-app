@@ -16,7 +16,12 @@ import {
 } from "@/lib/api/client";
 import { fetchWithin } from "@/lib/api/deadline";
 import { qk } from "@/lib/query/policy";
-import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
+import {
+  isDeadToken,
+  YuvoyError,
+  isErrorEnvelope,
+  parseRetryAfter,
+} from "@/lib/api/errors";
 import { dedash } from "@/lib/format/dedash";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
@@ -329,6 +334,9 @@ export function useVerifySignInCode() {
 
 /** The envelope the route passed through, back into the typed error. */
 async function asYuvoyError(response: Response): Promise<YuvoyError> {
+  const retryAfterSeconds = parseRetryAfter(
+    response.headers.get("retry-after"),
+  );
   let body: unknown;
   try {
     body = await response.json();
@@ -346,6 +354,7 @@ async function asYuvoyError(response: Response): Promise<YuvoyError> {
         body.error.requestId ??
         response.headers.get("x-request-id") ??
         undefined,
+      retryAfterSeconds,
     });
   }
   return new YuvoyError({
@@ -353,6 +362,7 @@ async function asYuvoyError(response: Response): Promise<YuvoyError> {
     message: `The server answered ${response.status}.`,
     status: response.status,
     requestId: response.headers.get("x-request-id") ?? undefined,
+    retryAfterSeconds,
   });
 }
 

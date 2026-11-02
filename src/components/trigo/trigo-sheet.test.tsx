@@ -18,6 +18,7 @@ import {
   OFFLINE_LINE,
   SIGNED_OUT_LINE,
   TRY_AGAIN,
+  TRY_AGAIN_SOON,
   TURN_OFF,
   remainingLine,
 } from "@/lib/trigo/words";
@@ -444,6 +445,9 @@ describe("Trigo sheet: when a message does not go", () => {
     async (failure) => {
       const user = await failWith(failure);
       expect(screen.getByText(IN_PROGRESS_LINE)).toBeInTheDocument();
+      // No Retry-After: Try again is on at once, as before.
+      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeEnabled();
+      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
       s.answer = null;
       await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
       expect(s.sent).toHaveLength(2);
@@ -451,6 +455,40 @@ describe("Trigo sheet: when a message does not go", () => {
       expect(s.sent[1]?.text).toBe(s.sent[0]?.text);
     },
   );
+
+  it("Try again waits out the answer's Retry-After, then sends the same key", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      s.answer = () => ({
+        failure: { kind: "idempotency_in_progress", retryAfterSeconds: 3 },
+      });
+      open();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await user.type(
+        screen.getByLabelText(COMPOSER_LABEL),
+        "Where to stay in Gokarna?",
+      );
+      await user.keyboard("{Enter}");
+
+      const retry = screen.getByRole("button", { name: TRY_AGAIN });
+      expect(retry).toBeDisabled();
+      expect(retry).toHaveAccessibleDescription(TRY_AGAIN_SOON);
+
+      act(() => vi.advanceTimersByTime(2_999));
+      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeEnabled();
+      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
+
+      s.answer = null;
+      await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
+      expect(s.sent).toHaveLength(2);
+      expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("the day's limit shows the limit panel and turns Send off", async () => {
     await failWith({
