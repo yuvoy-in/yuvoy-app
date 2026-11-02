@@ -81,6 +81,9 @@ export const PEOPLE_WORDS = {
   unfriend: "Unfriend",
   /** Under Unfriend, before the tap: nobody is told. */
   unfriendNote: "They are not told.",
+  unfriendAsk: (name: string) => `Unfriend ${name}?`,
+  unfriendConfirm: "Yes, unfriend",
+  keep: "Keep",
   more: "Show more friends",
   loadingMore: "Loading more friends",
 
@@ -98,6 +101,8 @@ export const PEOPLE_WORDS = {
   linkOff: "Your friend link is off. Nobody can use it to ask.",
   messageCopied: "Message copied. Paste it in WhatsApp.",
   copyRefused: "This browser did not let us copy. Try again.",
+  makingLink: "Making the link",
+  switchingOff: "Switching off",
 
   sharingTitle: "What your friends see",
   sharingFriends: "Friends",
@@ -183,6 +188,7 @@ export const PEOPLE_WORDS = {
       body: "It may have been switched off. Ask the person who sent it for a new one.",
     },
     failed: "This friend link did not open",
+    back: { href: "/", label: "the feed" },
   },
 } as const;
 
