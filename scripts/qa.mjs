@@ -1755,6 +1755,10 @@ for (const f of files) {
       "the code step, after the number is sent",
     ],
     [
+      "src/components/auth/year-fields.tsx",
+      "the year step and People's age step, drawn after the API asks in the browser",
+    ],
+    [
       "src/components/booking/message-thread.tsx",
       "drawn once the booking has loaded in the browser",
     ],

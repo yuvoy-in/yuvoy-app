@@ -8,7 +8,8 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Screen } from "@/components/chrome/screen";
 import {
   SignInSteps,
-  codeSentSentence,
+  signInHeading,
+  signInSentence,
   useSignInFlow,
 } from "@/components/auth/sign-in-form";
 import { LegalLinks } from "@/components/site/legal-links";
@@ -26,6 +27,22 @@ import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
 import { PeopleRow } from "@/components/people/people-row";
+
+/*
+  NOT "booking never needs one" while invitations are on (yuvoy-api#195).
+
+  That sentence is the most reassuring true thing this product could say, and
+  with the gate on it is simply untrue: booking needs a signed-in number that
+  has redeemed a code. Saying it here would send somebody to checkout to find
+  out otherwise, on the screen that exists to tell them how signing in works.
+
+  What survives is the rest of it, which is still true and is still the reason
+  to sign in at all.
+*/
+const INVITE_INTRO =
+  "Yuvoy is by invitation for now, so booking needs your number and a code. Sign in and every trip on that number is in one place, including ones booked on another phone. No password and no sign-up.";
+const OPEN_INTRO =
+  "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up.";
 
 /**
  * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
@@ -112,35 +129,22 @@ export function AccountScreen() {
 
   if (signedIn) return <SignedIn onSignOut={signOut} />;
 
+  const heading = signInHeading(flow, "Sign in");
+  const sentence = signInSentence(
+    flow,
+    INVITE_ONLY ? INVITE_INTRO : OPEN_INTRO,
+  );
+
   return (
     <Screen>
-      <h1 className="font-display tracking-display leading-display text-3xl text-balance">
-        {/*
-          Where to look, not a claim that anything went (yuvoy-app#125): codes
-          go by email until there is a WhatsApp sender, and the sentence under
-          this is the API's, true for every number.
-        */}
-        {flow.sent ? "Check your email" : "Sign in"}
-      </h1>
-      <p className="text-forest/70 text-body mt-3 text-pretty">
-        {flow.sent
-          ? codeSentSentence(flow)
-          : INVITE_ONLY
-            ? /*
-                NOT "booking never needs one" (yuvoy-api#195).
-
-                That sentence is the most reassuring true thing this product
-                could say, and with the gate on it is simply untrue: booking
-                needs a signed-in number that has redeemed a code. Saying it
-                here would send somebody to checkout to find out otherwise,
-                on the screen that exists to tell them how signing in works.
-
-                What survives is the rest of it, which is still true and is
-                still the reason to sign in at all.
-              */
-              "Yuvoy is by invitation for now, so booking needs your number and a code. Sign in and every trip on that number is in one place, including ones booked on another phone. No password and no sign-up."
-            : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up."}
-      </p>
+      {heading ? (
+        <h1 className="font-display tracking-display leading-display text-3xl text-balance">
+          {heading}
+        </h1>
+      ) : null}
+      {sentence ? (
+        <p className="text-forest/70 text-body mt-3 text-pretty">{sentence}</p>
+      ) : null}
 
       <SignInSteps
         flow={flow}

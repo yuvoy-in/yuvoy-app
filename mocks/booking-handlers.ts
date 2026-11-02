@@ -1766,7 +1766,48 @@ export const bookingHandlers = [
   */
 
   http.post(url("/me/sign-in/request"), async ({ request }) => {
-    const body = (await request.json()) as { phone?: string };
+    const body = (await request.json()) as { phone?: string; email?: string };
+    const scenario = scenarioOf(request);
+
+    if (body.email !== undefined) {
+      /*
+        The email door (yuvoy-app#229), as the API answers it: shut
+        (`503 sign_in_unavailable`) while the switch is off, a 400 that names
+        the field for an address that is not one, and the same 202 for every
+        address, so the answer reveals none of them.
+      */
+      if (
+        !scenario.startsWith("email-sign-in") ||
+        scenario === "email-sign-in-closed"
+      ) {
+        return EMAIL_DOOR_SHUT();
+      }
+      const email = body.email.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        return envelope(
+          "invalid_input",
+          "Enter an email address, like name@example.com.",
+          400,
+          { email: "Enter an email address, like name@example.com." },
+        );
+      }
+      if (scenario === "email-sign-in-limited") {
+        return envelope(
+          "rate_limited",
+          "Too many codes for this address. Try again in an hour.",
+          429,
+        );
+      }
+      return HttpResponse.json(
+        {
+          sent: true,
+          message: "A code is on its way to that address.",
+          devCode: DEV_SIGN_IN_CODE,
+        },
+        { status: 202, headers: mockHeaders(rid()) },
+      );
+    }
+
     const phone = body.phone?.trim() ?? "";
 
     // E.164 or nothing. The real API is strict here and the screen has a
@@ -1776,7 +1817,7 @@ export const bookingHandlers = [
     }
     // Reachable with `?__scenario=otp-rate-limited`, so the 429 copy is
     // testable without sending six codes.
-    if (scenarioOf(request) === "otp-rate-limited") {
+    if (scenario === "otp-rate-limited") {
       return envelope("rate_limited", "Too many codes for that number.", 429);
     }
 
@@ -1801,11 +1842,23 @@ export const bookingHandlers = [
   }),
 
   http.post(url("/me/sign-in/verify"), async ({ request }) => {
-    const body = (await request.json()) as { phone?: string; code?: string };
+    const body = (await request.json()) as {
+      phone?: string;
+      email?: string;
+      code?: string;
+      birthYear?: unknown;
+      birthdayPassed?: unknown;
+    };
     const phone = body.phone?.trim() ?? "";
+    const email = body.email?.trim().toLowerCase() ?? "";
     const code = body.code?.trim() ?? "";
+    const scenario = scenarioOf(request);
 
-    if (!phone) {
+    /*
+      No door check here: the browser's `POST /api/session` carries no
+      scenario header, so this sees none. The send is where the door shuts.
+    */
+    if (!phone && !email) {
       return envelope("invalid_input", "That is not a phone number.", 400);
     }
     /*
@@ -1821,7 +1874,7 @@ export const bookingHandlers = [
       and only after the code checked out, so it tells nobody without the
       code anything (`AccountDeletionPending`).
     */
-    if (scenarioOf(request) === "account-deletion-pending") {
+    if (scenario === "account-deletion-pending") {
       return envelope(
         "account_deletion_pending",
         // The API's own words (yuvoy-api handler/account_deletion.go).
@@ -1830,9 +1883,19 @@ export const bookingHandlers = [
       );
     }
 
+    /*
+      A person no account holds yet (yuvoy-app#229): an address that starts
+      with "new", or the number NEW_SIGN_IN_PHONE. The year is asked before
+      anything is made, and the code stays good for the answer.
+    */
+    if (email.startsWith("new") || phone === NEW_SIGN_IN_PHONE) {
+      const refused = yearRefusal(body.birthYear, body.birthdayPassed);
+      if (refused) return refused;
+    }
+
     return HttpResponse.json(
       {
-        sessionToken: `sess_${phone.replace(/\D/g, "")}`,
+        sessionToken: `sess_${(phone || email).replace(/[^a-z0-9]/gi, "")}`,
         expiresAt: new Date(mockNow() + 30 * 24 * 60 * 60_000).toISOString(),
       },
       { headers: mockHeaders(rid()) },
@@ -2479,6 +2542,68 @@ export const bookingHandlers = [
  * as `devCode` in development, which is exactly what this mock does.
  */
 const DEV_SIGN_IN_CODE = "123456";
+
+/** The number the mock treats as a person no account holds yet (yuvoy-app#229). */
+const NEW_SIGN_IN_PHONE = "+919000000018";
+
+/** The email door shut: its switch is off (yuvoy-app#229). The API's words. */
+const EMAIL_DOOR_SHUT = () =>
+  envelope(
+    "sign_in_unavailable",
+    "Signing in this way is not open yet. Sign in with your WhatsApp number.",
+    503,
+  );
+
+/**
+ * The year asked of a new person, as the API rules on it (yuvoy-app#229):
+ * none is a 400 naming `birthYear`; this year minus 18 without
+ * `birthdayPassed` is a 400 naming that; under 18 is
+ * `403 under_age_sign_up`, nothing made. Null for an adult. "This year" is
+ * India's, from the mock's clock.
+ */
+function yearRefusal(birthYear: unknown, birthdayPassed: unknown) {
+  if (birthYear === undefined || birthYear === null) {
+    return envelope("invalid_input", "Tell us the year you were born.", 400, {
+      birthYear: "Tell us the year you were born.",
+    });
+  }
+  if (!Number.isInteger(birthYear) || (birthYear as number) < 1900) {
+    return envelope(
+      "invalid_input",
+      "Enter the year you were born, like 1995.",
+      400,
+      { birthYear: "Enter the year you were born, like 1995." },
+    );
+  }
+  const thisYear = Number(
+    new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+    }).format(new Date(mockNow())),
+  );
+  const edge = thisYear - 18;
+  const year = birthYear as number;
+  const passed =
+    typeof birthdayPassed === "boolean" ? birthdayPassed : undefined;
+  if (year === edge && passed === undefined) {
+    return envelope(
+      "invalid_input",
+      "Tell us whether you have had your birthday this year.",
+      400,
+      {
+        birthdayPassed: "Tell us whether you have had your birthday this year.",
+      },
+    );
+  }
+  if (year > edge || (year === edge && passed === false)) {
+    return envelope(
+      "under_age_sign_up",
+      "Yuvoy accounts are for people 18 and over. You can still look around without an account.",
+      403,
+    );
+  }
+  return null;
+}
 
 /**
  * The invite codes the mock knows (yuvoy-api#195), normalised: no hyphen,

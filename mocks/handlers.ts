@@ -217,7 +217,16 @@ export type Scenario =
   | "people-paused"
   | "people-age-locked"
   | "people-down"
-  | "people-outside";
+  | "people-outside"
+  /*
+    The email door (yuvoy-app#229): `features.signIn.email` is off unless one
+    of these opens it. `email-sign-in-closed` opens it on the config and then
+    answers `503 sign_in_unavailable` on the send; `email-sign-in-limited`
+    answers `429`. `booking-handlers.ts` says what a new address does.
+  */
+  | "email-sign-in"
+  | "email-sign-in-closed"
+  | "email-sign-in-limited";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -1201,7 +1210,12 @@ const routes = [
         features: {
           payments: "coming_soon",
           inviteOnly: false,
-          signIn: { email: true, google: false, apple: false },
+          // Off as on dev and production today, unless a scenario opens it.
+          signIn: {
+            email: scenario.startsWith("email-sign-in"),
+            google: false,
+            apple: false,
+          },
         },
         support: {
           whatsappE164: "+919000000001",

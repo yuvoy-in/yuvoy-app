@@ -14,7 +14,7 @@ import { Field } from "@/components/ui/field";
 import { OwnForm } from "@/components/ui/own-form";
 import { Panel } from "@/components/ui/panel";
 import { maskPhone } from "@/components/auth/contact-fields";
-import { SignInSteps, codeSentSentence, useSignInFlow } from "./sign-in-form";
+import { SignInSteps, signInSentence, useSignInFlow } from "./sign-in-form";
 import {
   useRedeemInviteCode,
   type RedeemAnswer,
@@ -236,7 +236,11 @@ function SignedOut({
   sessionEnded: boolean;
   onSignedIn: () => Promise<void>;
 }) {
-  const flow = useSignInFlow();
+  /*
+    The number only: an invitation admits a number, so an address cannot
+    redeem one (yuvoy-app#229).
+  */
+  const flow = useSignInFlow({ phoneOnly: true });
   const [signingIn, setSigningIn] = useState(variant !== "page");
   /*
     Signed in, and the answer to "is this number in" is on its way: the page
@@ -248,6 +252,11 @@ function SignedOut({
   if (checking) return <Checking variant={variant} />;
 
   const why = WHY[purpose];
+  // The year step says why it asks; the under step says it itself.
+  const intro = signInSentence(
+    flow,
+    "Have a code? Sign in with your number, then enter it.",
+  );
   const body =
     variant === "page"
       ? "text-forest/70 text-body mt-3 text-pretty"
@@ -275,11 +284,9 @@ function SignedOut({
         </p>
       ) : null}
 
-      <p className={cn(body, variant === "page" && "mt-6")}>
-        {flow.sent
-          ? codeSentSentence(flow)
-          : "Have a code? Sign in with your number, then enter it."}
-      </p>
+      {intro ? (
+        <p className={cn(body, variant === "page" && "mt-6")}>{intro}</p>
+      ) : null}
 
       {signingIn ? (
         <SignInSteps
