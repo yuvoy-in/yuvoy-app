@@ -210,6 +210,19 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   */
   { method: "GET", pattern: "/me/creator-links" },
   { method: "POST", pattern: "/me/creator-links" },
+  /*
+    The groups directory (yuvoy-mobile#386). Signed in, the directory and a
+    group's page read the `/me/` pair, which shows staff the groups of a
+    release still open to staff only. Claim and report are session only. A
+    removal takes the session when there is one and works without it. The
+    public pair (`GET /clubs`, `GET /clubs/{slug}`) needs no credential, so
+    it is not here: the browser calls the API for it.
+  */
+  { method: "GET", pattern: "/me/clubs" },
+  { method: "GET", pattern: "/me/clubs/{slug}" },
+  { method: "POST", pattern: "/clubs/{clubId}/claims" },
+  { method: "POST", pattern: "/clubs/{clubId}/removal-requests" },
+  { method: "POST", pattern: "/clubs/{clubId}/reports" },
 ];
 
 /*

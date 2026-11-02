@@ -34,6 +34,7 @@ import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
+import { clubHandlers, clubPeopleStageOf } from "./club-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -203,7 +204,25 @@ export type Scenario =
   | "creator-links-rate-limited"
   | "creator-links-down"
   | "creator-tools-off"
-  | "creator-outside";
+  | "creator-outside"
+  /*
+    The groups directory (yuvoy-mobile#386). Each opens `people` at `staff`
+    with a staff cohort but `clubs-all` (at `all`) and `clubs-outside` (no
+    cohort); `club-handlers.ts` says what each does.
+  */
+  | "clubs"
+  | "clubs-all"
+  | "clubs-outside"
+  | "clubs-unavailable"
+  | "clubs-no-age"
+  | "clubs-no-name"
+  | "clubs-paused"
+  | "clubs-ended"
+  | "clubs-claim-waiting"
+  | "clubs-claim-limit"
+  | "clubs-report-limit"
+  | "clubs-removal-limit"
+  | "clubs-hidden-meanwhile";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -409,6 +428,7 @@ const routes = [
     `/experiences/:slug` says they do not exist (yuvoy-app#207).
   */
   ...creatorLinkHandlers,
+  ...clubHandlers,
 
   /* ------------------------------------------------------------- catalog */
 
@@ -1197,6 +1217,7 @@ const routes = [
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
+          people: clubPeopleStageOf(scenario) ?? "off",
         },
       },
       { headers: mockHeaders(requestId()) },

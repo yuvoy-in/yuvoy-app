@@ -8,6 +8,7 @@ import {
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
+import { clubStaffCohort } from "./club-handlers";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -1776,7 +1777,8 @@ export const bookingHandlers = [
         cohort:
           scenarioOf(request) === "cohort-staff" ||
           exploreStageOf(scenarioOf(request)) === "staff" ||
-          creatorStaffCohort(scenarioOf(request))
+          creatorStaffCohort(scenarioOf(request)) ||
+          clubStaffCohort(scenarioOf(request))
             ? "staff"
             : scenarioOf(request) === "cohort-early"
               ? "early"
