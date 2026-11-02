@@ -212,6 +212,44 @@ describe("signing out", () => {
     expect(client.getQueryData(qk.table("tbl_1"))).toBeUndefined();
   });
 
+  it("forgets the date alerts and trip drafts, on sign-out and on sign-in", async () => {
+    /*
+      yuvoy-app#220. Both belong to the number, and neither key carries the
+      session, so the next person on this browser must not see them while a
+      refetch runs.
+    */
+    let signOut!: () => Promise<void>;
+    let signIn!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <>
+        <Harness onReady={(fn) => (signOut = fn)} />
+        <SignInProbe onReady={(fn) => (signIn = fn)} />
+      </>,
+    );
+    const seed = () => {
+      client.setQueryDefaults(qk.myDateAlerts(), { gcTime: Infinity });
+      client.setQueryDefaults(qk.myTripDrafts(), { gcTime: Infinity });
+      client.setQueryData(qk.myDateAlerts(), { alerts: [] });
+      client.setQueryData(qk.myTripDrafts(), { drafts: [] });
+    };
+    const left = () => [
+      client.getQueryData(qk.myDateAlerts()),
+      client.getQueryData(qk.myTripDrafts()),
+    ];
+
+    seed();
+    await act(async () => {
+      await signOut();
+    });
+    expect(left()).toEqual([undefined, undefined]);
+
+    seed();
+    await act(async () => {
+      await signIn();
+    });
+    expect(left()).toEqual([undefined, undefined]);
+  });
+
   it("forgets a Trigo card's checkout, on sign-out and on sign-in", async () => {
     /*
       yuvoy-app#223. The card's key settles the card for whoever books under

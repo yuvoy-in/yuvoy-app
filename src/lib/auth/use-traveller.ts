@@ -185,6 +185,9 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getTable"] });
     // And share links are the number's own, with their counts.
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    // And its date alerts and trip drafts (yuvoy-app#220).
+    qc.removeQueries({ queryKey: qk.myDateAlerts() });
+    qc.removeQueries({ queryKey: qk.myTripDrafts() });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     forgetTrigo(qc);
@@ -264,6 +267,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getEvent"] });
     qc.removeQueries({ queryKey: ["getTable"] });
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    qc.removeQueries({ queryKey: qk.myDateAlerts() });
+    qc.removeQueries({ queryKey: qk.myTripDrafts() });
     forgetSaved(qc);
     forgetSupportRequests(qc);
     forgetTrigo(qc);
