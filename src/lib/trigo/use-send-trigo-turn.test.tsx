@@ -42,7 +42,10 @@ const RESULT: TrigoTurnResult = {
   outcome: "answered",
   messages: [
     msg(3, "Beginner dive Saturday for two"),
-    msg(4, "On Saturday morning the Sunrise Kayak Trip leaves from the beach at six."),
+    msg(
+      4,
+      "On Saturday morning the Sunrise Kayak Trip leaves from the beach at six.",
+    ),
   ],
   remainingToday: 17,
   resetsAt: "2026-11-02T18:30:00.000Z",
@@ -112,16 +115,16 @@ describe("useSendTrigoTurn", () => {
     );
     seed(client);
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    await waitFor(() => expect(screen.getByText("success")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
+    );
 
     expect(sentKey).toBe(draft!.key);
     expect(sentBody).toEqual({
       text: "Beginner dive Saturday for two",
       conversationId: CHAT,
     });
-    const chat = client.getQueryData<TrigoChatData>(
-      qk.trigoConversation(CHAT),
-    );
+    const chat = client.getQueryData<TrigoChatData>(qk.trigoConversation(CHAT));
     expect(chat?.messages.map((m) => m.seq)).toEqual([1, 2, 3, 4]);
     expect(chat?.remainingToday).toBe(17);
     expect(chat?.resetsAt).toBe(RESULT.resetsAt);
@@ -138,11 +141,11 @@ describe("useSendTrigoTurn", () => {
     );
     client.setQueryDefaults(qk.trigoConversation(CHAT), { gcTime: Infinity });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    await waitFor(() => expect(screen.getByText("success")).toBeInTheDocument());
-
-    const chat = client.getQueryData<TrigoChatData>(
-      qk.trigoConversation(CHAT),
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
     );
+
+    const chat = client.getQueryData<TrigoChatData>(qk.trigoConversation(CHAT));
     expect(chat?.messages.map((m) => m.seq)).toEqual([3, 4]);
     expect(chat?.remainingToday).toBe(17);
   });
@@ -166,9 +169,7 @@ describe("useSendTrigoTurn", () => {
       }),
     );
     const draft = writeDraft("Sunset on the water");
-    renderWithQuery(
-      <Send vars={{ key: draft!.key, text: draft!.text }} />,
-    );
+    renderWithQuery(<Send vars={{ key: draft!.key, text: draft!.text }} />);
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(screen.getByText("error")).toBeInTheDocument());
 

@@ -68,7 +68,7 @@ export function AgePanel({ onDone }: { onDone: () => void }) {
   // Closed (under_age) or fixed by the team (locked): the API's sentence only.
   if (failure?.kind === "under_age" || failure?.kind === "locked") {
     return (
-      <p role="alert" className="text-forest text-body">
+      <p role="alert" className="text-forest text-body text-pretty">
         {failure.message}
       </p>
     );
@@ -78,7 +78,7 @@ export function AgePanel({ onDone }: { onDone: () => void }) {
 
   return (
     <section aria-label={AGE_LINE} className="flex flex-col gap-4">
-      <p className="text-forest text-body">{AGE_LINE}</p>
+      <p className="text-forest text-body text-pretty">{AGE_LINE}</p>
       <form
         className="flex flex-col gap-3"
         onSubmit={(e) => {
@@ -98,7 +98,7 @@ export function AgePanel({ onDone }: { onDone: () => void }) {
         />
         {askBirthday ? (
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-forest text-body mb-2">
+            <legend className="text-forest text-body text-pretty mb-2">
               {AGE_BIRTHDAY_QUESTION}
             </legend>
             <div className="flex gap-2">
@@ -131,11 +131,11 @@ export function AgePanel({ onDone }: { onDone: () => void }) {
         )}
       </form>
       {failure?.kind === "signed_out" ? (
-        <p role="alert" className="text-terra-deep text-body">
+        <p role="alert" className="text-terra-deep text-body text-pretty">
           {SIGNED_OUT_LINE}
         </p>
       ) : failure?.kind === "failure" ? (
-        <p role="alert" className="text-terra-deep text-body">
+        <p role="alert" className="text-terra-deep text-body text-pretty">
           {FAILURE_LINE}
         </p>
       ) : null}

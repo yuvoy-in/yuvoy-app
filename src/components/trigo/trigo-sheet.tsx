@@ -176,7 +176,6 @@ function ChatSheet({
       lengthBucket: lengthBucket(draft.text.length),
       turnIndex,
     });
-    const started = Date.now();
     turn.mutate(
       {
         key: draft.key,
@@ -186,7 +185,7 @@ function ChatSheet({
         aboutCardId: aboutCardId ?? undefined,
       },
       {
-        onSuccess: (result) => {
+        onSuccess: (result, _vars, start) => {
           // The hook cleared the stored draft for this key.
           setText("");
           setLast({
@@ -201,7 +200,7 @@ function ChatSheet({
           captureEvent(EVENTS.trigoReplyShown, {
             outcome: result.outcome,
             cards: cardsIn(result.messages),
-            latencyBucket: latencyBucket(Date.now() - started),
+            latencyBucket: latencyBucket(Date.now() - start.startedAt),
           });
           if (result.remainingToday === 0) {
             captureEvent(EVENTS.trigoLimitReached);
@@ -306,7 +305,7 @@ function ChatSheet({
     failure?.kind === "not_released" ||
     (consent.isLoadingError && consentFailure?.kind === "not_released")
   ) {
-    body = <p className="text-forest text-body">{NOT_RELEASED_LINE}</p>;
+    body = <p className="text-forest text-body text-pretty">{NOT_RELEASED_LINE}</p>;
   } else if (consent.isPending) {
     body = loading;
   } else if (consent.isLoadingError) {
@@ -371,7 +370,7 @@ function ChatSheet({
           </Button>
         </div>
         {withdraw.error ? (
-          <p role="alert" className="text-terra-deep text-body">
+          <p role="alert" className="text-terra-deep text-body text-pretty">
             {SAVE_FAILED}
           </p>
         ) : null}

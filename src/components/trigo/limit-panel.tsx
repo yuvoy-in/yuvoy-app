@@ -24,9 +24,9 @@ export function LimitPanel({ resetsAt }: { resetsAt: string | null }) {
       aria-label={LIMIT_LABEL}
       className="border-paper-line bg-paper-deep rounded-card flex flex-col gap-3 border px-4 py-4"
     >
-      <p className="text-forest text-body">{LIMIT_LINE}</p>
+      <p className="text-forest text-body text-pretty">{LIMIT_LINE}</p>
       {civil && resetsAt ? (
-        <p className="text-forest/75 text-body">
+        <p className="text-forest/75 text-body text-pretty">
           {RESET_LEAD}{" "}
           <time dateTime={resetsAt}>
             {clockTime(civil)} on {dayMonth(civil)}

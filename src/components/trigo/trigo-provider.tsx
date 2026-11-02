@@ -16,6 +16,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { EVENTS } from "@/lib/analytics/events";
 import { captureEvent } from "@/lib/observability/report";
+import { useRelease } from "@/lib/site/use-release";
 
 /**
  * The Trigo chat sheet, mounted once in the shell (yuvoy-app#223, R5-T5).
@@ -38,11 +39,7 @@ import { captureEvent } from "@/lib/observability/report";
  */
 
 export type TrigoEntry =
-  | "masthead"
-  | "listing"
-  | "found_card"
-  | "account"
-  | "notice";
+  "masthead" | "listing" | "found_card" | "account" | "notice";
 
 export interface TrigoOpenParams {
   entry: TrigoEntry;
@@ -144,7 +141,7 @@ export function TrigoProvider({ children }: { children: ReactNode }) {
       {/* `useSearchParams` needs its own boundary, or a static page bails to the client. */}
       <Suspense fallback={null}>
         <TrigoMount
-          pending={pending}
+          pendingRef={pending}
           destinationKey={destinationKey}
           onClose={close}
           onConversation={(id) => writeAddress(id)}
@@ -155,12 +152,12 @@ export function TrigoProvider({ children }: { children: ReactNode }) {
 }
 
 function TrigoMount({
-  pending,
+  pendingRef,
   destinationKey,
   onClose,
   onConversation,
 }: {
-  pending: RefObject<TrigoEntry | null>;
+  pendingRef: RefObject<TrigoEntry | null>;
   destinationKey: string | null;
   onClose: () => void;
   onConversation: (id: string) => void;
@@ -169,9 +166,18 @@ function TrigoMount({
   const value = search.get(TRIGO_PARAM);
   const request = parseTrigoParam(value);
 
-  // Loaded on the first open and kept: see the module note.
+  /*
+    Loaded on the first open and kept: see the module note. Only once the
+    release is open to this caller: with `releases.trigo` closed, a
+    `?trigo=` address opens nothing and says nothing about Trigo
+    (yuvoy-app#223, "With releases.trigo off, nothing new shows"). Once
+    shown it stays, so a session that ends mid-chat (which closes a `staff`
+    release with it) still gets the sheet's way back in.
+  */
+  const release = useRelease("trigo");
   const [loaded, setLoaded] = useState(false);
-  if (request && !loaded) setLoaded(true);
+  if (request && !loaded && release.open) setLoaded(true);
+  const shown = loaded && value !== null;
 
   /*
     `trigo_opened` once per opening, from the button that asked or, for an
@@ -181,14 +187,13 @@ function TrigoMount({
   */
   const wasOpen = useRef(false);
   useEffect(() => {
-    const isOpen = value !== null;
-    if (isOpen && !wasOpen.current) {
-      const entry = pending.current ?? entryForParam(value);
+    if (shown && !wasOpen.current && value !== null) {
+      const entry = pendingRef.current ?? entryForParam(value);
       captureEvent(EVENTS.trigoOpened, { entry });
     }
-    pending.current = null;
-    wasOpen.current = isOpen;
-  }, [value, pending]);
+    if (shown || value === null) pendingRef.current = null;
+    wasOpen.current = shown;
+  }, [shown, value, pendingRef]);
 
   if (!loaded) return null;
   return (

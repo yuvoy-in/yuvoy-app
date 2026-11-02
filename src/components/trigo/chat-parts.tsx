@@ -81,7 +81,7 @@ export function SignedOut() {
   const next = nextParamFor(window.location.pathname, window.location.search);
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-forest text-body">{SIGNED_OUT_LINE}</p>
+      <p className="text-forest text-body text-pretty">{SIGNED_OUT_LINE}</p>
       <div>
         <ButtonLink href={`/account?next=${encodeURIComponent(next)}`}>
           {SIGN_IN}
@@ -94,7 +94,7 @@ export function SignedOut() {
 export function Failed({ onRetry }: { onRetry: () => void }) {
   return (
     <div role="alert" className="flex flex-col gap-3">
-      <p className="text-forest text-body">{CHAT_FAILED}</p>
+      <p className="text-forest text-body text-pretty">{CHAT_FAILED}</p>
       <div>
         <Button variant="outline" size="sm" onClick={onRetry}>
           {TRY_AGAIN}
@@ -118,7 +118,7 @@ export function StatusLine({
 }) {
   if (!online || failure?.kind === "offline") {
     return (
-      <p role="status" className="text-forest text-body">
+      <p role="status" className="text-forest text-body text-pretty">
         {OFFLINE_LINE}
       </p>
     );
@@ -130,7 +130,7 @@ export function StatusLine({
     case "busy":
       return (
         <div role="alert" className="flex flex-col gap-2">
-          <p className="text-forest text-body">
+          <p className="text-forest text-body text-pretty">
             {failure.kind === "busy" ? failure.message : FAILURE_LINE}
           </p>
           <div>
@@ -142,14 +142,14 @@ export function StatusLine({
       );
     case "rate_limited":
       return (
-        <p role="alert" className="text-forest text-body">
+        <p role="alert" className="text-forest text-body text-pretty">
           {failure.message}
         </p>
       );
     case "in_progress":
     case "idempotency_in_progress":
       return (
-        <p role="status" className="text-forest text-body">
+        <p role="status" className="text-forest text-body text-pretty">
           {IN_PROGRESS_LINE}
         </p>
       );

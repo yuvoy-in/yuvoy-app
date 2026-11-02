@@ -57,9 +57,10 @@ const s = vi.hoisted(() => ({
   sent: [] as { key: string; text: string; aboutCardId?: string }[],
   answer: null as
     | null
-    | ((vars: { key: string; text: string }) =>
-        | { ok: Record<string, unknown> }
-        | { failure: TrigoFailure }),
+    | ((vars: {
+        key: string;
+        text: string;
+      }) => { ok: Record<string, unknown> } | { failure: TrigoFailure }),
   accepted: [] as unknown[],
   withdrawn: 0,
   marked: [] as number[],
@@ -116,7 +117,11 @@ vi.mock("@/lib/trigo/api", () => {
       mutate: (
         vars: { key: string; text: string; aboutCardId?: string },
         opts: {
-          onSuccess?: (r: unknown) => void;
+          onSuccess?: (
+            r: unknown,
+            v: unknown,
+            start: { startedAt: number },
+          ) => void;
           onError?: (e: unknown) => void;
           onSettled?: () => void;
         },
@@ -124,7 +129,9 @@ vi.mock("@/lib/trigo/api", () => {
         s.sent.push(vars);
         const out = s.answer?.(vars);
         if (!out) return;
-        if ("ok" in out) opts.onSuccess?.(out.ok);
+        if ("ok" in out) {
+          opts.onSuccess?.(out.ok, vars, { startedAt: Date.now() });
+        }
         else opts.onError?.({ failure: out.failure });
         opts.onSettled?.();
       },

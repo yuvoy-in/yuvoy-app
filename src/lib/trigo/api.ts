@@ -296,10 +296,10 @@ export function useMarkTrigoRead(
     mutationFn: async (seq: number) => {
       if (!conversationId) return;
       const client = createProxyClient();
-      const { error } = await client.POST(
-        "/trigo/conversations/{id}/read",
-        { params: { path: { id: conversationId } }, body: { seq } },
-      );
+      const { error } = await client.POST("/trigo/conversations/{id}/read", {
+        params: { path: { id: conversationId } },
+        body: { seq },
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -327,14 +327,21 @@ export interface SendTurnVars extends TrigoTurnInput {
  * `409 idempotency_in_progress` means the same message is still being
  * answered: the chat is read again rather than anything sent.
  */
+/** What a turn carries from its start to its answer: when it left, for the reply's latency bucket. */
+export interface SendTurnStart {
+  startedAt: number;
+}
+
 export function useSendTrigoTurn(): UseMutationResult<
   TrigoTurnResult,
   unknown,
-  SendTurnVars
+  SendTurnVars,
+  SendTurnStart
 > {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
+    onMutate: (): SendTurnStart => ({ startedAt: Date.now() }),
     mutationFn: async (vars: SendTurnVars) => {
       const body: TrigoTurnInput = { text: vars.text };
       if (vars.conversationId !== undefined) {

@@ -36,10 +36,7 @@ function apiError(
 
 describe("mergeBySeq", () => {
   it("keeps each seq once, the later copy winning", () => {
-    const merged = mergeBySeq(
-      [msg(1), msg(2, "old")],
-      [msg(2, "new"), msg(3)],
-    );
+    const merged = mergeBySeq([msg(1), msg(2, "old")], [msg(2, "new"), msg(3)]);
     expect(merged.map((m) => m.seq)).toEqual([1, 2, 3]);
     expect(merged[1].text).toBe("new");
   });
@@ -107,9 +104,9 @@ describe("classifyTrigoError", () => {
   });
 
   it("reads anything else as a failure", () => {
-    expect(classifyTrigoError(apiError(409, "idempotency_key_reuse"))).toEqual(
-      { kind: "failure" },
-    );
+    expect(classifyTrigoError(apiError(409, "idempotency_key_reuse"))).toEqual({
+      kind: "failure",
+    });
     expect(classifyTrigoError(apiError(500, "internal"))).toEqual({
       kind: "failure",
     });
@@ -125,7 +122,11 @@ describe("classifyTrigoError", () => {
     ).toEqual({ kind: "in_progress" });
     expect(
       classifyTrigoError(
-        apiError(409, "conflict", "Trigo is still answering your last message."),
+        apiError(
+          409,
+          "conflict",
+          "Trigo is still answering your last message.",
+        ),
       ),
     ).toEqual({ kind: "failure" });
   });

@@ -85,7 +85,9 @@ export function Composer({
         send();
       }}
     >
-      {remaining !== null && remaining > 0 && remaining <= REMAINING_SHOWN_AT ? (
+      {remaining !== null &&
+      remaining > 0 &&
+      remaining <= REMAINING_SHOWN_AT ? (
         <p className="text-forest/75 label mb-2">{remainingLine(remaining)}</p>
       ) : null}
       <div className="flex items-end gap-2">

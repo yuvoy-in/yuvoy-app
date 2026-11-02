@@ -72,7 +72,7 @@ export function MessageList({
         ))}
       </ol>
       {typing ? (
-        <p className="text-forest/70 text-body mt-3" data-testid="trigo-typing">
+        <p className="text-forest/70 text-body text-pretty mt-3" data-testid="trigo-typing">
           {TYPING}
         </p>
       ) : null}
@@ -82,7 +82,7 @@ export function MessageList({
 }
 
 const BUBBLE =
-  "rounded-card max-w-[85%] px-4 py-3 text-body whitespace-pre-line break-words";
+  "rounded-card max-w-[85%] px-4 py-3 text-body text-pretty whitespace-pre-line break-words";
 const MINE = "bg-forest text-paper";
 const OTHER = "border-paper-line bg-paper text-forest border";
 
@@ -106,7 +106,7 @@ function MessageItem({
 
   if (message.role === "system") {
     return (
-      <li className="text-forest/70 text-body text-center">
+      <li className="text-forest/70 text-body text-pretty text-center">
         <p>{text}</p>
       </li>
     );

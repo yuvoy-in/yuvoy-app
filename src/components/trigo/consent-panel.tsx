@@ -8,11 +8,7 @@ import {
   useAcceptTrigoConsent,
   type TrigoConsent,
 } from "@/lib/trigo/api";
-import {
-  ACCEPT,
-  NOT_RELEASED_LINE,
-  SIGNED_OUT_LINE,
-} from "@/lib/trigo/words";
+import { ACCEPT, NOT_RELEASED_LINE, SIGNED_OUT_LINE } from "@/lib/trigo/words";
 import { CONSENT_LABEL, SAVE_FAILED } from "./ui-words";
 
 /**
@@ -35,11 +31,11 @@ export function ConsentPanel({
 
   return (
     <section aria-label={CONSENT_LABEL} className="flex flex-col gap-4">
-      <p className="text-forest text-body whitespace-pre-line">
+      <p className="text-forest text-body text-pretty whitespace-pre-line">
         {consent.noticeText}
       </p>
       {failure ? (
-        <p role="alert" className="text-terra-deep text-body">
+        <p role="alert" className="text-terra-deep text-body text-pretty">
           {failure.kind === "signed_out"
             ? SIGNED_OUT_LINE
             : failure.kind === "not_released"

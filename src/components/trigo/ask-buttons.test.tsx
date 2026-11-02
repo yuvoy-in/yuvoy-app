@@ -121,7 +121,15 @@ describe("Ask Trigo buttons", () => {
     });
   });
 
+  it("an address with ?trigo= opens nothing while the release is closed", () => {
+    navigateTo("/?trigo=open");
+    page();
+    expect(screen.queryByTestId("trigo-sheet")).toBeNull();
+    expect(captureEvent).not.toHaveBeenCalled();
+  });
+
   it("an address that arrives with ?trigo= opens the sheet on its own", async () => {
+    release.value = { open: true, pending: false, stage: "all" };
     navigateTo("/?trigo=about:item:5b0c3c1e");
     page();
     expect(await screen.findByTestId("trigo-sheet")).toHaveAttribute(
