@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import { Screen, type BackTarget } from "@/components/chrome/screen";
 import { LoadingState, Skeleton } from "@/components/states";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { organiserRefusal } from "@/lib/organisers/refusal";
+import {
+  organiserRefusal,
+  type OrganiserRefusalKind,
+} from "@/lib/organisers/refusal";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { useRelease } from "@/lib/site/use-release";
 
@@ -70,8 +73,38 @@ export function OrganiserLoading({
 }
 
 /**
- * A read again failed while its last answer is on screen: the answer stays,
+ * The refusals that end what is on screen, even when an older answer is
+ * there: the sign-in ended, the age is asked, or the organiser, the event or
+ * the person's place in it is gone (a helper removed while the page is open).
+ */
+const ENDS_THE_PAGE: ReadonlySet<OrganiserRefusalKind> = new Set([
+  "signedOut",
+  "age",
+  "notFound",
+  "notMember",
+  "notOwner",
+]);
+
+/**
+ * Whether a read again was refused in a way that ends the page: the screen
+ * then draws the refusal block (or the age step) in place of the old answer,
+ * as a first read would, so Post and Edit do not stay on screen.
+ */
+export function refusedAgain(query: {
+  isRefetchError: boolean;
+  error: unknown;
+}): boolean {
+  return (
+    query.isRefetchError &&
+    ENDS_THE_PAGE.has(organiserRefusal(query.error).kind)
+  );
+}
+
+/**
+ * A read again failed while its last answer is on screen, for a reason that
+ * leaves the answer standing (no answer, a fault, a pause): the answer stays,
  * and this says so above it, with Try again. A pause says the API's sentence.
+ * A refusal that ends the page is `refusedAgain`'s, and draws nothing here.
  */
 export function RefetchNotice({
   query,
@@ -82,7 +115,7 @@ export function RefetchNotice({
     refetch: () => unknown;
   };
 }) {
-  if (!query.isRefetchError) return null;
+  if (!query.isRefetchError || refusedAgain(query)) return null;
   const refusal = organiserRefusal(query.error);
   const line = refusal.kind === "paused" ? refusal.message : W.notNow;
   return (

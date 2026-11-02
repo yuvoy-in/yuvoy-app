@@ -27,6 +27,7 @@ import {
   OrganiserHeading,
   OrganiserLoading,
   RefetchNotice,
+  refusedAgain,
   backToOrganiser,
 } from "./organiser-parts";
 
@@ -53,7 +54,7 @@ export function OrganiserHelpers({ id }: { id: string }) {
     );
   }
 
-  if (organiser.data === undefined) {
+  if (organiser.data === undefined || refusedAgain(organiser)) {
     return (
       <Screen back={back}>
         <OrganiserHeading>{W.helpers}</OrganiserHeading>
@@ -85,7 +86,7 @@ export function OrganiserHelpers({ id }: { id: string }) {
               <Skeleton className="h-14 w-full" />
             </div>
           </LoadingState>
-        ) : helpers.data === undefined ? (
+        ) : helpers.data === undefined || refusedAgain(helpers) ? (
           <OrganiserRefusalBlock
             refusal={organiserRefusal(helpers.error)}
             onRetry={() => void helpers.refetch()}

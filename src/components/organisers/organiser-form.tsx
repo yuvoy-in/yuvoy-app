@@ -20,6 +20,7 @@ import {
   OrganiserHeading,
   OrganiserLoading,
   RefetchNotice,
+  refusedAgain,
   backToOrganiser,
 } from "./organiser-parts";
 
@@ -148,7 +149,7 @@ export function EditOrganiserForm({ id }: { id: string }) {
     );
   }
 
-  if (organiser.data === undefined) {
+  if (organiser.data === undefined || refusedAgain(organiser)) {
     return (
       <Screen back={back}>
         <OrganiserHeading>{W.editTitle}</OrganiserHeading>

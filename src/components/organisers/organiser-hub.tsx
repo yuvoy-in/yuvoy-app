@@ -17,6 +17,7 @@ import {
   OrganiserLoading,
   ROW_CLASS,
   RefetchNotice,
+  refusedAgain,
 } from "./organiser-parts";
 
 /**
@@ -42,7 +43,7 @@ export function OrganiserHub() {
     );
   }
 
-  if (organisers.data === undefined) {
+  if (organisers.data === undefined || refusedAgain(organisers)) {
     return (
       <Screen back={BACK_TO_ACCOUNT}>
         <OrganiserHeading>{W.title}</OrganiserHeading>

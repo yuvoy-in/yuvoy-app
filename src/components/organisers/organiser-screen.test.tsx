@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, within } from "@testing-library/react";
+import { screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
+import { qk } from "@/lib/query/policy";
 import { OrganiserGate } from "./organiser-gate";
 import { handOverLinked } from "./organiser-form-parts";
 import { OrganiserScreen } from "./organiser-screen";
@@ -222,5 +223,44 @@ describe("OrganiserScreen, a group's page (yuvoy-app#225)", () => {
       screen.getByRole("heading", { level: 1, name: W.title }),
     ).toBeTruthy();
     expect(screen.queryByTestId("organiser-state-card")).toBeNull();
+  });
+});
+
+describe("a read again that fails over the page", () => {
+  function refuseNextRead(status: number, code: string, message: string) {
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () =>
+        HttpResponse.json(
+          { error: { code, message, details: {}, requestId: "req_r" } },
+          { status },
+        ),
+      ),
+    );
+  }
+
+  it("draws the refusal in place of the page when the person is no longer on it", async () => {
+    const { client } = open(ORG_IDS.verified);
+    expect(await screen.findByText(W.postEvent)).toBeTruthy();
+
+    refuseNextRead(403, "not_a_member", "You are no longer on this organiser.");
+    await client.invalidateQueries({ queryKey: qk.organiser(ORG_IDS.verified) });
+
+    expect(
+      await screen.findByText("You are no longer on this organiser."),
+    ).toBeTruthy();
+    await waitFor(() => expect(linkTo(W.postEvent)).toBeNull());
+    expect(screen.queryByTestId("organiser-stale")).toBeNull();
+  });
+
+  it("keeps the page under the not-now line when the read only failed", async () => {
+    const { client } = open(ORG_IDS.verified);
+    expect(await screen.findByText(W.postEvent)).toBeTruthy();
+
+    refuseNextRead(500, "internal", "");
+    await client.invalidateQueries({ queryKey: qk.organiser(ORG_IDS.verified) });
+
+    const notice = await screen.findByTestId("organiser-stale");
+    expect(notice.textContent).toContain(W.notNow);
+    expect(linkTo(W.postEvent)).toBeTruthy();
   });
 });

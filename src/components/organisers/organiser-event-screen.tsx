@@ -44,6 +44,7 @@ import {
   OrganiserHeading,
   OrganiserLoading,
   RefetchNotice,
+  refusedAgain,
   backToOrganiser,
 } from "./organiser-parts";
 
@@ -91,7 +92,7 @@ export function OrganiserEventScreen({
     return <OrganiserLoading label={W.loadingEvent} back={back} />;
   }
   for (const read of [organiser, events]) {
-    if (read.data === undefined) {
+    if (read.data === undefined || refusedAgain(read)) {
       return (
         <Screen back={back}>
           <OrganiserRefusalBlock
@@ -354,7 +355,7 @@ function Numbers({
       </h2>
       {current.isPending ? (
         <NumbersLoading />
-      ) : current.data === undefined ? (
+      ) : current.data === undefined || refusedAgain(current) ? (
         <OrganiserRefusalBlock
           refusal={organiserRefusal(current.error)}
           onRetry={() => void current.refetch()}
