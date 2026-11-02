@@ -348,4 +348,29 @@ describe("the year step, for a person no account holds yet", () => {
       screen.getByRole("heading", { name: "Check your email" }),
     ).toBeInTheDocument();
   });
+
+  it("goes back to the code on a 400 that is not a year question, as on a 401", async () => {
+    signInAnswers([
+      askYear,
+      () =>
+        refusal(400, "invalid_input", "That code is not right.", {
+          code: "six digits",
+        }),
+    ]);
+    const user = await toCodeStep();
+    await user.type(screen.getByLabelText("Sign-in code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Show me my trips" }));
+    await user.type(
+      await screen.findByLabelText("What year were you born?"),
+      "1995",
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    // The sentence lands on the code field it is about, not on the year.
+    expect(await screen.findByLabelText("Sign-in code")).toHaveValue("");
+    expect(screen.queryByLabelText("What year were you born?")).toBeNull();
+    expect(
+      await screen.findByText("That does not look like the code"),
+    ).toBeInTheDocument();
+  });
 });

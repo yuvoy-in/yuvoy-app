@@ -35,8 +35,8 @@ import { signInFailure } from "./sign-in-failure";
  * number. A config that lands while the number is being typed never swaps the
  * step under the traveller: the first keystroke chooses the number.
  *
- * The invite gate asks for the number only (`phoneOnly`): an invitation
- * admits a number, so an address cannot redeem one.
+ * The invite gate offers the same doors: an invitation admits the traveller,
+ * not only a number, so one signed in by email redeems it (yuvoy-api#351).
  *
  * ## The year
  *
@@ -116,12 +116,10 @@ function sentenceOf(error: unknown): string | null {
 
 type Problem = { field: SignInField; sentence: string };
 
-export function useSignInFlow({
-  phoneOnly = false,
-}: { phoneOnly?: boolean } = {}) {
+export function useSignInFlow() {
   const { signIn } = useTravellerSession();
   const qc = useQueryClient();
-  const emailOpen = useEmailSignInOpen(!phoneOnly);
+  const emailOpen = useEmailSignInOpen();
 
   const [chosen, setChosen] = useState<SignInWay | null>(null);
   const way: SignInWay | null = chosen ?? (emailOpen ? null : "phone");
@@ -291,9 +289,13 @@ export function useSignInFlow({
     if (
       step === "year" &&
       error instanceof YuvoyError &&
-      error.status === 401
+      (error.status === 401 || error.status === 400)
     ) {
-      // The code that went with the year did not work: back to it, year kept.
+      /*
+        The code that went with the year did not work (401), or a 400 that is
+        not a year question, which is about the code: back to the code step,
+        where the sentence lands on the field it is about, year kept.
+      */
       setStep("code");
       setCodeRaw("");
     }

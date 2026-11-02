@@ -236,11 +236,7 @@ function SignedOut({
   sessionEnded: boolean;
   onSignedIn: () => Promise<void>;
 }) {
-  /*
-    The number only: an invitation admits a number, so an address cannot
-    redeem one (yuvoy-app#229).
-  */
-  const flow = useSignInFlow({ phoneOnly: true });
+  const flow = useSignInFlow();
   const [signingIn, setSigningIn] = useState(variant !== "page");
   /*
     Signed in, and the answer to "is this number in" is on its way: the page
