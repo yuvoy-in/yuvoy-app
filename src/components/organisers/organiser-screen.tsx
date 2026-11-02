@@ -27,6 +27,7 @@ import {
   OrganiserLoading,
   ROW_CLASS,
   RefetchNotice,
+  refusedAgain,
 } from "./organiser-parts";
 
 /**
@@ -46,7 +47,7 @@ export function OrganiserScreen({ id }: { id: string }) {
     return <OrganiserLoading label={W.loadingOrganiser} back={BACK_TO_HUB} />;
   }
 
-  if (organiser.data === undefined) {
+  if (organiser.data === undefined || refusedAgain(organiser)) {
     return (
       <Screen back={BACK_TO_HUB}>
         <OrganiserHeading>{W.title}</OrganiserHeading>
@@ -188,7 +189,7 @@ function OrganiserEvents({ id, base }: { id: string; base: string }) {
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
         </div>
-      ) : events.data === undefined ? (
+      ) : events.data === undefined || refusedAgain(events) ? (
         <OrganiserRefusalBlock
           refusal={organiserRefusal(events.error)}
           onRetry={() => void events.refetch()}
