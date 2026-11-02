@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "@/components/ui/link";
 import { cn } from "@/lib/cn";
+import { useRelease } from "@/lib/site/use-release";
 import {
   classifyCardError,
   useConfirmTrigoAction,
@@ -23,6 +24,7 @@ import {
   bookedLine,
 } from "@/lib/trigo/words";
 import {
+  CARD_ACTIONS_CLOSED,
   CARD_DECLINED,
   CARD_FAILURE,
   CARD_LABEL,
@@ -106,6 +108,11 @@ function stateLine(card: TrigoActionCard): string | null {
  *   - declined, expired, superseded: no buttons, and a superseded card is
  *     faded.
  *
+ * The buttons wait for `releases.trigoActions`. The server proposes cards only
+ * while it is open, but a card made before it closed would answer a confirm
+ * 404: while it is closed the card keeps its heading and lines, offers no
+ * button and says it can't be used right now.
+ *
  * A failure is drawn by kind (`classifyCardError`): on a confirm, changed
  * and expired show the API's sentence and end the card, so does a 404, a 429
  * shows the sentence and leaves the card as it was, a 503 or anything else
@@ -121,6 +128,7 @@ export function ActionCard({
   conversationId: string | null;
 }) {
   const router = useRouter();
+  const actions = useRelease("trigoActions");
   const confirm = useConfirmTrigoAction();
   const decline = useDeclineTrigoAction();
   const [failure, setFailure] = useState<CardFailure | null>(null);
@@ -170,6 +178,8 @@ export function ActionCard({
 
   const proposed = card.state === "proposed" && !over;
   const reopen = card.state === "confirmed" && book && !over;
+  // No buttons while the release is still being read, and no line until known.
+  const shut = (proposed || reopen) && !actions.open && !actions.pending;
   const line = over ? null : stateLine(card);
   const reference = card.bookingReference ?? null;
 
@@ -206,8 +216,11 @@ export function ActionCard({
           </Link>
         </p>
       ) : null}
-      {proposed && !canConfirm ? (
+      {proposed && !canConfirm && !shut ? (
         <p className="text-body text-pretty">{CARD_NOT_ON_WEB}</p>
+      ) : null}
+      {shut ? (
+        <p className="text-body text-pretty">{CARD_ACTIONS_CLOSED}</p>
       ) : null}
 
       {confirm.isPending ? (
@@ -220,7 +233,7 @@ export function ActionCard({
         </p>
       ) : null}
 
-      {proposed ? (
+      {proposed && actions.open ? (
         <div className="flex flex-wrap gap-2">
           {canConfirm ? (
             <Button
@@ -241,7 +254,7 @@ export function ActionCard({
           </Button>
         </div>
       ) : null}
-      {reopen ? (
+      {reopen && actions.open ? (
         <div className="flex flex-wrap gap-2">
           <Button size="sm" disabled={pending} onClick={() => run("confirm")}>
             {GO_TO_CHECKOUT}
