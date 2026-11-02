@@ -226,6 +226,8 @@ describe("/people/crews/new", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(W.notSaved);
     expect(screen.queryByText("Not found.")).toBeNull();
     expect(screen.queryByText(W.closedNotSaved)).toBeNull();
+    // Only the list read may say People is open and the list did not load.
+    expect(screen.queryByText(W.notLoaded)).toBeNull();
     expect(nav.replace).not.toHaveBeenCalled();
   });
 });

@@ -50,8 +50,10 @@ export function isCrewLimit(error: unknown): boolean {
  * shared rule: a `404` is never success). The release is read again first,
  * as People does: `GET /me/people` answers `404` while People is closed to
  * the caller. Then, for a change to one crew, the list: a list without it
- * means the crew is gone. For the list itself, a release that answers `200`
- * is `open`: People is open and only the list did not load. Anything else, or
+ * means the crew is gone. For the list read only, a release that answers
+ * `200` is `open`: People is open and only the list did not load. A create or
+ * a delete never says `open`: its `404` is `unknown`, so the page says the
+ * change did not happen rather than showing the API's word. Anything else, or
  * a read that fails, is `unknown`, and the page says the change did not
  * happen, or that People could not be checked.
  */
@@ -76,6 +78,7 @@ function is404(error: unknown): error is YuvoyError {
 async function whyMissing(
   crewId?: string,
   signal?: AbortSignal,
+  forList = false,
 ): Promise<{ why: CrewMissing; home?: unknown }> {
   try {
     const client = createProxyClient();
@@ -83,7 +86,7 @@ async function whyMissing(
     if (home.error) {
       return { why: is404(home.error) ? "closed" : "unknown" };
     }
-    if (!crewId) return { why: "open", home: home.data };
+    if (!crewId) return { why: forList ? "open" : "unknown", home: home.data };
     const list = await client.GET("/me/crews", { signal });
     if (list.error) return { why: "unknown", home: home.data };
     const id = crewId.toLowerCase();
@@ -104,9 +107,10 @@ async function explain(
   error: unknown,
   crewId?: string,
   signal?: AbortSignal,
+  forList = false,
 ): Promise<unknown> {
   if (!is404(error)) return undefined;
-  const { why, home } = await whyMissing(crewId, signal);
+  const { why, home } = await whyMissing(crewId, signal, forList);
   missing.set(error, why);
   return home;
 }
@@ -141,7 +145,7 @@ export function useMyCrews(enabled: boolean) {
       const { data, error } = await client.GET("/me/crews", { signal });
       if (error) {
         if (is404(error)) {
-          const home = await explain(error, undefined, signal);
+          const home = await explain(error, undefined, signal, true);
           // The People home just read goes into its cache, so the home does
           // not read it a second time; a closed or failed read makes the
           // home read itself. Not the crews list: that would loop.
