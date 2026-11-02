@@ -1756,6 +1756,10 @@ for (const f of files) {
       "drawn once the account has loaded in the browser",
     ],
     [
+      "src/components/account/ways-in.tsx",
+      "the add form, opened by Add an email or Add a number",
+    ],
+    [
       "src/components/auth/contact-fields.tsx",
       "inside checkout, drawn once its departures have loaded",
     ],

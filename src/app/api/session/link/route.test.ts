@@ -110,11 +110,25 @@ describe("adding a way in", () => {
 
   it("passes the API's refusals on as an envelope, and keeps the cookie", async () => {
     for (const [status, code, message] of [
-      [409, "identity_taken", "That already signs in to another account."],
-      [409, "identity_kind_taken", "This account already has one."],
+      // The API's own sentences (linkIdentity and signInUnavailable in
+      // yuvoy-api internal/handler/traveller.go), byte for byte.
+      [
+        409,
+        "identity_taken",
+        "That already signs in to another account. Sign in with it there instead.",
+      ],
+      [
+        409,
+        "identity_kind_taken",
+        "This account already has one. An account holds one number and one email.",
+      ],
       [401, "fresh_sign_in_required", "Sign in again, then add this."],
       [401, "unauthorized", "That code did not work. Ask for a new one."],
-      [503, "sign_in_unavailable", "Signing in this way is not open yet."],
+      [
+        503,
+        "sign_in_unavailable",
+        "Signing in this way is not open yet. Sign in with your WhatsApp number.",
+      ],
     ] as const) {
       verify(status, { error: { code, message }, sessionToken: "sess_x" });
       const answer = await POST(

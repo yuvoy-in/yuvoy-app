@@ -128,13 +128,19 @@ export function useAddWay() {
         throw new Error("ways in: the answer added nothing");
       }
     },
-    // Its trips, saves and invitations follow the one account now.
+    /*
+      Its trips, saves and invitations follow the one account now. The
+      account is waited for, so `mutateAsync` resolves once `/me` names the
+      way just added: until then Ways in would read the old account and offer
+      to add it again beside "Added.".
+    */
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: qk.myAccount() });
+      const account = qc.invalidateQueries({ queryKey: qk.myAccount() });
       void qc.invalidateQueries({ queryKey: [qk.myBookings()[0]] });
       void qc.invalidateQueries({ queryKey: qk.invitedTrips() });
       void qc.invalidateQueries({ queryKey: qk.savedList("account") });
       void qc.invalidateQueries({ queryKey: qk.savedIds("account") });
+      return account;
     },
   });
 }
