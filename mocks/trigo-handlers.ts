@@ -280,8 +280,8 @@ export const trigoHandlers = [
     const key = request.headers.get("idempotency-key");
     if (!key || !KEY_SHAPE.test(key)) {
       return envelope(
-        "invalid_input",
-        "Send an Idempotency-Key of 16 to 128 letters, digits or _.:- with each message.",
+        "idempotency_key_malformed",
+        "Idempotency-Key must be 16-128 characters of A-Z a-z 0-9 _ . : -",
         400,
       );
     }
@@ -293,8 +293,9 @@ export const trigoHandlers = [
     if (text.length === 0 || text.length > 1000) {
       return envelope(
         "invalid_input",
-        "Write a message of 1 to 1000 characters.",
+        "Check the message and send it again.",
         400,
+        { text: "Between 1 and 1,000 characters." },
       );
     }
     const state = stateOf(request, auth);
@@ -304,7 +305,7 @@ export const trigoHandlers = [
       if (stored.text !== text) {
         return envelope(
           "idempotency_key_reuse",
-          "That key was used for another message. Send this one with a new key.",
+          "That Idempotency-Key was already used for another message.",
           409,
         );
       }
@@ -327,7 +328,7 @@ export const trigoHandlers = [
     if (!state.consentAccepted) {
       return envelope(
         "consent_required",
-        "Read the Trigo notice and accept it first.",
+        "Read and accept the note about Trigo first.",
         409,
         { noticeVersion: TRIGO_NOTICE_VERSION },
       );
@@ -357,7 +358,7 @@ export const trigoHandlers = [
     if (scenario === "trigo-limit" || state.remaining <= 0) {
       return envelope(
         "daily_limit_reached",
-        "You've used today's 20 messages. You can ask again after midnight.",
+        "You've used today's 20 messages. You can ask again after midnight, or talk to a person.",
         429,
         { resetsAt },
       );
