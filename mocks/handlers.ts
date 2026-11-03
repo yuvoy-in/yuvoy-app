@@ -37,6 +37,7 @@ import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
 import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
+import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
 import { meHandlers, meStageOf, meTablesStageOf } from "./me-handlers";
 import { followHandlers } from "./follow-handlers";
@@ -1244,6 +1245,8 @@ const routes = [
     (yuvoy-app#207's, at `staff`), `people` (yuvoy-app#222's, at `staff`,
     or `all` under `people-all`), `trigo` (yuvoy-app#223's, at `staff`),
     or `me`, `going` and `tables` (yuvoy-mobile#444's, at `staff`).
+    `trigoActions` is the one at `all`, so a card's buttons show wherever
+    Trigo does; `trigo-card-actions-off` turns it `off`.
   */
   http.get(url("/app-config"), async ({ request }) => {
     const failed = await commonFailure(request);
@@ -1271,6 +1274,7 @@ const routes = [
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
           trigo: trigoStageOf(scenario) ?? "off",
+          trigoActions: trigoActionsStageOf(scenario),
           supply: organiserSupplyOf(scenario),
           // yuvoy-mobile#444: Did you go asks only while `going` is open.
           me: meStageOf(scenario) ?? "off",
