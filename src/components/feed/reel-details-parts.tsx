@@ -193,7 +193,7 @@ export function usePanelPull(
       panel.style.transition = "";
       panel.style.transform = "";
     }
-  }, [open]);
+  }, [open, ref]);
 
   const onGrip = (e: ReactPointerEvent<HTMLButtonElement>) => {
     if (!open || e.button > 0 || !e.isPrimary) return;
