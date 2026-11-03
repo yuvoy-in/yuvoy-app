@@ -94,9 +94,12 @@ test.describe("back to where you came from", () => {
 
     await page.goBack();
     await page.waitForURL("**/e/snorkel-elephant-beach");
-    await expect(
-      page.getByRole("link", { name: "Back to the feed" }),
-    ).toHaveAttribute("href", "/");
+    // The listing's one Back link, waited for by what it says. A trail that
+    // took this back for a step forward names the business's page here
+    // (yuvoy-app#215), and the failure then says so.
+    const back = page.getByRole("link", { name: /^Back to/ });
+    await expect(back).toHaveAccessibleName("Back to the feed");
+    await expect(back).toHaveAttribute("href", "/");
   });
 
   test("a reload forgets the trail, and Back still has somewhere to go", async ({
