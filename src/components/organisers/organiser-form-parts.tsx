@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { ChipButton } from "@/components/ui/chip";
 import { Field } from "@/components/ui/field";
 import { Skeleton } from "@/components/states";
-import { ORGANISER_MAX_LINKS } from "@/lib/organisers/organisers";
+import {
+  ORGANISER_MAX_LINKS,
+  type OrganiserPageForm,
+} from "@/lib/organisers/organisers";
 import type { OrganiserLink, OrganiserLinkKind } from "@/lib/organisers/types";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import type { PlaceList } from "@/lib/site/places";
@@ -13,7 +16,9 @@ import type { PlaceList } from "@/lib/site/places";
 /**
  * The page form's pieces that are more than one field (yuvoy-app#224, the
  * phone's `organiser-form-parts.tsx`): a field's sentence under a group, the
- * place picker, the departments and the links. Split out of
+ * place picker, the departments and the links, and for a group's page
+ * (yuvoy-app#225) its name and place as fixed text, the place's name, and the
+ * line a `409 club_already_linked` hands to the page it opens. Split out of
  * `organiser-form.tsx` to keep it short.
  */
 
@@ -53,6 +58,113 @@ export function FieldLine({
       {text}
     </span>
   );
+}
+
+/** A group's name and place: shown as text, never typed. */
+export type FixedFields = { name: string; destinationKey: string };
+
+/** What the form checks before sending: only what is plainly missing, in the API's own words. */
+export function missing(
+  form: OrganiserPageForm,
+  runsIt: boolean,
+  fixed: boolean,
+): Record<string, string> {
+  const found: Record<string, string> = {};
+  if (!fixed && form.name.trim() === "") found.name = W.needName;
+  if (!fixed && form.destinationKey === "") found.destinationKey = W.needPlace;
+  if (form.departments.length === 0) found.departments = W.needDepartments;
+  if (!runsIt) found.runsIt = W.needRunsIt;
+  return found;
+}
+
+/**
+ * A place's name from the list the person can pick, as #224 shows a place;
+ * empty when it is not there. A group's place can be outside every list the
+ * app can read, so its line stays hidden rather than guess a name from the key,
+ * until the API sends the name itself (yuvoy-in/yuvoy-api#596).
+ */
+export function placeName(places: PlaceList | undefined, key: string): string {
+  return (
+    places?.markets
+      .flatMap((market) => market.destinations)
+      .find((destination) => destination.key === key)?.name ?? ""
+  );
+}
+
+/**
+ * A group's name and place on its setup and edit forms (yuvoy-app#225): text,
+ * never a field, with the API's sentence for each under its own line. A place
+ * the list does not name shows no line of its own, and its sentence goes
+ * under the name.
+ */
+export function FixedPage({
+  name,
+  place,
+  errors,
+}: {
+  name: string;
+  place: string;
+  errors: Record<string, string>;
+}) {
+  const placeError = errors.destinationKey;
+  return (
+    <div
+      className="rounded-card border-paper-line bg-paper-deep border px-4 py-4"
+      data-testid="organiser-form-fixed"
+    >
+      <span className="label text-forest/75 block">{W.name}</span>
+      <p
+        className="mt-1 font-bold text-pretty break-words"
+        data-testid="organiser-form-fixed-name"
+      >
+        {name}
+      </p>
+      <FieldLine
+        text={errors.name ?? errors.clubId ?? (place ? undefined : placeError)}
+        testId="organiser-form-fixed-name-error"
+      />
+      {place ? (
+        <>
+          <span className="label text-forest/75 mt-4 block">{W.place}</span>
+          <p
+            className="mt-1 break-words"
+            data-testid="organiser-form-fixed-place"
+          >
+            {place}
+          </p>
+          <FieldLine
+            text={placeError}
+            testId="organiser-form-fixed-place-error"
+          />
+        </>
+      ) : null}
+      <p className="text-forest/75 mt-3 text-sm text-pretty">{W.clubFixed}</p>
+    </div>
+  );
+}
+
+/*
+  The API's sentence for a `409 club_already_linked`, handed to the organiser
+  page the form opens instead, by its id. Kept in this module for the one
+  move: the page reads it when it mounts after a move in the app and clears
+  it once drawn, and a load from an address finds none, so a link never
+  carries it.
+*/
+let linked: { id: string; message: string } | null = null;
+
+/** The form, on `clubLinked`: the line for the page it is about to open. */
+export function handOverLinked(id: string, message: string) {
+  linked = { id, message };
+}
+
+/** The page: the line handed to it, or null. Reading it changes nothing. */
+export function linkedLine(id: string): string | null {
+  return linked?.id === id ? linked.message : null;
+}
+
+/** The page, once it has drawn the line: a later visit shows none. */
+export function clearLinked(id: string) {
+  if (linked?.id === id) linked = null;
 }
 
 /**

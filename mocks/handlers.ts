@@ -228,7 +228,13 @@ export type Scenario =
   | "organisers-empty"
   | "organisers-paused"
   | "organisers-age"
-  | "organisers-closed-release";
+  | "organisers-closed-release"
+  /*
+    A traveller who holds groups (R9 clubs) sets up a group's organiser page
+    in one step (yuvoy-app#225); `organiser-club.ts` says what each does.
+  */
+  | "organisers-club"
+  | "organisers-club-paused";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");

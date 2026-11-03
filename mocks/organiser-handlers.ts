@@ -6,6 +6,7 @@ import {
   liveNumbers,
   zeroNumbers,
 } from "./organiser-fixtures";
+import { clubCreate, clubKept } from "./organiser-club";
 import {
   eventFrom,
   eventProblems,
@@ -46,9 +47,10 @@ export {
  *     the session.
  *   - `organisers-closed-release`: `supply` is `off` and every organiser
  *     route is `404`, as the API answers outside the release.
+ *   - `organisers-club`, `organisers-club-paused`: the caller holds groups
+ *     (yuvoy-app#225); `organiser-club.ts` says what each does.
  *
- * Club and claims routes, and the door check-in, are not mocked: the web
- * does not build them.
+ * Claims routes and the door check-in are not mocked.
  */
 
 type Organiser = components["schemas"]["Organiser"];
@@ -99,7 +101,8 @@ function refused(request: Request): Response | null {
   }
   const scenario = scenarioOf(request);
   if (scenario === "organisers-closed-release") {
-    return envelope("not_found", "We could not find that.", 404);
+    // The API's own sentence outside the release (`organiserNotFound`).
+    return envelope("not_found", NO_ORGANISER, 404);
   }
   if (scenario === "organisers-age" && !adults.has(auth)) {
     return envelope(
@@ -203,7 +206,8 @@ export const organiserHandlers = [
   http.get(url("/me/organisers"), ({ request }) => {
     const no = refused(request);
     if (no) return no;
-    return answer({ items: storeOf(request).organisers, clubsToLink: [] });
+    const store = storeOf(request);
+    return answer({ items: store.organisers, clubsToLink: store.clubsToLink });
   }),
 
   http.post(url("/organisers"), async ({ request }) => {
@@ -211,7 +215,9 @@ export const organiserHandlers = [
     if (no) return no;
     const body = await bodyOf(request);
     if ("clubId" in body) {
-      return envelope("invalid_input", "Groups are not set up here.", 400);
+      const club = clubCreate(storeOf(request), scenarioOf(request), body);
+      if ("made" in club) return answer(club.made, 201);
+      return envelope(club.code, club.message, club.status, club.details);
     }
     const bad = checkFields(pageProblems(body));
     if (bad) return bad;
@@ -256,6 +262,9 @@ export const organiserHandlers = [
         : null);
     if (stop) return stop;
     const body = await bodyOf(request);
+    const kept = clubKept(org, body);
+    if (kept)
+      return envelope(kept.code, kept.message, kept.status, kept.details);
     const bad = checkFields(pageProblems(body));
     if (bad) return bad;
     const page = pageFrom(body);
