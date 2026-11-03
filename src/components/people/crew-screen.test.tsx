@@ -34,6 +34,14 @@ const GANG = crew(1, "College gang", [
 const heading = (name: string) =>
   screen.findByRole("heading", { level: 1, name });
 
+/*
+  The client asks a read three times on a 503 or 500, with a backoff of about
+  a second in all, so a heading shown after a refused release read waits
+  longer than findBy's one second.
+*/
+const headingAfterRetries = (name: string) =>
+  screen.findByRole("heading", { level: 1, name }, { timeout: 4000 });
+
 function show(saved = false) {
   const user = userEvent.setup();
   renderWithQuery(<CrewScreen crewId={GANG.crewId} saved={saved} />);
@@ -133,7 +141,7 @@ describe("/people/crews/{crewId}", () => {
       refuse(503, "unavailable", "Try again in a minute."),
     );
     show();
-    await heading(W.failed);
+    await headingAfterRetries(W.failed);
     expect(screen.getByText(W.notChecked)).toBeInTheDocument();
     expect(
       screen.queryByText("People isn't open to your account yet."),
@@ -158,7 +166,7 @@ describe("/people/crews/{crewId}", () => {
     await heading("College gang");
     await user.click(screen.getByRole("button", { name: W.delete }));
     await user.click(screen.getByRole("button", { name: W.delete }));
-    await heading(W.failed);
+    await headingAfterRetries(W.failed);
     expect(screen.getByText(W.notChecked)).toBeInTheDocument();
     expect(screen.queryByText("College gang")).toBeNull();
     expect(screen.queryByRole("link", { name: W.edit })).toBeNull();

@@ -434,7 +434,9 @@ describe("/people/crews/{crewId}/edit", () => {
     );
     await user.click(pick(/Rahul/));
     await user.click(save());
-    expect(await screen.findByRole("alert")).toHaveTextContent(W.notSaved);
+    expect(
+      await screen.findByRole("alert", {}, { timeout: 4000 }),
+    ).toHaveTextContent(W.notSaved);
     expect(screen.queryByText("Not found.")).toBeNull();
     expect(screen.queryByRole("heading", { name: W.gone.title })).toBeNull();
   });
