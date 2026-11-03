@@ -77,6 +77,11 @@ const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
   "media_unavailable",
   "rate_limited",
   /*
+    Organiser pages paused (yuvoy-app#224): a switch somebody turned, so the
+    page shows its paused state at once and its own Try again asks again.
+  */
+  "organisers_paused",
+  /*
     Tables paused (yuvoy-app#194): a switch somebody turned, so the table
     page shows its paused state at once and its own Try again asks again.
   */

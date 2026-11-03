@@ -231,6 +231,26 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "PUT", pattern: "/me/friend-link" },
   { method: "DELETE", pattern: "/me/friend-link" },
   { method: "POST", pattern: "/friend-links/lookup" },
+  /*
+    Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
+    signed-in traveller's own pages, their helpers, their events and the
+    numbers. Session only in the contract. The club routes
+    (`/organisers/{id}/club`) and claims (`/organisers/{id}/claims`) are not
+    built on the web and are not here.
+  */
+  { method: "GET", pattern: "/me/organisers" },
+  { method: "POST", pattern: "/organisers" },
+  { method: "GET", pattern: "/organisers/{id}" },
+  { method: "PATCH", pattern: "/organisers/{id}" },
+  { method: "GET", pattern: "/organisers/{id}/helpers" },
+  { method: "POST", pattern: "/organisers/{id}/helpers" },
+  { method: "DELETE", pattern: "/organisers/{id}/helpers/{travellerId}" },
+  { method: "GET", pattern: "/organisers/{id}/events" },
+  { method: "POST", pattern: "/organisers/{id}/events" },
+  { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
+  { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
+  { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  // Confirm your age, asked once before the organiser pages and People.
   { method: "PUT", pattern: "/me/age" },
 ];
 

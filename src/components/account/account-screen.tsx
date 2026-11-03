@@ -23,6 +23,7 @@ import { EditProfileSheet } from "./edit-profile-sheet";
 import { FirstSignIn } from "./first-sign-in";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
+import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
 import { PeopleRow } from "@/components/people/people-row";
 import { InviteEntry, counts, memberSince } from "./account-parts";
 import { AgeClosed, CONFIRM_AGE_WORDS, ConfirmAgePanel } from "./confirm-age";
@@ -412,6 +413,7 @@ function SignedIn({
       <ButtonLink href="/guides" variant="outline" block className="mt-3">
         Guides
       </ButtonLink>
+      <OrganiserAccountLink />
 
       {me ? (
         <Button

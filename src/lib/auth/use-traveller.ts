@@ -21,6 +21,7 @@ import { dedash } from "@/lib/format/dedash";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
 import { resetSavedSession } from "@/lib/feed/account-saved";
+import { forgetOrganisers } from "@/lib/organisers/use-organisers";
 import { oweSignOut } from "./sign-out-owed";
 
 /**
@@ -182,6 +183,7 @@ export function useTravellerSession() {
     forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetOrganisers(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -261,6 +263,7 @@ export function useTravellerSession() {
     forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetOrganisers(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
