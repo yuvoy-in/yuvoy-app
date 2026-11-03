@@ -145,6 +145,22 @@ describe("organiserRefusal", () => {
     });
   });
 
+  it("keeps a 429's Retry-After when the error carries it", () => {
+    const day = Object.assign(refused(429, "rate_limited"), {
+      retryAfterSeconds: 3600,
+    });
+    expect(organiserRefusal(day)).toMatchObject({
+      kind: "limit",
+      retryAfterSec: 3600,
+    });
+    for (const bad of [0, -5, Number.NaN, "60"]) {
+      const odd = Object.assign(refused(429, "rate_limited"), {
+        retryAfterSeconds: bad,
+      });
+      expect(organiserRefusal(odd)).toMatchObject({ retryAfterSec: null });
+    }
+  });
+
   it("reads the pause, and any other 5xx as a fault", () => {
     expect(organiserRefusal(refused(503, "organisers_paused"))).toEqual({
       kind: "paused",
