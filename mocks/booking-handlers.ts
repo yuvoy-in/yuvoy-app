@@ -8,6 +8,8 @@ import {
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
+import { trigoStaffCohort } from "./trigo-handlers";
+import { organiserAgeConfirmed } from "./organiser-handlers";
 import { meStaffCohort } from "./me-handlers";
 
 type Experience = components["schemas"]["Experience"];
@@ -1772,13 +1774,15 @@ export const bookingHandlers = [
           `?__scenario=cohort-staff` or `cohort-early` says so, or one of
           yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
           staff tester's world, or one of yuvoy-app#207's opens `creator`
-          there (all but `creator-outside`), or one of yuvoy-mobile#444's
-          opens `me` there.
+          there (all but `creator-outside`), or one of yuvoy-app#223's opens
+          `trigo` there (all but `trigo-not-released`), or one of
+          yuvoy-mobile#444's opens `me` there.
         */
         cohort:
           scenarioOf(request) === "cohort-staff" ||
           exploreStageOf(scenarioOf(request)) === "staff" ||
           creatorStaffCohort(scenarioOf(request)) ||
+          trigoStaffCohort(scenarioOf(request)) ||
           meStaffCohort(scenarioOf(request))
             ? "staff"
             : scenarioOf(request) === "cohort-early"
@@ -1791,6 +1795,11 @@ export const bookingHandlers = [
           `creator-tools-off`.
         */
         creatorToolsOn: creatorToolsOnFor(scenarioOf(request)),
+        /*
+          The 18+ answer (yuvoy-app#224): true, except under
+          `organisers-age` until `PUT /me/age` is answered for this session.
+        */
+        ageConfirmed: organiserAgeConfirmed(request),
         onboardingRequired: fresh,
         memberSince: fresh ? null : "2026-07-02T04:30:00Z",
         trips: { total: 3, upcoming: 1, completed: 2 },

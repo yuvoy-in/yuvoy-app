@@ -139,6 +139,12 @@ export const FOCUSED_ROUTE_PREFIXES = [
     bar would float over it.
   */
   "/plans/",
+  /*
+    Organiser pages (yuvoy-app#224): the hub, the page form, one organiser,
+    its helpers and its events. A place a person goes INTO from Account, with
+    a Back on every screen, and the save buttons sit at the foot of long forms.
+  */
+  "/organiser",
 ] as const;
 
 /**
