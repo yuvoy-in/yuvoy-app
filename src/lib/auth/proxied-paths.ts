@@ -296,6 +296,8 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
   { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
   { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  // Check people in at the door (yuvoy-app#226, the web half of yuvoy-mobile#394).
+  { method: "POST", pattern: "/organiser-check-ins" },
   /*
     The year a person was born, asked by Trigo's age check, by People's age
     step and before the organiser pages (`403 adult_confirmation_required`)
@@ -303,6 +305,27 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     three. Session only: a booking link cannot answer for a person's age.
   */
   { method: "PUT", pattern: "/me/age" },
+  /*
+    Me on Account (yuvoy-mobile#444, R10-M1), behind the `me` release; every
+    one answers 404 while it is closed. Session only in the contract.
+  */
+  // The life list, a page at a time, with Did you go? on the first page.
+  { method: "GET", pattern: "/me/life-list" },
+  // Who sees a trip or a table entry. A went entry is changed by its event.
+  { method: "PATCH", pattern: "/me/life-list/{entryId}" },
+  // Did you go?, answered from Me.
+  { method: "POST", pattern: "/me/went/{eventId}" },
+  // Who sees a went entry: the one route that writes it.
+  { method: "PATCH", pattern: "/me/went/{eventId}" },
+  { method: "GET", pattern: "/me/badges" },
+  // "Nice" on a new badge.
+  { method: "POST", pattern: "/me/badges/seen" },
+  /*
+    Languages and Women-only tables. The same route holds the usage choice
+    and the email switches, and Me sends only the field that changed.
+  */
+  { method: "GET", pattern: "/me/settings" },
+  { method: "PATCH", pattern: "/me/settings" },
   /*
     Following a group and asking a crew along to a plan (yuvoy-mobile#392,
     R10-T2). Follows are private and need the `people` release; the crew

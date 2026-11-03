@@ -66,6 +66,17 @@ describe("civilFromDate", () => {
     expect(weekdayDayMonth(civilFromDate("2028-03-01")!)).toBe("Wed, 1 Mar");
   });
 
+  it("accepts 29 Feb in a leap year, the day the month-length check must let through", () => {
+    expect(civilFromDate("2028-02-29")).toEqual({
+      year: 2028,
+      month: 2,
+      day: 29,
+      hour: 0,
+      minute: 0,
+      weekday: 2,
+    });
+  });
+
   it("refuses anything that is not a plain market date", () => {
     /*
       Each of these is a real shape an API or a fixture has produced, and each
@@ -80,6 +91,9 @@ describe("civilFromDate", () => {
       "2026-00-10",
       "2026-09-00",
       "2026-09-32",
+      "2026-02-31",
+      "2026-02-29",
+      "2026-04-31",
       "not a date",
     ]) {
       expect(civilFromDate(bad), bad).toBeNull();

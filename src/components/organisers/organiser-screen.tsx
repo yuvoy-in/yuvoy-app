@@ -20,6 +20,7 @@ import {
   useOrganiserEvents,
 } from "@/lib/organisers/use-organisers";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
+import { DoorLink } from "./door-screen-parts";
 import { clearLinked, linkedLine } from "./organiser-form-parts";
 import { OrganiserRefusalBlock } from "./organiser-gate";
 import {
@@ -38,10 +39,11 @@ import {
  * the state card (its sentence, and the code large with "Copy code" while it
  * waits for a check), "Post an event" while the state allows it, "Edit page"
  * and "Helpers" for an owner, and the events in the API's order, each opening
- * its own screen. A group's form that met `409 club_already_linked` opens
- * the group's organiser here with the API's sentence, once, and the sentence
- * shows even when the organiser cannot be read. Left out from
- * the phone: "Check people in" (the door), which the web does not build.
+ * its own screen. "Check people in" (the door, yuvoy-app#226) while the
+ * organiser is verified, for its owner and its helpers alike. A group's form
+ * that met `409 club_already_linked` opens the group's organiser here with
+ * the API's sentence, once, and the sentence shows even when the organiser
+ * cannot be read.
  */
 export function OrganiserScreen({ id }: { id: string }) {
   const organiser = useOrganiser(id, true);
@@ -70,6 +72,8 @@ export function OrganiserScreen({ id }: { id: string }) {
   const page = organiser.data;
   const actions = organiserActions(page);
   const base = `/organiser/${encodeURIComponent(page.id)}`;
+  // Every reader of this page is a member (owner or helper): anyone else gets a 404.
+  const door = page.state === "verified";
   const madeLine =
     made === "club" || (made === "1" && page.clubId)
       ? W.clubMade(page.name)
@@ -95,13 +99,14 @@ export function OrganiserScreen({ id }: { id: string }) {
 
       <StateCard organiser={page} showsCode={actions.copyCode} />
 
-      {actions.post || actions.editPage || actions.helpers ? (
+      {actions.post || door || actions.editPage || actions.helpers ? (
         <div className="mt-6 space-y-3">
           {actions.post ? (
             <ButtonLink href={`${base}/events/new`} block>
               {W.postEvent}
             </ButtonLink>
           ) : null}
+          {door ? <DoorLink variant="outline" /> : null}
           {actions.editPage ? (
             <ButtonLink href={`${base}/edit`} variant="outline" block>
               {W.editPage}

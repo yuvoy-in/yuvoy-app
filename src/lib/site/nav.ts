@@ -145,6 +145,11 @@ export const FOCUSED_ROUTE_PREFIXES = [
     a Back on every screen, and the save buttons sit at the foot of long forms.
   */
   "/organiser",
+  /*
+    The door (yuvoy-app#226): checking people in, from the organiser pages,
+    with a Back to them. The field and its button would sit under the bar.
+  */
+  "/door",
 ] as const;
 
 /**

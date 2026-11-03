@@ -1,7 +1,11 @@
 import Link from "@/components/ui/link";
 import type { components } from "@/lib/api/schema.gen";
 import { formatFromPrice } from "@/lib/format/money";
-import { cancellationLine, paymentLine } from "@/lib/booking/listing-lines";
+import {
+  cancellationLine,
+  paymentLine,
+  registrationLine,
+} from "@/lib/booking/listing-lines";
 import { paragraphsOf } from "@/lib/format/paragraphs";
 import { formatDuration } from "@/lib/format/time";
 import { Screen } from "@/components/chrome/screen";
@@ -58,6 +62,7 @@ export function ExperienceDetail({
 }) {
   const price = formatFromPrice(experience.fromPrice);
   const cancellation = cancellationLine(experience);
+  const registration = registrationLine(experience.compliance);
   const instant = experience.bookingMode === "allotment";
   const duration = formatDuration(experience.durationMinutes);
   /*
@@ -348,6 +353,18 @@ export function ExperienceDetail({
                     </Chip>
                   )}
                 </div>
+                {/*
+                  Their tourism registration while it is valid, and nothing
+                  at all when the API sends none (yuvoy-app#219).
+                */}
+                {registration ? (
+                  <p
+                    className="text-forest/70 mt-3 text-sm"
+                    data-testid="listing-registration"
+                  >
+                    {registration}
+                  </p>
+                ) : null}
                 {experience.operator.credentialsSummary?.length ? (
                   <ul className="text-forest/70 mt-3 space-y-1.5 text-sm">
                     {experience.operator.credentialsSummary.map((c) => (
