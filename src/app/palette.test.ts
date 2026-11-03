@@ -7,6 +7,9 @@ import { join } from "node:path";
  *
  * Every rule here has been broken at least once on the marketing site, which
  * is why each is a test and not a paragraph in a document.
+ *
+ * Its rules are split across palette.test.ts, palette-type.test.ts,
+ * palette-contrast.test.ts and palette-motion.test.ts (yuvoy-app#243).
  */
 
 const SRC = join(process.cwd(), "src");
