@@ -44,14 +44,16 @@ export function DoorLink({
 }
 
 /**
- * Takes the `#` part off the address, keeping the path, the query (the mock
- * scenario rides there) and the history state, so a reload sends nothing.
- * `replaceState` fires no `hashchange`.
+ * Takes the `#` part off the address, keeping the path and the query (the
+ * mock scenario rides there), so a reload sends nothing. The state is null so
+ * Next's router takes the new address too and never writes the code back on
+ * its next refresh (as `use-fragment-token.ts`). `replaceState` fires no
+ * `hashchange`.
  */
 export function clearAddressHash(): void {
   if (!window.location.hash) return;
   const { pathname, search } = window.location;
-  window.history.replaceState(window.history.state, "", pathname + search);
+  window.history.replaceState(null, "", pathname + search);
 }
 
 /**

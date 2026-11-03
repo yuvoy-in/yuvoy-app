@@ -26,6 +26,7 @@ import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
 import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
+import { PeopleRow } from "@/components/people/people-row";
 
 /**
  * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
@@ -376,6 +377,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
 
       {/* Share links and their counts (yuvoy-app#207). */}
       <YourLinks toolsOn={me?.creatorToolsOn === true} />
+      <PeopleRow people={me?.people} />
 
       {/*
         The same section as the booking page's, with no reference attached:
