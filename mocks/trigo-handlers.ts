@@ -1,6 +1,11 @@
 import { http, HttpResponse, delay } from "msw";
 import type { components } from "../src/lib/api/schema.gen";
 import { mockHeaders, mockNow } from "./fixtures";
+import {
+  TRIGO_CARD_SCENARIOS,
+  trigoCardFor,
+  trigoCardHandlers,
+} from "./trigo-card-handlers";
 
 /**
  * Trigo, the chat (yuvoy-app#223, R5-T5, yuvoy-mobile#356): the turn, the
@@ -39,6 +44,8 @@ import { mockHeaders, mockNow } from "./fixtures";
  *     is `trigo-limit`, which sends no `Retry-After`.
  *   - `trigo-not-released`: `trigo` stays `off`, so the turn and accept are
  *     `404`. The reads are not behind the release, as in the API.
+ *   - `trigo-card-*`: as `trigo-reply`, and each reply carries a confirm card
+ *     (yuvoy-app#223 part 2). See `trigo-card-handlers.ts`.
  *
  * Chats are kept per scenario and session (the `Authorization` header), so
  * two e2e projects signed in as different numbers never see each other's.
@@ -97,6 +104,7 @@ export const TRIGO_SCENARIOS: ReadonlySet<string> = new Set([
   "trigo-busy",
   "trigo-fast",
   "trigo-not-released",
+  ...TRIGO_CARD_SCENARIOS,
 ]);
 
 /** The stage a scenario gives `trigo`; null is `off`. */
@@ -420,6 +428,7 @@ export const trigoHandlers = [
       fixed ? TIMED_OUT_TEXT : REPLY_TEXT,
       fixed,
     );
+    reply.actionCard = trigoCardFor(scenario, mockNow());
     state.messages.push(mine, reply);
     state.remaining -= 1;
     state.conversation = { ...state.conversation, lastMessageAt: now };
@@ -599,6 +608,25 @@ export const trigoHandlers = [
       { ageConfirmed: true },
       { headers: mockHeaders(rid()) },
     );
+  }),
+
+  ...trigoCardHandlers({
+    url,
+    scenarioOf,
+    sessionOf,
+    envelope,
+    headers: () => mockHeaders(rid()),
+    chatOf: (request, auth) => {
+      const state = stateOf(request, auth);
+      return {
+        messages: state.messages,
+        say: (text) => {
+          const line = message(state, "trigo", text, false);
+          state.messages.push(line);
+          return line;
+        },
+      };
+    },
   }),
 ];
 
