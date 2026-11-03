@@ -5,6 +5,7 @@ import {
   classifyAgeError,
   classifyTrigoError,
   mergeBySeq,
+  TRIGO_WAIT_MAX_SECONDS,
   type TrigoMessage,
 } from "./api";
 
@@ -164,6 +165,21 @@ describe("classifyTrigoError", () => {
       kind: "rate_limited",
       message: "x",
       retryAfterSeconds: 3,
+    });
+    // A wait longer than the chat holds is cut to TRIGO_WAIT_MAX_SECONDS.
+    expect(
+      classifyTrigoError(
+        new YuvoyError({
+          status: 429,
+          code: "rate_limited",
+          message: "x",
+          retryAfterSeconds: 3600,
+        }),
+      ),
+    ).toEqual({
+      kind: "rate_limited",
+      message: "x",
+      retryAfterSeconds: TRIGO_WAIT_MAX_SECONDS,
     });
     // Without one, nothing waits: the kind has no retryAfterSeconds at all.
     expect(

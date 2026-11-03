@@ -6,7 +6,6 @@ import {
   isClientBug,
   isErrorEnvelope,
   parseRetryAfter,
-  RETRY_AFTER_MAX_SECONDS,
 } from "./errors";
 
 describe("error classification", () => {
@@ -91,11 +90,13 @@ describe("parseRetryAfter", () => {
     expect(parseRetryAfter("60")).toBe(60);
   });
 
-  it("cuts a long wait to the most a screen holds", () => {
-    expect(parseRetryAfter("40000")).toBe(RETRY_AFTER_MAX_SECONDS);
-    expect(parseRetryAfter("99999999999999999999999")).toBe(
-      RETRY_AFTER_MAX_SECONDS,
-    );
+  it("keeps a long wait as the API sent it", () => {
+    expect(parseRetryAfter("3600")).toBe(3600);
+    expect(parseRetryAfter("40000")).toBe(40000);
+  });
+
+  it("ignores a number too large to hold exactly", () => {
+    expect(parseRetryAfter("99999999999999999999999")).toBeUndefined();
   });
 
   it("ignores a missing, empty, zero or malformed value", () => {

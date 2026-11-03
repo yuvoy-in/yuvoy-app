@@ -372,17 +372,16 @@ export function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
   );
 }
 
-/** The longest wait a `Retry-After` may ask of a screen, in seconds. */
-export const RETRY_AFTER_MAX_SECONDS = 120;
-
 /**
- * `Retry-After` as whole seconds, or undefined.
+ * `Retry-After` as whole seconds, as the API sent it, or undefined.
  *
  * Only the seconds form the API sends is read. A date, a fraction, a sign,
- * an empty value or 0 (no wait at all) is ignored, so a screen without one
- * behaves as it always did. A longer wait is cut to
- * `RETRY_AFTER_MAX_SECONDS`, so a wrong header holds a button for two minutes
- * at most.
+ * an empty value, 0 (no wait at all) or a number too large to hold exactly is
+ * ignored, so a screen without one behaves as it always did. A long wait is
+ * kept as sent: a day's limit sends the seconds until the day ends, and a
+ * screen that says when to come back needs all of them. A screen that holds a
+ * button for the wait cuts it where it reads it (the Trigo chat:
+ * `TRIGO_WAIT_MAX_SECONDS`).
  */
 export function parseRetryAfter(
   value: string | null | undefined,
@@ -390,8 +389,8 @@ export function parseRetryAfter(
   const text = value?.trim() ?? "";
   if (!/^\d+$/.test(text)) return undefined;
   const seconds = Number(text);
-  if (seconds <= 0) return undefined;
-  return Math.min(seconds, RETRY_AFTER_MAX_SECONDS);
+  if (!Number.isSafeInteger(seconds) || seconds <= 0) return undefined;
+  return seconds;
 }
 
 /**

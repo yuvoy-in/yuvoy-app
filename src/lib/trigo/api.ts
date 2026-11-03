@@ -421,6 +421,9 @@ function stringDetail(error: YuvoyError, name: string): string | null {
   return typeof v === "string" ? v : null;
 }
 
+/** The longest the Trigo chat holds Send or Try again for a `Retry-After`, in seconds. */
+export const TRIGO_WAIT_MAX_SECONDS = 120;
+
 /**
  * The answer's `Retry-After`, for the kinds that offer Try again or Send
  * again: the API sends `2` on `409 idempotency_in_progress`, and the seconds
@@ -428,11 +431,19 @@ function stringDetail(error: YuvoyError, name: string): string | null {
  * (yuvoy-api#598). The sheet waits that long. `429 daily_limit_reached`
  * carries none: its wait is `details.resetsAt`.
  * Nothing when there was none, so those kinds read as they always did.
+ * A longer wait than `TRIGO_WAIT_MAX_SECONDS` is cut to it, so a wrong
+ * header holds Send and Try again for two minutes at most. The error keeps
+ * the value as sent.
  */
 function waitOf(error: YuvoyError): { retryAfterSeconds?: number } {
   return error.retryAfterSeconds === undefined
     ? {}
-    : { retryAfterSeconds: error.retryAfterSeconds };
+    : {
+        retryAfterSeconds: Math.min(
+          error.retryAfterSeconds,
+          TRIGO_WAIT_MAX_SECONDS,
+        ),
+      };
 }
 
 /**
