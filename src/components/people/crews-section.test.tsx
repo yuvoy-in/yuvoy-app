@@ -107,19 +107,23 @@ describe("People: the Crews section", () => {
   });
 
   it("says the list did not load, and tries again", async () => {
+    // The client asks a read three times on a 500 before it gives up.
+    const fault = () => refuse(500, "internal_error", "Server error.");
     const seen = answer(
       "get",
       "/me/crews",
-      () => refuse(500, "internal_error", "Server error."),
+      fault,
+      fault,
+      fault,
       json({ crews: [LUNCH] }),
     );
     show(3);
-    const alert = await screen.findByRole("alert");
+    const alert = await screen.findByRole("alert", {}, { timeout: 4000 });
     expect(alert).toHaveTextContent(W.failed);
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: PEOPLE_WORDS.retry }));
     expect(await screen.findByTestId("crew")).toHaveTextContent("Office lunch");
-    expect(seen).toHaveLength(2);
+    expect(seen).toHaveLength(4);
   });
 });

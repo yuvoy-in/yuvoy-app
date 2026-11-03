@@ -75,27 +75,38 @@ function is404(error: unknown): error is YuvoyError {
   return error instanceof YuvoyError && error.status === 404;
 }
 
+/*
+  The client throws a `YuvoyError` on every answer that is not 2xx (the error
+  middleware in lib/api/client.ts), so a refusal arrives as a throw, never as
+  `error` on the result. Each read and each change below catches it.
+*/
 async function whyMissing(
   crewId?: string,
   signal?: AbortSignal,
   forList = false,
 ): Promise<{ why: CrewMissing; home?: unknown }> {
+  const client = createProxyClient();
+  let home: unknown;
   try {
-    const client = createProxyClient();
-    const home = await client.GET("/me/people", { signal });
-    if (home.error) {
-      return { why: is404(home.error) ? "closed" : "unknown" };
-    }
-    if (!crewId) return { why: forList ? "open" : "unknown", home: home.data };
-    const list = await client.GET("/me/crews", { signal });
-    if (list.error) return { why: "unknown", home: home.data };
+    const { data, error } = await client.GET("/me/people", { signal });
+    if (error) throw error;
+    home = data;
+  } catch (error) {
+    return { why: is404(error) ? "closed" : "unknown" };
+  }
+  if (!crewId) return { why: forList ? "open" : "unknown", home };
+  try {
+    const { data, error } = await client.GET("/me/crews", { signal });
+    if (error) throw error;
     const id = crewId.toLowerCase();
-    const why = list.data.crews.some((c) => c.crewId.toLowerCase() === id)
+    const why: CrewMissing = data.crews.some(
+      (c) => c.crewId.toLowerCase() === id,
+    )
       ? "unknown"
       : "gone";
-    return { why, home: home.data };
+    return { why, home };
   } catch {
-    return { why: "unknown" };
+    return { why: "unknown", home };
   }
 }
 
@@ -113,6 +124,19 @@ async function explain(
   const { why, home } = await whyMissing(crewId, signal, forList);
   missing.set(error, why);
   return home;
+}
+
+/** Makes a change, and explains a `404` it throws before passing it on. */
+async function explained<T>(
+  change: () => Promise<T>,
+  crewId?: string,
+): Promise<T> {
+  try {
+    return await change();
+  } catch (error) {
+    await explain(error, crewId);
+    throw error;
+  }
 }
 
 /**
@@ -141,9 +165,12 @@ export function useMyCrews(enabled: boolean) {
     retry: false,
     ...CACHE.listMyCrews,
     queryFn: async ({ signal }) => {
-      const client = createProxyClient();
-      const { data, error } = await client.GET("/me/crews", { signal });
-      if (error) {
+      try {
+        const client = createProxyClient();
+        const { data, error } = await client.GET("/me/crews", { signal });
+        if (error) throw error;
+        return data;
+      } catch (error) {
         if (is404(error)) {
           const home = await explain(error, undefined, signal, true);
           // The People home just read goes into its cache, so the home does
@@ -155,7 +182,6 @@ export function useMyCrews(enabled: boolean) {
         }
         throw error;
       }
-      return data;
     },
   });
 }
@@ -165,15 +191,15 @@ export function useCreateCrew() {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: async (input: CrewInput): Promise<Crew> => {
-      const client = createProxyClient();
-      const { data, error } = await client.POST("/me/crews", { body: input });
-      if (error) {
-        await explain(error);
-        throw error;
-      }
-      return data;
-    },
+    mutationFn: (input: CrewInput): Promise<Crew> =>
+      explained(async () => {
+        const client = createProxyClient();
+        const { data, error } = await client.POST("/me/crews", {
+          body: input,
+        });
+        if (error) throw error;
+        return data;
+      }),
     onSuccess: (crew) => patchList(qc, (crews) => [crew, ...crews]),
     onSettled: (_, error) => refreshAfter(qc, error),
   });
@@ -193,18 +219,16 @@ export function useUpdateCrew() {
     }: {
       crewId: string;
       patch: CrewPatch;
-    }): Promise<Crew> => {
-      const client = createProxyClient();
-      const { data, error } = await client.PATCH("/me/crews/{crewId}", {
-        params: { path: { crewId } },
-        body: patch,
-      });
-      if (error) {
-        await explain(error, crewId);
-        throw error;
-      }
-      return data;
-    },
+    }): Promise<Crew> =>
+      explained(async () => {
+        const client = createProxyClient();
+        const { data, error } = await client.PATCH("/me/crews/{crewId}", {
+          params: { path: { crewId } },
+          body: patch,
+        });
+        if (error) throw error;
+        return data;
+      }, crewId),
     onSuccess: (crew) =>
       patchList(qc, (crews) =>
         crews.map((c) => (c.crewId === crew.crewId ? crew : c)),
@@ -222,23 +246,21 @@ export function useDeleteCrew() {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: async (crewId: string): Promise<void> => {
-      const client = createProxyClient();
-      const { error, response } = await client.DELETE("/me/crews/{crewId}", {
-        params: { path: { crewId } },
-      });
-      if (error) {
-        await explain(error);
-        throw error;
-      }
-      if (response.status !== 204) {
-        throw new YuvoyError({
-          code: "internal_error",
-          message: "",
-          status: response.status,
+    mutationFn: (crewId: string): Promise<void> =>
+      explained(async () => {
+        const client = createProxyClient();
+        const { error, response } = await client.DELETE("/me/crews/{crewId}", {
+          params: { path: { crewId } },
         });
-      }
-    },
+        if (error) throw error;
+        if (response.status !== 204) {
+          throw new YuvoyError({
+            code: "internal_error",
+            message: "",
+            status: response.status,
+          });
+        }
+      }),
     onSuccess: (_, crewId) =>
       patchList(qc, (crews) => crews.filter((c) => c.crewId !== crewId)),
     onSettled: (_, error) => refreshAfter(qc, error),

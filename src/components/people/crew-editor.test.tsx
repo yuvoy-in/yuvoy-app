@@ -144,10 +144,10 @@ describe("/people/crews/new", () => {
     await screen.findByRole("heading", { level: 1, name: W.newTitle });
     expect(screen.getByText(W.limit)).toBeInTheDocument();
     expect(screen.queryByLabelText(W.nameLabel)).toBeNull();
-    expect(screen.getByRole("link", { name: W.gone.action })).toHaveAttribute(
-      "href",
-      "/people",
-    );
+    // The header's back button has the same name, and goes to the same place.
+    const back = screen.getAllByRole("link", { name: W.gone.action });
+    expect(back.length).toBeGreaterThan(1);
+    for (const link of back) expect(link).toHaveAttribute("href", "/people");
   });
 
   it("opens the age step on adult_confirmation_required", async () => {

@@ -81,10 +81,10 @@ describe("/people/crews/{crewId}", () => {
     crews();
     show();
     await heading(W.gone.title);
-    expect(screen.getByRole("link", { name: W.gone.action })).toHaveAttribute(
-      "href",
-      "/people",
-    );
+    // The header's back button has the same name, and goes to the same place.
+    const back = screen.getAllByRole("link", { name: W.gone.action });
+    expect(back.length).toBeGreaterThan(1);
+    for (const link of back) expect(link).toHaveAttribute("href", "/people");
   });
 
   it("asks a signed-out reader to sign in and come back", async () => {
@@ -189,7 +189,10 @@ describe("/people/crews/{crewId}", () => {
     expect(nav.replace).not.toHaveBeenCalled();
   });
 
-  it("says the sign-in ended when a later list read answers 401", async () => {
+  // A 401 through the proxy ends the session (the cookie goes), so the page
+  // asks for a sign-in that comes back here, as People does once its session
+  // read has caught up.
+  it("asks for a sign-in when a later list read answers 401", async () => {
     signedIn();
     answer("get", "/me/crews", json({ crews: [GANG] }), () =>
       refuse(401, "unauthorized", "Sign in to see People."),
@@ -201,7 +204,13 @@ describe("/people/crews/{crewId}", () => {
     await heading("College gang");
     await user.click(screen.getByRole("button", { name: W.delete }));
     await user.click(screen.getByRole("button", { name: W.delete }));
-    await heading(PEOPLE_WORDS.sessionEnded.title);
+    await heading(PEOPLE_WORDS.signedOut.title);
+    expect(
+      screen.getByRole("link", { name: PEOPLE_WORDS.signedOut.action }),
+    ).toHaveAttribute(
+      "href",
+      `/account?next=${encodeURIComponent(`/people/crews/${GANG.crewId}`)}`,
+    );
     expect(screen.queryByRole("link", { name: W.edit })).toBeNull();
     expect(screen.queryByRole("button", { name: W.delete })).toBeNull();
   });
