@@ -26,6 +26,8 @@ import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
 import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
+import { MeCounts, MeSection } from "@/components/me/me-section";
+import { MeSettings } from "@/components/me/me-settings";
 import { PeopleRow } from "@/components/people/people-row";
 
 /**
@@ -315,6 +317,8 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
           We could not load your profile just now. Everything below still works.
         </p>
       )}
+      {/* Me (yuvoy-mobile#444): each part draws nothing while `me` is closed. */}
+      <MeCounts />
 
       {/*
         THE WAY IN, FOR A NUMBER THAT IS NOT IN YET (yuvoy-api#195).
@@ -337,6 +341,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         <InviteEntry admitted={redeemed} onAdmitted={() => setRedeemed(true)} />
       ) : null}
 
+      <MeSection className="mt-8" />
       <ButtonLink href="/trips" size="lg" block className="mt-6">
         Go to my trips
       </ButtonLink>
@@ -419,6 +424,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         is where somebody comes looking for it a week later. The answer itself
         sits above it, to change at any time (yuvoy-app#181).
       */}
+      <MeSettings className="mt-10" />
       <UsageSetting className="mt-10" />
       <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
 

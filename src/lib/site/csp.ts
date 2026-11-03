@@ -94,6 +94,15 @@ const STREAM = ["https://*.cloudflarestream.com", "https://videodelivery.net"];
  */
 const IMAGES = ["https://imagedelivery.net"];
 
+/**
+ * The traveller's own photos on their life list (yuvoy-mobile#444): `photoUrl`
+ * is a five-minute signed S3 read, so the host is the photos bucket in the
+ * API's region. Named by region rather than by bucket because the bucket name
+ * lives only in the API's runtime config; an exact bucket origin can replace
+ * this later. Images only: nothing loaded through `img-src` runs.
+ */
+const PHOTOS = ["https://*.s3.ap-south-1.amazonaws.com"];
+
 export interface CspEnv {
   apiUrl?: string;
   posthogHost?: string;
@@ -127,7 +136,7 @@ export function cspDirectives(env: CspEnv): string[] {
     `style-src 'self' 'unsafe-inline'`,
     // `data:` for the blur placeholders `next/image` inlines. Operator logos
     // are plain `<img>` elements, so they load from Cloudflare Images directly.
-    `img-src 'self' data: ${[...STREAM, ...IMAGES].join(" ")}`,
+    `img-src 'self' data: ${[...STREAM, ...IMAGES, ...PHOTOS].join(" ")}`,
     // `blob:` because hls.js plays through Media Source Extensions, which
     // assigns a blob URL to the video element.
     `media-src 'self' blob: ${STREAM.join(" ")}`,
