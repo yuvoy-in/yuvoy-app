@@ -90,6 +90,22 @@ const eslintConfig = defineConfig([
           message:
             "isError is also true when a refetch fails with data on screen, so branching on it swaps that data for an error. Use isLoadingError for an error in place of content, isRefetchError for a note beside data that stays, isFetchNextPageError for a page that did not arrive, or error for a mutation.",
         },
+        {
+          /*
+            Next patches history.replaceState and pushState, and passes a call
+            whose state carries its `__NA` mark straight through without
+            telling the router. Every page the router drew carries that mark,
+            so handing it the current state changes the address while
+            useSearchParams never moves (Ask Trigo opened nothing,
+            yuvoy-app#223) and the router keeps the old address to write back
+            later (a booking token returned to the bar). Pass null: Next
+            copies its own state across.
+          */
+          selector:
+            "CallExpression[callee.property.name=/^(replaceState|pushState)$/][arguments.0.property.name='state'][arguments.0.object.name='history'], CallExpression[callee.property.name=/^(replaceState|pushState)$/][arguments.0.property.name='state'][arguments.0.object.property.name='history']",
+          message:
+            "Do not pass history.state to replaceState or pushState: Next then skips the router and useSearchParams never sees the new address. Pass null.",
+        },
       ],
       /*
         The motion system's two front doors (approved 4 Oct 2026). Every
