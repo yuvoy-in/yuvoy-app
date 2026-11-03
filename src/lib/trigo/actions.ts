@@ -138,10 +138,9 @@ export function useConfirmTrigoAction(): UseMutationResult<
     retry: false,
     mutationFn: async ({ actionId }: CardActionVars) => {
       const client = createProxyClient();
-      const { data, error } = await client.POST(
-        "/trigo/actions/{id}/confirm",
-        { params: { path: { id: actionId } } },
-      );
+      const { data, error } = await client.POST("/trigo/actions/{id}/confirm", {
+        params: { path: { id: actionId } },
+      });
       if (error) throw error;
       return data;
     },
@@ -192,10 +191,9 @@ export function useDeclineTrigoAction(): UseMutationResult<
     retry: false,
     mutationFn: async ({ actionId }: CardActionVars) => {
       const client = createProxyClient();
-      const { data, error } = await client.POST(
-        "/trigo/actions/{id}/decline",
-        { params: { path: { id: actionId } } },
-      );
+      const { data, error } = await client.POST("/trigo/actions/{id}/decline", {
+        params: { path: { id: actionId } },
+      });
       if (error) throw error;
       return data;
     },

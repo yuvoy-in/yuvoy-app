@@ -206,9 +206,10 @@ describe("classifyCardError", () => {
     expect(classifyCardError(apiError(401, "unauthorized"))).toEqual({
       kind: "signed_out",
     });
-    expect(classifyCardError(apiError(429, "rate_limited", "Slow."))).toEqual(
-      { kind: "rate_limited", message: "Slow." },
-    );
+    expect(classifyCardError(apiError(429, "rate_limited", "Slow."))).toEqual({
+      kind: "rate_limited",
+      message: "Slow.",
+    });
     expect(classifyCardError(apiError(503, "unavailable", "Off."))).toEqual({
       kind: "unavailable",
       message: "Off.",

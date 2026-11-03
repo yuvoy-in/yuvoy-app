@@ -223,11 +223,7 @@ export function ActionCard({
       {proposed ? (
         <div className="flex flex-wrap gap-2">
           {canConfirm ? (
-            <Button
-              size="sm"
-              disabled={pending}
-              onClick={() => run("confirm")}
-            >
+            <Button size="sm" disabled={pending} onClick={() => run("confirm")}>
               {card.confirmLabel}
             </Button>
           ) : null}
