@@ -2,12 +2,19 @@
 
 import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateReservation } from "@/lib/booking/use-checkout";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { markArrival } from "@/lib/booking/arrival";
 import { finishInCash } from "@/lib/booking/cash-booking";
 import { PAY_AT_COUNTER, paymentLine } from "@/lib/booking/listing-lines";
 import { readAttribution } from "@/lib/booking/attribution";
+import {
+  clearTrigoCheckout,
+  dropTrigoTotal,
+  trigoCheckoutFor,
+} from "@/lib/trigo/checkout-prefill";
+import { readCardChatAgain } from "@/lib/trigo/actions";
 import {
   ScreeningFields,
   bandMeetsMinimum,
@@ -78,6 +85,7 @@ export function CheckoutForm({
   onGuestsChange,
   onRefused,
   arrive = false,
+  trigoCardId = null,
 }: {
   experience: Experience;
   slot: Slot;
@@ -98,6 +106,11 @@ export function CheckoutForm({
    * traveller looks next.
    */
   onRefused?: (message: string) => void;
+  /**
+   * The address's `?card=`: the Trigo card this checkout was opened from.
+   * A card's prefill applies only when it names that card (yuvoy-app#223).
+   */
+  trigoCardId?: string | null;
 }) {
   /*
     THE DEAD FORM, REFUSED BEFORE IT RENDERS — yuvoy-app#28.
@@ -135,6 +148,7 @@ export function CheckoutForm({
       onGuestsChange={onGuestsChange}
       onRefused={onRefused}
       arrive={arrive}
+      trigoCardId={trigoCardId}
     />
   );
 }
@@ -146,6 +160,7 @@ function CheckoutFields({
   onGuestsChange,
   onRefused,
   arrive,
+  trigoCardId,
 }: {
   experience: Experience;
   slot: Slot;
@@ -153,8 +168,10 @@ function CheckoutFields({
   onGuestsChange?: (guests: number) => void;
   onRefused?: (message: string) => void;
   arrive: boolean;
+  trigoCardId: string | null;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const create = useCreateReservation();
   const { refresh, signedIn } = useTravellerSession();
 
@@ -386,6 +403,10 @@ function CheckoutFields({
       ) {
         onRefused?.(error.message);
       }
+      // A Trigo card's total that moved is not sent again (yuvoy-app#223).
+      if (error instanceof YuvoyError && error.code === "price_moved") {
+        dropTrigoTotal(experience.slug);
+      }
       /*
         A 401 is the exception worth acting on rather than only showing. The
         proxy has already dropped the cookie by the time it arrives, so the
@@ -410,7 +431,17 @@ function CheckoutFields({
       exists". Absent when the visit made no claim; a checkout must not fail
       over a marketing field.
     */
-    const attribution = readAttribution();
+    /*
+      From a Trigo book card (yuvoy-app#223 part 2): attribution trigo with
+      the card's id, and, while the departure and party are still the card's,
+      the card's key and the total it was checked at. Only on the checkout
+      the card opened (its `?card=`). Null otherwise.
+    */
+    const trigo = trigoCheckoutFor(experience.slug, trigoCardId, {
+      slotId: slot.id,
+      guests,
+    });
+    const attribution = trigo?.attribution ?? readAttribution();
 
     const reservation = await create.mutateAsync({
       slotId: slot.id,
@@ -436,8 +467,11 @@ function CheckoutFields({
         Written like this, a misspelt key is a compile error. `undefined`
         leaves it out of the JSON and out of the idempotency fingerprint.
       */
-      expectTotalPaise: total?.amountMinor,
+      expectTotalPaise: trigo?.expectTotalPaise ?? total?.amountMinor,
       authenticated: contact.authenticated,
+      ...(trigo?.idempotencyKey
+        ? { idempotencyKey: trigo.idempotencyKey }
+        : {}),
       contact: {
         ...contact.contactFor({ name, phone: whatsapp, email }),
         /*
@@ -482,6 +516,11 @@ function CheckoutFields({
         ? { answers: toBookingAnswers(questions, answers) }
         : {}),
     });
+    if (trigo) {
+      clearTrigoCheckout(experience.slug);
+      // Back in the chat, the card reads Booked and offers no checkout.
+      if (trigoCardId) readCardChatAgain(queryClient, trigoCardId);
+    }
 
     if (!reservation.statusToken) {
       // Booked, and no way in. Say so, with the way in that does exist.

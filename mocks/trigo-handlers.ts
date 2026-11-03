@@ -1,6 +1,11 @@
 import { http, HttpResponse, delay } from "msw";
 import type { components } from "../src/lib/api/schema.gen";
 import { mockHeaders, mockNow } from "./fixtures";
+import {
+  TRIGO_CARD_SCENARIOS,
+  trigoCardFor,
+  trigoCardHandlers,
+} from "./trigo-card-handlers";
 
 /**
  * Trigo, the chat (yuvoy-app#223, R5-T5, yuvoy-mobile#356): the turn, the
@@ -22,16 +27,25 @@ import { mockHeaders, mockNow } from "./fixtures";
  *     A turn that names the closed chat goes on in the open one, and its
  *     answer names the open chat's id, as the API does.
  *   - `trigo-slow`: as `trigo-reply`, 20 seconds late (under the 30 s
- *     write stall, so it is an answer and not a timeout).
+ *     write stall, so it is an answer and not a timeout). The same key sent
+ *     again while it is out is `409 idempotency_in_progress` with
+ *     `Retry-After: 2`, as the API answers it.
  *   - `trigo-down`: `503 unavailable`.
  *   - `trigo-consent`: the notice is not accepted yet, and a turn is
  *     `409 consent_required` until `POST /trigo/consent` takes the version in
  *     force.
  *   - `trigo-age`: a turn is `403 adult_confirmation_required` until
  *     `PUT /me/age` is `200`; then it is answered.
- *   - `trigo-busy`: `409 turn_in_progress`.
+ *   - `trigo-busy`: `409 turn_in_progress`, with no `Retry-After`, as the
+ *     API answers it.
+ *   - `trigo-fast`: a turn is `429 rate_limited` with `Retry-After: 1`, the
+ *     API's turn limiter (yuvoy-api#598). It stands before every other check
+ *     of the turn, as the limiter stands in front of the route. Its day limit
+ *     is `trigo-limit`, which sends no `Retry-After`.
  *   - `trigo-not-released`: `trigo` stays `off`, so the turn and accept are
  *     `404`. The reads are not behind the release, as in the API.
+ *   - `trigo-card-*`: as `trigo-reply`, and each reply carries a confirm card
+ *     (yuvoy-app#223 part 2). See `trigo-card-handlers.ts`.
  *
  * Chats are kept per scenario and session (the `Authorization` header), so
  * two e2e projects signed in as different numbers never see each other's.
@@ -54,6 +68,7 @@ function envelope(
   message: string,
   status: number,
   details?: Record<string, unknown>,
+  headers?: Record<string, string>,
 ) {
   return HttpResponse.json(
     {
@@ -64,7 +79,7 @@ function envelope(
         ...(details ? { details } : {}),
       },
     },
-    { status, headers: mockHeaders(rid()) },
+    { status, headers: { ...mockHeaders(rid()), ...headers } },
   );
 }
 
@@ -87,7 +102,9 @@ export const TRIGO_SCENARIOS: ReadonlySet<string> = new Set([
   "trigo-consent",
   "trigo-age",
   "trigo-busy",
+  "trigo-fast",
   "trigo-not-released",
+  ...TRIGO_CARD_SCENARIOS,
 ]);
 
 /** The stage a scenario gives `trigo`; null is `off`. */
@@ -142,6 +159,8 @@ interface TrigoState {
   ageConfirmed: boolean;
   /** Idempotency-Key to the text it carried and the stored turn. */
   keys: Map<string, { text: string; result: TrigoTurnResult }>;
+  /** Keys whose turn is still being answered (`trigo-slow`). */
+  inFlight: Set<string>;
 }
 
 const states = new Map<string, TrigoState>();
@@ -160,6 +179,7 @@ function stateOf(request: Request, auth: string): TrigoState {
       consentAccepted: scenario !== "trigo-consent",
       ageConfirmed: scenario !== "trigo-age",
       keys: new Map(),
+      inFlight: new Set(),
     };
     if (scenario === "trigo-continue") {
       const at = new Date(mockNow() - 2 * 24 * 60 * 60_000).toISOString();
@@ -277,6 +297,15 @@ export const trigoHandlers = [
     if (trigoStageOf(scenario) === null) {
       return envelope("not_found", NOT_RELEASED, 404);
     }
+    if (scenario === "trigo-fast") {
+      return envelope(
+        "rate_limited",
+        "Too many trigo turns in a short time. Wait a moment and try again.",
+        429,
+        undefined,
+        { "Retry-After": "1" },
+      );
+    }
     const key = request.headers.get("idempotency-key");
     if (!key || !KEY_SHAPE.test(key)) {
       return envelope(
@@ -299,6 +328,16 @@ export const trigoHandlers = [
       );
     }
     const state = stateOf(request, auth);
+
+    if (state.inFlight.has(key)) {
+      return envelope(
+        "idempotency_in_progress",
+        "Trigo is still answering this message. Read the chat for the answer.",
+        409,
+        undefined,
+        { "Retry-After": "2" },
+      );
+    }
 
     const stored = state.keys.get(key);
     if (stored) {
@@ -363,7 +402,11 @@ export const trigoHandlers = [
         { resetsAt },
       );
     }
-    if (scenario === "trigo-slow") await delay(20_000);
+    if (scenario === "trigo-slow") {
+      state.inFlight.add(key);
+      await delay(20_000);
+      state.inFlight.delete(key);
+    }
 
     const now = new Date(mockNow()).toISOString();
     if (!state.conversation) {
@@ -385,6 +428,7 @@ export const trigoHandlers = [
       fixed ? TIMED_OUT_TEXT : REPLY_TEXT,
       fixed,
     );
+    reply.actionCard = trigoCardFor(scenario, mockNow());
     state.messages.push(mine, reply);
     state.remaining -= 1;
     state.conversation = { ...state.conversation, lastMessageAt: now };
@@ -564,6 +608,25 @@ export const trigoHandlers = [
       { ageConfirmed: true },
       { headers: mockHeaders(rid()) },
     );
+  }),
+
+  ...trigoCardHandlers({
+    url,
+    scenarioOf,
+    sessionOf,
+    envelope,
+    headers: () => mockHeaders(rid()),
+    chatOf: (request, auth) => {
+      const state = stateOf(request, auth);
+      return {
+        messages: state.messages,
+        say: (text) => {
+          const line = message(state, "trigo", text, false);
+          state.messages.push(line);
+          return line;
+        },
+      };
+    },
   }),
 ];
 

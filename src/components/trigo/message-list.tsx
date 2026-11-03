@@ -5,6 +5,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import type { TrigoMessage } from "@/lib/trigo/api";
 import { ASK_THE_TEAM, GREETING, TRY_AGAIN, TYPING } from "@/lib/trigo/words";
+import { ActionCard } from "./action-card";
 import {
   REMOVED_MESSAGE,
   SPEAKER_TEAM,
@@ -25,14 +26,20 @@ export const HELP_PATH = "/help";
  * `role="log"` with `aria-live="polite"`: a new reply is read out once, after
  * whatever the reader was saying. The greeting sits at the top of a new chat
  * and is ours, not a message.
+ *
+ * A message with an `actionCard` has the card under its bubble
+ * (yuvoy-app#223 part 2), drawn as the server sent it.
  */
 export function MessageList({
   messages,
+  conversationId,
   typing,
   retrySeq,
   onRetry,
 }: {
   messages: TrigoMessage[];
+  /** The chat the messages are in: a card's answer changes its cache. */
+  conversationId: string | null;
   /** A turn is out: the typing line shows at the foot. */
   typing: boolean;
   /** The seq of a timed-out reply that offers Try again (same text, new key). */
@@ -66,6 +73,7 @@ export function MessageList({
           <MessageItem
             key={message.id}
             message={message}
+            conversationId={conversationId}
             canRetry={message.seq === retrySeq}
             onRetry={onRetry}
           />
@@ -97,10 +105,12 @@ function speakerOf(message: TrigoMessage): string {
 
 function MessageItem({
   message,
+  conversationId,
   canRetry,
   onRetry,
 }: {
   message: TrigoMessage;
+  conversationId: string | null;
   canRetry: boolean;
   onRetry: () => void;
 }) {
@@ -153,6 +163,9 @@ function MessageItem({
             </ButtonLink>
           ) : null}
         </div>
+      ) : null}
+      {message.actionCard ? (
+        <ActionCard card={message.actionCard} conversationId={conversationId} />
       ) : null}
     </li>
   );
