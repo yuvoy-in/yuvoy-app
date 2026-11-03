@@ -33,7 +33,6 @@ export {
  * Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
  * caller's own organisers, their helpers, their events and the numbers, and
  * `PUT /me/age`, the 18+ answer every organiser route needs. No claims routes.
- *
  * With no scenario the caller is an adult, `supply` is open and
  * `GET /me/organisers` holds `MY_ORGANISERS`: one in each state, and one the
  * caller helps on. Writes are kept per scenario and session (the
@@ -45,13 +44,11 @@ export {
  *   - `organisers-age`: `403 adult_confirmation_required` on every
  *     organiser route and `ageConfirmed: false` on `GET /me`, until
  *     `PUT /me/age` takes an adult answer for the session.
- *   - `organisers-closed-release`: `supply` is `off` and every organiser
- *     route is `404`, as the API answers outside the release.
+ *   - `organisers-closed-release`: `supply` is `off`, every route `404`.
  *   - `organisers-club`, `organisers-club-paused`: the caller holds groups
  *     (yuvoy-app#225); `organiser-club.ts` says what each does.
- *   - `organisers-door`, `-door-paused`, `-door-age`: the caller owns one
- *     verified organiser (yuvoy-app#226); `organiser-door.ts` answers the
- *     door. The age one asks the age as `organisers-age`.
+ *   - `organisers-door`, `-door-paused`, `-door-age` (yuvoy-app#226): one
+ *     verified organiser; `organiser-door.ts` says what each does.
  */
 
 type Organiser = components["schemas"]["Organiser"];

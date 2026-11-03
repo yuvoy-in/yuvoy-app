@@ -43,7 +43,7 @@ import {
  * organiser is verified, for its owner and its helpers alike. A group's form
  * that met `409 club_already_linked` opens the group's organiser here with
  * the API's sentence, once, and the sentence shows even when the organiser
- * cannot be read. Left out from the phone: the group line.
+ * cannot be read.
  */
 export function OrganiserScreen({ id }: { id: string }) {
   const organiser = useOrganiser(id, true);
