@@ -220,6 +220,7 @@ export type Scenario =
   | "trigo-consent"
   | "trigo-age"
   | "trigo-busy"
+  | "trigo-fast"
   | "trigo-not-released"
   /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
   | `trigo-card-${string}`
