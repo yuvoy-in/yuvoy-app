@@ -599,6 +599,22 @@ repo=yuvoy-in/yuvoy-api
 #
 # Checked with `git ls-remote` immediately before pinning.
 
-ref=d879826904b18b656cf5b08bb75e6be19d09e351
+# 3 Nov 2026. Forward from d879826904b1 to 5f4bb498f6a5, the commit
+# yuvoy-app#230 names (yuvoy-api#601, live since 3 Nov 03:22 IST). Read for
+# removals first: no path and no schema is removed.
+#
+# Consumed in this change (yuvoy-app#230): `placeName` on each organiser and
+# on each `clubsToLink` group (yuvoy-api#596). The hub's group cards and a
+# group's fixed place line show it, so a place `GET /places` does not list
+# still has its name, and the `placeName()` lookup is gone. `Organiser.placeName`
+# is read only: no create or edit body sends it.
+#
+# Named, not consumed: `Club.claimable` (this app reads no `Club`), and the
+# `Retry-After` on the Trigo 429s (`RateLimitedRetryAfter`).
+#
+# Master had moved on to 6e7c180d1633 by `git ls-remote` on pinning; this pin
+# stays on the commit the issue names.
+
+ref=5f4bb498f6a5beb5326c4eb9818779154f3ceb32
 branch=master
-pinned_on=2026-10-31
+pinned_on=2026-11-03

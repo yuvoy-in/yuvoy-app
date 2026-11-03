@@ -54,6 +54,12 @@ function inScenario(scenario: string) {
   );
 }
 
+/** A held group on a place `GET /places` does not list yet. */
+const UNLISTED = {
+  ...CLUBS_HELD[0],
+  destinationKey: "andaman/long_island",
+};
+
 function cards() {
   return screen.queryAllByTestId("organiser-club-card");
 }
@@ -194,6 +200,20 @@ describe("OrganiserHub, groups held (yuvoy-app#225)", () => {
     expect(
       screen.getByRole("link", { name: W.setUp }).getAttribute("href"),
     ).toBe("/organiser/new");
+  });
+
+  it("names the place as the API does, also one GET /places has not listed (yuvoy-app#230)", async () => {
+    server.use(
+      http.get(`${BASE}/me/organisers`, () =>
+        HttpResponse.json({
+          items: [],
+          clubsToLink: [{ ...UNLISTED, placeName: "Long Island" }],
+        }),
+      ),
+    );
+    hub();
+    expect(await screen.findByText(W.clubCard(UNLISTED.name))).toBeTruthy();
+    expect(within(cards()[0]).getByText("Long Island")).toBeTruthy();
   });
 
   it("leaves the other group's card once one is set up, on the next read", async () => {

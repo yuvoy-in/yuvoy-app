@@ -8,10 +8,13 @@ import {
 } from "./organiser-fixtures";
 import { clubCreate, clubKept } from "./organiser-club";
 import {
+  BAD_BODY,
+  bodyOf,
   eventFrom,
   eventProblems,
   pageFrom,
   pageProblems,
+  sendsReadOnly,
   text,
 } from "./organiser-fields";
 import {
@@ -120,17 +123,6 @@ function paused(request: Request): Response | null {
     : null;
 }
 
-async function bodyOf(request: Request): Promise<Record<string, unknown>> {
-  try {
-    const body = (await request.json()) as unknown;
-    return typeof body === "object" && body !== null
-      ? (body as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
-}
-
 /** The organiser by id, or the 404 the API gives for one the caller is not in. */
 function organiserOf(
   store: Store,
@@ -213,6 +205,7 @@ export const organiserHandlers = [
     const no = refused(request) ?? paused(request);
     if (no) return no;
     const body = await bodyOf(request);
+    if (sendsReadOnly(body)) return envelope("invalid_input", BAD_BODY, 400);
     if ("clubId" in body) {
       const club = clubCreate(storeOf(request), scenarioOf(request), body);
       if ("made" in club) return answer(club.made, 201);
@@ -261,6 +254,7 @@ export const organiserHandlers = [
         : null);
     if (stop) return stop;
     const body = await bodyOf(request);
+    if (sendsReadOnly(body)) return envelope("invalid_input", BAD_BODY, 400);
     const kept = clubKept(org, body);
     if (kept)
       return envelope(kept.code, kept.message, kept.status, kept.details);

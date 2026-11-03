@@ -14,6 +14,7 @@ function organiser(over: Partial<Organiser> = {}): Organiser {
     slug: "sunrise-walkers",
     name: "Sunrise Walkers",
     destinationKey: "goa",
+    placeName: "Goa",
     departments: ["outdoors"],
     links: [],
     state: "verified",
@@ -29,6 +30,7 @@ describe("a group's page", () => {
     clubId: "5a0c1e2f-0000-4000-8000-000000000000",
     name: "Sample Lagoon Runners",
     destinationKey: "andaman/havelock",
+    placeName: "Havelock (Swaraj Dweep)",
     category: "sports",
     ...over,
   });
