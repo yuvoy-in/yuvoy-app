@@ -34,6 +34,8 @@ import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
+import { peopleHandlers } from "./people-handlers";
+import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
@@ -207,6 +209,18 @@ export type Scenario =
   | "creator-links-down"
   | "creator-tools-off"
   | "creator-outside"
+  /*
+    People: friend requests and the friend link (yuvoy-app#222). Each opens
+    `people`, at `staff` but `people-all`; `people-handlers.ts` says what
+    each does and lists the fixed friend link codes.
+  */
+  | "people"
+  | "people-all"
+  | "people-first"
+  | "people-paused"
+  | "people-age-locked"
+  | "people-down"
+  | "people-outside"
   /*
     Trigo, the chat (yuvoy-app#223, R5-T5). Each but `trigo-not-released`
     opens `trigo` at `staff`; `trigo-handlers.ts` says what each does.
@@ -1210,7 +1224,8 @@ const routes = [
     The app's config, with how far each release has reached (R0-T2): every
     release `off`, as on dev and production today, unless a scenario moves
     `explore`, `checkedCities` (yuvoy-app#180's, at `staff`), `creator`
-    (yuvoy-app#207's, at `staff`) or `trigo` (yuvoy-app#223's, at `staff`).
+    (yuvoy-app#207's, at `staff`), `people` (yuvoy-app#222's, at `staff`,
+    or `all` under `people-all`) or `trigo` (yuvoy-app#223's, at `staff`).
     `trigoActions` is the one at `all`, so a card's buttons show wherever
     Trigo does; `trigo-card-actions-off` turns it `off`.
   */
@@ -1239,6 +1254,7 @@ const routes = [
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
+          people: peopleStageOf(scenario) ?? "off",
           trigo: trigoStageOf(scenario) ?? "off",
           trigoActions: trigoActionsStageOf(scenario),
           supply: organiserSupplyOf(scenario),
@@ -1427,6 +1443,8 @@ const routes = [
   ...planHandlers,
   // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
   ...planLinkHandlers,
+  // People: friend requests and the friend link (yuvoy-app#222).
+  ...peopleHandlers,
 ];
 
 // Under R3's scenarios every answer is dated by their clock (`checked-clock.ts`).
