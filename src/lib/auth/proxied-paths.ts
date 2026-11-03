@@ -42,6 +42,17 @@ export interface ProxiedPath {
    * slash, so `{id}` can never widen into a traversal.
    */
   pattern: string;
+  /**
+   * A read the API counts against the caller, so it is held to the same
+   * same-origin check as a write: a GET from another `*.yuvoy.in` page
+   * carries the Lax cookie and would spend the traveller's allowance.
+   */
+  counted?: true;
+  /**
+   * What the proxy says when there is no session cookie, where the issue
+   * gives a sentence of its own. Otherwise "Sign in first."
+   */
+  signedOut?: string;
 }
 
 export const PROXIED_PATHS: readonly ProxiedPath[] = [
@@ -160,6 +171,17 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     credential.
   */
   { method: "GET", pattern: "/me/places" },
+  /*
+    Download my data (yuvoy-app#221, R9-T4). A sign-in session only, which is
+    the only kind this proxy holds. GET only: nothing else lives under
+    `/me/export`. Counted: each file made is one of three a day.
+  */
+  {
+    method: "GET",
+    pattern: "/me/export",
+    counted: true,
+    signedOut: "Sign in to download your data.",
+  },
   /*
     A found feed's later pages, signed in (yuvoy-app#179). The session decides
     which places this caller may read: with `explore` at `staff`, only a staff
@@ -386,11 +408,18 @@ export function proxyPathOf(segments: readonly string[]): string | null {
  * contains an id.
  */
 export function allowedProxyPath(method: string, path: string): string | null {
+  return proxiedRule(method, path)?.pattern ?? null;
+}
+
+/** The whole entry this method and path are allowed under, or `null`. */
+export function proxiedRule(method: string, path: string): ProxiedPath | null {
   if (!path.startsWith("/")) return null;
   // Refuse anything that could climb, before it reaches a URL constructor.
   if (path.includes("..") || path.includes("//") || path.includes("\\")) {
     return null;
   }
   const match = COMPILED.find((p) => p.method === method && p.re.test(path));
-  return match?.pattern ?? null;
+  if (!match) return null;
+  const { method: m, pattern, counted, signedOut } = match;
+  return { method: m, pattern, counted, signedOut };
 }

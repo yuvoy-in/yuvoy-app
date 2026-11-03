@@ -32,6 +32,7 @@ import { statedSampleById } from "./found-stated-fixtures";
 import { checkedClock } from "./checked-clock";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
+import { exportHandlers } from "./export-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
@@ -1488,6 +1489,8 @@ const routes = [
   ...planHandlers,
   // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
   ...planLinkHandlers,
+  // Download my data (yuvoy-app#221).
+  ...exportHandlers,
   // People: friend requests and the friend link (yuvoy-app#222).
   ...peopleHandlers,
   // Crews: named lists of friends (yuvoy-app#227).
