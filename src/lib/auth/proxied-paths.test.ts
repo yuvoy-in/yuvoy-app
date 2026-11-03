@@ -185,10 +185,10 @@ describe("what the proxy will forward", () => {
     */
     const id = "8f14e45f-ceea-4e7a-9b1d-2c4a6e0f9b10";
     expect(allowedProxyPath("POST", `/trigo/actions/${id}/confirm`)).toBe(
-      `/trigo/actions/${id}/confirm`,
+      "/trigo/actions/{id}/confirm",
     );
     expect(allowedProxyPath("POST", `/trigo/actions/${id}/decline`)).toBe(
-      `/trigo/actions/${id}/decline`,
+      "/trigo/actions/{id}/decline",
     );
     expect(allowedProxyPath("GET", `/trigo/actions/${id}/confirm`)).toBeNull();
     expect(allowedProxyPath("GET", `/trigo/actions/${id}`)).toBeNull();
