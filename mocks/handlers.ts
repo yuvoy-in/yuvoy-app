@@ -34,6 +34,7 @@ import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
+import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
 
 /**
@@ -205,6 +206,20 @@ export type Scenario =
   | "creator-links-down"
   | "creator-tools-off"
   | "creator-outside"
+  /*
+    Trigo, the chat (yuvoy-app#223, R5-T5). Each but `trigo-not-released`
+    opens `trigo` at `staff`; `trigo-handlers.ts` says what each does.
+  */
+  | "trigo-reply"
+  | "trigo-fixed-reply"
+  | "trigo-limit"
+  | "trigo-continue"
+  | "trigo-slow"
+  | "trigo-down"
+  | "trigo-consent"
+  | "trigo-age"
+  | "trigo-busy"
+  | "trigo-not-released"
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
     with one organiser in each state; `organiser-handlers.ts` says what each
@@ -420,6 +435,8 @@ const routes = [
   */
   ...creatorLinkHandlers,
 
+  // Trigo, the chat (yuvoy-app#223). Before the organisers: see `PUT /me/age` there.
+  ...trigoHandlers,
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
 
@@ -1182,8 +1199,8 @@ const routes = [
   /*
     The app's config, with how far each release has reached (R0-T2): every
     release `off`, as on dev and production today, unless a scenario moves
-    `explore`, `checkedCities` (yuvoy-app#180's, at `staff`) or `creator`
-    (yuvoy-app#207's, at `staff`).
+    `explore`, `checkedCities` (yuvoy-app#180's, at `staff`), `creator`
+    (yuvoy-app#207's, at `staff`) or `trigo` (yuvoy-app#223's, at `staff`).
   */
   http.get(url("/app-config"), async ({ request }) => {
     const failed = await commonFailure(request);
@@ -1210,6 +1227,7 @@ const routes = [
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
+          trigo: trigoStageOf(scenario) ?? "off",
           supply: organiserSupplyOf(scenario),
         },
       },
