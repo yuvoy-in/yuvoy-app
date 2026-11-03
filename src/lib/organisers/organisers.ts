@@ -5,6 +5,7 @@ import {
   type Civil,
 } from "@/lib/format/date";
 import { formatMoney } from "@/lib/format/money";
+import { sentLinkRows } from "./organisers-links";
 import type {
   Organiser,
   OrganiserEvent,
@@ -21,8 +22,9 @@ import { ORGANISER_WORDS as W } from "./words";
  * What an organiser's state and the person's role allow, and how its pages
  * and events are said and sent (yuvoy-app#224, the web half of
  * yuvoy-mobile#393). Ported from the phone's `organisers.ts` on
- * yuvoy-mobile dev, without the group setup. The API holds every one of these
- * rules too; these decide only what is drawn and what is sent.
+ * yuvoy-mobile dev, with the group setup of yuvoy-app#225 (yuvoy-mobile#395).
+ * The API holds every one of these rules too; these decide only what is drawn
+ * and what is sent.
  */
 
 /** The most departments a page runs, and the most links it carries. */
@@ -156,32 +158,6 @@ export function organiserInput(form: OrganiserPageForm): OrganiserInput {
   const email = form.contactEmail.trim();
   if (email) body.contactEmail = email;
   return body;
-}
-
-/** The form's link rows `organiserInput` sends, in order: every row with an address. */
-export function sentLinkRows(form: Pick<OrganiserPageForm, "links">): number[] {
-  return form.links.flatMap((link, row) => (link.url.trim() ? [row] : []));
-}
-
-/**
- * The API's field sentences with each `links.N` moved to the row it names on
- * screen. The API counts N over the links it was sent, and blank rows are not
- * sent, so `sent` (from `sentLinkRows`) maps one to the other. A link index
- * that was never sent goes under the links as a whole.
- */
-export function onLinkRows(
-  fields: Readonly<Record<string, string>>,
-  sent: readonly number[],
-): Record<string, string> {
-  const moved: Record<string, string> = {};
-  for (const [key, sentence] of Object.entries(fields)) {
-    const at = /^links\.(\d+)$/.exec(key);
-    const row = at ? sent[Number(at[1])] : undefined;
-    if (!at) moved[key] = sentence;
-    else if (row !== undefined) moved[`links.${row}`] = sentence;
-    else moved.links ??= sentence;
-  }
-  return moved;
 }
 
 /** A new page's form. */
