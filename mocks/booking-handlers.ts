@@ -15,6 +15,7 @@ import {
   peopleSummaryFor,
   setPeopleName,
 } from "./people-state";
+import { organiserAgeConfirmed } from "./organiser-handlers";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -495,6 +496,12 @@ function answerMe(request: Request): Response {
         `creator-tools-off`.
       */
       creatorToolsOn: creatorToolsOnFor(scenarioOf(request)),
+      /*
+        The 18+ answer: true, except under `organisers-age` until
+        `PUT /me/age` is answered (yuvoy-app#224), and the People session's
+        own answer under a People scenario (yuvoy-app#222).
+      */
+      ageConfirmed: organiserAgeConfirmed(request),
       ...(peopleAccount ? { ageConfirmed: peopleAccount.ageConfirmed } : {}),
       ...(peopleSummary ? { people: peopleSummary } : {}),
       onboardingRequired: fresh,
