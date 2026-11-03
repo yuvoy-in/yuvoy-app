@@ -94,3 +94,32 @@ export const TURN_OFF = "Turn off Trigo";
 
 /** Our draft: R5-T5 names no words for accepting the notice. */
 export const ACCEPT = "I understand";
+
+/*
+  The confirm card under a reply (yuvoy-app#223 part 2, yuvoy-mobile#391).
+  The card's heading, lines and both labels are the server's and drawn as
+  sent; these are the state lines #391 gives the app.
+*/
+
+/** While a confirm is out: both buttons are off. */
+export const CARD_CHECKING = "Checking it's still the same";
+
+/**
+ * A card read as `state: expired`. A confirm refused `409 action_changed` or
+ * `action_expired` shows the API's own sentence instead.
+ */
+export const CARD_EXPIRED_LINE = "This card has expired. Ask Trigo again.";
+
+/** A book card already confirmed: opens the same checkout again. */
+export const GO_TO_CHECKOUT = "Go to checkout";
+
+/** A book card used: a booking carries it. */
+export function bookedLine(reference: string): string {
+  return `Booked: ${reference}`;
+}
+
+/** A date alert card used. */
+export const DATE_ALERT_DONE = "Done. I'll tell you once when it has a date.";
+
+/** A trip draft card used. */
+export const TRIP_DRAFT_DONE = "Saved to your trips.";
