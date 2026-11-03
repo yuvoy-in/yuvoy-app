@@ -373,17 +373,43 @@ export function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
 }
 
 /**
+ * `Retry-After` as whole seconds, as the API sent it, or undefined.
+ *
+ * Only the seconds form the API sends is read. A date, a fraction, a sign,
+ * an empty value, 0 (no wait at all) or a number too large to hold exactly is
+ * ignored, so a screen without one behaves as it always did. A long wait is
+ * kept as sent: a day's limit sends the seconds until the day ends, and a
+ * screen that says when to come back needs all of them. A screen that holds a
+ * button for the wait cuts it where it reads it (the Trigo chat:
+ * `TRIGO_WAIT_MAX_SECONDS`).
+ */
+export function parseRetryAfter(
+  value: string | null | undefined,
+): number | undefined {
+  const text = value?.trim() ?? "";
+  if (!/^\d+$/.test(text)) return undefined;
+  const seconds = Number(text);
+  if (!Number.isSafeInteger(seconds) || seconds <= 0) return undefined;
+  return seconds;
+}
+
+/**
  * A typed API failure.
  *
  * `requestId` is carried deliberately and shown on error screens, small and
  * grey — it is the difference between finding somebody's exact request in the
  * logs and guessing.
+ *
+ * `retryAfterSeconds` is the answer's `Retry-After`, read by
+ * `parseRetryAfter`, wherever the error was built from a response that had
+ * one: how long a Try again should wait.
  */
 export class YuvoyError extends Error {
   readonly code: ErrorCode | "unknown_error";
   readonly status: number;
   readonly details: Record<string, unknown>;
   readonly requestId?: string;
+  readonly retryAfterSeconds?: number;
 
   constructor(init: {
     code: string;
@@ -391,6 +417,7 @@ export class YuvoyError extends Error {
     status: number;
     details?: Record<string, unknown>;
     requestId?: string;
+    retryAfterSeconds?: number;
   }) {
     super(init.message);
     this.name = "YuvoyError";
@@ -398,6 +425,7 @@ export class YuvoyError extends Error {
     this.status = init.status;
     this.details = init.details ?? {};
     this.requestId = init.requestId;
+    this.retryAfterSeconds = init.retryAfterSeconds;
   }
 
   /** Seats left, when the failure was `capacity_unavailable`. */

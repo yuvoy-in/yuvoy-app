@@ -130,6 +130,22 @@ export const CACHE = {
     gcTime: 60_000,
     refetchOnMount: "always",
   },
+  /**
+   * People (yuvoy-app#222): the home, the friends list, and a friend link's
+   * lookup. A request can arrive at any moment and an answer moves people
+   * between lists, so each is read again whenever its screen opens. The
+   * lookup is "never stored by a cache" in the contract, so nothing of it is
+   * kept once the page is gone.
+   */
+  getMyPeople: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
+  listMyFriends: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
+  // A POST limited to 30 a minute: never again on window focus.
+  lookupFriendLink: {
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -362,6 +378,14 @@ export const qk = {
   myLifeList: () => ["getMyLifeList"] as const,
   myBadges: () => ["getMyBadges"] as const,
   mySettings: () => ["getMySettings"] as const,
+  /**
+   * People (yuvoy-app#222). Not keyed by anything, for the reason
+   * `myBookings` gives, and removed on sign in and sign out
+   * (`forgetPeople`). The lookup is keyed by the code as the page has it.
+   */
+  myPeople: () => ["getMyPeople"] as const,
+  myFriends: () => ["listMyFriends"] as const,
+  friendLink: (code: string) => ["lookupFriendLink", code] as const,
   /**
    * One help request, by its reference, and by WHICH credential asked.
    *

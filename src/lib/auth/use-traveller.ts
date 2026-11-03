@@ -82,6 +82,17 @@ function forgetSupportRequests(qc: QueryClient): void {
 }
 
 /**
+ * People (yuvoy-app#222): the home, the friends list and any friend link
+ * looked up. Removed, for the reason `forgetSupportRequests` gives: they are
+ * a number's own friends and requests, by name.
+ */
+function forgetPeople(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.myPeople() });
+  qc.removeQueries({ queryKey: qk.myFriends() });
+  qc.removeQueries({ queryKey: ["lookupFriendLink"] });
+}
+
+/**
  * Trigo, on both sides of a change of who is signed in (yuvoy-app#223).
  *
  * REMOVED rather than invalidated, for the reason `refresh` gives: a chat is
@@ -195,6 +206,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getTable"] });
     // And share links are the number's own, with their counts.
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    // So are People: friends, requests, the friend link (yuvoy-app#222).
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
     forgetTrigo(qc);
@@ -276,6 +289,7 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getEvent"] });
     qc.removeQueries({ queryKey: ["getTable"] });
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
     forgetTrigo(qc);

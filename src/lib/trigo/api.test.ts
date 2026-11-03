@@ -5,6 +5,7 @@ import {
   classifyAgeError,
   classifyTrigoError,
   mergeBySeq,
+  TRIGO_WAIT_MAX_SECONDS,
   type TrigoMessage,
 } from "./api";
 
@@ -138,6 +139,52 @@ describe("classifyTrigoError", () => {
         ),
       ),
     ).toEqual({ kind: "failure" });
+  });
+
+  it("carries the answer's Retry-After on the kinds that send again", () => {
+    const wait = (status: number, code: string) =>
+      new YuvoyError({ status, code, message: "x", retryAfterSeconds: 3 });
+    expect(classifyTrigoError(wait(409, "idempotency_in_progress"))).toEqual({
+      kind: "idempotency_in_progress",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(409, "turn_in_progress"))).toEqual({
+      kind: "in_progress",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(503, "unavailable"))).toEqual({
+      kind: "busy",
+      message: "x",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(500, "internal_error"))).toEqual({
+      kind: "failure",
+      retryAfterSeconds: 3,
+    });
+    expect(classifyTrigoError(wait(429, "rate_limited"))).toEqual({
+      kind: "rate_limited",
+      message: "x",
+      retryAfterSeconds: 3,
+    });
+    // A wait longer than the chat holds is cut to TRIGO_WAIT_MAX_SECONDS.
+    expect(
+      classifyTrigoError(
+        new YuvoyError({
+          status: 429,
+          code: "rate_limited",
+          message: "x",
+          retryAfterSeconds: 3600,
+        }),
+      ),
+    ).toEqual({
+      kind: "rate_limited",
+      message: "x",
+      retryAfterSeconds: TRIGO_WAIT_MAX_SECONDS,
+    });
+    // Without one, nothing waits: the kind has no retryAfterSeconds at all.
+    expect(
+      classifyTrigoError(apiError(409, "idempotency_in_progress")),
+    ).not.toHaveProperty("retryAfterSeconds");
   });
 
   it("reads a request that never arrived as offline, and a stalled one as a failure", () => {
