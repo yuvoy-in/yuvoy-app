@@ -312,6 +312,48 @@ describe("CheckoutForm — the money rules", () => {
     expect(screen.getByText("01JCAP")).toBeInTheDocument();
   });
 
+  /*
+    yuvoy-app#219, the web half of yuvoy-mobile#368. A price for the whole
+    group also says what it comes to each, and the Total does not move.
+  */
+  it("says what a group price comes to each, under an unchanged Total", async () => {
+    expect(charter.pricingUnit).toBe("per_group");
+    renderWithQuery(
+      <CheckoutForm
+        experience={charter}
+        slot={charterSlot}
+        initialGuests={4}
+      />,
+    );
+    expect(await screen.findByTestId("checkout-each")).toHaveTextContent(
+      "₹4,500 each for 4 of you",
+    );
+    expect(screen.getByText("₹18,000")).toBeInTheDocument();
+    expect(screen.queryByText("₹72,000")).not.toBeInTheDocument();
+  });
+
+  it("says nothing each for one guest on a group price", async () => {
+    renderWithQuery(
+      <CheckoutForm
+        experience={charter}
+        slot={charterSlot}
+        initialGuests={1}
+      />,
+    );
+    await screen.findByLabelText("Your name");
+    expect(screen.queryByTestId("checkout-each")).not.toBeInTheDocument();
+    expect(screen.queryByText(/ each for /)).not.toBeInTheDocument();
+  });
+
+  it("says nothing each on a per-person price", async () => {
+    expect(dive.pricingUnit ?? "per_person").toBe("per_person");
+    renderWithQuery(
+      <CheckoutForm experience={dive} slot={diveSlot} initialGuests={3} />,
+    );
+    await screen.findByLabelText("Your name");
+    expect(screen.queryByTestId("checkout-each")).not.toBeInTheDocument();
+  });
+
   it("charges a price for the whole group once, and says so on the button", async () => {
     /*
       A ₹18,000 charter for three is ₹18,000. The form multiplied every price

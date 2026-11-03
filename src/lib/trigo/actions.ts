@@ -14,6 +14,7 @@ import type { components } from "@/lib/api/schema.gen";
 import {
   mergeBySeq,
   readTrigoChatInFull,
+  trigoWaitOf,
   type TrigoChatData,
   type TrigoMessage,
 } from "./api";
@@ -238,10 +239,10 @@ export type CardFailure =
   | { kind: "alerts_full"; message: string } // 409 date_alerts_full: 50 alerts waiting
   | { kind: "not_found"; message: string } // 404: not released, or not this traveller's card
   | { kind: "signed_out" } // 401
-  | { kind: "rate_limited"; message: string } // 429
-  | { kind: "unavailable"; message: string } // 503: feature:trigo_actions engaged
+  | { kind: "rate_limited"; message: string; retryAfterSeconds?: number } // 429, Retry-After from the traveller's limiter
+  | { kind: "unavailable"; message: string; retryAfterSeconds?: number } // 503: feature:trigo_actions engaged
   | { kind: "offline" } // no connection
-  | { kind: "failure" }; // anything else
+  | { kind: "failure"; retryAfterSeconds?: number }; // anything else
 
 function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
@@ -251,6 +252,10 @@ function isOffline(): boolean {
  * What a confirm or decline failure does to the card. Branches on the status
  * and `error.code` only (YuvoyError), never on the message text; the message
  * is carried only where the card shows the API's own sentence.
+ *
+ * The kinds that leave the buttons for a tap again carry the answer's
+ * `Retry-After` (`trigoWaitOf`, cut to two minutes): the card holds its
+ * buttons that long, as the chat holds Try again.
  */
 export function classifyCardError(error: unknown): CardFailure {
   if (isOffline()) return { kind: "offline" };
@@ -282,9 +287,21 @@ export function classifyCardError(error: unknown): CardFailure {
     if (code === "date_alerts_full") {
       return { kind: "alerts_full", message: error.message };
     }
-    return { kind: "failure" };
+    return { kind: "failure", ...trigoWaitOf(error) };
   }
-  if (status === 429) return { kind: "rate_limited", message: error.message };
-  if (status === 503) return { kind: "unavailable", message: error.message };
-  return { kind: "failure" };
+  if (status === 429) {
+    return {
+      kind: "rate_limited",
+      message: error.message,
+      ...trigoWaitOf(error),
+    };
+  }
+  if (status === 503) {
+    return {
+      kind: "unavailable",
+      message: error.message,
+      ...trigoWaitOf(error),
+    };
+  }
+  return { kind: "failure", ...trigoWaitOf(error) };
 }
