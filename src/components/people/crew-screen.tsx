@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { crewMissing, useDeleteCrew } from "@/lib/people/use-crews";
+import { usePeopleHome } from "@/lib/people/use-people";
 import {
   CREWS_WORDS as W,
   crewCountLine,
@@ -83,6 +84,11 @@ function CrewView({
 }) {
   const [asking, setAsking] = useState(false);
   const membersId = useId();
+  // Paused or ended People keeps the crew in view and Delete, but not the
+  // ways to invite or change it, as on the phone. Until the read answers the
+  // page shows them; the API still refuses a paused caller with a 403.
+  const standing = usePeopleHome(true).data?.standing;
+  const paused = standing === "restricted" || standing === "removed";
 
   return (
     <>
@@ -124,14 +130,18 @@ function CrewView({
       {/* Under the members and before the ways to change the crew, as on the
           phone. It shows only while People and plans are open and the crew
           has someone in it. */}
-      <div className="mt-8 empty:hidden">
-        <CrewInvite crewId={crew.crewId} memberCount={crew.members.length} />
-      </div>
+      {paused ? null : (
+        <div className="mt-8 empty:hidden">
+          <CrewInvite crewId={crew.crewId} memberCount={crew.members.length} />
+        </div>
+      )}
 
       <div className="mt-8 flex flex-wrap gap-3">
-        <ButtonLink href={`/people/crews/${crew.crewId}/edit`} size="lg">
-          {W.edit}
-        </ButtonLink>
+        {paused ? null : (
+          <ButtonLink href={`/people/crews/${crew.crewId}/edit`} size="lg">
+            {W.edit}
+          </ButtonLink>
+        )}
         {asking ? null : (
           <Button variant="outline" size="lg" onClick={() => setAsking(true)}>
             {W.delete}

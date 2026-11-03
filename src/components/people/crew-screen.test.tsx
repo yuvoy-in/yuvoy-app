@@ -365,6 +365,28 @@ describe("/people/crews/{crewId}: Invite to a plan", () => {
     ).toBeNull();
   });
 
+  it.each(["restricted", "removed"] as const)(
+    "is not shown, and nor is Edit, while People is %s",
+    async (standing) => {
+      signedIn();
+      releases({ people: "all", plans: "all" });
+      answer("get", "/me/people", json(home({ standing })));
+      crews(GANG);
+      show();
+      await heading("College gang");
+      expect(
+        await screen.findByRole("button", { name: W.delete }),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByRole("link", { name: W.edit })).toBeNull(),
+      );
+      expect(
+        screen.queryByRole("button", { name: CREW_INVITE_WORDS.button }),
+      ).toBeNull();
+      expect(screen.getAllByTestId("crew-member")).toHaveLength(2);
+    },
+  );
+
   it("is not shown while plans is closed", async () => {
     signedIn();
     releases({ people: "all", plans: "off" });
