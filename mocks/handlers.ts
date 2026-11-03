@@ -233,6 +233,7 @@ export type Scenario =
   | "trigo-consent"
   | "trigo-age"
   | "trigo-busy"
+  | "trigo-fast"
   | "trigo-not-released"
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
