@@ -272,9 +272,7 @@ export function trigoCardHandlers(deps: CardMockDeps) {
 
   function find(request: Request, auth: string, id: unknown) {
     const chat = chatOf(request, auth);
-    const index = chat.messages.findIndex(
-      (m) => m.actionCard?.actionId === id,
-    );
+    const index = chat.messages.findIndex((m) => m.actionCard?.actionId === id);
     const card = index >= 0 ? chat.messages[index].actionCard : null;
     return { chat, index, card: card ?? null };
   }

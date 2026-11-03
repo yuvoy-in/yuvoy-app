@@ -252,8 +252,7 @@ export function ActionCard({
       )}
     >
       <p id={headingId} className="label">
-        <span className="sr-only">{CARD_LABEL}: </span>
-        {card.heading}
+        <span className="sr-only">{CARD_LABEL}:</span> {card.heading}
       </p>
       {card.lines.length > 0 ? (
         <ul className="flex flex-col gap-1">
@@ -293,11 +292,7 @@ export function ActionCard({
       {proposed ? (
         <div className="flex flex-wrap gap-2">
           {canConfirm && open ? (
-            <Button
-              size="sm"
-              disabled={pending}
-              onClick={() => run("confirm")}
-            >
+            <Button size="sm" disabled={pending} onClick={() => run("confirm")}>
               {card.confirmLabel}
             </Button>
           ) : null}

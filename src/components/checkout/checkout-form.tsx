@@ -437,11 +437,10 @@ function CheckoutFields({
       the card's key and the total it was checked at. Only on the checkout
       the card opened (its `?card=`). Null otherwise.
     */
-    const trigo = trigoCheckoutFor(
-      experience.slug,
-      trigoCardId,
-      { slotId: slot.id, guests },
-    );
+    const trigo = trigoCheckoutFor(experience.slug, trigoCardId, {
+      slotId: slot.id,
+      guests,
+    });
     const attribution = trigo?.attribution ?? readAttribution();
 
     const reservation = await create.mutateAsync({
