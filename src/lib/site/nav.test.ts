@@ -22,6 +22,11 @@ describe("focused routes", () => {
     ["/tables/7d3f9a2e-4c1b-4e8a-9f60-2b5d8c1e7a40", true],
     // A plan has its own Back, and its reply button at the foot of the form.
     ["/plans/8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52", true],
+    // A crew and its editor: a Back to People, and Save at the foot of a
+    // long list (yuvoy-app#227).
+    ["/people/crews/new", true],
+    ["/people/crews/7b4d2e9f-3c5a-4d2b-8f1e-2e3d4c5b6a71", true],
+    ["/people/crews/7b4d2e9f-3c5a-4d2b-8f1e-2e3d4c5b6a71/edit", true],
     ["/guides/diving-in-havelock", true],
     ["/offline", true],
     ["/", false],

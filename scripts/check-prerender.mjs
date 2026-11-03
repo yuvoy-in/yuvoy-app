@@ -75,6 +75,9 @@ const ALLOWED = {
   "/people":
     "People (yuvoy-app#222). A client screen read with the session through " +
     "the proxy. The shell carries no data and no clock.",
+  "/people/crews/new":
+    "A new crew (yuvoy-app#227). A form read with the session through the " +
+    "proxy. The shell carries no data and no clock.",
   "/robots.txt": "Static, gated on NEXT_PUBLIC_ALLOW_INDEXING at build time.",
   "/saved":
     "The wishlist. Reads IndexedDB in the browser, same as /trips. The shell " +
