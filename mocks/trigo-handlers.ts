@@ -513,9 +513,12 @@ export const trigoHandlers = [
 
   /*
     The year asked once (R4-T1). Under `trigo-age` it is what opens the turn.
-    Answered for every scenario, as no other handler answers it.
+    Answered only under a Trigo scenario: under any other, this returns
+    nothing and the organiser pages' handler (`organiser-handlers.ts`,
+    listed after this file) answers, so each keeps its own record.
   */
   http.put(url("/me/age"), async ({ request }) => {
+    if (!TRIGO_SCENARIOS.has(scenarioOf(request))) return undefined;
     const auth = request.headers.get("authorization");
     if (!auth || !auth.includes("Bearer sess_")) {
       return envelope("unauthorized", "Sign in to add your birth year.", 401);

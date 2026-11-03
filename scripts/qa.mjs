@@ -1783,6 +1783,30 @@ for (const f of files) {
       "the leaving sheet, opened by See details",
     ],
     [
+      "src/components/organisers/age-step.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/organisers/organiser-event-form-parts.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/organisers/organiser-event-form.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/organisers/organiser-form-parts.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/organisers/organiser-form.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/organisers/organiser-helpers.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
       "src/components/plans/guest-plan.tsx",
       "the guest's first name, drawn once the plan has loaded in the browser",
     ],
