@@ -185,8 +185,7 @@ export function ActionCard({
       )}
     >
       <p id={headingId} className="label">
-        <span className="sr-only">{CARD_LABEL}: </span>
-        {card.heading}
+        <span className="sr-only">{CARD_LABEL}:</span> {card.heading}
       </p>
       {card.lines.length > 0 ? (
         <ul className="flex flex-col gap-1">
