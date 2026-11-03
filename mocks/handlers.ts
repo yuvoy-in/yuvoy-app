@@ -40,6 +40,7 @@ import { crewHandlers } from "./crew-handlers";
 import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { trigoActionsStageOf } from "./trigo-card-handlers";
+import { trigoListHandlers } from "./trigo-list-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
 import { doorHandlers } from "./organiser-door";
 import { meHandlers, meStageOf, meTablesStageOf } from "./me-handlers";
@@ -255,6 +256,9 @@ export type Scenario =
   | "trigo-not-released"
   /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
   | `trigo-card-${string}`
+  /* Date alerts and trip drafts (yuvoy-app#220): `trigo-list-handlers.ts`. */
+  | "trigo-lists"
+  | `trigo-lists-${string}`
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
     with one organiser in each state; `organiser-handlers.ts` says what each
@@ -498,6 +502,8 @@ const routes = [
 
   // Trigo, the chat (yuvoy-app#223). Before the organisers: see `PUT /me/age` there.
   ...trigoHandlers,
+  /* Date alerts and trip drafts (yuvoy-app#220). */
+  ...trigoListHandlers,
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
   /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */
