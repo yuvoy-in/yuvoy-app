@@ -9,9 +9,12 @@ import { ORGANISER_WORDS as W } from "./words";
  * known sentence as the fallback when an answer came without one. The order
  * matches the order the API checks in.
  *
- * Left out from the phone: the group kinds (`not_club_holder`,
- * `people_paused`, `club_already_linked`). On the web `organiser_email_required`
- * is `emailRequired`: the API's sentence, with no button.
+ * A group's setup (yuvoy-app#225): 409 `club_already_linked` is `clubLinked`,
+ * which opens the person's own organiser in `details.organiserId`. 403
+ * `not_club_holder` and `people_paused` stay `other` with the API's sentence,
+ * and the group's 404 is `notFound`, as any other 404. `clubId` is a field, so
+ * its 400 is `fields` like the rest. On the web `organiser_email_required` is
+ * `emailRequired`: the API's sentence, with no button.
  */
 
 /** The page's fields (`OrganiserInput`), each a `details` key with its own sentence. */
@@ -42,13 +45,30 @@ export const ORGANISER_EVENT_FIELDS = [
   "about",
 ] as const;
 
-/** Every key a form shows a sentence under: the bodies, a helper's `email`, the numbers' `on`. */
+/**
+ * Every key a form shows a sentence under: the bodies, a group's `clubId`, a
+ * helper's `email`, the numbers' `on`.
+ */
 const KNOWN: ReadonlySet<string> = new Set<string>([
   ...ORGANISER_PAGE_FIELDS,
   ...ORGANISER_EVENT_FIELDS,
+  "clubId",
   "email",
   "on",
 ]);
+
+/**
+ * The answer's `Retry-After` in seconds, or null. Read by name so it works
+ * before and after the client carries it: yuvoy-app#223 adds
+ * `YuvoyError.retryAfterSeconds`, filled from the header by the client.
+ */
+function retryAfterOf(error: YuvoyError): number | null {
+  const seconds: unknown = (error as { retryAfterSeconds?: unknown })
+    .retryAfterSeconds;
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0
+    ? seconds
+    : null;
+}
 
 /** A page link's own key: `links.0` to `links.2`. */
 const LINK_KEY = /^links\.\d{1,2}$/;
@@ -83,13 +103,18 @@ export type OrganiserRefusal =
   | { kind: "notMember"; message: string }
   /** 403 `not_owner`. */
   | { kind: "notOwner"; message: string }
+  /**
+   * 409 `club_already_linked`: the group has an organiser already, and
+   * `details.organiserId` is the person's own, so the screen opens it.
+   */
+  | { kind: "clubLinked"; message: string; organiserId: string }
   /** 409 `event_has_ended`. */
   | { kind: "ended"; message: string }
   /** 409 `conflict`, with `details.state` (the organiser's or the event's). */
   | { kind: "conflict"; state: string | null; message: string }
   /**
-   * 429: the API's sentence. `retryAfterSec` is always null on the web for
-   * now: the client's `YuvoyError` does not carry `Retry-After`.
+   * 429: the API's sentence, and its `Retry-After` in seconds when the error
+   * carries one (a day limit sends it; "too fast" does not).
    */
   | { kind: "limit"; message: string; retryAfterSec: number | null }
   /** No answer (offline, a stall, a timeout). A write may have gone through. */
@@ -142,6 +167,15 @@ export function organiserRefusal(error: unknown): OrganiserRefusal {
         return { kind: "notMember", message: said || W.notMember };
       if (code === "not_owner")
         return { kind: "notOwner", message: said || W.notOwner };
+      if (code === "not_club_holder")
+        return { kind: "other", message: said || W.notClubHolder };
+      if (code === "people_paused") {
+        const ended = text(details.standing) === "ended";
+        return {
+          kind: "other",
+          message: said || (ended ? W.peopleEnded : W.peoplePaused),
+        };
+      }
       return { kind: "other", message: said || null };
     case 404:
       return { kind: "notFound", message: said || W.notFound };
@@ -150,6 +184,13 @@ export function organiserRefusal(error: unknown): OrganiserRefusal {
         return { kind: "emailRequired", message: said || W.needEmail };
       if (code === "event_has_ended")
         return { kind: "ended", message: said || W.notNow };
+      if (code === "club_already_linked") {
+        const organiserId = text(details.organiserId);
+        // With no organiser to open, it is the API's sentence and nothing more.
+        return organiserId
+          ? { kind: "clubLinked", message: said || W.clubLinked, organiserId }
+          : { kind: "other", message: said || W.clubLinked };
+      }
       if (code === "conflict") {
         const state = text(details.state) || null;
         return {
@@ -164,7 +205,7 @@ export function organiserRefusal(error: unknown): OrganiserRefusal {
       return {
         kind: "limit",
         message: said || W.slowDown,
-        retryAfterSec: null,
+        retryAfterSec: retryAfterOf(error),
       };
     case 503:
       // The kill switch: a pause, never a fault.
