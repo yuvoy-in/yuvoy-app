@@ -116,6 +116,20 @@ export const CACHE = {
     gcTime: 0,
     refetchOnMount: "always",
   },
+
+  /**
+   * Every organiser read (yuvoy-app#224): the list, a page, its events, an
+   * event's numbers and the helpers. "Never cached" in the contract, so every
+   * mount reads again. Kept a minute rather than none, unlike the share
+   * links: a page just made or saved is written into its entry, and the
+   * screen it opens next must find it there. Sign in and sign out remove all
+   * of it (`forgetOrganisers`).
+   */
+  organisers: {
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnMount: "always",
+  },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -317,6 +331,18 @@ export const qk = {
    * sign out with the rest of what belongs to a number.
    */
   myCreatorLinks: () => ["listMyCreatorLinks"] as const,
+  /**
+   * The signed-in traveller's organisers and what hangs off each one
+   * (yuvoy-app#224). Not keyed by the person, for the reason `myBookings`
+   * gives: all of it is removed on sign in and sign out.
+   */
+  myOrganisers: () => ["listMyOrganisers"] as const,
+  organiser: (id: string) => ["getOrganiser", id] as const,
+  organiserEvents: (id: string) => ["listOrganiserEvents", id] as const,
+  /** `on` is "" for the current date, so the two blocks of a weekly event are two entries. */
+  organiserEventNumbers: (id: string, postId: string, on?: string | null) =>
+    ["getOrganiserEventNumbers", id, postId, on ?? ""] as const,
+  organiserHelpers: (id: string) => ["listOrganiserHelpers", id] as const,
   /**
    * One help request, by its reference, and by WHICH credential asked.
    *
