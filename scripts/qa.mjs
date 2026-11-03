@@ -1799,6 +1799,10 @@ for (const f of files) {
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
     [
+      "src/components/organisers/organiser-form-body.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
       "src/components/organisers/organiser-form-parts.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],

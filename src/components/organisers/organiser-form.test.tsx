@@ -19,10 +19,10 @@ import {
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
-const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
+const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn(), search: "" }));
 
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(nav.search),
   useRouter: () => ({ push: nav.push, replace: nav.replace, back: vi.fn() }),
   usePathname: () => "/organiser/new",
 }));
@@ -66,6 +66,7 @@ beforeEach(() => {
   __signInAppRouteMock("sess_test");
   nav.replace.mockReset();
   nav.push.mockReset();
+  nav.search = "";
 });
 afterEach(cleanup);
 
