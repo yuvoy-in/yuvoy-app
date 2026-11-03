@@ -87,6 +87,8 @@ const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
     page shows its paused state at once and its own Try again asks again.
   */
   "tables_unavailable",
+  // Plans paused (yuvoy-mobile#392): the same, for the plan picker and invites.
+  "plans_unavailable",
 ]);
 
 const MAX_GET_ATTEMPTS = 3;

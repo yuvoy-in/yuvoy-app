@@ -39,6 +39,10 @@ import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
+import { followHandlers } from "./follow-handlers";
+import { followPeopleStageOf } from "./follow-state";
+import { crewInviteHandlers } from "./crew-invite-handlers";
+import { myPlansHandlers, plansStageOf } from "./my-plans-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -1254,10 +1258,12 @@ const routes = [
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
-          people: peopleStageOf(scenario) ?? "off",
           trigo: trigoStageOf(scenario) ?? "off",
           trigoActions: trigoActionsStageOf(scenario),
           supply: organiserSupplyOf(scenario),
+          people:
+            peopleStageOf(scenario) ?? followPeopleStageOf(scenario) ?? "off",
+          plans: plansStageOf(scenario) ?? "off",
         },
       },
       { headers: mockHeaders(requestId()) },
@@ -1445,6 +1451,9 @@ const routes = [
   ...planLinkHandlers,
   // People: friend requests and the friend link (yuvoy-app#222).
   ...peopleHandlers,
+  ...followHandlers,
+  ...crewInviteHandlers,
+  ...myPlansHandlers,
 ];
 
 // Under R3's scenarios every answer is dated by their clock (`checked-clock.ts`).
