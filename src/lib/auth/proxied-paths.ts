@@ -211,10 +211,31 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "GET", pattern: "/me/creator-links" },
   { method: "POST", pattern: "/me/creator-links" },
   /*
+    People: friends on Yuvoy (yuvoy-app#222, the web half of
+    yuvoy-mobile#366). Session only in the contract, every one of them, and
+    each answers 404 while the `people` release is closed to the caller.
+    The People screen reads and changes the home, the friends list, the
+    requests and the friend link; `/add/{code}` looks a link up and asks.
+    The lookup takes its code in the body, so the code is never in a logged
+    path. `PUT /me/age` is the age step People opens with when the account
+    has no birth year yet. `GET /people/{id}` is not here: no screen opens
+    one person yet.
+  */
+  { method: "GET", pattern: "/me/people" },
+  { method: "PATCH", pattern: "/me/people" },
+  { method: "GET", pattern: "/me/friends" },
+  { method: "DELETE", pattern: "/me/friends/{personId}" },
+  { method: "POST", pattern: "/me/friend-requests" },
+  { method: "POST", pattern: "/me/friend-requests/{requestId}/answer" },
+  { method: "DELETE", pattern: "/me/friend-requests/{requestId}" },
+  { method: "PUT", pattern: "/me/friend-link" },
+  { method: "DELETE", pattern: "/me/friend-link" },
+  { method: "POST", pattern: "/friend-links/lookup" },
+  /*
     Ask Trigo (yuvoy-app#223, R5-T5). Every Trigo call is session only in the
     contract: the chat belongs to the account, and the team replies to the
-    account. `src/lib/trigo/api.ts` is the caller of each. Hand-off, report,
-    the confirm cards and Trigo's memory have no screen yet and are not here.
+    account. `src/lib/trigo/api.ts` and `src/lib/trigo/actions.ts` call them.
+    Hand-off, report and Trigo's memory have no screen yet and are not here.
   */
   // One typed message and its answer, with an Idempotency-Key per message.
   { method: "POST", pattern: "/trigo/turns" },
@@ -230,6 +251,10 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "POST", pattern: "/trigo/consent" },
   // Turn off Trigo, `?surface=web`.
   { method: "DELETE", pattern: "/trigo/consent" },
+  // Yes on a card under a reply: a checkout to open, or an alert or draft made.
+  { method: "POST", pattern: "/trigo/actions/{id}/confirm" },
+  // Not now on a card: Trigo's line "Nothing has been booked or changed."
+  { method: "POST", pattern: "/trigo/actions/{id}/decline" },
   /*
     Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
     signed-in traveller's own pages, their helpers, their events and the
@@ -250,10 +275,10 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
   { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
   /*
-    The year a person was born, asked by Trigo's age check and before the
-    organiser pages (`403 adult_confirmation_required`) for an account made
-    before the year was asked. Listed once for both. Session only: a booking
-    link cannot answer for a person's age.
+    The year a person was born, asked by Trigo's age check, by People's age
+    step and before the organiser pages (`403 adult_confirmation_required`)
+    for an account made before the year was asked. Listed once for all
+    three. Session only: a booking link cannot answer for a person's age.
   */
   { method: "PUT", pattern: "/me/age" },
   /*
