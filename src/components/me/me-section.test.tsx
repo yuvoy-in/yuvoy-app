@@ -57,7 +57,9 @@ function ReleaseProbe() {
   const release = useRelease("me");
   return (
     <p data-testid="release">
-      {release.pending ? "pending" : `${release.stage} ${release.open ? "open" : "shut"}`}
+      {release.pending
+        ? "pending"
+        : `${release.stage} ${release.open ? "open" : "shut"}`}
     </p>
   );
 }
@@ -95,8 +97,12 @@ describe("the Done tab (cases 2, 3, 4, 5)", () => {
     expect(
       within(dive).getByRole("link", { name: "Try-dive at Nemo Reef" }),
     ).toHaveAttribute("href", "/e/try-dive-nemo-reef");
-    expect(within(dive).getByText("Booked with Yuvoy · Checked in by the crew")).toBeInTheDocument();
-    expect(within(dive).getByRole("img", { name: "4 out of 5" })).toBeInTheDocument();
+    expect(
+      within(dive).getByText("Booked with Yuvoy · Checked in by the crew"),
+    ).toBeInTheDocument();
+    expect(
+      within(dive).getByRole("img", { name: "4 out of 5" }),
+    ).toBeInTheDocument();
     // The place comes from the places list, by the entry's destination.
     expect(
       await within(dive).findByText("16 Sep 2026 · Havelock (Swaraj Dweep)"),
@@ -143,7 +149,10 @@ describe("the Done tab (cases 2, 3, 4, 5)", () => {
 
   it("reads the next page at Show more, from the cursor", async () => {
     const user = userEvent.setup();
-    const second = trip({ entryId: "trip:66666666-6666-4666-8666-666666666666", title: "Kayak at dawn" });
+    const second = trip({
+      entryId: "trip:66666666-6666-4666-8666-666666666666",
+      title: "Kayak at dawn",
+    });
     const at = meRoutes({
       list: (request: Request) =>
         HttpResponse.json(
@@ -162,8 +171,14 @@ describe("the Done tab (cases 2, 3, 4, 5)", () => {
 
   it("reads page after page and stops where nextCursor is null", async () => {
     const user = userEvent.setup();
-    const kayak = trip({ entryId: "trip:66666666-6666-4666-8666-666666666666", title: "Kayak at dawn" });
-    const snorkel = trip({ entryId: "trip:77777777-7777-4777-8777-777777777777", title: "Snorkel at noon" });
+    const kayak = trip({
+      entryId: "trip:66666666-6666-4666-8666-666666666666",
+      title: "Kayak at dawn",
+    });
+    const snorkel = trip({
+      entryId: "trip:77777777-7777-4777-8777-777777777777",
+      title: "Snorkel at noon",
+    });
     const at = meRoutes({
       list: (request: Request) => {
         const cursor = new URL(request.url).searchParams.get("cursor");
@@ -183,7 +198,9 @@ describe("the Done tab (cases 2, 3, 4, 5)", () => {
     await user.click(screen.getByRole("button", { name: "Show more" }));
     expect(await card("Snorkel at noon")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
-    expect(at.list.urls.map((u) => new URL(u).searchParams.get("cursor"))).toEqual([null, "c1", "c2"]);
+    expect(
+      at.list.urls.map((u) => new URL(u).searchParams.get("cursor")),
+    ).toEqual([null, "c1", "c2"]);
   });
 
   it("never draws an entry it has no proof line for", async () => {
@@ -204,7 +221,10 @@ describe("the Done tab (cases 2, 3, 4, 5)", () => {
     meRoutes({
       list: (request: Request) =>
         new URL(request.url).searchParams.get("cursor")
-          ? HttpResponse.json({ error: { code: "unavailable", message: "No." } }, { status: 503 })
+          ? HttpResponse.json(
+              { error: { code: "unavailable", message: "No." } },
+              { status: 503 },
+            )
           : HttpResponse.json(page([trip()], { nextCursor: "c1" })),
     });
     renderWithQuery(<MeSection />);
@@ -212,9 +232,13 @@ describe("the Done tab (cases 2, 3, 4, 5)", () => {
     await user.click(screen.getByRole("button", { name: "Show more" }));
     expect(
       // The transport's own backoff on a failed read runs first.
-      await screen.findByText("That page did not load. Try again.", undefined, { timeout: 5_000 }),
+      await screen.findByText("That page did not load. Try again.", undefined, {
+        timeout: 5_000,
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: "Try-dive at Nemo Reef" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("article", { name: "Try-dive at Nemo Reef" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -231,8 +255,12 @@ describe("who sees an entry (case 6)", () => {
     await waitFor(() =>
       expect(within(who).getByRole("radio", { name: "Only me" })).toBeChecked(),
     );
-    await waitFor(() => expect(at.patchEntry.bodies).toEqual([{ visibility: "only_me" }]));
-    expect(at.patchEntry.urls[0]).toContain(`/me/life-list/${encodeURIComponent(TRIP_ID)}`);
+    await waitFor(() =>
+      expect(at.patchEntry.bodies).toEqual([{ visibility: "only_me" }]),
+    );
+    expect(at.patchEntry.urls[0]).toContain(
+      `/me/life-list/${encodeURIComponent(TRIP_ID)}`,
+    );
     expect(at.patchWent.count).toBe(0);
   });
 
@@ -242,7 +270,9 @@ describe("who sees an entry (case 6)", () => {
     renderWithQuery(<MeSection />);
     const jazz = await card("Jazz at the Fort");
     await user.click(within(jazz).getByRole("radio", { name: "Only me" }));
-    await waitFor(() => expect(at.patchWent.bodies).toEqual([{ visibility: "only_me" }]));
+    await waitFor(() =>
+      expect(at.patchWent.bodies).toEqual([{ visibility: "only_me" }]),
+    );
     expect(at.patchWent.urls[0]).toContain(`/me/went/${EVENT_ID}`);
     expect(at.patchEntry.count).toBe(0);
   });
@@ -254,7 +284,9 @@ describe("who sees an entry (case 6)", () => {
     const dive = await card("Try-dive at Nemo Reef");
     await user.click(within(dive).getByRole("radio", { name: "Only me" }));
     expect(
-      await within(dive).findByText("We could not change that just now. Try again."),
+      await within(dive).findByText(
+        "We could not change that just now. Try again.",
+      ),
     ).toBeInTheDocument();
     expect(within(dive).getByRole("radio", { name: "Friends" })).toBeChecked();
   });
@@ -285,15 +317,25 @@ describe("the photo (case 7)", () => {
 
 describe("Did you go? (case 8)", () => {
   const asked = {
-    didYouGo: [{ eventId: ASKED_EVENT, title: "Open mic night", startsAt: "2026-10-30T13:30:00Z" }],
+    didYouGo: [
+      {
+        eventId: ASKED_EVENT,
+        title: "Open mic night",
+        startsAt: "2026-10-30T13:30:00Z",
+      },
+    ],
   };
 
   it("answers Yes on the went route and the question goes", async () => {
     const user = userEvent.setup();
     const at = meRoutes({ list: page([trip()], asked) });
     renderWithQuery(<MeSection />);
-    expect(await screen.findByText("Did you go to Open mic night?")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Yes, I went to Open mic night" }));
+    expect(
+      await screen.findByText("Did you go to Open mic night?"),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Yes, I went to Open mic night" }),
+    );
     await waitFor(() =>
       expect(screen.queryByText("Did you go to Open mic night?")).toBeNull(),
     );
@@ -308,7 +350,9 @@ describe("Did you go? (case 8)", () => {
     const at = meRoutes({ list: page([trip()], asked) });
     renderWithQuery(<MeSection />);
     await user.click(
-      await screen.findByRole("button", { name: "No, I did not go to Open mic night" }),
+      await screen.findByRole("button", {
+        name: "No, I did not go to Open mic night",
+      }),
     );
     await waitFor(() =>
       expect(at.answer.bodies).toEqual([{ went: false, via: "trips_card" }]),
@@ -320,12 +364,16 @@ describe("Did you go? (case 8)", () => {
     meRoutes({ list: page([trip()], asked), answer: 409 });
     renderWithQuery(<MeSection />);
     await user.click(
-      await screen.findByRole("button", { name: "Yes, I went to Open mic night" }),
+      await screen.findByRole("button", {
+        name: "Yes, I went to Open mic night",
+      }),
     );
     expect(
       await screen.findByText("We could not change that just now. Try again."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Did you go to Open mic night?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Did you go to Open mic night?"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -336,12 +384,13 @@ describe("the Bucket list tab (case 10)", () => {
     __seedSavedMock(TOKEN, [saved.id]);
     meRoutes({ list: page([trip()]) });
     renderWithQuery(<MeSection />);
-    const tabs = await screen.findByRole("tablist", { name: "Done or bucket list" });
+    const tabs = await screen.findByRole("tablist", {
+      name: "Done or bucket list",
+    });
     await user.click(within(tabs).getByRole("tab", { name: "Bucket list" }));
-    expect(within(tabs).getByRole("tab", { name: "Bucket list" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(
+      within(tabs).getByRole("tab", { name: "Bucket list" }),
+    ).toHaveAttribute("aria-selected", "true");
     const panel = screen.getByRole("tabpanel");
     expect(
       await within(panel).findByRole("link", { name: new RegExp(saved.title) }),
@@ -354,7 +403,9 @@ describe("the Bucket list tab (case 10)", () => {
     renderWithQuery(<MeSection />);
     await user.click(await screen.findByRole("tab", { name: "Bucket list" }));
     expect(
-      await screen.findByText("Your bucket list is everything you save. Tap the bookmark on any card."),
+      await screen.findByText(
+        "Your bucket list is everything you save. Tap the bookmark on any card.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -366,7 +417,10 @@ describe("the Bucket list tab (case 10)", () => {
     done.focus();
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "Bucket list" })).toHaveFocus();
-    expect(screen.getByRole("tab", { name: "Bucket list" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Bucket list" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });
 
@@ -382,7 +436,9 @@ describe("when a read fails or Me is closed (cases 11, 15)", () => {
         { timeout: 5_000 },
       ),
     ).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Badges" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Badges" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).toBeNull();
   });
 

@@ -36,22 +36,31 @@ const section = () => screen.findByRole("region", { name: "Badges" });
 describe("earned badges (case 16)", () => {
   it("shows the name, the date and what earned it at a tap", async () => {
     const user = userEvent.setup();
-    meRoutes({ list: page([trip()]), badges: { earned: [badge()], inProgress: [] } });
+    meRoutes({
+      list: page([trip()]),
+      badges: { earned: [badge()], inProgress: [] },
+    });
     renderWithQuery(<MeSection />);
     const badges = await section();
     const row = within(badges).getByRole("button", { name: /First trip/ });
     expect(row).toHaveTextContent("16 Sep 2026");
-    expect(within(badges).getByText("Your first trip with Yuvoy.")).toBeInTheDocument();
+    expect(
+      within(badges).getByText("Your first trip with Yuvoy."),
+    ).toBeInTheDocument();
     expect(row).toHaveAttribute("aria-expanded", "false");
     expect(within(badges).getByText("Earned from")).not.toBeVisible();
     await user.click(row);
     expect(row).toHaveAttribute("aria-expanded", "true");
     expect(within(badges).getByText("Earned from")).toBeVisible();
-    expect(within(badges).getByText("Try-dive at Nemo Reef · 16 Sep 2026")).toBeVisible();
+    expect(
+      within(badges).getByText("Try-dive at Nemo Reef · 16 Sep 2026"),
+    ).toBeVisible();
   });
 
   it("says only the owner sees one earned without a check-in", async () => {
-    meRoutes({ badges: { earned: [badge({ checked: false })], inProgress: [] } });
+    meRoutes({
+      badges: { earned: [badge({ checked: false })], inProgress: [] },
+    });
     renderWithQuery(<MeSection />);
     expect(
       await within(await section()).findByText(
@@ -65,7 +74,9 @@ describe("earned badges (case 16)", () => {
     renderWithQuery(<MeSection />);
     const badges = await section();
     expect(within(badges).getByText("First trip")).toBeInTheDocument();
-    expect(within(badges).queryByRole("button", { name: /First trip/ })).toBeNull();
+    expect(
+      within(badges).queryByRole("button", { name: /First trip/ }),
+    ).toBeNull();
     expect(within(badges).queryByText("Earned from")).toBeNull();
   });
 
@@ -85,45 +96,70 @@ describe("badges on their way (case 17)", () => {
     meRoutes({
       badges: {
         earned: [],
-        inProgress: [progress(), progress({ key: "two_trips", name: "Two trips", endsOn: undefined, need: 2 })],
+        inProgress: [
+          progress(),
+          progress({
+            key: "two_trips",
+            name: "Two trips",
+            endsOn: undefined,
+            need: 2,
+          }),
+        ],
       },
     });
     renderWithQuery(<MeSection />);
     const badges = await section();
-    expect(within(badges).getByText("1 of 3 · Ends 30 Sep 2026")).toBeInTheDocument();
+    expect(
+      within(badges).getByText("1 of 3 · Ends 30 Sep 2026"),
+    ).toBeInTheDocument();
     expect(within(badges).getByText("1 of 2")).toBeInTheDocument();
   });
 });
 
 describe("a new badge (case 18)", () => {
-  const fresh = () => badge({ key: "first_went", name: "First night out", seen: false });
+  const fresh = () =>
+    badge({ key: "first_went", name: "First night out", seen: false });
 
   it("shows once, and Nice marks it seen", async () => {
     const user = userEvent.setup();
-    const at = meRoutes({ badges: { earned: [fresh(), badge()], inProgress: [] } });
+    const at = meRoutes({
+      badges: { earned: [fresh(), badge()], inProgress: [] },
+    });
     renderWithQuery(<MeSection />);
-    const panel = await screen.findByRole("status", { name: "New badge: First night out" });
+    const panel = await screen.findByRole("status", {
+      name: "New badge: First night out",
+    });
     await user.click(within(panel).getByRole("button", { name: "Nice" }));
     await waitFor(() =>
-      expect(screen.queryByRole("status", { name: "New badge: First night out" })).toBeNull(),
+      expect(
+        screen.queryByRole("status", { name: "New badge: First night out" }),
+      ).toBeNull(),
     );
-    await waitFor(() => expect(at.seen.bodies).toEqual([{ keys: ["first_went"] }]));
+    await waitFor(() =>
+      expect(at.seen.bodies).toEqual([{ keys: ["first_went"] }]),
+    );
     // A seen badge never asks.
-    expect(screen.queryByRole("status", { name: "New badge: First trip" })).toBeNull();
+    expect(
+      screen.queryByRole("status", { name: "New badge: First trip" }),
+    ).toBeNull();
   });
 
   it("does not show again when Account is opened again after Nice", async () => {
     const user = userEvent.setup();
     const at = meRoutes({ badges: { earned: [fresh()], inProgress: [] } });
     const first = renderWithQuery(<MeSection />);
-    const panel = await screen.findByRole("status", { name: "New badge: First night out" });
+    const panel = await screen.findByRole("status", {
+      name: "New badge: First night out",
+    });
     await user.click(within(panel).getByRole("button", { name: "Nice" }));
     await waitFor(() => expect(at.seen.count).toBe(1));
     first.unmount();
     // A new client, as after a reload: only the server's answer is left.
     renderWithQuery(<MeSection />);
     expect(await screen.findByText("First night out")).toBeInTheDocument();
-    expect(screen.queryByRole("status", { name: "New badge: First night out" })).toBeNull();
+    expect(
+      screen.queryByRole("status", { name: "New badge: First night out" }),
+    ).toBeNull();
     expect(at.badges.count).toBe(2);
   });
 
@@ -131,7 +167,9 @@ describe("a new badge (case 18)", () => {
     const user = userEvent.setup();
     meRoutes({ badges: { earned: [fresh()], inProgress: [] }, seen: 503 });
     renderWithQuery(<MeSection />);
-    const panel = await screen.findByRole("status", { name: "New badge: First night out" });
+    const panel = await screen.findByRole("status", {
+      name: "New badge: First night out",
+    });
     await user.click(within(panel).getByRole("button", { name: "Nice" }));
     expect(
       await screen.findByText("We could not save that just now. Try again."),

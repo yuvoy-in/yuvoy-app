@@ -42,7 +42,8 @@ function Languages({ settings }: { settings: MySettings }) {
   // The hook shows a tap at once and puts it back when it fails.
   const save = useUpdateMeSettings();
   const failed =
-    Boolean(save.error) && Boolean(save.variables && "languages" in save.variables);
+    Boolean(save.error) &&
+    Boolean(save.variables && "languages" in save.variables);
   const shown = settings.languages;
   return (
     <section aria-labelledby={`${ids}-head`}>
@@ -94,7 +95,10 @@ function WomenOnly({ settings }: { settings: MySettings }) {
         {ME_WORDS.womenOnlyTitle}
       </h2>
       <div className="mt-3 flex items-start justify-between gap-4">
-        <p id={`${ids}-sub`} className="text-body min-w-0 font-bold text-pretty">
+        <p
+          id={`${ids}-sub`}
+          className="text-body min-w-0 font-bold text-pretty"
+        >
           {ME_WORDS.womenOnlyLabel}
         </p>
         <button

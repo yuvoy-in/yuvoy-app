@@ -1,6 +1,11 @@
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, type JsonBodyType } from "msw";
 import { server } from "../../../mocks/server";
-import type { Badge, BadgeProgress, LifeEntry, MySettings } from "@/lib/me/types";
+import type {
+  Badge,
+  BadgeProgress,
+  LifeEntry,
+  MySettings,
+} from "@/lib/me/types";
 
 /*
   What the Me tests share (yuvoy-mobile#444): the app config with `me` (and
@@ -12,7 +17,8 @@ import type { Badge, BadgeProgress, LifeEntry, MySettings } from "@/lib/me/types
   touched. Stage `all` needs no cohort, so no `/me` read is needed to open it.
 */
 
-export const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
+export const BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 /** `GET /app-config` with the given release stages; the rest are off. */
 export function releases(stages: Record<string, string>) {
@@ -58,8 +64,16 @@ export function trip(over: Partial<LifeEntry> = {}): LifeEntry {
     visibility: "friends",
     cheers: 2,
     cheeredBy: [
-      { personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", shortName: "Priya S.", initial: "P" },
-      { personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", shortName: "Ravi K.", initial: "R" },
+      {
+        personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        shortName: "Priya S.",
+        initial: "P",
+      },
+      {
+        personId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        shortName: "Ravi K.",
+        initial: "R",
+      },
     ],
     ...over,
   };
@@ -131,7 +145,11 @@ export function badge(over: Partial<Badge> = {}): Badge {
     checked: true,
     seen: true,
     evidence: [
-      { entryId: TRIP_ID, title: "Try-dive at Nemo Reef", happenedAt: "2026-09-16T04:30:00Z" },
+      {
+        entryId: TRIP_ID,
+        title: "Try-dive at Nemo Reef",
+        happenedAt: "2026-09-16T04:30:00Z",
+      },
     ],
     ...over,
   };
@@ -179,10 +197,18 @@ async function note(at: Seen, request: Request) {
 }
 
 type Answer = (request: Request) => Response | Promise<Response>;
-const json = (body: unknown, status = 200) => () => HttpResponse.json(body, { status });
+const json =
+  (body: unknown, status = 200) =>
+  () =>
+    HttpResponse.json(body as JsonBodyType, { status });
 const failure = (status: number) => () =>
   HttpResponse.json(
-    { error: { code: status === 404 ? "not_found" : "unavailable", message: "No." } },
+    {
+      error: {
+        code: status === 404 ? "not_found" : "unavailable",
+        message: "No.",
+      },
+    },
     { status },
   );
 
@@ -232,9 +258,11 @@ export function meRoutes(
     typeof over.badges === "function" || typeof over.badges === "number"
       ? pick(over.badges, undefined)
       : () => HttpResponse.json(heldBadges);
-  let held = (over.settings && typeof over.settings === "object"
-    ? over.settings
-    : settings()) as MySettings;
+  let held = (
+    over.settings && typeof over.settings === "object"
+      ? over.settings
+      : settings()
+  ) as MySettings;
 
   server.use(
     http.get(`${BASE}/me/life-list`, async ({ request }) => {
@@ -248,10 +276,13 @@ export function meRoutes(
     http.post(`${BASE}/me/badges/seen`, async ({ request }) => {
       await note(at.seen, request);
       if (over.seen) return failure(over.seen)();
-      const keys = (at.seen.bodies.at(-1) as { keys?: string[] } | undefined)?.keys ?? [];
+      const keys =
+        (at.seen.bodies.at(-1) as { keys?: string[] } | undefined)?.keys ?? [];
       heldBadges = {
         ...heldBadges,
-        earned: heldBadges.earned.map((b) => (keys.includes(b.key) ? { ...b, seen: true } : b)),
+        earned: heldBadges.earned.map((b) =>
+          keys.includes(b.key) ? { ...b, seen: true } : b,
+        ),
       };
       return new HttpResponse(null, { status: 204 });
     }),
@@ -264,13 +295,18 @@ export function meRoutes(
     http.patch(`${BASE}/me/settings`, async ({ request }) => {
       await note(at.patchSettings, request);
       if (over.patchSettings) return failure(over.patchSettings)();
-      held = { ...held, ...(at.patchSettings.bodies.at(-1) as Partial<MySettings>) };
+      held = {
+        ...held,
+        ...(at.patchSettings.bodies.at(-1) as Partial<MySettings>),
+      };
       return HttpResponse.json(held);
     }),
     http.patch(`${BASE}/me/life-list/:entryId`, async ({ request, params }) => {
       await note(at.patchEntry, request);
       if (over.patchEntry) return failure(over.patchEntry)();
-      const body = at.patchEntry.bodies.at(-1) as { visibility: LifeEntry["visibility"] };
+      const body = at.patchEntry.bodies.at(-1) as {
+        visibility: LifeEntry["visibility"];
+      };
       return HttpResponse.json(
         trip({ entryId: decodeURIComponent(String(params.entryId)), ...body }),
       );
@@ -278,13 +314,15 @@ export function meRoutes(
     http.patch(`${BASE}/me/went/:eventId`, async ({ request }) => {
       await note(at.patchWent, request);
       if (over.patchWent) return failure(over.patchWent)();
-      return HttpResponse.json(at.patchWent.bodies.at(-1));
+      return HttpResponse.json(at.patchWent.bodies.at(-1) as JsonBodyType);
     }),
     http.post(`${BASE}/me/went/:eventId`, async ({ request }) => {
       await note(at.answer, request);
       if (over.answer) return failure(over.answer)();
       // The contract's 200 WentAnswer, though the page reads none of it.
-      const went = (at.answer.bodies.at(-1) as { went?: boolean } | undefined)?.went ?? true;
+      const went =
+        (at.answer.bodies.at(-1) as { went?: boolean } | undefined)?.went ??
+        true;
       return HttpResponse.json({
         went,
         rating: null,

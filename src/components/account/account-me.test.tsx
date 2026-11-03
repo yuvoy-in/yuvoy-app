@@ -59,7 +59,9 @@ describe("me on the account", () => {
     const release = useRelease("me");
     return (
       <p data-testid="me-release">
-        {release.pending ? "pending" : `${release.stage} ${release.open ? "open" : "shut"}`}
+        {release.pending
+          ? "pending"
+          : `${release.stage} ${release.open ? "open" : "shut"}`}
       </p>
     );
   }
@@ -83,7 +85,9 @@ describe("me on the account", () => {
     expect(screen.queryByText("Languages I'm happy with")).toBeNull();
     expect(at.list.count + at.badges.count + at.settings.count).toBe(0);
     // Everything that was there is still there.
-    expect(screen.getByRole("link", { name: "Go to my trips" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Go to my trips" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Sign out on this device" }),
     ).toBeInTheDocument();
@@ -100,13 +104,21 @@ describe("me on the account", () => {
     expect(
       await screen.findByRole("article", { name: "Try-dive at Nemo Reef" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("tablist", { name: "Done or bucket list" })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Badges" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tablist", { name: "Done or bucket list" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Badges" }),
+    ).toBeInTheDocument();
     expect(
       await screen.findByRole("group", { name: "Languages I'm happy with" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Show them in my lists" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to my trips" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Show them in my lists" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Go to my trips" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the rest of Account working when the life list fails", async () => {
@@ -122,7 +134,9 @@ describe("me on the account", () => {
         { timeout: 5_000 },
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to my trips" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Go to my trips" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Sign out on this device" }),
     ).toBeInTheDocument();

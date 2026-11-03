@@ -30,7 +30,9 @@ export function Badges({
       </h2>
       <NewBadge earned={earned} />
       {earned.length === 0 ? (
-        <p className="text-forest/75 text-sm text-pretty">{ME_WORDS.emptyBadges}</p>
+        <p className="text-forest/75 text-sm text-pretty">
+          {ME_WORDS.emptyBadges}
+        </p>
       ) : null}
       {earned.length > 0 || inProgress.length > 0 ? (
         <ul className="space-y-2">
@@ -39,7 +41,9 @@ export function Badges({
               key={badge.key}
               badge={badge}
               open={open === badge.key}
-              onToggle={() => setOpen((was) => (was === badge.key ? null : badge.key))}
+              onToggle={() =>
+                setOpen((was) => (was === badge.key ? null : badge.key))
+              }
             />
           ))}
           {inProgress.map((badge) => (
@@ -81,7 +85,9 @@ function EarnedRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="text-body block font-bold">{badge.name}</span>
-        {date ? <span className="text-forest/70 block text-xs">{date}</span> : null}
+        {date ? (
+          <span className="text-forest/70 block text-xs">{date}</span>
+        ) : null}
       </span>
     </>
   );
@@ -111,7 +117,9 @@ function EarnedRow({
           <ul className="mt-1 space-y-0.5">
             {badge.evidence.map((entry) => (
               <li key={entry.entryId} className="text-xs">
-                {[entry.title, lifeDate(entry.happenedAt)].filter(Boolean).join(" · ")}
+                {[entry.title, lifeDate(entry.happenedAt)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </li>
             ))}
           </ul>
@@ -129,7 +137,9 @@ function ProgressRow({ badge }: { badge: BadgeProgress }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="text-body block font-bold">{badge.name}</span>
-        <span className="text-forest/70 block text-xs">{progressLine(badge)}</span>
+        <span className="text-forest/70 block text-xs">
+          {progressLine(badge)}
+        </span>
       </span>
     </li>
   );

@@ -41,7 +41,11 @@ export function BucketList() {
     .filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id)));
 
   if (items.length === 0) {
-    return <p className="text-forest/75 text-sm text-pretty">{ME_WORDS.emptyBucket}</p>;
+    return (
+      <p className="text-forest/75 text-sm text-pretty">
+        {ME_WORDS.emptyBucket}
+      </p>
+    );
   }
 
   return (
@@ -70,7 +74,9 @@ export function BucketList() {
                   {item.title}
                 </span>
                 {item.location ? (
-                  <span className="text-forest/70 block text-xs">{item.location}</span>
+                  <span className="text-forest/70 block text-xs">
+                    {item.location}
+                  </span>
                 ) : null}
               </span>
             </Link>

@@ -65,14 +65,19 @@ export function LifeEntryCard({
         <div className="min-w-0 flex-1">
           <h3 id={titleId} className="text-body leading-snug font-bold">
             {target ? (
-              <Link href={target} className="underline-offset-2 hover:underline">
+              <Link
+                href={target}
+                className="underline-offset-2 hover:underline"
+              >
                 {entry.title}
               </Link>
             ) : (
               entry.title
             )}
           </h3>
-          {when ? <p className="text-forest/70 mt-0.5 text-xs">{when}</p> : null}
+          {when ? (
+            <p className="text-forest/70 mt-0.5 text-xs">{when}</p>
+          ) : null}
           <p className="mt-1 text-sm font-medium">{proofLine(entry)}</p>
           {stars ? (
             <p
@@ -97,7 +102,11 @@ export function LifeEntryCard({
             <p className="text-forest/70 mt-1 text-xs">{cheers}</p>
           ) : null}
           {cheers && cheeredBy.length > 0 ? (
-            <p id={namesId} hidden={!names} className="text-forest/70 mt-1 text-xs">
+            <p
+              id={namesId}
+              hidden={!names}
+              className="text-forest/70 mt-1 text-xs"
+            >
               {cheeredBy.map((person) => person.shortName).join(", ")}
             </p>
           ) : null}
@@ -166,7 +175,9 @@ function WhoSees({
 }) {
   if (!canSetVisibility(entry)) {
     if (entry.kind !== "plan") return null;
-    return <p className="text-forest/70 mt-3 text-xs">{ME_WORDS.plansOnlyYou}</p>;
+    return (
+      <p className="text-forest/70 mt-3 text-xs">{ME_WORDS.plansOnlyYou}</p>
+    );
   }
   return (
     <fieldset

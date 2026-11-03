@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { ChipButton } from "@/components/ui/chip";
 import { LoadingState, Skeleton } from "@/components/states";
@@ -84,7 +84,10 @@ function Section({ className }: { className?: string }) {
         <DidYouGo items={list.didYouGo} />
         {listFailed ? <Failed /> : <LifeListTabs />}
         {badges.data ? (
-          <Badges earned={badges.data.earned} inProgress={badges.data.inProgress} />
+          <Badges
+            earned={badges.data.earned}
+            inProgress={badges.data.inProgress}
+          />
         ) : badges.isLoadingError ? (
           // One failure line for the two reads, not two of the same.
           listFailed ? null : (
@@ -120,17 +123,12 @@ const TABS: readonly { value: Tab; label: string }[] = [
 function LifeListTabs() {
   const ids = useId();
   const [tab, setTab] = useState<Tab>("done");
-  const refs = useRef<Record<Tab, HTMLButtonElement | null>>({
-    done: null,
-    bucket: null,
-  });
-
   const onKey = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
     event.preventDefault();
     const next: Tab = tab === "done" ? "bucket" : "done";
     setTab(next);
-    refs.current[next]?.focus();
+    document.getElementById(`${ids}-tab-${next}`)?.focus();
   };
 
   return (
@@ -144,9 +142,6 @@ function LifeListTabs() {
         {TABS.map((t) => (
           <ChipButton
             key={t.value}
-            ref={(node: HTMLButtonElement | null) => {
-              refs.current[t.value] = node;
-            }}
             role="tab"
             id={`${ids}-tab-${t.value}`}
             aria-selected={tab === t.value}
@@ -177,7 +172,11 @@ function Done() {
   const visibility = useSetEntryVisibility();
   const keyed = list.entries.some((entry) => entry.destinationKey);
   // The places list names a destination; only asked for once an entry has one.
-  const places = usePlaceList({ initial: null, signedIn: true, enabled: keyed });
+  const places = usePlaceList({
+    initial: null,
+    signedIn: true,
+    enabled: keyed,
+  });
 
   if (list.status === "pending") {
     return (
@@ -190,7 +189,9 @@ function Done() {
     );
   }
   if (list.entries.length === 0) {
-    return <p className="text-forest/75 text-sm text-pretty">{ME_WORDS.emptyDone}</p>;
+    return (
+      <p className="text-forest/75 text-sm text-pretty">{ME_WORDS.emptyDone}</p>
+    );
   }
 
   // The hook shows a change at once and puts it back when it fails; the
@@ -206,7 +207,9 @@ function Done() {
               entry={entry}
               place={placeName(entry.destinationKey, places.data)}
               failed={Boolean(visibility.error) && lastTried === entry.entryId}
-              onVisibility={(next) => visibility.mutate({ entry, visibility: next })}
+              onVisibility={(next) =>
+                visibility.mutate({ entry, visibility: next })
+              }
               // A dead photo link is five minutes old: read the list again.
               onPhotoDied={list.refetch}
             />
