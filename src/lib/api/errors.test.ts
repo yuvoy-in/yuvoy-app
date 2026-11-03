@@ -5,6 +5,7 @@ import {
   isDeliberateStop,
   isClientBug,
   isErrorEnvelope,
+  parseRetryAfter,
 } from "./errors";
 
 describe("error classification", () => {
@@ -79,5 +80,45 @@ describe("isErrorEnvelope", () => {
     expect(isErrorEnvelope(null)).toBe(false);
     expect(isErrorEnvelope({ message: "x" })).toBe(false);
     expect(isErrorEnvelope({ error: {} })).toBe(false);
+  });
+});
+
+describe("parseRetryAfter", () => {
+  it("reads whole seconds, as the API sends them", () => {
+    expect(parseRetryAfter("2")).toBe(2);
+    expect(parseRetryAfter(" 3 ")).toBe(3);
+    expect(parseRetryAfter("60")).toBe(60);
+  });
+
+  it("keeps a long wait as the API sent it", () => {
+    expect(parseRetryAfter("3600")).toBe(3600);
+    expect(parseRetryAfter("40000")).toBe(40000);
+  });
+
+  it("ignores a number too large to hold exactly", () => {
+    expect(parseRetryAfter("99999999999999999999999")).toBeUndefined();
+  });
+
+  it("ignores a missing, empty, zero or malformed value", () => {
+    expect(parseRetryAfter(null)).toBeUndefined();
+    expect(parseRetryAfter(undefined)).toBeUndefined();
+    expect(parseRetryAfter("")).toBeUndefined();
+    expect(parseRetryAfter("0")).toBeUndefined();
+    expect(parseRetryAfter("-5")).toBeUndefined();
+    expect(parseRetryAfter("2.5")).toBeUndefined();
+    expect(parseRetryAfter("soon")).toBeUndefined();
+    expect(parseRetryAfter("Wed, 21 Oct 2026 07:28:00 GMT")).toBeUndefined();
+  });
+
+  it("is carried on the error when given, and absent otherwise", () => {
+    const busy = new YuvoyError({
+      code: "idempotency_in_progress",
+      message: "x",
+      status: 409,
+      retryAfterSeconds: 2,
+    });
+    expect(busy.retryAfterSeconds).toBe(2);
+    const e = new YuvoyError({ code: "conflict", message: "x", status: 409 });
+    expect(e.retryAfterSeconds).toBeUndefined();
   });
 });

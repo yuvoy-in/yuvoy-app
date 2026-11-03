@@ -62,6 +62,12 @@ export const FAILURE_LINE =
 
 export const TRY_AGAIN = "Try again";
 
+/**
+ * Under Try again while the answer's `Retry-After` runs, the reason it is
+ * off. Our draft: R5-T5 names no words for it.
+ */
+export const TRY_AGAIN_SOON = "You can try again in a moment.";
+
 export const SIGNED_OUT_LINE =
   "Sign in to ask Trigo. Trigo needs your account so the Yuvoy team can reply to you.";
 
