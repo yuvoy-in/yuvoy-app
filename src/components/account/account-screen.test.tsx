@@ -957,3 +957,48 @@ describe("your links on the account", () => {
     expect(asked.count).toBe(0);
   });
 });
+
+describe("organiser pages on the account (yuvoy-app#224)", () => {
+  function SupplyProbe() {
+    const release = useRelease("supply");
+    return (
+      <p data-testid="supply">
+        {release.pending ? "pending" : release.open ? "open" : "shut"}
+      </p>
+    );
+  }
+
+  it("opens the organiser pages while supply is open", async () => {
+    __signInAppRouteMock();
+    renderWithQuery(<AccountScreen />);
+    expect(
+      await screen.findByRole("link", { name: "Organiser pages" }),
+    ).toHaveAttribute("href", "/organiser");
+  });
+
+  it("is not drawn while supply is off", async () => {
+    server.use(
+      http.get(`${BASE}/app-config`, () =>
+        HttpResponse.json({
+          minimumVersion: { ios: "0.0.0", android: "0.0.0" },
+          features: { payments: "coming_soon", inviteOnly: false },
+          support: { whatsappE164: null, hours: "" },
+          deliveryHost: null,
+          releases: { supply: "off" },
+        }),
+      ),
+    );
+    __signInAppRouteMock();
+    renderWithQuery(
+      <>
+        <SupplyProbe />
+        <AccountScreen />
+      </>,
+    );
+    expect(await screen.findByRole("link", { name: "Guides" })).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByTestId("supply")).toHaveTextContent("shut"),
+    );
+    expect(screen.queryByRole("link", { name: "Organiser pages" })).toBeNull();
+  });
+});
