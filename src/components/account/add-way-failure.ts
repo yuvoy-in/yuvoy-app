@@ -78,8 +78,9 @@ export function addWayFailure(
   }
   const shared = signInFailure(error, at);
   if (!shared) return null;
-  const { action: _action, offer: _offer, ...rest } = shared;
-  return rest;
+  // Sign-in's control and its offer of the number are not drawn here.
+  const { title, body, field } = shared;
+  return field === undefined ? { title, body } : { title, body, field };
 }
 
 /** A refused verify that may be the code's or the session's. */
