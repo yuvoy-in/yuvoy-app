@@ -258,6 +258,18 @@ describe("choosing", () => {
     expect(window.history.length).toBe(entries);
     expect(nav.replaced).toEqual([]);
   });
+
+  it("keeps a Trigo card's card= when it writes the choices", async () => {
+    // A card's prefill applies only on a checkout whose address names it.
+    nav.search = "date=2026-09-20&slot=sl_20_0700&card=act_1";
+    server.use(availability([slot()]));
+    renderWithQuery(<BookScreen slug="try-dive-nemo-reef" />);
+
+    await waitFor(() =>
+      expect(window.location.search).toContain("slot=sl_20_0700"),
+    );
+    expect(window.location.search).toContain("card=act_1");
+  });
 });
 
 describe("arriving with choices already made", () => {
