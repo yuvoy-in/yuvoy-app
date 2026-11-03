@@ -49,6 +49,10 @@ const KEPT: Record<string, { words: RegExp; why: string }> = {
     words: /\bjetty\b/,
     why: "only bookable markets sell, and the only one is Andaman (R0-T1)",
   },
+  "src/components/me/me-test-kit.ts": {
+    words: /^andaman\/havelock$/,
+    why: "a destination key in Me's test data; the kit is read only by tests, never shown",
+  },
   "src/components/trigo/chat-parts.tsx": {
     words: /^andaman$/,
     why: "a destination key the starter chips are picked by, compared and never shown",

@@ -38,7 +38,9 @@ import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
 import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
+import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
+import { meHandlers, meStageOf, meTablesStageOf } from "./me-handlers";
 import { followHandlers } from "./follow-handlers";
 import { followPeopleStageOf } from "./follow-state";
 import { crewInviteHandlers } from "./crew-invite-handlers";
@@ -267,7 +269,19 @@ export type Scenario =
     in one step (yuvoy-app#225); `organiser-club.ts` says what each does.
   */
   | "organisers-club"
-  | "organisers-club-paused";
+  | "organisers-club-paused"
+  /*
+    Me on the Account screen (yuvoy-mobile#444). Each but `me-off` opens `me`
+    and `going` at `staff`; `me-handlers.ts` says what each does.
+  */
+  | "me-off"
+  | "me-life-list"
+  | "me-life-list-long"
+  | "me-empty"
+  | "me-badges-new"
+  | "me-life-list-error"
+  | "me-writes-fail"
+  | "me-tables";
 
 /**
  * The email door shut part way through a test (yuvoy-app#229): an e2e spec
@@ -488,6 +502,7 @@ const routes = [
     `/experiences/:slug` says they do not exist (yuvoy-app#207).
   */
   ...creatorLinkHandlers,
+  ...meHandlers,
 
   // Trigo, the chat (yuvoy-app#223). Before the organisers: see `PUT /me/age` there.
   ...trigoHandlers,
@@ -1255,7 +1270,10 @@ const routes = [
     release `off`, as on dev and production today, unless a scenario moves
     `explore`, `checkedCities` (yuvoy-app#180's, at `staff`), `creator`
     (yuvoy-app#207's, at `staff`), `people` (yuvoy-app#222's, at `staff`,
-    or `all` under `people-all`) or `trigo` (yuvoy-app#223's, at `staff`).
+    or `all` under `people-all`), `trigo` (yuvoy-app#223's, at `staff`),
+    or `me`, `going` and `tables` (yuvoy-mobile#444's, at `staff`).
+    `trigoActions` is the one at `all`, so a card's buttons show wherever
+    Trigo does; `trigo-card-actions-off` turns it `off`.
   */
   http.get(url("/app-config"), async ({ request }) => {
     const failed = await commonFailure(request);
@@ -1288,7 +1306,12 @@ const routes = [
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
           trigo: trigoStageOf(scenario) ?? "off",
+          trigoActions: trigoActionsStageOf(scenario),
           supply: organiserSupplyOf(scenario),
+          // yuvoy-mobile#444: Did you go asks only while `going` is open.
+          me: meStageOf(scenario) ?? "off",
+          going: meStageOf(scenario) ?? "off",
+          tables: meTablesStageOf(scenario) ?? "off",
           people:
             peopleStageOf(scenario) ?? followPeopleStageOf(scenario) ?? "off",
           plans: plansStageOf(scenario) ?? "off",
