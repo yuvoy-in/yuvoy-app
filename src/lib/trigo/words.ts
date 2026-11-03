@@ -123,3 +123,23 @@ export const DATE_ALERT_DONE = "Done. I'll tell you once when it has a date.";
 
 /** A trip draft card used. */
 export const TRIP_DRAFT_DONE = "Saved to your trips.";
+
+/*
+  The cards in a reply and the note on a link Trigo did not open
+  (yuvoy-app#223 (b) and (c)). Every line on a live card is the server's.
+  These three are proposed on yuvoy-app#223 and wait for Sai Teja's yes.
+*/
+
+/** On a card whose listing or event is gone, in place of the price and the link. */
+export const NO_LONGER_LISTED = "No longer listed on Yuvoy.";
+
+/** Under a reply to a message that held a link (`linkNotChecked`). */
+export function linkNotCheckedLine(domain: string): string {
+  return `Trigo doesn't open links, so nothing on ${domain} has been checked yet.`;
+}
+
+/** The button beside that note: hands this message to the team. */
+export const ASK_TEAM_TO_CHECK = "Ask the team to check";
+
+/** The hand-off did not reach the server (offline, or no answer). Ours, proposed. */
+export const ASK_TEAM_FAILED = "That didn't reach the team. Try again.";
