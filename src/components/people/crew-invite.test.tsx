@@ -58,8 +58,11 @@ function ConfigIn() {
   return people.pending ? null : <p>config in</p>;
 }
 
-const open = () =>
-  fireEvent.click(screen.getByRole("button", { name: "Invite to a plan" }));
+/** Opens the picker once the config is in and the button shows. */
+const open = async () =>
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Invite to a plan" }),
+  );
 
 beforeEach(() => __signInAppRouteMock());
 
@@ -92,7 +95,7 @@ describe("Invite to a plan on a crew page", () => {
     releases({ people: "all", plans: "all" });
     onePage([plan("joined", "member")]);
     renderWithQuery(<CrewInvite crewId={CREW} memberCount={3} />);
-    open();
+    await open();
     expect(await screen.findByText(CREW_INVITE_WORDS.noPlans)).toBeTruthy();
   });
 
@@ -128,7 +131,7 @@ describe("Invite to a plan on a crew page", () => {
       }),
     );
     renderWithQuery(<CrewInvite crewId={CREW} memberCount={3} />);
-    open();
+    await open();
     expect(await screen.findByText(CREW_INVITE_WORDS.plansPaused)).toBeTruthy();
     expect(screen.queryByText(CREW_INVITE_WORDS.loading)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
@@ -147,7 +150,7 @@ describe("Invite to a plan on a crew page", () => {
       }),
     );
     renderWithQuery(<CrewInvite crewId={CREW} memberCount={4} />);
-    open();
+    await open();
     fireEvent.click(await screen.findByText("Plan mine"));
     expect(await screen.findByText("1 invited. 3 left out.")).toBeTruthy();
     expect(sent).toEqual([{ crewId: CREW }]);

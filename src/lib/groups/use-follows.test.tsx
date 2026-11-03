@@ -192,6 +192,8 @@ describe("Follow", () => {
     follows([OTHER]);
     writes("put", () => notFound("We couldn't find that group."));
     const { client } = renderWithQuery(<Probe />);
+    // No page reads the directory here, so keep its entry past gcTime 0.
+    client.setQueryDefaults(["listClubs"], { gcTime: Infinity });
     client.setQueryData(["listClubs", "kochi"], { items: [] });
     await shows("ids", OTHER);
     fireEvent.click(screen.getByText("follow"));
