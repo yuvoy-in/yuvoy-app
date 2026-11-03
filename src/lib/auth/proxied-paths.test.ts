@@ -178,6 +178,23 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/me/creator-links/C-K7QM2XPA")).toBeNull();
   });
 
+  it("forwards a Trigo card's yes and no, and nothing else on a card", () => {
+    /*
+      yuvoy-app#223 part 2. Both POST, both session only. A card is read in
+      its chat, so there is no GET for one.
+    */
+    const id = "8f14e45f-ceea-4e7a-9b1d-2c4a6e0f9b10";
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}/confirm`)).toBe(
+      "/trigo/actions/{id}/confirm",
+    );
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}/decline`)).toBe(
+      "/trigo/actions/{id}/decline",
+    );
+    expect(allowedProxyPath("GET", `/trigo/actions/${id}/confirm`)).toBeNull();
+    expect(allowedProxyPath("GET", `/trigo/actions/${id}`)).toBeNull();
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}`)).toBeNull();
+  });
+
   it("forwards the People calls by their verbs, and nothing more of People", () => {
     /*
       yuvoy-app#222. Every one is session only. The friend link's lookup

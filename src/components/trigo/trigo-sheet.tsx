@@ -45,6 +45,7 @@ import {
   lastReplySeq,
   lengthBucket,
   useOnline,
+  useRetryHold,
 } from "./chat-parts";
 import { Composer } from "./composer";
 import { ConsentPanel } from "./consent-panel";
@@ -161,7 +162,10 @@ function ChatSheet({
   }
 
   const atLimit = chat.remainingToday === 0 || failure?.kind === "limit";
-  const sendOff = !online || atLimit;
+  // An answer's Retry-After holds Send as it holds Try again: a send in the
+  // wait would only be refused again.
+  const held = useRetryHold(failure);
+  const sendOff = !online || atLimit || held;
 
   /**
    * Sends one message. `fresh` leaves the chat id out, for a resend after the
@@ -409,6 +413,7 @@ function ChatSheet({
         ) : null}
         <MessageList
           messages={chat.messages}
+          conversationId={conversationId}
           typing={turn.isPending}
           retrySeq={last?.outcome === "timed_out" ? last.seq : null}
           onRetry={retryFresh}
@@ -440,6 +445,7 @@ function ChatSheet({
           online={online}
           onRetry={retrySame}
           busy={turn.isPending}
+          held={held}
         />
         {atLimit ? (
           <LimitPanel
