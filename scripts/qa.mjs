@@ -1783,6 +1783,10 @@ for (const f of files) {
       "the leaving sheet, opened by See details",
     ],
     [
+      "src/components/me/life-entry-card.tsx",
+      "drawn once the life list has loaded in the browser (MeSection)",
+    ],
+    [
       "src/components/organisers/age-step.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
