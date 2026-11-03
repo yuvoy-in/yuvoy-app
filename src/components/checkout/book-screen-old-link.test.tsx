@@ -93,7 +93,7 @@ describe("an old ?slot= link with no day", () => {
       await screen.findByRole("button", { name: "07:00" }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByRole("heading", { level: 1, name: /Sun 20 Sep · 07:00/ }),
+      screen.getByRole("heading", { level: 1, name: /Sun, 20 Sep · 07:00/ }),
     ).toBeInTheDocument();
     // And the party came with it.
     expect(await screen.findByText(/2 people/)).toBeInTheDocument();
