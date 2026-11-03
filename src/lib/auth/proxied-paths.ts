@@ -285,13 +285,25 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     Crews (yuvoy-app#227, the web half of yuvoy-mobile#387): a traveller's
     own named lists of their friends. Session only, and 404 while `people` is
     closed, like the rest of People. There is no single-crew read: a crew's
-    page reads the list. `POST /plans/{planId}/crew-invites` is not here: no
-    plan screen invites a crew yet.
+    page reads the list. Asking a crew along to a plan is listed below, with
+    following a group (yuvoy-mobile#392).
   */
   { method: "GET", pattern: "/me/crews" },
   { method: "POST", pattern: "/me/crews" },
   { method: "PATCH", pattern: "/me/crews/{crewId}" },
   { method: "DELETE", pattern: "/me/crews/{crewId}" },
+  /*
+    Following a group and asking a crew along to a plan (yuvoy-mobile#392,
+    R10-T2). Follows are private and need the `people` release; the crew
+    invite needs `people` and `plans`. The plans list is the invite's picker:
+    the traveller's own plans, read for the ones they made. Session only in
+    the contract.
+  */
+  { method: "GET", pattern: "/me/club-follows" },
+  { method: "PUT", pattern: "/me/club-follows/{clubId}" },
+  { method: "DELETE", pattern: "/me/club-follows/{clubId}" },
+  { method: "POST", pattern: "/plans/{planId}/crew-invites" },
+  { method: "GET", pattern: "/me/plans" },
 ];
 
 /*
