@@ -213,6 +213,21 @@ describe("the browser's back, in any order (yuvoy-app#215)", () => {
     expect(t.__routeTrail().stepBack).toBe(false);
   });
 
+  it("is a step back when the listing is drawn inside the event and recorded after it", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    // React draws the listing inside popstate, so it is on screen when the
+    // listener runs, but the recorder's passive effect waits for the screen
+    // change's transition and records it after the event, with no event to
+    // say it was a traversal. The listing had offered Back to the business's
+    // page: listing, business's page, listing (yuvoy-app#215).
+    t.noteShown("/e/a");
+    t.markStepBack("/e/a");
+    t.recordVisit("/e/a");
+    expect(paths(t.__routeTrail())).toEqual(["/e/a"]);
+    expect(cameFrom(t.__routeTrail(), "/e/a")).toBeNull();
+  });
+
   it("is no step at all when only the fragment moved", async () => {
     const t = await fresh();
     listingThenBusiness(t);
