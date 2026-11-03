@@ -233,7 +233,10 @@ export type Scenario =
   | "trigo-consent"
   | "trigo-age"
   | "trigo-busy"
+  | "trigo-fast"
   | "trigo-not-released"
+  /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
+  | `trigo-card-${string}`
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
     with one organiser in each state; `organiser-handlers.ts` says what each

@@ -232,11 +232,45 @@ export interface TrigoChat {
   notFound: boolean;
 }
 
+/*
+  Chats whose next read is in full, per cache: the chat id and the number of
+  the ask. A number per ask means a read that started before a second ask
+  does not clear that second one.
+*/
+const fullReads = new WeakMap<QueryClient, Map<string, number>>();
+let fullReadAsks = 0;
+
+/**
+ * Reads the chat again with no `after`: its newest page, merged by `seq` so
+ * the fresh copy of each message wins. For a card's answer: the card sits on
+ * an older message, which an `after` read never sends again, so only a full
+ * read brings back its state as the server has it (used, expired,
+ * superseded, its booking reference). Polling keeps the cheap `after` read.
+ *
+ * When the chat is not on screen, the ask waits for its next read.
+ */
+export function readTrigoChatInFull(
+  qc: QueryClient,
+  conversationId: string,
+): void {
+  let asks = fullReads.get(qc);
+  if (!asks) {
+    asks = new Map();
+    fullReads.set(qc, asks);
+  }
+  fullReadAsks += 1;
+  asks.set(conversationId, fullReadAsks);
+  void qc.invalidateQueries({
+    queryKey: qk.trigoConversation(conversationId),
+  });
+}
+
 /**
  * One chat. The first read has no `after` (the newest 50); every read after
  * that asks only for what came after the last `seq` held, while
  * `pollAfterSeconds` is above 0 (the team is waiting or has joined) and the
- * tab is in front.
+ * tab is in front. After `readTrigoChatInFull` the next read has no `after`
+ * again.
  */
 export function useTrigoChat(
   conversationId: string | null,
@@ -251,13 +285,17 @@ export function useTrigoChat(
     retry: false,
     queryFn: async ({ signal }): Promise<TrigoChatData> => {
       const old = qc.getQueryData<TrigoChatData>(qk.trigoConversation(id));
+      const ask = fullReads.get(qc)?.get(id);
       /*
         Only a page sets `conversation`. Without one, the cache holds just a
         turn's answer: a chat the server continued under a new id has older
-        messages before it, so the read has no `after` (yuvoy-app#223).
+        messages before it, so the read has no `after` (yuvoy-app#223). A card
+        action's full read has no `after` either.
       */
       const after =
-        old?.conversation && old.messages.length > 0 ? maxSeq(old.messages) : 0;
+        ask === undefined && old?.conversation && old.messages.length > 0
+          ? maxSeq(old.messages)
+          : 0;
       const client = createProxyClient();
       const { data, error } = await client.GET("/trigo/conversations/{id}", {
         params: {
@@ -270,6 +308,8 @@ export function useTrigoChat(
         onSignedOut(qc, error);
         throw error;
       }
+      const asks = fullReads.get(qc);
+      if (ask !== undefined && asks?.get(id) === ask) asks.delete(id);
       return fromPage(old, data);
     },
     refetchInterval: (q) => {
@@ -404,13 +444,13 @@ export type TrigoFailure =
   | { kind: "age" } // 403 adult_confirmation_required
   | { kind: "consent"; noticeVersion: string | null } // 409 consent_required, details.noticeVersion
   | { kind: "limit"; resetsAt: string | null; message: string } // 429 daily_limit_reached, details.resetsAt
-  | { kind: "rate_limited"; message: string } // 429 rate_limited
-  | { kind: "in_progress" } // 409 turn_in_progress
-  | { kind: "idempotency_in_progress" } // 409 idempotency_in_progress: read the chat, do not resend
-  | { kind: "busy"; message: string } // 503: show the API's sentence, Try again with the same key
+  | { kind: "rate_limited"; message: string; retryAfterSeconds?: number } // 429 rate_limited
+  | { kind: "in_progress"; retryAfterSeconds?: number } // 409 turn_in_progress
+  | { kind: "idempotency_in_progress"; retryAfterSeconds?: number } // 409 idempotency_in_progress: read the chat, do not resend
+  | { kind: "busy"; message: string; retryAfterSeconds?: number } // 503: show the API's sentence, Try again with the same key
   | { kind: "offline" } // no connection / navigator.onLine false
   | { kind: "rejected" } // 400, 409 idempotency_key_reuse: the same send gets the same answer
-  | { kind: "failure" }; // anything else (500, unknown)
+  | { kind: "failure"; retryAfterSeconds?: number }; // anything else (500, unknown)
 
 function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
@@ -419,6 +459,31 @@ function isOffline(): boolean {
 function stringDetail(error: YuvoyError, name: string): string | null {
   const v = error.details[name];
   return typeof v === "string" ? v : null;
+}
+
+/** The longest the Trigo chat holds Send or Try again for a `Retry-After`, in seconds. */
+export const TRIGO_WAIT_MAX_SECONDS = 120;
+
+/**
+ * The answer's `Retry-After`, for the kinds that offer Try again or Send
+ * again: the API sends `2` on `409 idempotency_in_progress`, and the seconds
+ * until its limiter lets one more turn through on `429 rate_limited`
+ * (yuvoy-api#598). The sheet waits that long. `429 daily_limit_reached`
+ * carries none: its wait is `details.resetsAt`.
+ * Nothing when there was none, so those kinds read as they always did.
+ * A longer wait than `TRIGO_WAIT_MAX_SECONDS` is cut to it, so a wrong
+ * header holds Send and Try again for two minutes at most. The error keeps
+ * the value as sent.
+ */
+function waitOf(error: YuvoyError): { retryAfterSeconds?: number } {
+  return error.retryAfterSeconds === undefined
+    ? {}
+    : {
+        retryAfterSeconds: Math.min(
+          error.retryAfterSeconds,
+          TRIGO_WAIT_MAX_SECONDS,
+        ),
+      };
 }
 
 /**
@@ -453,12 +518,14 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
         noticeVersion: stringDetail(error, "noticeVersion"),
       };
     }
-    if (code === "turn_in_progress") return { kind: "in_progress" };
+    if (code === "turn_in_progress") {
+      return { kind: "in_progress", ...waitOf(error) };
+    }
     if (code === "idempotency_in_progress") {
-      return { kind: "idempotency_in_progress" };
+      return { kind: "idempotency_in_progress", ...waitOf(error) };
     }
     if (code === "idempotency_key_reuse") return { kind: "rejected" };
-    return { kind: "failure" };
+    return { kind: "failure", ...waitOf(error) };
   }
   if (status === 429) {
     if (code === "daily_limit_reached") {
@@ -468,10 +535,12 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
         message: error.message,
       };
     }
-    return { kind: "rate_limited", message: error.message };
+    return { kind: "rate_limited", message: error.message, ...waitOf(error) };
   }
-  if (status === 503) return { kind: "busy", message: error.message };
-  return { kind: "failure" };
+  if (status === 503) {
+    return { kind: "busy", message: error.message, ...waitOf(error) };
+  }
+  return { kind: "failure", ...waitOf(error) };
 }
 
 /* ----------------------------------------------------------------- age */
