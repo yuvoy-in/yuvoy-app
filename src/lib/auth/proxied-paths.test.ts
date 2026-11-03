@@ -178,6 +178,30 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/me/creator-links/C-K7QM2XPA")).toBeNull();
   });
 
+  it("allows the organiser pages and the age step, and not the club or claims routes", () => {
+    expect(allowedProxyPath("GET", "/me/organisers")).toBe("/me/organisers");
+    expect(allowedProxyPath("POST", "/organisers")).toBe("/organisers");
+    expect(allowedProxyPath("PATCH", "/organisers/org_1")).toBe(
+      "/organisers/{id}",
+    );
+    expect(allowedProxyPath("DELETE", "/organisers/org_1/helpers/trv_1")).toBe(
+      "/organisers/{id}/helpers/{travellerId}",
+    );
+    expect(
+      allowedProxyPath("POST", "/organisers/org_1/events/post_1/cancel"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/cancel");
+    expect(
+      allowedProxyPath("GET", "/organisers/org_1/events/post_1/numbers"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/numbers");
+    expect(allowedProxyPath("PUT", "/me/age")).toBe("/me/age");
+
+    expect(allowedProxyPath("DELETE", "/organisers/org_1")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/age")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/club")).toBeNull();
+    expect(allowedProxyPath("GET", "/organisers/org_1/claims")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/claims")).toBeNull();
+  });
+
   it("forwards following a group and the crew invite, and their near misses", () => {
     /*
       yuvoy-mobile#392. Read the follows, follow, stop following, ask a crew

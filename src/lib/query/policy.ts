@@ -118,6 +118,20 @@ export const CACHE = {
   },
 
   /**
+   * Every organiser read (yuvoy-app#224): the list, a page, its events, an
+   * event's numbers and the helpers. "Never cached" in the contract, so every
+   * mount reads again. Kept a minute rather than none, unlike the share
+   * links: a page just made or saved is written into its entry, and the
+   * screen it opens next must find it there. Sign in and sign out remove all
+   * of it (`forgetOrganisers`).
+   */
+  organisers: {
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnMount: "always",
+  },
+
+  /**
    * The groups a traveller follows (yuvoy-mobile#392). Read again on every
    * mount, because a group taken out of the directory drops out of it on the
    * API's side. Kept five minutes so a card and the group screen agree at
@@ -341,6 +355,28 @@ export const qk = {
    * sign out with the rest of what belongs to a number.
    */
   myCreatorLinks: () => ["listMyCreatorLinks"] as const,
+  /**
+   * Trigo (yuvoy-app#223): whether this traveller accepted the notice in
+   * force, their recent chats, and one chat's messages. None is keyed by the
+   * session, for the reason `myBookings` gives: all three are the number's
+   * own, a chat in the traveller's own words, so they are REMOVED on sign in
+   * and sign out (`useTravellerSession`).
+   */
+  trigoConsent: () => ["getTrigoConsent"] as const,
+  trigoConversations: () => ["listTrigoConversations"] as const,
+  trigoConversation: (id: string) => ["getTrigoConversation", id] as const,
+  /**
+   * The signed-in traveller's organisers and what hangs off each one
+   * (yuvoy-app#224). Not keyed by the person, for the reason `myBookings`
+   * gives: all of it is removed on sign in and sign out.
+   */
+  myOrganisers: () => ["listMyOrganisers"] as const,
+  organiser: (id: string) => ["getOrganiser", id] as const,
+  organiserEvents: (id: string) => ["listOrganiserEvents", id] as const,
+  /** `on` is "" for the current date, so the two blocks of a weekly event are two entries. */
+  organiserEventNumbers: (id: string, postId: string, on?: string | null) =>
+    ["getOrganiserEventNumbers", id, postId, on ?? ""] as const,
+  organiserHelpers: (id: string) => ["listOrganiserHelpers", id] as const,
   /**
    * The groups the signed-in traveller follows (yuvoy-mobile#392). Not keyed
    * by anything, for the reason `myBookings` gives; removed on sign in and

@@ -5,6 +5,7 @@ import Link from "@/components/ui/link";
 import { ExperienceCard } from "./experience-card";
 import { Wordmark } from "@/components/ui/wordmark";
 import { LoginButton } from "@/components/auth/login-button";
+import { AskTrigoButton } from "@/components/trigo/ask-trigo-button";
 import { useFeedStore, detectAutoplayAllowed } from "@/lib/feed/store";
 import { useReelViews } from "@/lib/feed/use-reel-views";
 import { useShownOutcome } from "@/lib/feed/use-shown-outcome";
@@ -197,7 +198,11 @@ export function ReelMasthead({
           ) : (
             mark
           )}
-          <LoginButton className="pointer-events-auto" />
+          {/* Ask Trigo only while `releases.trigo` is open (yuvoy-app#223). */}
+          <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+            <AskTrigoButton />
+            <LoginButton />
+          </div>
         </div>
       </div>
       {place ? (
