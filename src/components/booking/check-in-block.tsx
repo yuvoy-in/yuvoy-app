@@ -74,11 +74,14 @@ export function CheckInBlock({ view }: { view: CheckInView }) {
         </span>
       </p>
       {used ? (
-        <p className="text-body mt-1 font-bold" data-check-in-used="">
+        <p
+          className="text-body mt-1 font-bold text-pretty"
+          data-check-in-used=""
+        >
           {view.checkedIn}
         </p>
       ) : view.day ? (
-        <p className="text-body mt-1" data-check-in-day="">
+        <p className="text-body mt-1 text-pretty" data-check-in-day="">
           {view.day}
         </p>
       ) : null}
