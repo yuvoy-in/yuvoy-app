@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
+import { CREW_INVITE_WORDS } from "@/lib/people/crew-invite";
 import { CREWS_WORDS as W } from "@/lib/people/crews-words";
 import { PEOPLE_WORDS } from "@/lib/people/people-words";
 import { CrewScreen } from "./crew-screen";
@@ -313,5 +314,66 @@ describe("/people/crews/{crewId}", () => {
     expect(screen.queryByRole("group")).toBeNull();
     expect(screen.getByRole("button", { name: W.delete })).toBeInTheDocument();
     expect(sent).toHaveLength(0);
+  });
+});
+
+/** `GET /app-config` with People and plans at these stages. */
+function releases(stages: { people: string; plans: string }) {
+  answer(
+    "get",
+    "/app-config",
+    json({
+      minimumVersion: { ios: "0.0.0", android: "0.0.0" },
+      features: { payments: "coming_soon", inviteOnly: false },
+      support: { whatsappE164: null, hours: "" },
+      deliveryHost: null,
+      releases: stages,
+    }),
+  );
+}
+
+describe("/people/crews/{crewId}: Invite to a plan", () => {
+  it("shows under the members and before Edit while People and plans are open", async () => {
+    signedIn();
+    releases({ people: "all", plans: "all" });
+    crews(GANG);
+    show();
+    await heading("College gang");
+    const invite = await screen.findByRole("button", {
+      name: CREW_INVITE_WORDS.button,
+    });
+    const last = screen.getAllByTestId("crew-member").at(-1)!;
+    const edit = screen.getByRole("link", { name: W.edit });
+    expect(last.compareDocumentPosition(invite)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(invite.compareDocumentPosition(edit)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("is not shown for a crew with nobody in it", async () => {
+    signedIn();
+    releases({ people: "all", plans: "all" });
+    const EMPTY = crew(1, "College gang");
+    crews(EMPTY);
+    show();
+    await heading("College gang");
+    expect(screen.getByText(W.nobody)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: CREW_INVITE_WORDS.button }),
+    ).toBeNull();
+  });
+
+  it("is not shown while plans is closed", async () => {
+    signedIn();
+    releases({ people: "all", plans: "off" });
+    crews(GANG);
+    show();
+    await heading("College gang");
+    expect(screen.getByRole("link", { name: W.edit })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: CREW_INVITE_WORDS.button }),
+    ).toBeNull();
   });
 });

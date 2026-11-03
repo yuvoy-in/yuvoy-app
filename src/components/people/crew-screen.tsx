@@ -10,6 +10,7 @@ import {
   type Crew,
 } from "@/lib/people/crews-words";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { CrewInvite } from "./crew-invite";
 import { Initial, Refusal } from "./people-parts";
 import {
   CrewBody,
@@ -119,6 +120,13 @@ function CrewView({
           </ul>
         )}
       </section>
+
+      {/* Under the members and before the ways to change the crew, as on the
+          phone. It shows only while People and plans are open and the crew
+          has someone in it. */}
+      <div className="mt-8 empty:hidden">
+        <CrewInvite crewId={crew.crewId} memberCount={crew.members.length} />
+      </div>
 
       <div className="mt-8 flex flex-wrap gap-3">
         <ButtonLink href={`/people/crews/${crew.crewId}/edit`} size="lg">
