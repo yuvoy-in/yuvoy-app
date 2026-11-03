@@ -13,7 +13,12 @@ import {
   type TrigoActionCard,
   type TrigoActionConfirmation,
 } from "./actions";
-import { useTrigoChat, type TrigoChatData, type TrigoMessage } from "./api";
+import {
+  TRIGO_WAIT_MAX_SECONDS,
+  useTrigoChat,
+  type TrigoChatData,
+  type TrigoMessage,
+} from "./api";
 import { readTrigoCheckout } from "./checkout-prefill";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
@@ -230,6 +235,38 @@ describe("classifyCardError", () => {
     expect(
       classifyCardError(apiError(409, "conflict", "action_expired")),
     ).toEqual({ kind: "failure" });
+  });
+
+  it("carries Retry-After where a tap again follows, cut to two minutes", () => {
+    const waited = (status: number, code: string, retryAfterSeconds: number) =>
+      new YuvoyError({ status, code, message: "Wait.", retryAfterSeconds });
+    expect(classifyCardError(waited(429, "rate_limited", 7))).toEqual({
+      kind: "rate_limited",
+      message: "Wait.",
+      retryAfterSeconds: 7,
+    });
+    expect(classifyCardError(waited(503, "unavailable", 30))).toEqual({
+      kind: "unavailable",
+      message: "Wait.",
+      retryAfterSeconds: 30,
+    });
+    expect(
+      classifyCardError(waited(409, "idempotency_in_progress", 2)),
+    ).toEqual({ kind: "failure", retryAfterSeconds: 2 });
+    expect(classifyCardError(waited(500, "internal", 5))).toEqual({
+      kind: "failure",
+      retryAfterSeconds: 5,
+    });
+    expect(classifyCardError(waited(429, "rate_limited", 3600))).toEqual({
+      kind: "rate_limited",
+      message: "Wait.",
+      retryAfterSeconds: TRIGO_WAIT_MAX_SECONDS,
+    });
+    // The kinds that end the card wait for nothing.
+    expect(classifyCardError(waited(404, "not_found", 9))).toEqual({
+      kind: "not_found",
+      message: "Wait.",
+    });
   });
 
   it("reads no connection as offline, and a stalled call as a failure", () => {

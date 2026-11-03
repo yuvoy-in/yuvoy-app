@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import { YuvoyError } from "@/lib/api/errors";
@@ -15,6 +15,7 @@ import {
   GO_TO_CHECKOUT,
   SIGNED_OUT_LINE,
   TRIP_DRAFT_DONE,
+  TRY_AGAIN_SOON,
   bookedLine,
 } from "@/lib/trigo/words";
 import { ActionCard, TRIPS_PATH } from "./action-card";
@@ -109,12 +110,19 @@ function draw(c: TrigoActionCard) {
   return renderWithQuery(<ActionCard card={c} conversationId={CHAT} />);
 }
 
-function refusal(status: number, code: string, message: string, reason = "") {
+function refusal(
+  status: number,
+  code: string,
+  message: string,
+  reason = "",
+  retryAfterSeconds?: number,
+) {
   return new YuvoyError({
     status,
     code,
     message,
     details: reason ? { reason } : undefined,
+    retryAfterSeconds,
   });
 }
 
@@ -334,5 +342,84 @@ describe("ActionCard, a failure", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(CARD_FAILURE);
     expect(screen.queryByText("Raw text.")).toBeNull();
     expect(screen.getByRole("button", { name: "Book" })).toBeEnabled();
+  });
+});
+
+/*
+  The card's buttons wait out the answer's Retry-After, as the chat's Try
+  again does. The taps are plain clicks under a faked setTimeout: user-event
+  never returns under vitest's fake timers (trigo-sheet.test.tsx says why).
+*/
+describe("a failure that sends Retry-After", () => {
+  function heldFor(seconds: number, buttons: string[]) {
+    for (const name of buttons) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription(TRY_AGAIN_SOON);
+    }
+    act(() => vi.advanceTimersByTime(seconds * 1000 - 1));
+    for (const name of buttons) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+    act(() => vi.advanceTimersByTime(1));
+    for (const name of buttons) {
+      expect(screen.getByRole("button", { name })).toBeEnabled();
+    }
+    expect(screen.queryByText(TRY_AGAIN_SOON)).toBeNull();
+  }
+
+  it("a 429 holds Book and Not now for it, then a tap again", () => {
+    s.confirm = () => ({
+      error: refusal(429, "rate_limited", "Slow down.", "", 3),
+    });
+    draw(card());
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Book" }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Slow down.");
+      heldFor(3, ["Book", "Not now"]);
+    } finally {
+      vi.useRealTimers();
+    }
+    s.confirm = null;
+    fireEvent.click(screen.getByRole("button", { name: "Book" }));
+    expect(s.confirmed).toHaveLength(2);
+  });
+
+  it("a decline answered 429 holds both buttons too", () => {
+    s.decline = () => ({
+      error: refusal(429, "rate_limited", "Slow down.", "", 2),
+    });
+    draw(card());
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+      heldFor(2, ["Book", "Not now"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Go to checkout on a confirmed card waits the same way", () => {
+    s.confirm = () => ({
+      error: refusal(503, "unavailable", "Cards are off.", "", 2),
+    });
+    draw(card({ state: "confirmed" }));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: GO_TO_CHECKOUT }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Cards are off.");
+      heldFor(2, [GO_TO_CHECKOUT]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("with no Retry-After nothing is held", async () => {
+    s.confirm = () => ({ error: refusal(429, "rate_limited", "Slow down.") });
+    draw(card());
+    await userEvent.click(screen.getByRole("button", { name: "Book" }));
+    expect(screen.getByRole("button", { name: "Book" })).toBeEnabled();
+    expect(screen.queryByText(TRY_AGAIN_SOON)).toBeNull();
   });
 });

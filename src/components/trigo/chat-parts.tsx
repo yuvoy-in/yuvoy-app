@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { nextParamFor } from "@/lib/site/next-path";
+import type { CardFailure } from "@/lib/trigo/actions";
 import type { TrigoFailure, TrigoMessage } from "@/lib/trigo/api";
 import {
   CHIPS_ANDAMAN,
@@ -105,21 +106,25 @@ export function Failed({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+/** A chat's or a card's failure: either may carry a `Retry-After`. */
+type Waitable = TrigoFailure | CardFailure;
+
 /** The seconds a failure's `Retry-After` asked for, 0 when none. */
-function retryAfterOf(failure: TrigoFailure | null): number {
+function retryAfterOf(failure: Waitable | null): number {
   if (!failure || !("retryAfterSeconds" in failure)) return 0;
   return failure.retryAfterSeconds ?? 0;
 }
 
 /**
- * Whether Try again is still waiting out the failure's `Retry-After`.
+ * Whether Try again (or a card's buttons) is still waiting out the
+ * failure's `Retry-After`.
  *
  * Each failure is a new object, so a new one starts its own wait and the
  * cleanup drops the last one's timer, as unmounting does. No clock is read:
  * the timer alone ends the wait, by naming the failure it waited for.
  */
-export function useRetryHold(failure: TrigoFailure | null): boolean {
-  const [waited, setWaited] = useState<TrigoFailure | null>(null);
+export function useRetryHold(failure: Waitable | null): boolean {
+  const [waited, setWaited] = useState<Waitable | null>(null);
   const seconds = retryAfterOf(failure);
   useEffect(() => {
     if (!failure || seconds <= 0) return;

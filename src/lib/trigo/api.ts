@@ -461,7 +461,7 @@ function stringDetail(error: YuvoyError, name: string): string | null {
   return typeof v === "string" ? v : null;
 }
 
-/** The longest the Trigo chat holds Send or Try again for a `Retry-After`, in seconds. */
+/** The longest the Trigo chat holds Send or Try again, or a card its buttons, for a `Retry-After`, in seconds. */
 export const TRIGO_WAIT_MAX_SECONDS = 120;
 
 /**
@@ -473,9 +473,10 @@ export const TRIGO_WAIT_MAX_SECONDS = 120;
  * Nothing when there was none, so those kinds read as they always did.
  * A longer wait than `TRIGO_WAIT_MAX_SECONDS` is cut to it, so a wrong
  * header holds Send and Try again for two minutes at most. The error keeps
- * the value as sent.
+ * the value as sent. A card's failures carry it the same way
+ * (`classifyCardError` in `./actions`).
  */
-function waitOf(error: YuvoyError): { retryAfterSeconds?: number } {
+export function trigoWaitOf(error: YuvoyError): { retryAfterSeconds?: number } {
   return error.retryAfterSeconds === undefined
     ? {}
     : {
@@ -519,13 +520,13 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
       };
     }
     if (code === "turn_in_progress") {
-      return { kind: "in_progress", ...waitOf(error) };
+      return { kind: "in_progress", ...trigoWaitOf(error) };
     }
     if (code === "idempotency_in_progress") {
-      return { kind: "idempotency_in_progress", ...waitOf(error) };
+      return { kind: "idempotency_in_progress", ...trigoWaitOf(error) };
     }
     if (code === "idempotency_key_reuse") return { kind: "rejected" };
-    return { kind: "failure", ...waitOf(error) };
+    return { kind: "failure", ...trigoWaitOf(error) };
   }
   if (status === 429) {
     if (code === "daily_limit_reached") {
@@ -535,12 +536,16 @@ export function classifyTrigoError(error: unknown): TrigoFailure {
         message: error.message,
       };
     }
-    return { kind: "rate_limited", message: error.message, ...waitOf(error) };
+    return {
+      kind: "rate_limited",
+      message: error.message,
+      ...trigoWaitOf(error),
+    };
   }
   if (status === 503) {
-    return { kind: "busy", message: error.message, ...waitOf(error) };
+    return { kind: "busy", message: error.message, ...trigoWaitOf(error) };
   }
-  return { kind: "failure", ...waitOf(error) };
+  return { kind: "failure", ...trigoWaitOf(error) };
 }
 
 /* ----------------------------------------------------------------- age */
