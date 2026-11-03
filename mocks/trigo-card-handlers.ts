@@ -42,6 +42,11 @@ import { availabilityFor } from "./fixtures";
  *   - `trigo-card-rate-limited`: `429 rate_limited`.
  *   - `trigo-card-down`: `503 unavailable`.
  *
+ * `releases.trigoActions` reads `all` under every scenario but one:
+ * `trigo-card-actions-off`, a book card made before the release closed, reads
+ * `off`, and its confirm is `404 not_found` with the API's sentence. Decline is
+ * not behind the release, as in the API.
+ *
  * Checked in the API's order (`internal/trigo/actions_confirm.go`): a change
  * card, then a replay, then a card no longer `proposed`, then the refusals.
  *
@@ -57,6 +62,8 @@ type TrigoActionConfirmation = components["schemas"]["TrigoActionConfirmation"];
 const NO_CARD = "We could not find that card.";
 /** yuvoy-api `internal/handler/trigo.go` trigoDown. */
 const TRIGO_DOWN = "Trigo is not available right now. Try again later.";
+/** yuvoy-api `internal/handler/trigo.go` trigoNotOpen. */
+const TRIGO_NOT_OPEN = "Trigo isn't open to your account yet.";
 const CARD_CHANGED = "This changed since I made this card. Ask Trigo again.";
 const CARD_EXPIRED = "This card has expired. Ask Trigo again.";
 const ALERTS_FULL = "You have 50 date alerts waiting. Stop one to add another.";
@@ -102,10 +109,16 @@ export const TRIGO_CARD_SCENARIOS: ReadonlySet<string> = new Set([
   "trigo-card-signed-out",
   "trigo-card-rate-limited",
   "trigo-card-down",
+  "trigo-card-actions-off",
   ...Object.keys(CHANGED),
   ...Object.keys(KIND),
   ...Object.keys(STATE),
 ]);
+
+/** The stage a scenario gives `trigoActions`: open unless one closes it. */
+export function trigoActionsStageOf(scenario: string): "all" | "off" {
+  return scenario === "trigo-card-actions-off" ? "off" : "all";
+}
 
 function rupees(paise: number): string {
   return `₹${new Intl.NumberFormat("en-IN").format(paise / 100)}`;
@@ -269,6 +282,9 @@ export function trigoCardHandlers(deps: CardMockDeps) {
       const auth = sessionOf(request);
       if (auth instanceof Response) return auth;
       const scenario = scenarioOf(request);
+      if (trigoActionsStageOf(scenario) === "off") {
+        return envelope("not_found", TRIGO_NOT_OPEN, 404);
+      }
       const { chat, index, card } = find(request, auth, params.id);
       if (!card || scenario === "trigo-card-not-found") {
         return envelope("not_found", NO_CARD, 404);
