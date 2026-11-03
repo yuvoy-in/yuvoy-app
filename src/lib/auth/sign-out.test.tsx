@@ -17,6 +17,10 @@ import { http, HttpResponse } from "msw";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { SIGN_OUT_OWED_COOKIE } from "./sign-out-owed";
+import {
+  readTrigoCheckout,
+  saveTrigoCheckout,
+} from "@/lib/trigo/checkout-prefill";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
 
@@ -229,6 +233,84 @@ describe("signing out", () => {
     });
 
     expect(client.getQueryData(qk.table("tbl_1"))).toBeUndefined();
+  });
+
+  it("forgets the date alerts and trip drafts, on sign-out and on sign-in", async () => {
+    /*
+      yuvoy-app#220. Both belong to the number, and neither key carries the
+      session, so the next person on this browser must not see them while a
+      refetch runs.
+    */
+    let signOut!: () => Promise<void>;
+    let signIn!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <>
+        <Harness onReady={(fn) => (signOut = fn)} />
+        <SignInProbe onReady={(fn) => (signIn = fn)} />
+      </>,
+    );
+    const seed = () => {
+      client.setQueryDefaults(qk.myDateAlerts(), { gcTime: Infinity });
+      client.setQueryDefaults(qk.myTripDrafts(), { gcTime: Infinity });
+      client.setQueryData(qk.myDateAlerts(), { alerts: [] });
+      client.setQueryData(qk.myTripDrafts(), { drafts: [] });
+    };
+    const left = () => [
+      client.getQueryData(qk.myDateAlerts()),
+      client.getQueryData(qk.myTripDrafts()),
+    ];
+
+    seed();
+    await act(async () => {
+      await signOut();
+    });
+    expect(left()).toEqual([undefined, undefined]);
+
+    seed();
+    await act(async () => {
+      await signIn();
+    });
+    expect(left()).toEqual([undefined, undefined]);
+  });
+
+  it("forgets a Trigo card's checkout, on sign-out and on sign-in", async () => {
+    /*
+      yuvoy-app#223. The card's key settles the card for whoever books under
+      it, so the next person on this tab must not book under the previous
+      one's key from the same checkout address.
+    */
+    const now = Date.parse("2026-11-02T05:00:00Z");
+    const seed = () =>
+      saveTrigoCheckout(
+        "2b7e4c1a-9d3f-4e5a-8b6c-7d8e9f0a1b2c",
+        {
+          experienceSlug: "try-dive",
+          slotId: "slot_a",
+          localDate: "2026-11-07",
+          guests: 2,
+          expectTotalPaise: 900000,
+          idempotencyKey: "trg_2b7e4c1a9d3f4e5a8b6c7d8e9f0a1b2c",
+          mode: "allotment",
+        },
+        now,
+      );
+    let signOut!: () => Promise<void>;
+    renderWithQuery(<Harness onReady={(fn) => (signOut = fn)} />);
+    let signIn!: () => Promise<void>;
+    renderWithQuery(<SignInProbe onReady={(fn) => (signIn = fn)} />);
+
+    seed();
+    expect(readTrigoCheckout("try-dive", now)).not.toBeNull();
+    await act(async () => {
+      await signOut();
+    });
+    expect(readTrigoCheckout("try-dive", now)).toBeNull();
+
+    seed();
+    await act(async () => {
+      await signIn();
+    });
+    expect(readTrigoCheckout("try-dive", now)).toBeNull();
   });
 
   it("clears the device even when the sign-out request fails", async () => {

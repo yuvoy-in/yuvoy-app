@@ -232,11 +232,45 @@ export interface TrigoChat {
   notFound: boolean;
 }
 
+/*
+  Chats whose next read is in full, per cache: the chat id and the number of
+  the ask. A number per ask means a read that started before a second ask
+  does not clear that second one.
+*/
+const fullReads = new WeakMap<QueryClient, Map<string, number>>();
+let fullReadAsks = 0;
+
+/**
+ * Reads the chat again with no `after`: its newest page, merged by `seq` so
+ * the fresh copy of each message wins. For a card's answer: the card sits on
+ * an older message, which an `after` read never sends again, so only a full
+ * read brings back its state as the server has it (used, expired,
+ * superseded, its booking reference). Polling keeps the cheap `after` read.
+ *
+ * When the chat is not on screen, the ask waits for its next read.
+ */
+export function readTrigoChatInFull(
+  qc: QueryClient,
+  conversationId: string,
+): void {
+  let asks = fullReads.get(qc);
+  if (!asks) {
+    asks = new Map();
+    fullReads.set(qc, asks);
+  }
+  fullReadAsks += 1;
+  asks.set(conversationId, fullReadAsks);
+  void qc.invalidateQueries({
+    queryKey: qk.trigoConversation(conversationId),
+  });
+}
+
 /**
  * One chat. The first read has no `after` (the newest 50); every read after
  * that asks only for what came after the last `seq` held, while
  * `pollAfterSeconds` is above 0 (the team is waiting or has joined) and the
- * tab is in front.
+ * tab is in front. After `readTrigoChatInFull` the next read has no `after`
+ * again.
  */
 export function useTrigoChat(
   conversationId: string | null,
@@ -251,13 +285,17 @@ export function useTrigoChat(
     retry: false,
     queryFn: async ({ signal }): Promise<TrigoChatData> => {
       const old = qc.getQueryData<TrigoChatData>(qk.trigoConversation(id));
+      const ask = fullReads.get(qc)?.get(id);
       /*
         Only a page sets `conversation`. Without one, the cache holds just a
         turn's answer: a chat the server continued under a new id has older
-        messages before it, so the read has no `after` (yuvoy-app#223).
+        messages before it, so the read has no `after` (yuvoy-app#223). A card
+        action's full read has no `after` either.
       */
       const after =
-        old?.conversation && old.messages.length > 0 ? maxSeq(old.messages) : 0;
+        ask === undefined && old?.conversation && old.messages.length > 0
+          ? maxSeq(old.messages)
+          : 0;
       const client = createProxyClient();
       const { data, error } = await client.GET("/trigo/conversations/{id}", {
         params: {
@@ -270,6 +308,8 @@ export function useTrigoChat(
         onSignedOut(qc, error);
         throw error;
       }
+      const asks = fullReads.get(qc);
+      if (ask !== undefined && asks?.get(id) === ask) asks.delete(id);
       return fromPage(old, data);
     },
     refetchInterval: (q) => {

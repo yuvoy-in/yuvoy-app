@@ -230,6 +230,12 @@ export const qk = {
    * answer carries the reader's own request, the names and the venue.
    */
   table: (id: string) => ["getTable", id] as const,
+  /**
+   * The date alerts and trip drafts on the signed-in number (yuvoy-app#220).
+   * Not keyed, like `myBookings`: removed on sign-in and sign-out.
+   */
+  myDateAlerts: () => ["listMyDateAlerts"] as const,
+  myTripDrafts: () => ["listMyTripDrafts"] as const,
   /** An invite link's preview, unauthenticated, for `/i/{token}`. */
   invitePreview: (token: string) => ["previewTripInvite", token] as const,
   /** The guests on a booking, as the booker sees them. */
