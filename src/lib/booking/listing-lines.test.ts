@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { PAY_AT_COUNTER, cancellationLine, paymentLine } from "./listing-lines";
+import {
+  PAY_AT_COUNTER,
+  cancellationLine,
+  paymentLine,
+  registrationLine,
+} from "./listing-lines";
 
 /**
  * The two lines beside the price (yuvoy-app#110, yuvoy-app#112). Both are the
@@ -56,5 +61,37 @@ describe("cancellationLine", () => {
   it("does not print a blank summary", () => {
     expect(cancellationLine({ cancellationSummary: "" })).toBeNull();
     expect(cancellationLine({ cancellationSummary: 7 })).toBeNull();
+  });
+});
+
+/*
+  yuvoy-app#219, the web half of yuvoy-mobile#368. The API sends
+  `compliance` only while the registration is verified and in date.
+*/
+describe("registrationLine", () => {
+  it("prints the label verbatim and the last valid day written out", () => {
+    expect(
+      registrationLine({
+        label: "Registered with A&N Tourism",
+        validTo: "2027-06-30",
+      }),
+    ).toBe("Registered with A&N Tourism · valid to 30 Jun 2027");
+  });
+
+  it("says nothing at all when the API sends no registration", () => {
+    expect(registrationLine(undefined)).toBeNull();
+  });
+
+  it("says nothing for a blank label or a date it cannot read", () => {
+    expect(registrationLine({ label: "  ", validTo: "2027-06-30" })).toBeNull();
+    expect(
+      registrationLine({ label: "Registered with A&N Tourism" }),
+    ).toBeNull();
+    expect(
+      registrationLine({
+        label: "Registered with A&N Tourism",
+        validTo: "30/06/2027",
+      }),
+    ).toBeNull();
   });
 });

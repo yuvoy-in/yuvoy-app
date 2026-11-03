@@ -25,8 +25,10 @@ import {
   GO_TO_CHECKOUT,
   SIGNED_OUT_LINE,
   TRIP_DRAFT_DONE,
+  TRY_AGAIN_SOON,
   bookedLine,
 } from "@/lib/trigo/words";
+import { useRetryHold } from "./chat-parts";
 import {
   CARD_ACTIONS_CLOSED,
   CARD_DECLINED,
@@ -147,7 +149,10 @@ function stateLine(card: TrigoActionCard): string | null {
  * A failure is drawn by kind (`classifyCardError`): on a confirm, changed
  * and expired show the API's sentence and end the card, so does a 404, a 429
  * shows the sentence and leaves the card as it was, a 503 or anything else
- * leaves the buttons so a tap is the retry. On a decline, changed and expired
+ * leaves the buttons so a tap is the retry. When that answer sends
+ * `Retry-After` (the traveller's limiter on a 429 does), the buttons stay off
+ * for it with "You can try again in a moment." beside them, as the chat's
+ * Try again does (`useRetryHold`). On a decline, changed and expired
  * end nothing: the card moved on elsewhere (it may be confirmed in another
  * tab), so the chat is read again and the card is drawn as the server has it.
  */
@@ -168,9 +173,13 @@ export function ActionCard({
   const [recheck, setRecheck] = useState<"reading" | "closed" | null>(null);
   const busyRef = useRef(false);
   const headingId = useId();
+  const soonId = useId();
+  const held = useRetryHold(failure);
 
   const reading = recheck === "reading";
   const pending = confirm.isPending || decline.isPending || reading;
+  const off = pending || held;
+  const soon = held ? soonId : undefined;
   const over = ends(failure);
   const book = card.kind === "book";
   const canConfirm = CONFIRMABLE.has(card.kind);
@@ -289,17 +298,29 @@ export function ActionCard({
         </p>
       ) : null}
 
+      {held && (proposed || (reopen && open)) ? (
+        <p id={soonId} className="text-forest/75 label">
+          {TRY_AGAIN_SOON}
+        </p>
+      ) : null}
+
       {proposed ? (
         <div className="flex flex-wrap gap-2">
           {canConfirm && open ? (
-            <Button size="sm" disabled={pending} onClick={() => run("confirm")}>
+            <Button
+              size="sm"
+              disabled={off}
+              aria-describedby={soon}
+              onClick={() => run("confirm")}
+            >
               {card.confirmLabel}
             </Button>
           ) : null}
           <Button
             variant="outline"
             size="sm"
-            disabled={pending}
+            disabled={off}
+            aria-describedby={soon}
             onClick={() => run("decline")}
           >
             {card.declineLabel}
@@ -308,7 +329,12 @@ export function ActionCard({
       ) : null}
       {reopen && open ? (
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" disabled={pending} onClick={() => run("confirm")}>
+          <Button
+            size="sm"
+            disabled={off}
+            aria-describedby={soon}
+            onClick={() => run("confirm")}
+          >
             {GO_TO_CHECKOUT}
           </Button>
         </div>

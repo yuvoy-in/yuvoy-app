@@ -41,6 +41,9 @@ const ALLOWED = {
   "/account": "Settings and consent. All state is client-side and per-device.",
   "/apple-icon.png": "Build asset.",
   "/favicon.ico": "Build asset.",
+  "/door":
+    "Checking people in at the door (yuvoy-app#226). The code is in the " +
+    "fragment, which no server sees, and the check-in is sent by script.",
   "/finder":
     "What YuvoyFinder reads and how a site stops it (yuvoy-api#324). Fixed " +
     "words in the page, so the HTML changes only on deploy.",
