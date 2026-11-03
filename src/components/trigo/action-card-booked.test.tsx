@@ -24,7 +24,8 @@ import {
  * no checkout opens and none is kept.
  *
  * And a card whose release closed after it was read: its confirm answers 404,
- * the card reads app-config again and is drawn closed, with Not now.
+ * the card reads app-config again and is drawn closed, with Not now. With the
+ * release still open the 404 is the API's own, and the card ends.
  *
  * The real hooks and the mock's confirm, on a chat this test holds: the
  * proxy mock does not pass a scenario on, so the mock's deps are handed in
@@ -192,6 +193,43 @@ describe("a card whose release closed after it was read", () => {
       screen.getByRole("button", { name: card.declineLabel }),
     ).toBeEnabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("still open, the 404 ends the card", async () => {
+    const card = trigoCardFor("trigo-card-actions-off", MADE);
+    if (!card) throw new Error("no card under trigo-card-actions-off");
+    const held: TrigoMessage[] = [
+      msg(1, "traveller", "Beginner dive Saturday for two"),
+      msg(2, "trigo", "Here.", card),
+    ];
+    // The mock's confirm answers 404 under this scenario; the stage stays open.
+    const stage = "all";
+    const reads: string[] = [];
+    server.use(
+      ...cardMocks("trigo-card-actions-off", held),
+      http.get(`${BASE}/app-config`, () => {
+        reads.push(stage);
+        return HttpResponse.json({
+          minimumVersion: { ios: "0.0.0", android: "0.0.0" },
+          features: { payments: "coming_soon", inviteOnly: false },
+          support: { whatsappE164: null, hours: "" },
+          deliveryHost: null,
+          releases: { trigoActions: stage },
+        });
+      }),
+    );
+    renderWithQuery(<CardInChat />);
+    const book = await screen.findByRole("button", { name: card.confirmLabel });
+
+    await userEvent.setup().click(book);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Trigo isn't open to your account yet.",
+    );
+    expect(reads).toEqual(["all", "all"]);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(CARD_ACTIONS_CLOSED)).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });
 });
