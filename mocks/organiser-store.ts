@@ -5,6 +5,7 @@ import {
   HELPER_OF_HELPERS,
   MY_ORGANISERS,
   ORG_IDS,
+  ORG_VERIFIED,
   VERIFIED_EVENTS,
   VERIFIED_HELPERS,
 } from "./organiser-fixtures";
@@ -34,12 +35,30 @@ export function organiserSupplyOf(scenario: string): "off" | "all" {
   return scenario === "organisers-closed-release" ? "off" : "all";
 }
 
-/** Sessions that gave an adult answer under `organisers-age`. */
+/**
+ * The door's scenarios (yuvoy-app#226): the caller owns one verified
+ * organiser, and `organiser-door.ts` answers the codes.
+ */
+export const DOOR_SCENARIOS: ReadonlySet<string> = new Set([
+  "organisers-door",
+  "organisers-door-paused",
+  "organisers-door-age",
+]);
+
+/** Scenarios where the caller has no age answer until `PUT /me/age` takes one. */
+export function asksAge(scenario: string): boolean {
+  return scenario === "organisers-age" || scenario === "organisers-door-age";
+}
+
+/** Sessions that gave an adult answer under an age scenario. */
 export const adults = new Set<string>();
 
-/** `ageConfirmed` on `GET /me`: false only under `organisers-age`, until answered. */
+/** Door codes used, per scenario and session, with their first time. */
+export const doorUsed = new Map<string, string>();
+
+/** `ageConfirmed` on `GET /me`: false only under an age scenario, until answered. */
 export function organiserAgeConfirmed(request: Request): boolean {
-  if (scenarioOf(request) !== "organisers-age") return true;
+  if (!asksAge(scenarioOf(request))) return true;
   return adults.has(request.headers.get("authorization") ?? "");
 }
 
@@ -69,8 +88,11 @@ export function storeOf(request: Request): Store {
   let store = stores.get(key);
   if (!store) {
     const empty = scenario === "organisers-empty" || holdsClubs(scenario);
+    const door = DOOR_SCENARIOS.has(scenario);
     store = {
-      organisers: empty ? [] : structuredClone(MY_ORGANISERS),
+      organisers: empty
+        ? []
+        : structuredClone(door ? [ORG_VERIFIED] : MY_ORGANISERS),
       events: new Map<string, OrganiserEvent[]>(
         empty
           ? []
@@ -103,9 +125,10 @@ export function nextId(): string {
   return `7e2d4b60-5a6c-4d8e-9fb0-${made.toString(16).padStart(12, "0")}`;
 }
 
-/** Test-only: forget every organiser write and age answer between cases. */
+/** Test-only: forget every organiser write, age answer and door check-in between cases. */
 export function __resetOrganiserMocks(): void {
   stores.clear();
   adults.clear();
+  doorUsed.clear();
   made = 0;
 }

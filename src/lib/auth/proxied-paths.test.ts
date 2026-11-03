@@ -265,8 +265,12 @@ describe("what the proxy will forward", () => {
       allowedProxyPath("GET", "/organisers/org_1/events/post_1/numbers"),
     ).toBe("/organisers/{id}/events/{eventPostId}/numbers");
     expect(allowedProxyPath("PUT", "/me/age")).toBe("/me/age");
+    expect(allowedProxyPath("POST", "/organiser-check-ins")).toBe(
+      "/organiser-check-ins",
+    );
 
     expect(allowedProxyPath("DELETE", "/organisers/org_1")).toBeNull();
+    expect(allowedProxyPath("GET", "/organiser-check-ins")).toBeNull();
     expect(allowedProxyPath("GET", "/me/age")).toBeNull();
     expect(allowedProxyPath("POST", "/organisers/org_1/club")).toBeNull();
     expect(allowedProxyPath("GET", "/organisers/org_1/claims")).toBeNull();

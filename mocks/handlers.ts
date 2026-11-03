@@ -32,13 +32,16 @@ import { statedSampleById } from "./found-stated-fixtures";
 import { checkedClock } from "./checked-clock";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
+import { exportHandlers } from "./export-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
+import { crewHandlers } from "./crew-handlers";
 import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
+import { doorHandlers } from "./organiser-door";
 import { meHandlers, meStageOf, meTablesStageOf } from "./me-handlers";
 import { followHandlers } from "./follow-handlers";
 import { followPeopleStageOf } from "./follow-state";
@@ -227,6 +230,15 @@ export type Scenario =
   | "people-down"
   | "people-outside"
   /*
+    Crews, a traveller's own named lists of friends (yuvoy-app#227). Each
+    opens `people` at `staff`; `crew-handlers.ts` says what each starts with.
+  */
+  | "people-crews-none"
+  | "people-crews-full"
+  | "people-crews-big"
+  | "people-crews-empty"
+  | "people-crews-down"
+  /*
     Trigo, the chat (yuvoy-app#223, R5-T5). Each but `trigo-not-released`
     opens `trigo` at `staff`; `trigo-handlers.ts` says what each does.
   */
@@ -269,7 +281,14 @@ export type Scenario =
   | "me-badges-new"
   | "me-life-list-error"
   | "me-writes-fail"
-  | "me-tables";
+  | "me-tables"
+  /*
+    The door (yuvoy-app#226): the caller owns one verified organiser and
+    `organiser-door.ts` answers the codes; paused and age as named.
+  */
+  | "organisers-door"
+  | "organisers-door-paused"
+  | "organisers-door-age";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -481,6 +500,8 @@ const routes = [
   ...trigoHandlers,
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
+  /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */
+  ...doorHandlers,
 
   /* ------------------------------------------------------------- catalog */
 
@@ -1468,8 +1489,12 @@ const routes = [
   ...planHandlers,
   // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
   ...planLinkHandlers,
+  // Download my data (yuvoy-app#221).
+  ...exportHandlers,
   // People: friend requests and the friend link (yuvoy-app#222).
   ...peopleHandlers,
+  // Crews: named lists of friends (yuvoy-app#227).
+  ...crewHandlers,
   ...followHandlers,
   ...crewInviteHandlers,
   ...myPlansHandlers,
