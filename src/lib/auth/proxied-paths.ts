@@ -256,8 +256,8 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   /*
     Ask Trigo (yuvoy-app#223, R5-T5). Every Trigo call is session only in the
     contract: the chat belongs to the account, and the team replies to the
-    account. `src/lib/trigo/api.ts` is the caller of each. Hand-off, report,
-    the confirm cards and Trigo's memory have no screen yet and are not here.
+    account. `src/lib/trigo/api.ts` and `src/lib/trigo/actions.ts` call them.
+    Hand-off, report and Trigo's memory have no screen yet and are not here.
   */
   // One typed message and its answer, with an Idempotency-Key per message.
   { method: "POST", pattern: "/trigo/turns" },
@@ -273,6 +273,10 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "POST", pattern: "/trigo/consent" },
   // Turn off Trigo, `?surface=web`.
   { method: "DELETE", pattern: "/trigo/consent" },
+  // Yes on a card under a reply: a checkout to open, or an alert or draft made.
+  { method: "POST", pattern: "/trigo/actions/{id}/confirm" },
+  // Not now on a card: Trigo's line "Nothing has been booked or changed."
+  { method: "POST", pattern: "/trigo/actions/{id}/decline" },
   /*
     Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
     signed-in traveller's own pages, their helpers, their events and the
@@ -299,6 +303,18 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     three. Session only: a booking link cannot answer for a person's age.
   */
   { method: "PUT", pattern: "/me/age" },
+  /*
+    Following a group and asking a crew along to a plan (yuvoy-mobile#392,
+    R10-T2). Follows are private and need the `people` release; the crew
+    invite needs `people` and `plans`. The plans list is the invite's picker:
+    the traveller's own plans, read for the ones they made. Session only in
+    the contract.
+  */
+  { method: "GET", pattern: "/me/club-follows" },
+  { method: "PUT", pattern: "/me/club-follows/{clubId}" },
+  { method: "DELETE", pattern: "/me/club-follows/{clubId}" },
+  { method: "POST", pattern: "/plans/{planId}/crew-invites" },
+  { method: "GET", pattern: "/me/plans" },
 ];
 
 /*

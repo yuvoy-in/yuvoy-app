@@ -39,6 +39,10 @@ import { peopleHandlers } from "./people-handlers";
 import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
+import { followHandlers } from "./follow-handlers";
+import { followPeopleStageOf } from "./follow-state";
+import { crewInviteHandlers } from "./crew-invite-handlers";
+import { myPlansHandlers, plansStageOf } from "./my-plans-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -234,7 +238,10 @@ export type Scenario =
   | "trigo-consent"
   | "trigo-age"
   | "trigo-busy"
+  | "trigo-fast"
   | "trigo-not-released"
+  /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
+  | `trigo-card-${string}`
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
     with one organiser in each state; `organiser-handlers.ts` says what each
@@ -1249,9 +1256,11 @@ const routes = [
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
-          people: peopleStageOf(scenario) ?? "off",
           trigo: trigoStageOf(scenario) ?? "off",
           supply: organiserSupplyOf(scenario),
+          people:
+            peopleStageOf(scenario) ?? followPeopleStageOf(scenario) ?? "off",
+          plans: plansStageOf(scenario) ?? "off",
         },
       },
       { headers: mockHeaders(requestId()) },
@@ -1441,6 +1450,9 @@ const routes = [
   ...exportHandlers,
   // People: friend requests and the friend link (yuvoy-app#222).
   ...peopleHandlers,
+  ...followHandlers,
+  ...crewInviteHandlers,
+  ...myPlansHandlers,
 ];
 
 // Under R3's scenarios every answer is dated by their clock (`checked-clock.ts`).

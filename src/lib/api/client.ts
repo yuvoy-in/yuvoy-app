@@ -4,6 +4,7 @@ import {
   YuvoyError,
   NetworkError,
   isErrorEnvelope,
+  parseRetryAfter,
   type ErrorCode,
 } from "./errors";
 import { fetchWithin } from "./deadline";
@@ -86,6 +87,8 @@ const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
     page shows its paused state at once and its own Try again asks again.
   */
   "tables_unavailable",
+  // Plans paused (yuvoy-mobile#392): the same, for the plan picker and invites.
+  "plans_unavailable",
 ]);
 
 const MAX_GET_ATTEMPTS = 3;
@@ -222,6 +225,11 @@ const errorMiddleware: Middleware = {
       // A non-JSON error body is itself information — fall through.
     }
 
+    // How long the API asked a resend to wait, when it said (409, 429).
+    const retryAfterSeconds = parseRetryAfter(
+      response.headers.get("retry-after"),
+    );
+
     if (isErrorEnvelope(body)) {
       throw new YuvoyError({
         code: body.error.code,
@@ -229,6 +237,7 @@ const errorMiddleware: Middleware = {
         status: response.status,
         details: body.error.details,
         requestId: body.error.requestId ?? requestId ?? undefined,
+        retryAfterSeconds,
       });
     }
 
@@ -237,6 +246,7 @@ const errorMiddleware: Middleware = {
       message: `The server answered ${response.status}.`,
       status: response.status,
       requestId: requestId ?? undefined,
+      retryAfterSeconds,
     });
   },
 };
