@@ -57,6 +57,19 @@ const KNOWN: ReadonlySet<string> = new Set<string>([
   "on",
 ]);
 
+/**
+ * The answer's `Retry-After` in seconds, or null. Read by name so it works
+ * before and after the client carries it: yuvoy-app#223 adds
+ * `YuvoyError.retryAfterSeconds`, filled from the header by the client.
+ */
+function retryAfterOf(error: YuvoyError): number | null {
+  const seconds: unknown = (error as { retryAfterSeconds?: unknown })
+    .retryAfterSeconds;
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0
+    ? seconds
+    : null;
+}
+
 /** A page link's own key: `links.0` to `links.2`. */
 const LINK_KEY = /^links\.\d{1,2}$/;
 
@@ -100,8 +113,8 @@ export type OrganiserRefusal =
   /** 409 `conflict`, with `details.state` (the organiser's or the event's). */
   | { kind: "conflict"; state: string | null; message: string }
   /**
-   * 429: the API's sentence. `retryAfterSec` is always null on the web for
-   * now: the client's `YuvoyError` does not carry `Retry-After`.
+   * 429: the API's sentence, and its `Retry-After` in seconds when the error
+   * carries one (a day limit sends it; "too fast" does not).
    */
   | { kind: "limit"; message: string; retryAfterSec: number | null }
   /** No answer (offline, a stall, a timeout). A write may have gone through. */
@@ -192,7 +205,7 @@ export function organiserRefusal(error: unknown): OrganiserRefusal {
       return {
         kind: "limit",
         message: said || W.slowDown,
-        retryAfterSec: null,
+        retryAfterSec: retryAfterOf(error),
       };
     case 503:
       // The kill switch: a pause, never a fault.

@@ -202,6 +202,9 @@ describe("times, dates and prices", () => {
     });
     expect(civilAsWritten("1 Nov")).toBeNull();
     expect(civilAsWritten("2026-13-01T06:30")).toBeNull();
+    expect(civilAsWritten("2026-02-30T06:30")).toBeNull();
+    expect(civilAsWritten("2026-04-31T06:30")).toBeNull();
+    expect(civilAsWritten("2028-02-29T06:30")).not.toBeNull();
   });
 
   it("says a start, a span and a date", () => {

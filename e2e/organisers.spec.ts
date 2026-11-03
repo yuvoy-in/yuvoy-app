@@ -292,10 +292,25 @@ test.describe("organiser pages", () => {
 
     await signIn(page);
 
+    // The release is read in the browser, so wait for `GET /app-config` to
+    // answer and two frames for a gate that opened to draw. `networkidle`
+    // never comes on Account (creator-links.spec.ts says the same).
+    const config = page.waitForResponse((r) =>
+      new URL(r.url()).pathname.endsWith("/app-config"),
+    );
     await page.goto(withScenario("/account", scenario));
-    // The release is read in the browser, so wait for it to have answered.
-    await page.waitForLoadState("networkidle");
-    await expect(page.locator('a[href="/guides"]').first()).toBeVisible();
+    await config;
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+    // The Account body has drawn. Not the first `/guides` link: on a phone
+    // that one is in the desktop rail, which is hidden.
+    await expect(
+      page.getByRole("button", { name: "Sign out on this device" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Organiser pages", exact: true }),
     ).toHaveCount(0);

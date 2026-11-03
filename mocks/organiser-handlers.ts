@@ -104,7 +104,8 @@ function refused(request: Request): Response | null {
   }
   const scenario = scenarioOf(request);
   if (scenario === "organisers-closed-release") {
-    return envelope("not_found", "We could not find that.", 404);
+    // The API's own sentence outside the release (`organiserNotFound`).
+    return envelope("not_found", NO_ORGANISER, 404);
   }
   if (scenario === "organisers-age" && !adults.has(auth)) {
     return envelope(

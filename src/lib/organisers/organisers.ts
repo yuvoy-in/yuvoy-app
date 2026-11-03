@@ -202,10 +202,17 @@ export function civilAsWritten(iso: string): Civil | null {
     number,
     number,
   ];
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (!realDay(year, month, day)) return null;
   if (hour > 23 || minute > 59) return null;
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   return { year, month, day, hour, minute, weekday };
+}
+
+/** True for a day that exists: 30 February and 31 April do not. */
+export function realDay(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false;
+  const at = new Date(Date.UTC(year, month - 1, day));
+  return at.getUTCMonth() === month - 1 && at.getUTCDate() === day;
 }
 
 /** An event's start on its row: "Sun, 1 Nov, 06:30", in the place's own time. Empty if unreadable. */

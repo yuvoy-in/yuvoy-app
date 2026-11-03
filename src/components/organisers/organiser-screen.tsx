@@ -177,7 +177,7 @@ function CodeToCopy({ code }: { code: string }) {
   return (
     <div className="mt-4">
       <p
-        className="font-display tracking-display text-3xl break-all select-all"
+        className="tracking-ref text-3xl font-bold break-all slashed-zero tabular-nums select-all"
         data-testid="organiser-code"
       >
         {code}
@@ -210,7 +210,7 @@ function OrganiserEvents({ id, base }: { id: string; base: string }) {
     <section className="mt-8" aria-labelledby="organiser-events-heading">
       <h2
         id="organiser-events-heading"
-        className="font-display tracking-display text-xl"
+        className="font-display tracking-display leading-display text-xl text-balance"
       >
         {W.events}
       </h2>
