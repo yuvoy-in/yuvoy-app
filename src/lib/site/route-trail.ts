@@ -204,6 +204,8 @@ export function markStepBack(landedOn?: string) {
   // alone is not enough. React draws a traversal inside popstate and may
   // record it after, once the screen change's transition is ready, and that
   // visit, seen outside the event, needs this mark to be the step back.
+  // Known gap, left as it is: a fragment-only back in the frame between
+  // drawing a tapped screen and recording it spends that visit as a step back.
   if (landedOn !== undefined && here === landedOn && top === landedOn) return;
   // The screen it left, when that one's visit is still to come. Not when the
   // screen drawn is where it landed: then the next visit is the step back.
