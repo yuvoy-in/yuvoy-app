@@ -50,6 +50,22 @@ function apiError(
   return new YuvoyError({ status, code, message, details });
 }
 
+/** A refusal that sent `Retry-After`. */
+function waited(
+  status: number,
+  code: string,
+  retryAfterSeconds: number,
+  details?: Record<string, unknown>,
+) {
+  return new YuvoyError({
+    status,
+    code,
+    message: "Wait.",
+    details,
+    retryAfterSeconds,
+  });
+}
+
 function envelope(status: number, code: string, message: string) {
   return HttpResponse.json(
     { error: { code, message, requestId: "01JTEST" } },
@@ -238,8 +254,6 @@ describe("classifyCardError", () => {
   });
 
   it("carries Retry-After where a tap again follows, cut to two minutes", () => {
-    const waited = (status: number, code: string, retryAfterSeconds: number) =>
-      new YuvoyError({ status, code, message: "Wait.", retryAfterSeconds });
     expect(classifyCardError(waited(429, "rate_limited", 7))).toEqual({
       kind: "rate_limited",
       message: "Wait.",
@@ -262,11 +276,44 @@ describe("classifyCardError", () => {
       message: "Wait.",
       retryAfterSeconds: TRIGO_WAIT_MAX_SECONDS,
     });
-    // The kinds that end the card wait for nothing.
-    expect(classifyCardError(waited(404, "not_found", 9))).toEqual({
-      kind: "not_found",
-      message: "Wait.",
-    });
+  });
+
+  it.each([
+    [
+      "signed_out",
+      () => waited(401, "unauthorized", 9),
+      { kind: "signed_out" },
+    ],
+    [
+      "not_found",
+      () => waited(404, "not_found", 9),
+      { kind: "not_found", message: "Wait." },
+    ],
+    [
+      "changed",
+      () => waited(409, "action_changed", 9, { reason: "sold_out" }),
+      { kind: "changed", reason: "sold_out", message: "Wait." },
+    ],
+    [
+      "expired",
+      () => waited(409, "action_expired", 9),
+      { kind: "expired", message: "Wait." },
+    ],
+    [
+      "alerts_full",
+      () => waited(409, "date_alerts_full", 9),
+      { kind: "alerts_full", message: "Wait." },
+    ],
+    [
+      "offline",
+      () => {
+        vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+        return waited(503, "unavailable", 9);
+      },
+      { kind: "offline" },
+    ],
+  ])("%s carries no wait, whatever Retry-After says", (_, error, expected) => {
+    expect(classifyCardError(error())).toEqual(expected);
   });
 
   it("reads no connection as offline, and a stalled call as a failure", () => {
