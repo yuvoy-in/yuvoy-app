@@ -1226,10 +1226,21 @@ for (const f of files) {
    * One shape passes without a size: an `sr-only` input inside a `<label>`
    * that is itself 24px tall or more, because then the label is the control
    * (the visibility chips on a Me life entry, yuvoy-mobile#444). The label
-   * counts only when its own classes say so: `size-N`, `h-N` or `min-h-N` of 6
-   * or more, or a `chipVariants({ size })` whose height in `ui/chip.tsx` is.
-   * An `sr-only` input with no label, or in a label of no stated height,
-   * still fails. The fixture below holds both sides of that line.
+   * counts only when its own classes say so, in every state and at every
+   * breakpoint: the smallest of its `size-`, `h-`, `min-h-` and `max-h-`
+   * tokens (a `sm:h-5` or the `"h-5"` branch of a ternary counts), and of any
+   * `chipVariants({ size })` height read from `ui/chip.tsx`, is 24px or more.
+   *
+   * No skip, so the input is judged on its own size, when:
+   * - the input is not one plain `className="…"` string, so `sr-only` could
+   *   apply in only one state; or it also carries a `size-N` under 6, or a
+   *   `not-sr-only`;
+   * - the input has no enclosing `<label>`, or that label states no height;
+   * - the label is itself `sr-only`, `hidden` or `invisible`, at any
+   *   breakpoint, so there is no visible control left;
+   * - a `chipVariants` size is not a string literal.
+   * The fixture below holds both sides of each line (api-r1's review,
+   * 3 Nov 2026).
    */
   const CHIP_PX = (() => {
     const chip = readFileSync(join(SRC, "components/ui/chip.tsx"), "utf8");
@@ -1242,17 +1253,43 @@ for (const f of files) {
     return out;
   })();
 
-  /** The height a label's own classes give it, in px, or null. */
+  /** A class token without its variant prefixes: `sm:hover:h-5` is `h-5`. */
+  const bare = (c) => c.split(":").pop();
+
+  /**
+   * The smallest height a label's own classes can give it, in px, or null
+   * when they state none, a chip size is not a literal, or the label hides.
+   */
   const labelPx = (attrs) => {
-    const px = classTokens(attrs)
-      .map((c) => /^(?:size|h|min-h)-(\d+(?:\.\d+)?)$/.exec(c)?.[1])
+    const tokens = classTokens(attrs).map(bare);
+    if (tokens.some((c) => /^(sr-only|hidden|invisible)$/.test(c))) return null;
+    const px = tokens
+      .map((c) => /^(?:size|h|min-h|max-h)-(\d+(?:\.\d+)?)$/.exec(c)?.[1])
       .filter(Boolean)
       .map((n) => Number(n) * 4);
-    for (const c of attrs.matchAll(
-      /chipVariants\(\{[^}]*size:\s*["'](\w+)["']/g,
-    ))
-      if (CHIP_PX[c[1]]) px.push(CHIP_PX[c[1]]);
-    return px.length ? Math.max(...px) : null;
+    for (const c of attrs.matchAll(/chipVariants\(\{([^}]*)\}/g)) {
+      if (!/\bsize:/.test(c[1])) continue;
+      const size = /\bsize:\s*["'](\w+)["']\s*(?:,|$)/.exec(c[1].trim())?.[1];
+      if (!size || !CHIP_PX[size]) return null;
+      px.push(CHIP_PX[size]);
+    }
+    return px.length ? Math.min(...px) : null;
+  };
+
+  /**
+   * True when the input is hidden in every state: its className is one plain
+   * string with `sr-only` in it, and nothing that undoes or resizes it.
+   */
+  const alwaysSrOnly = (attrs) => {
+    const v = /className=(?:"([^"]*)"|\{\s*"([^"]*)"\s*\})/.exec(attrs);
+    if (!v) return false;
+    const tokens = (v[1] ?? v[2]).split(/\s+/).filter(Boolean);
+    if (!tokens.includes("sr-only")) return false;
+    if (tokens.some((c) => /not-sr-only$/.test(c))) return false;
+    return !tokens.some((c) => {
+      const n = /^size-(\d+(?:\.\d+)?)$/.exec(bare(c))?.[1];
+      return n !== undefined && Number(n) < 6;
+    });
   };
 
   /** The open tag of the `<label>` an index sits inside, or null. */
@@ -1269,7 +1306,7 @@ for (const f of files) {
       const kind = /type=["'](checkbox|radio)["']/.exec(attrs)?.[1];
       if (!kind) continue;
       const own = classTokens(attrs);
-      if (own.includes("sr-only")) {
+      if (alwaysSrOnly(attrs)) {
         const label = enclosingLabel(src, m.index);
         if (label && (labelPx(label) ?? 0) >= 24) continue;
       }
@@ -1319,6 +1356,55 @@ for (const f of files) {
       `<label className={cn(chipVariants({ size: "md", tone: on ? "selected" : "neutral" }), "x")}><input type="radio" name={n} onChange={() => {}} className="sr-only" />a</label>`,
     ],
     [0, `<input type="checkbox" className="size-6" />`],
+    // api-r1's review of 15024104: each of these must still fail.
+    [
+      1,
+      `<label className={on ? "h-9" : "h-5"}><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9 sm:h-5"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9 max-h-4"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="sr-only h-9"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="hidden h-9"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9 md:hidden"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className={on ? "sr-only" : "size-4"} />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className={cn("sr-only", on && "x")} />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className="sr-only size-4" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className="sr-only focus:not-sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className={cn(chipVariants({ size: big ? "md" : "sm" }))}><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      0,
+      `<label className={cn(chipVariants({ size: "sm" }), "min-h-11")}><input type="radio" className="sr-only" />a</label>`,
+    ],
   ];
   for (const [want, src] of FIXTURE) {
     const got = smallTargets(src, "fixture").length;
