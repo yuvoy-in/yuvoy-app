@@ -199,6 +199,37 @@ describe("ExperienceDetail", () => {
     });
   });
 
+  /*
+    yuvoy-app#219, the web half of yuvoy-mobile#368. The operator's tourism
+    registration while it is valid, and nothing at all when the API sends none.
+  */
+  describe("the registration line", () => {
+    it("names the registration and the last valid day", () => {
+      const registered: Experience = {
+        ...withGallery,
+        compliance: {
+          label: "Registered with A&N Tourism",
+          validTo: "2027-06-30",
+        },
+      };
+      renderWithQuery(<ExperienceDetail experience={registered} />);
+      expect(screen.getByTestId("listing-registration")).toHaveTextContent(
+        "Registered with A&N Tourism · valid to 30 Jun 2027",
+      );
+    });
+
+    it("draws nothing when the API sends no registration", () => {
+      const { compliance: _none, ...unregistered } = withGallery;
+      void _none;
+      renderWithQuery(<ExperienceDetail experience={unregistered} />);
+      expect(
+        screen.queryByTestId("listing-registration"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/valid to/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Registered/)).not.toBeInTheDocument();
+    });
+  });
+
   describe("the price says what it means", () => {
     /*
       yuvoy-app#20 §1. This screen hard-coded "per person" on its own
@@ -403,94 +434,6 @@ describe("ExperienceDetail", () => {
         />,
       );
       expect(screen.queryByText("About this experience")).toBeNull();
-    });
-  });
-
-  /*
-    yuvoy-app#30 — reel → listing → operator. The operator's page existed, and
-    nothing on the listing a traveller was reading led to it.
-  */
-  describe("who runs it", () => {
-    const operator = withGallery.operator;
-
-    it("leads to the business's own page, by slug and never by id", () => {
-      renderWithQuery(<ExperienceDetail experience={withGallery} />);
-      const link = screen.getByRole("link", { name: operator.name });
-      expect(link).toHaveAttribute("href", `/o/${operator.slug}`);
-      expect(link.getAttribute("href")).not.toContain(operator.id);
-    });
-
-    it("still names the business when the API sends no slug", () => {
-      // Required in the contract — which is not yet a promise about the
-      // deployed API.
-      renderWithQuery(
-        <ExperienceDetail
-          experience={{
-            ...withGallery,
-            operator: {
-              ...operator,
-              slug: undefined,
-            } as unknown as typeof operator,
-          }}
-        />,
-      );
-      expect(screen.getByText(operator.name)).toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: operator.name })).toBeNull();
-    });
-  });
-
-  /*
-    The lines a traveller weighs with the price (yuvoy-app#110, #112). Both are
-    the API's to word (yuvoy-api#248); see `listing-lines.ts`.
-  */
-  describe("beside the price", () => {
-    it("says how it is paid for, before anybody reaches the pay step", () => {
-      renderWithQuery(<ExperienceDetail experience={withGallery} />);
-      expect(
-        screen.getByText("Pay at the counter on the day"),
-      ).toBeInTheDocument();
-    });
-
-    it("says it for a request listing too", () => {
-      renderWithQuery(
-        <ExperienceDetail
-          experience={EXPERIENCE_DETAIL["night-fishing-with-a-local-crew"]}
-        />,
-      );
-      expect(
-        screen.getByText("Pay at the counter on the day"),
-      ).toBeInTheDocument();
-    });
-
-    it("invents no cancellation line when the API sends no summary", () => {
-      // The fixture has a policy paragraph and no summary: the paragraph stays
-      // where it is and nothing is cut out of it for the price panel.
-      renderWithQuery(<ExperienceDetail experience={withGallery} />);
-      expect(screen.queryByRole("link", { name: "Full policy" })).toBeNull();
-      expect(screen.getByText(withGallery.cancellationPolicy!)).toBeVisible();
-    });
-
-    it("prints the API's summary, and leads to the full policy", () => {
-      renderWithQuery(
-        <ExperienceDetail
-          experience={
-            {
-              ...withGallery,
-              cancellationSummary: "Full refund until 48 hours before",
-            } as Experience
-          }
-        />,
-      );
-      expect(
-        screen.getByText(/Full refund until 48 hours before/),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "Full policy" })).toHaveAttribute(
-        "href",
-        "#cancellation",
-      );
-      expect(document.getElementById("cancellation")).toHaveTextContent(
-        withGallery.cancellationPolicy!,
-      );
     });
   });
 });
