@@ -35,6 +35,7 @@ import { planHandlers } from "./plan-handlers";
 import { exportHandlers } from "./export-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
+import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -204,7 +205,16 @@ export type Scenario =
   | "creator-links-rate-limited"
   | "creator-links-down"
   | "creator-tools-off"
-  | "creator-outside";
+  | "creator-outside"
+  /*
+    Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
+    with one organiser in each state; `organiser-handlers.ts` says what each
+    of these does.
+  */
+  | "organisers-empty"
+  | "organisers-paused"
+  | "organisers-age"
+  | "organisers-closed-release";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -410,6 +420,9 @@ const routes = [
     `/experiences/:slug` says they do not exist (yuvoy-app#207).
   */
   ...creatorLinkHandlers,
+
+  /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
+  ...organiserHandlers,
 
   /* ------------------------------------------------------------- catalog */
 
@@ -1198,6 +1211,7 @@ const routes = [
           explore,
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
+          supply: organiserSupplyOf(scenario),
         },
       },
       { headers: mockHeaders(requestId()) },
