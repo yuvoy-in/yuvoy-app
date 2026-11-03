@@ -1,4 +1,4 @@
-import type { components } from "../src/lib/api/schema.gen";
+import type { components, operations } from "../src/lib/api/schema.gen";
 import { FIXTURE_NOW } from "./fixtures";
 
 /**
@@ -16,6 +16,8 @@ type Organiser = components["schemas"]["Organiser"];
 type OrganiserEvent = components["schemas"]["OrganiserEvent"];
 type OrganiserEventNumbers = components["schemas"]["OrganiserEventNumbers"];
 type OrganiserHelperListed = components["schemas"]["OrganiserHelperListed"];
+type ClubToLink =
+  operations["listMyOrganisers"]["responses"][200]["content"]["application/json"]["clubsToLink"][number];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -285,3 +287,29 @@ export const KNOWN_HELPER_EMAILS: Record<
     firstName: "Nisha",
   },
 };
+
+export const CLUB_IDS = {
+  runners: "3d8b6f10-6c7d-4e8f-a0b1-4e5f6a7b8c01",
+  quiz: "3d8b6f10-6c7d-4e8f-a0b1-4e5f6a7b8c02",
+  /** A group that is shown but held by someone else: 403 `not_club_holder`. */
+  heldByAnother: "3d8b6f10-6c7d-4e8f-a0b1-4e5f6a7b8c03",
+} as const;
+
+/**
+ * The groups (R9 clubs) the caller holds under `organisers-club`, by name as
+ * the API sorts them: one with a category the form pre-ticks, one with none.
+ */
+export const CLUBS_HELD: ClubToLink[] = [
+  {
+    clubId: CLUB_IDS.runners,
+    name: "Sample Lagoon Runners",
+    destinationKey: "andaman/havelock",
+    category: "sports",
+  },
+  {
+    clubId: CLUB_IDS.quiz,
+    name: "Sample Sunset Quiz",
+    destinationKey: "andaman/port_blair",
+    category: null,
+  },
+];
