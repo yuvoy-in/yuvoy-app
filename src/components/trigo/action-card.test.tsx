@@ -484,6 +484,24 @@ describe("a failure that sends Retry-After", () => {
     }
   });
 
+  it("a proposed card keeps the wait line beside a held Not now when the release closes", () => {
+    s.confirm = () => ({
+      error: refusal(429, "rate_limited", "Slow down.", "", 5),
+    });
+    const { rerender } = draw(card());
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Book" }));
+      s.release = { open: false, pending: false, stage: "off" };
+      rerender(<ActionCard card={card()} conversationId={CHAT} />);
+      expect(screen.getByText(CARD_ACTIONS_CLOSED)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
+      heldFor(5, ["Not now"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("with no Retry-After nothing is held", async () => {
     s.confirm = () => ({ error: refusal(429, "rate_limited", "Slow down.") });
     draw(card());
