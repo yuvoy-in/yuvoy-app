@@ -306,6 +306,39 @@ describe("what the proxy will forward", () => {
     ).toBeNull();
   });
 
+  it("forwards following a group and the crew invite, and their near misses", () => {
+    /*
+      yuvoy-mobile#392. Read the follows, follow, stop following, ask a crew
+      along to a plan, and the plans list the invite picks from.
+    */
+    const clubId = "5b1e7c2a-9d40-4f3e-8a61-2c7d9e0f1a34";
+    const planId = "8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52";
+    expect(allowedProxyPath("GET", "/me/club-follows")).toBe(
+      "/me/club-follows",
+    );
+    expect(allowedProxyPath("PUT", `/me/club-follows/${clubId}`)).toBe(
+      "/me/club-follows/{clubId}",
+    );
+    expect(allowedProxyPath("DELETE", `/me/club-follows/${clubId}`)).toBe(
+      "/me/club-follows/{clubId}",
+    );
+    expect(allowedProxyPath("POST", `/plans/${planId}/crew-invites`)).toBe(
+      "/plans/{planId}/crew-invites",
+    );
+    expect(allowedProxyPath("GET", "/me/plans")).toBe("/me/plans");
+
+    // The near misses: a verb the contract does not have on these paths.
+    expect(allowedProxyPath("PATCH", `/me/club-follows/${clubId}`)).toBeNull();
+    expect(allowedProxyPath("GET", `/me/club-follows/${clubId}`)).toBeNull();
+    expect(allowedProxyPath("POST", "/me/club-follows")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/me/club-follows")).toBeNull();
+    expect(allowedProxyPath("GET", `/plans/${planId}/crew-invites`)).toBeNull();
+    expect(allowedProxyPath("POST", "/me/plans")).toBeNull();
+    expect(
+      allowedProxyPath("PUT", `/me/club-follows/${clubId}/extra`),
+    ).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();
