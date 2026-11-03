@@ -23,6 +23,7 @@ import { OutcomeLink } from "@/components/analytics/outcome-link";
 import { BookingLayer } from "./booking-layer";
 import { Gallery } from "./gallery";
 import { NextDays } from "./next-days";
+import { AskAboutButton } from "@/components/trigo/ask-about-button";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -267,6 +268,17 @@ export function ExperienceDetail({
                 ) : null}
               </div>
             </Panel>
+
+            {/*
+              A question about this listing goes to Trigo with the listing
+              attached (yuvoy-app#223). Nothing while the release is closed.
+            */}
+            <div className="empty:hidden">
+              <AskAboutButton
+                cardId={`exp:${experience.slug}`}
+                entry="listing"
+              />
+            </div>
 
             {/*
               The operator's own words — yuvoy-app#21 §1.

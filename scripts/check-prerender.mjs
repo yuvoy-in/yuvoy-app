@@ -59,10 +59,19 @@ const ALLOWED = {
   "/manifest.webmanifest": "Static PWA manifest.",
   "/offline": "The service worker's fallback. Must be static by definition.",
   "/opengraph-image": "Build asset.",
+  "/organiser":
+    "Organiser pages (yuvoy-app#224). Read in the browser over the session. " +
+    "The shell carries no data and no clock.",
+  "/organiser/new":
+    "Organiser pages (yuvoy-app#224). Read in the browser over the session. " +
+    "The shell carries no data and no clock.",
   "/p":
     "A plan by its link (yuvoy-mobile#373). One shell for every plan: the " +
     "token is in the fragment, which no server sees, and the plan is read " +
     "by script through /p/api.",
+  "/people":
+    "People (yuvoy-app#222). A client screen read with the session through " +
+    "the proxy. The shell carries no data and no clock.",
   "/robots.txt": "Static, gated on NEXT_PUBLIC_ALLOW_INDEXING at build time.",
   "/saved":
     "The wishlist. Reads IndexedDB in the browser, same as /trips. The shell " +

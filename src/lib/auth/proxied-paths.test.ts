@@ -178,6 +178,101 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/me/creator-links/C-K7QM2XPA")).toBeNull();
   });
 
+  it("forwards a Trigo card's yes and no, and nothing else on a card", () => {
+    /*
+      yuvoy-app#223 part 2. Both POST, both session only. A card is read in
+      its chat, so there is no GET for one.
+    */
+    const id = "8f14e45f-ceea-4e7a-9b1d-2c4a6e0f9b10";
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}/confirm`)).toBe(
+      "/trigo/actions/{id}/confirm",
+    );
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}/decline`)).toBe(
+      "/trigo/actions/{id}/decline",
+    );
+    expect(allowedProxyPath("GET", `/trigo/actions/${id}/confirm`)).toBeNull();
+    expect(allowedProxyPath("GET", `/trigo/actions/${id}`)).toBeNull();
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}`)).toBeNull();
+  });
+
+  it("forwards the People calls by their verbs, and nothing more of People", () => {
+    /*
+      yuvoy-app#222. Every one is session only. The friend link's lookup
+      carries its code in the body, so there is no path with a code in it.
+    */
+    const person = "6a3c1f8e-2b4d-4c1a-9e0f-1d2c3b4a5f60";
+    // [method, path, the pattern it matches]
+    const ok: [string, string, string][] = [
+      ["GET", "/me/people", "/me/people"],
+      ["PATCH", "/me/people", "/me/people"],
+      ["GET", "/me/friends", "/me/friends"],
+      ["DELETE", `/me/friends/${person}`, "/me/friends/{personId}"],
+      ["POST", "/me/friend-requests", "/me/friend-requests"],
+      [
+        "POST",
+        `/me/friend-requests/${person}/answer`,
+        "/me/friend-requests/{requestId}/answer",
+      ],
+      [
+        "DELETE",
+        `/me/friend-requests/${person}`,
+        "/me/friend-requests/{requestId}",
+      ],
+      ["PUT", "/me/friend-link", "/me/friend-link"],
+      ["DELETE", "/me/friend-link", "/me/friend-link"],
+      ["POST", "/friend-links/lookup", "/friend-links/lookup"],
+      ["PUT", "/me/age", "/me/age"],
+    ];
+    for (const [method, path, pattern] of ok) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBe(pattern);
+    }
+
+    const refused: [string, string][] = [
+      ["PUT", "/me/people"],
+      ["DELETE", "/me/people"],
+      ["POST", "/me/friends"],
+      ["GET", "/me/friend-requests"],
+      ["GET", "/me/friend-link"],
+      ["GET", "/friend-links/lookup"],
+      ["GET", "/friend-links/ABCDE-FGHIJ"],
+      ["POST", "/me/age"],
+      ["GET", "/me/age"],
+      // Not built yet: one person's card, reports, the friends' goings.
+      ["GET", `/people/${person}`],
+      ["POST", `/people/${person}/reports`],
+      ["GET", "/me/friends-going"],
+      ["GET", "/me/friends/activity"],
+      ["GET", `/me/friend-requests/${person}/answer`],
+    ];
+    for (const [method, path] of refused) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBeNull();
+    }
+  });
+
+  it("allows the organiser pages and the age step, and not the club or claims routes", () => {
+    expect(allowedProxyPath("GET", "/me/organisers")).toBe("/me/organisers");
+    expect(allowedProxyPath("POST", "/organisers")).toBe("/organisers");
+    expect(allowedProxyPath("PATCH", "/organisers/org_1")).toBe(
+      "/organisers/{id}",
+    );
+    expect(allowedProxyPath("DELETE", "/organisers/org_1/helpers/trv_1")).toBe(
+      "/organisers/{id}/helpers/{travellerId}",
+    );
+    expect(
+      allowedProxyPath("POST", "/organisers/org_1/events/post_1/cancel"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/cancel");
+    expect(
+      allowedProxyPath("GET", "/organisers/org_1/events/post_1/numbers"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/numbers");
+    expect(allowedProxyPath("PUT", "/me/age")).toBe("/me/age");
+
+    expect(allowedProxyPath("DELETE", "/organisers/org_1")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/age")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/club")).toBeNull();
+    expect(allowedProxyPath("GET", "/organisers/org_1/claims")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/claims")).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

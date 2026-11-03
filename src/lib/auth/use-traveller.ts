@@ -21,7 +21,10 @@ import { dedash } from "@/lib/format/dedash";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
 import { resetSavedSession } from "@/lib/feed/account-saved";
+import { forgetOrganisers } from "@/lib/organisers/use-organisers";
 import { oweSignOut } from "./sign-out-owed";
+import { clearDraft as clearTrigoDraft } from "@/lib/trigo/keys";
+import { forgetTrigoCheckouts } from "@/lib/trigo/checkout-prefill";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -77,6 +80,33 @@ interface SessionAnswer {
 function forgetSupportRequests(qc: QueryClient): void {
   qc.removeQueries({ queryKey: qk.supportRequests() });
   qc.removeQueries({ queryKey: ["getSupportRequest"] });
+}
+
+/**
+ * People (yuvoy-app#222): the home, the friends list and any friend link
+ * looked up. Removed, for the reason `forgetSupportRequests` gives: they are
+ * a number's own friends and requests, by name.
+ */
+function forgetPeople(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.myPeople() });
+  qc.removeQueries({ queryKey: qk.myFriends() });
+  qc.removeQueries({ queryKey: ["lookupFriendLink"] });
+}
+
+/**
+ * Trigo, on both sides of a change of who is signed in (yuvoy-app#223).
+ *
+ * REMOVED rather than invalidated, for the reason `refresh` gives: a chat is
+ * the number's own, in the traveller's own words. The unsent text goes too,
+ * so the next person never sends the previous one's message under its key,
+ * and so does each card's checkout, so they never book under its card key.
+ */
+function forgetTrigo(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.trigoConsent() });
+  qc.removeQueries({ queryKey: qk.trigoConversations() });
+  qc.removeQueries({ queryKey: ["getTrigoConversation"] });
+  clearTrigoDraft();
+  forgetTrigoCheckouts();
 }
 
 function forgetSaved(qc: QueryClient): void {
@@ -167,8 +197,15 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getTable"] });
     // And share links are the number's own, with their counts.
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    // And its date alerts and trip drafts (yuvoy-app#220).
+    qc.removeQueries({ queryKey: qk.myDateAlerts() });
+    qc.removeQueries({ queryKey: qk.myTripDrafts() });
+    // So are People: friends, requests, the friend link (yuvoy-app#222).
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetTrigo(qc);
+    forgetOrganisers(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -245,8 +282,13 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getEvent"] });
     qc.removeQueries({ queryKey: ["getTable"] });
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    qc.removeQueries({ queryKey: qk.myDateAlerts() });
+    qc.removeQueries({ queryKey: qk.myTripDrafts() });
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetTrigo(qc);
+    forgetOrganisers(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);

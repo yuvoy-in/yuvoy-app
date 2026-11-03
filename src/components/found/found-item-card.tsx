@@ -18,6 +18,7 @@ import { foundWords, type FoundItem } from "@/lib/found/found-words";
 import { DepartmentArt } from "./department-art";
 import { TrustLine } from "./trust-line";
 import { SeeDetails } from "./see-details";
+import { AskAboutButton } from "@/components/trigo/ask-about-button";
 
 /**
  * One found card in the feed (yuvoy-app#179, R2-T4; the phone's `FoundCard`,
@@ -145,6 +146,11 @@ export function FoundItemCard({
 
       <div className="mt-3 empty:hidden">
         <SeeDetails item={item} surface="found_feed" position={position} />
+      </div>
+
+      {/* A question about this item goes to Trigo with it (yuvoy-app#223). */}
+      <div className="mt-3 empty:hidden">
+        <AskAboutButton cardId={`item:${item.id}`} entry="found_card" />
       </div>
     </article>
   );
