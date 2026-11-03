@@ -7,13 +7,12 @@ import type { components } from "@/lib/api/schema.gen";
 import type { ReelWatch } from "@/lib/feed/use-reel-views";
 import { cn } from "@/lib/cn";
 import { originOf } from "@/lib/site/preconnect";
+import { PlayDisc, SlowRing } from "./feed-player-parts";
+import { useFeedPlayerPlayback } from "./use-feed-player-playback";
+import { useFeedPlayerSource } from "./use-feed-player-source";
+import { useFeedPlayerWatch } from "./use-feed-player-watch";
 
 type Media = components["schemas"]["Media"];
-
-/** A media-time step larger than this is a jump, not playback. */
-const MAX_STEP_S = 2;
-/** Within this of the end is the end, for `timeupdate`'s quarter-second grain. */
-const END_SLACK_S = 0.35;
 
 /**
  * Poster-first video.
@@ -294,249 +293,28 @@ export function FeedPlayer({
   const slowStart = starting && slowFor === src;
   const framed = framedFor === src;
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !src || !canPlay) return;
+  useFeedPlayerSource({
+    videoRef,
+    src,
+    canPlay,
+    setPlayable,
+    setFailed,
+    setFramedFor,
+  });
 
-    let hls: { destroy: () => void } | null = null;
-    let cancelled = false;
-    const onNativeError = () => {
-      if (!cancelled) setFailed(true);
-    };
+  useFeedPlayerPlayback({
+    videoRef,
+    active,
+    playable,
+    mayPlay,
+    asked,
+    userPaused,
+    canPlay,
+    setRejectedFor,
+    setPlaying,
+  });
 
-    const nativeHls = video.canPlayType("application/vnd.apple.mpegurl") !== "";
-
-    void (async () => {
-      try {
-        if (nativeHls) {
-          /*
-            A clip that cannot play on the native path says so here, and
-            nowhere else: a browser playing HLS itself (Safari, iOS, and now
-            Chromium too) reports a dead manifest or segment only as the
-            element's own `error`. With nothing listening, the card kept a
-            play control and a sound toggle for a clip that could never play,
-            or the slow ring spun over the poster for ever (motion audit
-            3.10). Failed is a card with its poster and no clip, the same as
-            hls.js's fatal error below.
-          */
-          video.addEventListener("error", onNativeError);
-          video.src = src;
-          setPlayable(true);
-          return;
-        }
-        // Only reached where the browser cannot play HLS itself. Dynamic so
-        // the bytes never load for the browsers that do not need them.
-        const { default: Hls } = await import("hls.js");
-        if (cancelled) return;
-        if (!Hls.isSupported()) {
-          setFailed(true);
-          return;
-        }
-        const instance = new Hls({
-          // Island connection: keep the buffer small so a stall recovers fast
-          // rather than sitting on 30 seconds of stale segments.
-          maxBufferLength: 10,
-          maxMaxBufferLength: 20,
-          // Keeps the rendition matched to a phone-sized element rather than
-          // fetching a 1080p ladder for a 480px column.
-          capLevelToPlayerSize: true,
-        });
-        hls = instance;
-        /*
-          A fatal decode fault is often one bad fragment, and hls.js's own
-          answer is to rebuild the media buffer and carry on: tried once per
-          attachment. It used to end the clip at once (stability audit,
-          6 Oct 2026). A network fault is only fatal once hls.js has spent
-          its own retries, and a second decode fault means the clip will not
-          decode here, so both are a failure, which the card's next time on
-          screen tries afresh.
-        */
-        let recovered = false;
-        instance.on(Hls.Events.ERROR, (_e, data) => {
-          if (!data.fatal) return;
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) {
-            recovered = true;
-            instance.recoverMediaError();
-            return;
-          }
-          setFailed(true);
-        });
-        instance.loadSource(src);
-        instance.attachMedia(video);
-        setPlayable(true);
-      } catch {
-        setFailed(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      video.removeEventListener("error", onNativeError);
-      hls?.destroy();
-      /*
-        Let go of the media, not only the listener. On the native path (all
-        of iOS, Safari and now Chromium) an element that leaves the preload
-        budget kept its source and its buffers until garbage collection, so
-        a long session held a decoder per card it had passed. Emptying the
-        source and loading nothing is how a media element is told to release
-        them.
-
-        And it is not playable any more: the element that comes back is a new
-        one with nothing attached, and `play()` on it before the source is
-        attached was refused, which drew a play control on a clip that was
-        about to start by itself.
-      */
-      if (nativeHls) {
-        video.pause();
-        video.removeAttribute("src");
-        video.load();
-      }
-      setPlayable(false);
-    };
-  }, [src, canPlay]);
-
-  // The first decoded frame of this clip: from here it may be seen.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !src) return;
-    // A new element, or a new source on this one, always fires it.
-    const framedNow = () => setFramedFor(src);
-    video.addEventListener("loadeddata", framedNow);
-    return () => video.removeEventListener("loadeddata", framedNow);
-  }, [src, canPlay]);
-
-  /*
-    Play/pause follows the active card. Never autoplay off-screen.
-
-    `asked` joins `autoplayAllowed` here so a tap starts playback on a card the
-    connection heuristic had refused. The gesture is not needed for the play
-    itself — the feed is muted by default and muted playback needs no gesture
-    in any browser — which is why setting state and letting this effect do the
-    work is safe. Unmuting is the only thing that requires one, and that is
-    already behind its own tap.
-  */
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !playable) return;
-    if (active && mayPlay && !userPaused) {
-      // Captured at the moment of the attempt, so a refusal is filed against
-      // the try that earned it and not against whatever is current when the
-      // promise settles.
-      const forAttempt = asked ? "asked" : "auto";
-      void video.play().then(
-        () => setRejectedFor(null),
-        (error: unknown) => {
-          /*
-            Refused by the browser is a normal outcome, not an error, but it
-            IS the moment there is something for a traveller to do, and the
-            only moment. Recording it here is what lets the control stay away
-            while a clip is merely still buffering (#78).
-
-            And only a refusal: `NotAllowedError`, the autoplay policy saying
-            no. Leaving the card pauses it, which rejects a `play()` still
-            pending with an `AbortError`; recording that drew the play control
-            over a clip that was only starting when the traveller flicked back
-            to it (6 Oct 2026).
-          */
-          if ((error as { name?: unknown } | null)?.name === "NotAllowedError")
-            setRejectedFor(forAttempt);
-        },
-      );
-    } else {
-      video.pause();
-    }
-  }, [active, playable, mayPlay, asked, userPaused]);
-
-  /*
-    Whether it is actually running, read from the element rather than assumed.
-
-    `play()` resolving is not the same as playing — a stall, a policy refusal
-    or a source error all leave the promise settled and the picture still. The
-    play control keys off this, so it must be the truth.
-  */
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const on = () => setPlaying(true);
-    const off = () => setPlaying(false);
-    /*
-      `waiting` is the clip stopping for data; `stalled` is not a stop at all.
-      It fires when the network has been quiet for about three seconds, which
-      is normal with a full buffer, and reading it as stopped drew "Loading
-      video" over a clip that was playing on Safari. A real rebuffer mid-clip,
-      meanwhile, froze the picture with no ring, because nothing listened for
-      `waiting` (6 Oct 2026).
-    */
-    video.addEventListener("playing", on);
-    video.addEventListener("pause", off);
-    video.addEventListener("ended", off);
-    video.addEventListener("waiting", off);
-    return () => {
-      video.removeEventListener("playing", on);
-      video.removeEventListener("pause", off);
-      video.removeEventListener("ended", off);
-      video.removeEventListener("waiting", off);
-    };
-  }, [canPlay]);
-
-  /*
-    HOW MUCH OF THE CLIP ACTUALLY PLAYED, for a reel view (yuvoy-app#96).
-
-    Read from the element's own clock, not from a timer beside it: a clip that
-    is buffering, paused or refused is on screen and not playing, and the API
-    asks for the time it PLAYED. Each `timeupdate` (four or so a second) adds
-    the media time that passed since the last one, while the element is not
-    paused.
-
-    `loop` means the clip never reports `ended`: it comes round to the start
-    and carries on. That shows up as the media time going BACKWARDS, and is
-    both the rest of the last pass (up to `duration`) plus the start of this
-    one, and the evidence it played to its end. A frame within `END_SLACK_S`
-    of the end counts as the end too, for the traveller who scrolls on just as
-    it gets there. A jump of more than `MAX_STEP_S` is not playback (a source
-    attaching, a stall recovering), so it is not counted.
-  */
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !watch) return;
-
-    let last: number | null = null;
-    const finite = (n: number) => Number.isFinite(n) && n > 0;
-
-    const sample = () => {
-      const now = video.currentTime;
-      const duration = video.duration;
-      if (last !== null && !video.paused) {
-        const step = now - last;
-        if (step > 0 && step <= MAX_STEP_S) {
-          watch.played(step * 1000);
-        } else if (step < 0 && finite(duration)) {
-          const lap = duration - last + now;
-          if (lap > 0 && lap <= MAX_STEP_S) watch.played(lap * 1000);
-          watch.completed();
-        }
-      }
-      if (finite(duration) && now >= duration - END_SLACK_S) watch.completed();
-      last = now;
-    };
-    // Resuming after a pause or a stall measures from where it resumed.
-    const resume = () => {
-      last = video.currentTime;
-    };
-    const ended = () => {
-      sample();
-      watch.completed();
-    };
-
-    video.addEventListener("timeupdate", sample);
-    video.addEventListener("playing", resume);
-    video.addEventListener("ended", ended);
-    return () => {
-      video.removeEventListener("timeupdate", sample);
-      video.removeEventListener("playing", resume);
-      video.removeEventListener("ended", ended);
-    };
-  }, [watch, hasClip]);
+  useFeedPlayerWatch(videoRef, watch, hasClip);
 
   // The card learns whether there is a clip to control, and forgets it when
   // the player leaves the preload budget.
@@ -583,8 +361,9 @@ export function FeedPlayer({
         An element with no source costs nothing and fetches nothing, and it
         keeps this markup identical before and after the autoplay decision —
         which is what stops the control below flashing on first paint (#78).
-        What the decision gates is the source (`canPlay`, in the effect above)
-        and `preload`, which is where the bytes actually are.
+        What the decision gates is the source (`canPlay`, in
+        `useFeedPlayerSource`) and `preload`, which is where the bytes actually
+        are.
       */}
       {hasClip ? (
         <video
@@ -675,44 +454,9 @@ export function FeedPlayer({
       ) : null}
 
       {hasClip && active && !playing && !hidden && (refused || userPaused) ? (
-        <button
-          type="button"
-          onClick={resume}
-          aria-label={`Play ${media.alt ?? "this clip"}`}
-          className={cn(
-            "absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2",
-            "grid size-16 place-items-center rounded-full",
-            "bg-abyss/55 text-paper backdrop-blur-sm",
-            "motion-disc hover:bg-abyss/70 active:scale-95",
-            "focus-visible:ring-paper focus-visible:ring-2 focus-visible:outline-none",
-          )}
-        >
-          {/*
-            A triangle, nudged right of centre. An optically centred play glyph
-            sits about 8% right of true centre, and the difference reads as a
-            wobble at this size.
-          */}
-          <svg
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            aria-hidden="true"
-            className="size-7 translate-x-[2px]"
-          >
-            <path d="M8 5.14v13.72a1 1 0 0 0 1.54.84l10.29-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14Z" />
-          </svg>
-        </button>
+        <PlayDisc label={`Play ${media.alt ?? "this clip"}`} onClick={resume} />
       ) : null}
 
-      {/*
-        A clip that is taking its time, saying so. See `slowStart`.
-
-        Deliberately not the play button's twin: it is smaller, it is not a
-        target, and it carries no glyph anybody could read as "tap here". A
-        traveller must never learn to tap a thing that is already working.
-
-        `role="status"` with a label rather than a bare spinner, because on a
-        screen reader an unlabelled spinning div is nothing at all.
-      */}
       {/*
         Drawn for as long as the clip could be starting, and SHOWN only while
         a start is slow, so it fades in when it is due and out when the clip
@@ -722,16 +466,7 @@ export function FeedPlayer({
         picture while it buffers, and a stall shows the ring again at once.
       */}
       {hasClip && active && mayPlay && !hidden ? (
-        <div
-          role={slowStart ? "status" : undefined}
-          aria-label={slowStart ? "Loading video" : undefined}
-          aria-hidden={slowStart ? undefined : true}
-          data-shown={slowStart}
-          data-motion=""
-          className="feed-slow-ring absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
-        >
-          <span className="border-paper/30 border-t-paper block size-8 rounded-full border-2" />
-        </div>
+        <SlowRing slow={slowStart} />
       ) : null}
     </div>
   );
