@@ -15,6 +15,9 @@ import {
   peopleSummaryFor,
   setPeopleName,
 } from "./people-state";
+import { trigoStaffCohort } from "./trigo-handlers";
+import { organiserAgeConfirmed } from "./organiser-handlers";
+import { meStaffCohort } from "./me-handlers";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -477,13 +480,17 @@ function answerMe(request: Request): Response {
         yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
         staff tester's world, or one of yuvoy-app#207's opens `creator`
         there (all but `creator-outside`), or one of yuvoy-app#222's opens
-        `people` there (all but `people-outside` and `people-all`).
+        `people` there (all but `people-outside` and `people-all`), or one of
+        yuvoy-app#223's opens `trigo` there (all but `trigo-not-released`), or
+        one of yuvoy-mobile#444's opens `me` there.
       */
       cohort:
         scenarioOf(request) === "cohort-staff" ||
         exploreStageOf(scenarioOf(request)) === "staff" ||
         creatorStaffCohort(scenarioOf(request)) ||
-        peopleStaffCohort(scenarioOf(request))
+        peopleStaffCohort(scenarioOf(request)) ||
+        trigoStaffCohort(scenarioOf(request)) ||
+        meStaffCohort(scenarioOf(request))
           ? "staff"
           : scenarioOf(request) === "cohort-early"
             ? "early"
@@ -495,6 +502,12 @@ function answerMe(request: Request): Response {
         `creator-tools-off`.
       */
       creatorToolsOn: creatorToolsOnFor(scenarioOf(request)),
+      /*
+        The 18+ answer: true, except under `organisers-age` until
+        `PUT /me/age` is answered (yuvoy-app#224), and the People session's
+        own answer under a People scenario (yuvoy-app#222).
+      */
+      ageConfirmed: organiserAgeConfirmed(request),
       ...(peopleAccount ? { ageConfirmed: peopleAccount.ageConfirmed } : {}),
       ...(peopleSummary ? { people: peopleSummary } : {}),
       onboardingRequired: fresh,

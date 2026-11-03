@@ -86,6 +86,17 @@ describe("Content-Security-Policy", () => {
     );
   });
 
+  it("can show a traveller's own life list photos, and only as images", () => {
+    // yuvoy-mobile#444: each entry's photo is a signed S3 read.
+    for (const policy of [reportOnlyCsp(PROD), enforcedCsp(PROD)]) {
+      expect(sources(policy, "img-src")).toContain(
+        "https://*.s3.ap-south-1.amazonaws.com",
+      );
+      expect(directive(policy, "connect-src")).not.toContain("amazonaws.com");
+      expect(directive(policy, "media-src")).not.toContain("amazonaws.com");
+    }
+  });
+
   it("never ships eval to a traveller", () => {
     expect(directive(reportOnlyCsp(PROD), "script-src")).not.toContain(
       "unsafe-eval",

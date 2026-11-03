@@ -231,7 +231,89 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "PUT", pattern: "/me/friend-link" },
   { method: "DELETE", pattern: "/me/friend-link" },
   { method: "POST", pattern: "/friend-links/lookup" },
+  /*
+    Ask Trigo (yuvoy-app#223, R5-T5). Every Trigo call is session only in the
+    contract: the chat belongs to the account, and the team replies to the
+    account. `src/lib/trigo/api.ts` and `src/lib/trigo/actions.ts` call them.
+    Hand-off, report and Trigo's memory have no screen yet and are not here.
+  */
+  // One typed message and its answer, with an Idempotency-Key per message.
+  { method: "POST", pattern: "/trigo/turns" },
+  // The traveller's chats, newest first, to pick the one to reopen.
+  { method: "GET", pattern: "/trigo/conversations" },
+  // One chat's messages, newest 50 first, then `after=<seq>` while it polls.
+  { method: "GET", pattern: "/trigo/conversations/{id}" },
+  // The highest seq on screen, so the chat stops counting as unread.
+  { method: "POST", pattern: "/trigo/conversations/{id}/read" },
+  // Whether the person has accepted the current notice.
+  { method: "GET", pattern: "/trigo/consent" },
+  // Accepting the notice, with `surface: web`.
+  { method: "POST", pattern: "/trigo/consent" },
+  // Turn off Trigo, `?surface=web`.
+  { method: "DELETE", pattern: "/trigo/consent" },
+  // Yes on a card under a reply: a checkout to open, or an alert or draft made.
+  { method: "POST", pattern: "/trigo/actions/{id}/confirm" },
+  // Not now on a card: Trigo's line "Nothing has been booked or changed."
+  { method: "POST", pattern: "/trigo/actions/{id}/decline" },
+  /*
+    Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
+    signed-in traveller's own pages, their helpers, their events and the
+    numbers. Session only in the contract. The club routes
+    (`/organisers/{id}/club`) and claims (`/organisers/{id}/claims`) are not
+    built on the web and are not here.
+  */
+  { method: "GET", pattern: "/me/organisers" },
+  { method: "POST", pattern: "/organisers" },
+  { method: "GET", pattern: "/organisers/{id}" },
+  { method: "PATCH", pattern: "/organisers/{id}" },
+  { method: "GET", pattern: "/organisers/{id}/helpers" },
+  { method: "POST", pattern: "/organisers/{id}/helpers" },
+  { method: "DELETE", pattern: "/organisers/{id}/helpers/{travellerId}" },
+  { method: "GET", pattern: "/organisers/{id}/events" },
+  { method: "POST", pattern: "/organisers/{id}/events" },
+  { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
+  { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
+  { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  /*
+    The year a person was born, asked by Trigo's age check, by People's age
+    step and before the organiser pages (`403 adult_confirmation_required`)
+    for an account made before the year was asked. Listed once for all
+    three. Session only: a booking link cannot answer for a person's age.
+  */
   { method: "PUT", pattern: "/me/age" },
+  /*
+    Me on Account (yuvoy-mobile#444, R10-M1), behind the `me` release; every
+    one answers 404 while it is closed. Session only in the contract.
+  */
+  // The life list, a page at a time, with Did you go? on the first page.
+  { method: "GET", pattern: "/me/life-list" },
+  // Who sees a trip or a table entry. A went entry is changed by its event.
+  { method: "PATCH", pattern: "/me/life-list/{entryId}" },
+  // Did you go?, answered from Me.
+  { method: "POST", pattern: "/me/went/{eventId}" },
+  // Who sees a went entry: the one route that writes it.
+  { method: "PATCH", pattern: "/me/went/{eventId}" },
+  { method: "GET", pattern: "/me/badges" },
+  // "Nice" on a new badge.
+  { method: "POST", pattern: "/me/badges/seen" },
+  /*
+    Languages and Women-only tables. The same route holds the usage choice
+    and the email switches, and Me sends only the field that changed.
+  */
+  { method: "GET", pattern: "/me/settings" },
+  { method: "PATCH", pattern: "/me/settings" },
+  /*
+    Following a group and asking a crew along to a plan (yuvoy-mobile#392,
+    R10-T2). Follows are private and need the `people` release; the crew
+    invite needs `people` and `plans`. The plans list is the invite's picker:
+    the traveller's own plans, read for the ones they made. Session only in
+    the contract.
+  */
+  { method: "GET", pattern: "/me/club-follows" },
+  { method: "PUT", pattern: "/me/club-follows/{clubId}" },
+  { method: "DELETE", pattern: "/me/club-follows/{clubId}" },
+  { method: "POST", pattern: "/plans/{planId}/crew-invites" },
+  { method: "GET", pattern: "/me/plans" },
 ];
 
 /*

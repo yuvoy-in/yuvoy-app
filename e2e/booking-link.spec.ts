@@ -179,6 +179,46 @@ test("the address bar keeps a link that is safe to copy", async ({ page }) => {
   }).toPass({ timeout: 5000 });
 });
 
+test("the fixed link stays fixed when the router draws the page again", async ({
+  page,
+}) => {
+  /*
+    The fix is a replaceState the router has to hear about. If it does not,
+    the router still remembers the doubled address and writes it back on its
+    next change of state, putting the other booking's token back in the bar.
+    Nothing on this screen refreshes today, so the test asks the router
+    itself (`window.next.router`, which Next sets in production too).
+  */
+  await signIn(page);
+  await page.goto("/booking#t=tok_other_phone");
+  await backToTrips(page);
+  const past = await openPastTab(page);
+  await past.click();
+  await page.waitForURL(/\/booking/);
+  await expect(async () => {
+    expect(new URL(page.url()).hash).toBe("#t=tok_past_trip");
+  }).toPass({ timeout: 5000 });
+
+  // The refresh is one RSC request; once it commits, the router writes the
+  // address it remembers.
+  const refreshed = page.waitForResponse(
+    (r) => r.request().headers()["rsc"] === "1",
+  );
+  await page.evaluate(() => {
+    (
+      window as unknown as { next: { router: { refresh: () => void } } }
+    ).next.router.refresh();
+  });
+  await refreshed;
+  await page.evaluate(
+    () =>
+      new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done)),
+      ),
+  );
+  expect(new URL(page.url()).hash).toBe("#t=tok_past_trip");
+});
+
 test("every tab lists its own trips, and each one opens", async ({ page }) => {
   /*
     The mock ignored `?tab=` until 19 September, so all three tabs showed the
