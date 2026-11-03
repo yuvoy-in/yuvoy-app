@@ -109,6 +109,18 @@ function forgetTrigo(qc: QueryClient): void {
   forgetTrigoCheckouts();
 }
 
+/**
+ * Me's life list, badges and settings (yuvoy-mobile#444), on both sides of a
+ * change of who is signed in. Removed, for the reason `refresh` gives: the list
+ * carries the person's own photos as signed links, and the next person must
+ * never see them while their own list is read.
+ */
+function forgetMe(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: qk.myLifeList() });
+  qc.removeQueries({ queryKey: qk.myBadges() });
+  qc.removeQueries({ queryKey: qk.mySettings() });
+}
+
 function forgetSaved(qc: QueryClient): void {
   /*
     First, so nothing started for the previous number (an adoption, a queued
@@ -197,6 +209,9 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getTable"] });
     // And share links are the number's own, with their counts.
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    // So are the groups it follows and its plans (yuvoy-mobile#392).
+    qc.removeQueries({ queryKey: qk.myClubFollows() });
+    qc.removeQueries({ queryKey: ["listMyPlans"] });
     // And its date alerts and trip drafts (yuvoy-app#220).
     qc.removeQueries({ queryKey: qk.myDateAlerts() });
     qc.removeQueries({ queryKey: qk.myTripDrafts() });
@@ -206,6 +221,7 @@ export function useTravellerSession() {
     forgetSupportRequests(qc);
     forgetTrigo(qc);
     forgetOrganisers(qc);
+    forgetMe(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -282,6 +298,8 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["getEvent"] });
     qc.removeQueries({ queryKey: ["getTable"] });
     qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    qc.removeQueries({ queryKey: qk.myClubFollows() });
+    qc.removeQueries({ queryKey: ["listMyPlans"] });
     qc.removeQueries({ queryKey: qk.myDateAlerts() });
     qc.removeQueries({ queryKey: qk.myTripDrafts() });
     forgetPeople(qc);
@@ -289,6 +307,7 @@ export function useTravellerSession() {
     forgetSupportRequests(qc);
     forgetTrigo(qc);
     forgetOrganisers(qc);
+    forgetMe(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);

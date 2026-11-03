@@ -48,5 +48,10 @@ export const CARD_FAILURE = "Something went wrong on our side. Try again.";
 export const CARD_OFFLINE = "You're offline. Try again when you're back.";
 /** A move or add-people card (yuvoy-mobile#398): no web screen for it yet. */
 export const CARD_NOT_ON_WEB = "This change can't be made on the web yet.";
+/**
+ * A card made before `releases.trigoActions` closed to this traveller: confirm
+ * would answer 404, so the card offers nothing.
+ */
+export const CARD_ACTIONS_CLOSED = "This card can't be used right now.";
 /** The card's name for screen readers, before the server's heading. */
 export const CARD_LABEL = "Trigo's card";
