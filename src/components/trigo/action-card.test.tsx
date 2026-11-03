@@ -19,6 +19,7 @@ import {
 } from "@/lib/trigo/words";
 import { ActionCard, TRIPS_PATH } from "./action-card";
 import {
+  CARD_ACTIONS_CLOSED,
   CARD_DECLINED,
   CARD_FAILURE,
   CARD_LABEL,
@@ -34,6 +35,9 @@ import {
  * answer with a result or an error. The cache work behind them is
  * `src/lib/trigo/actions.test.tsx`'s. `classifyCardError` is the real one, so
  * failures are drawn from status and code, never from message text.
+ *
+ * `useRelease` is mocked too, as in the sheet's tests: every case reads
+ * `releases.trigoActions` open unless it closes it.
  */
 
 type Answer =
@@ -49,6 +53,11 @@ const s = vi.hoisted(() => ({
   decline: null as null | ((vars: unknown) => unknown),
   confirmed: [] as unknown[],
   declined: [] as unknown[],
+  release: { open: true, pending: false, stage: "all" },
+}));
+
+vi.mock("@/lib/site/use-release", () => ({
+  useRelease: () => s.release,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -126,6 +135,7 @@ beforeEach(() => {
   s.decline = null;
   s.confirmed = [];
   s.declined = [];
+  s.release = { open: true, pending: false, stage: "all" };
 });
 
 describe("ActionCard, drawn as sent", () => {
@@ -145,6 +155,41 @@ describe("ActionCard, drawn as sent", () => {
     const lines = Array.from({ length: 10 }, (_, i) => `Line ${i + 1}`);
     draw(card({ lines }));
     expect(screen.getAllByRole("listitem")).toHaveLength(8);
+  });
+
+  it("keeps its heading, lines and Not now but no confirm while actions are closed", async () => {
+    // Made before releases.trigoActions closed: a confirm would answer 404.
+    s.release = { open: false, pending: false, stage: "off" };
+    s.decline = () => ({ ok: { message: {} } });
+    draw(card());
+    expect(
+      screen.getByRole("group", { name: `${CARD_LABEL}: Check before I book` }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText(CARD_ACTIONS_CLOSED)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
+
+    // Decline is not behind the release in the API: Not now still says no.
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(s.declined).toEqual([
+      { actionId: ACTION, kind: "book", conversationId: CHAT },
+    ]);
+    expect(s.confirmed).toHaveLength(0);
+  });
+
+  it("offers Not now but no confirm and no closed line while actions are read", () => {
+    s.release = { open: false, pending: true, stage: "off" };
+    draw(card());
+    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
+    expect(screen.queryByText(CARD_ACTIONS_CLOSED)).toBeNull();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeEnabled();
+  });
+
+  it("offers no Go to checkout on a confirmed card while actions are closed", () => {
+    s.release = { open: false, pending: false, stage: "off" };
+    draw(card({ state: "confirmed" }));
+    expect(screen.getByText(CARD_ACTIONS_CLOSED)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("offers only Not now on a change card, which has no web screen", () => {
@@ -271,12 +316,13 @@ describe("ActionCard, a failure", () => {
     ["sold out", refusal(409, "action_changed", "Changed.", "sold_out")],
     ["price moved", refusal(409, "action_changed", "Moved.", "price_moved")],
     ["expired", refusal(409, "action_expired", "Expired.")],
+    // The release is read again first, and the mock's app-config has it open.
     ["not found", refusal(404, "not_found", "No card.")],
   ])("%s: the API's sentence, and the card ends", async (_, error) => {
     s.confirm = () => ({ error });
     draw(card());
     await userEvent.click(screen.getByRole("button", { name: "Book" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(error.message);
+    expect(await screen.findByRole("alert")).toHaveTextContent(error.message);
     expect(screen.queryByRole("button")).toBeNull();
     expect(s.push).not.toHaveBeenCalled();
   });

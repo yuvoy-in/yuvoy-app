@@ -400,6 +400,15 @@ export const qk = {
     ["getOrganiserEventNumbers", id, postId, on ?? ""] as const,
   organiserHelpers: (id: string) => ["listOrganiserHelpers", id] as const,
   /**
+   * Me (yuvoy-mobile#444): the life list, its badges and the settings it
+   * shows. Not keyed by anything, for the reason `myBookings` gives, and
+   * belonging to a number, so removed on sign in and sign out with the rest.
+   * The life list holds five-minute photo links and lives in memory only.
+   */
+  myLifeList: () => ["getMyLifeList"] as const,
+  myBadges: () => ["getMyBadges"] as const,
+  mySettings: () => ["getMySettings"] as const,
+  /**
    * People (yuvoy-app#222). Not keyed by anything, for the reason
    * `myBookings` gives, and removed on sign in and sign out
    * (`forgetPeople`). The lookup is keyed by the code as the page has it.
