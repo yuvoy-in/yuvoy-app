@@ -83,7 +83,7 @@ describe("/people/crews/{crewId}", () => {
     await heading(W.gone.title);
     // The header's back button has the same name, and goes to the same place.
     const back = screen.getAllByRole("link", { name: W.gone.action });
-    expect(back.length).toBeGreaterThan(1);
+    expect(back).toHaveLength(2);
     for (const link of back) expect(link).toHaveAttribute("href", "/people");
   });
 
