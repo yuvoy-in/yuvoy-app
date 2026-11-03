@@ -22,6 +22,17 @@ export function pageProblems(
     problems.name = "Give the name people know you by, 2 to 120 characters.";
   }
   if (!text(body.destinationKey)) problems.destinationKey = "Choose a place.";
+  return { ...problems, ...restProblems(body) };
+}
+
+/**
+ * The fields every page body has, a group's too (yuvoy-app#225): departments,
+ * the ticked line and the links. A group's name and place are the group's.
+ */
+export function restProblems(
+  body: Record<string, unknown>,
+): Record<string, string> {
+  const problems: Record<string, string> = {};
   const departments = Array.isArray(body.departments) ? body.departments : [];
   if (departments.length < 1 || departments.length > 3) {
     problems.departments = "Choose one to three kinds of event.";
