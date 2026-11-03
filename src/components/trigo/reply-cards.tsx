@@ -48,12 +48,12 @@ function ReplyCard({ card }: { card: TrigoCard }) {
 
   if (!card.available) {
     return (
-      <div className={cn(BOX, "opacity-70")} data-testid="trigo-card-gone">
-        <p className="text-body text-forest/60 font-medium text-pretty">
+      <div className={BOX} data-testid="trigo-card-gone">
+        <p className="text-body text-forest/70 font-medium text-pretty">
           {card.title}
         </p>
         {where ? (
-          <p className="text-body text-forest/60 text-pretty">{where}</p>
+          <p className="text-body text-forest/70 text-pretty">{where}</p>
         ) : null}
         <p className="text-body text-pretty">{NO_LONGER_LISTED}</p>
       </div>
@@ -72,7 +72,7 @@ function ReplyCard({ card }: { card: TrigoCard }) {
       </span>
       {where ? <span className="text-body text-pretty">{where}</span> : null}
       {price ? <span className="text-body text-pretty">{price}</span> : null}
-      <span className="label text-forest/70">{card.checkLabel}</span>
+      <span className="label text-forest/75">{card.checkLabel}</span>
     </Link>
   );
 }
