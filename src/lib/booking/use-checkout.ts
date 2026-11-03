@@ -26,6 +26,7 @@ export function useCreateReservation() {
     retry: false,
     mutationFn: async ({
       authenticated = false,
+      idempotencyKey,
       ...body
     }: CheckoutBodyShape & {
       /**
@@ -41,10 +42,16 @@ export function useCreateReservation() {
        * them out rather than sending them empty.
        */
       authenticated?: boolean;
+      /**
+       * A key the API handed out for this very reservation: a Trigo book
+       * card's checkout (yuvoy-app#223 part 2). The caller passes it only
+       * while the departure and party are the card's; not part of the body.
+       */
+      idempotencyKey?: string;
     }): Promise<Reservation> => {
       // Derived from the body, so a retry of the same attempt reuses it and a
       // materially different body gets a fresh one. Never minted per click.
-      const key = idempotencyKeyFor(body);
+      const key = idempotencyKey ?? idempotencyKeyFor(body);
 
       /*
         `authenticated` is deliberately NOT part of the fingerprint. It is how

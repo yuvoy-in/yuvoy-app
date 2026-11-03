@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { http, HttpResponse, delay } from "msw";
 import { createApiClient } from "./client";
-import { NetworkError } from "./errors";
+import { NetworkError, YuvoyError } from "./errors";
 import { server } from "../../../mocks/server";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
@@ -290,5 +290,28 @@ describe("a request made on the server", () => {
     const { response } = await createApiClient().GET("/reels");
     expect(response.status).toBe(200);
     expect(asked).toBe(2);
+  });
+});
+
+describe("an answer that says when to try again", () => {
+  it("keeps the Retry-After the API sent on the error, a long one too", async () => {
+    server.use(
+      http.get(`${BASE}/reels`, () =>
+        HttpResponse.json(
+          { error: { code: "rate_limited", message: "Not again today." } },
+          { status: 429, headers: { "Retry-After": "3600" } },
+        ),
+      ),
+    );
+
+    const error = await createApiClient()
+      .GET("/reels")
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+    expect(error).toBeInstanceOf(YuvoyError);
+    expect((error as YuvoyError).status).toBe(429);
+    expect((error as YuvoyError).retryAfterSeconds).toBe(3600);
   });
 });

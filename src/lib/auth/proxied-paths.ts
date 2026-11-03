@@ -210,6 +210,77 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   */
   { method: "GET", pattern: "/me/creator-links" },
   { method: "POST", pattern: "/me/creator-links" },
+  /*
+    People: friends on Yuvoy (yuvoy-app#222, the web half of
+    yuvoy-mobile#366). Session only in the contract, every one of them, and
+    each answers 404 while the `people` release is closed to the caller.
+    The People screen reads and changes the home, the friends list, the
+    requests and the friend link; `/add/{code}` looks a link up and asks.
+    The lookup takes its code in the body, so the code is never in a logged
+    path. `PUT /me/age` is the age step People opens with when the account
+    has no birth year yet. `GET /people/{id}` is not here: no screen opens
+    one person yet.
+  */
+  { method: "GET", pattern: "/me/people" },
+  { method: "PATCH", pattern: "/me/people" },
+  { method: "GET", pattern: "/me/friends" },
+  { method: "DELETE", pattern: "/me/friends/{personId}" },
+  { method: "POST", pattern: "/me/friend-requests" },
+  { method: "POST", pattern: "/me/friend-requests/{requestId}/answer" },
+  { method: "DELETE", pattern: "/me/friend-requests/{requestId}" },
+  { method: "PUT", pattern: "/me/friend-link" },
+  { method: "DELETE", pattern: "/me/friend-link" },
+  { method: "POST", pattern: "/friend-links/lookup" },
+  /*
+    Ask Trigo (yuvoy-app#223, R5-T5). Every Trigo call is session only in the
+    contract: the chat belongs to the account, and the team replies to the
+    account. `src/lib/trigo/api.ts` and `src/lib/trigo/actions.ts` call them.
+    Hand-off, report and Trigo's memory have no screen yet and are not here.
+  */
+  // One typed message and its answer, with an Idempotency-Key per message.
+  { method: "POST", pattern: "/trigo/turns" },
+  // The traveller's chats, newest first, to pick the one to reopen.
+  { method: "GET", pattern: "/trigo/conversations" },
+  // One chat's messages, newest 50 first, then `after=<seq>` while it polls.
+  { method: "GET", pattern: "/trigo/conversations/{id}" },
+  // The highest seq on screen, so the chat stops counting as unread.
+  { method: "POST", pattern: "/trigo/conversations/{id}/read" },
+  // Whether the person has accepted the current notice.
+  { method: "GET", pattern: "/trigo/consent" },
+  // Accepting the notice, with `surface: web`.
+  { method: "POST", pattern: "/trigo/consent" },
+  // Turn off Trigo, `?surface=web`.
+  { method: "DELETE", pattern: "/trigo/consent" },
+  // Yes on a card under a reply: a checkout to open, or an alert or draft made.
+  { method: "POST", pattern: "/trigo/actions/{id}/confirm" },
+  // Not now on a card: Trigo's line "Nothing has been booked or changed."
+  { method: "POST", pattern: "/trigo/actions/{id}/decline" },
+  /*
+    Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
+    signed-in traveller's own pages, their helpers, their events and the
+    numbers. Session only in the contract. The club routes
+    (`/organisers/{id}/club`) and claims (`/organisers/{id}/claims`) are not
+    built on the web and are not here.
+  */
+  { method: "GET", pattern: "/me/organisers" },
+  { method: "POST", pattern: "/organisers" },
+  { method: "GET", pattern: "/organisers/{id}" },
+  { method: "PATCH", pattern: "/organisers/{id}" },
+  { method: "GET", pattern: "/organisers/{id}/helpers" },
+  { method: "POST", pattern: "/organisers/{id}/helpers" },
+  { method: "DELETE", pattern: "/organisers/{id}/helpers/{travellerId}" },
+  { method: "GET", pattern: "/organisers/{id}/events" },
+  { method: "POST", pattern: "/organisers/{id}/events" },
+  { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
+  { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
+  { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  /*
+    The year a person was born, asked by Trigo's age check, by People's age
+    step and before the organiser pages (`403 adult_confirmation_required`)
+    for an account made before the year was asked. Listed once for all
+    three. Session only: a booking link cannot answer for a person's age.
+  */
+  { method: "PUT", pattern: "/me/age" },
 ];
 
 /*

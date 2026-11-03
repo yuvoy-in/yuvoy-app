@@ -116,6 +116,36 @@ export const CACHE = {
     gcTime: 0,
     refetchOnMount: "always",
   },
+
+  /**
+   * Every organiser read (yuvoy-app#224): the list, a page, its events, an
+   * event's numbers and the helpers. "Never cached" in the contract, so every
+   * mount reads again. Kept a minute rather than none, unlike the share
+   * links: a page just made or saved is written into its entry, and the
+   * screen it opens next must find it there. Sign in and sign out remove all
+   * of it (`forgetOrganisers`).
+   */
+  organisers: {
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnMount: "always",
+  },
+  /**
+   * People (yuvoy-app#222): the home, the friends list, and a friend link's
+   * lookup. A request can arrive at any moment and an answer moves people
+   * between lists, so each is read again whenever its screen opens. The
+   * lookup is "never stored by a cache" in the contract, so nothing of it is
+   * kept once the page is gone.
+   */
+  getMyPeople: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
+  listMyFriends: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
+  // A POST limited to 30 a minute: never again on window focus.
+  lookupFriendLink: {
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  },
 } as const;
 
 /** Query keys derive from the operationId so invalidation is mechanical. */
@@ -200,6 +230,12 @@ export const qk = {
    * answer carries the reader's own request, the names and the venue.
    */
   table: (id: string) => ["getTable", id] as const,
+  /**
+   * The date alerts and trip drafts on the signed-in number (yuvoy-app#220).
+   * Not keyed, like `myBookings`: removed on sign-in and sign-out.
+   */
+  myDateAlerts: () => ["listMyDateAlerts"] as const,
+  myTripDrafts: () => ["listMyTripDrafts"] as const,
   /** An invite link's preview, unauthenticated, for `/i/{token}`. */
   invitePreview: (token: string) => ["previewTripInvite", token] as const,
   /** The guests on a booking, as the booker sees them. */
@@ -317,6 +353,36 @@ export const qk = {
    * sign out with the rest of what belongs to a number.
    */
   myCreatorLinks: () => ["listMyCreatorLinks"] as const,
+  /**
+   * Trigo (yuvoy-app#223): whether this traveller accepted the notice in
+   * force, their recent chats, and one chat's messages. None is keyed by the
+   * session, for the reason `myBookings` gives: all three are the number's
+   * own, a chat in the traveller's own words, so they are REMOVED on sign in
+   * and sign out (`useTravellerSession`).
+   */
+  trigoConsent: () => ["getTrigoConsent"] as const,
+  trigoConversations: () => ["listTrigoConversations"] as const,
+  trigoConversation: (id: string) => ["getTrigoConversation", id] as const,
+  /**
+   * The signed-in traveller's organisers and what hangs off each one
+   * (yuvoy-app#224). Not keyed by the person, for the reason `myBookings`
+   * gives: all of it is removed on sign in and sign out.
+   */
+  myOrganisers: () => ["listMyOrganisers"] as const,
+  organiser: (id: string) => ["getOrganiser", id] as const,
+  organiserEvents: (id: string) => ["listOrganiserEvents", id] as const,
+  /** `on` is "" for the current date, so the two blocks of a weekly event are two entries. */
+  organiserEventNumbers: (id: string, postId: string, on?: string | null) =>
+    ["getOrganiserEventNumbers", id, postId, on ?? ""] as const,
+  organiserHelpers: (id: string) => ["listOrganiserHelpers", id] as const,
+  /**
+   * People (yuvoy-app#222). Not keyed by anything, for the reason
+   * `myBookings` gives, and removed on sign in and sign out
+   * (`forgetPeople`). The lookup is keyed by the code as the page has it.
+   */
+  myPeople: () => ["getMyPeople"] as const,
+  myFriends: () => ["listMyFriends"] as const,
+  friendLink: (code: string) => ["lookupFriendLink", code] as const,
   /**
    * One help request, by its reference, and by WHICH credential asked.
    *
