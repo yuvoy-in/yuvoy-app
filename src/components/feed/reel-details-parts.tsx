@@ -1,6 +1,11 @@
 "use client";
 
-import { useRef } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from "react";
 import Link from "@/components/ui/link";
 import {
   PANEL_DEPARTURES,
@@ -10,6 +15,12 @@ import {
 } from "@/lib/feed/next-departures";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+import {
+  DURATION,
+  EASE,
+  prefersReducedMotion,
+  scaledDuration,
+} from "@/lib/motion";
 import { useHeightGlide } from "@/lib/motion/use-height-glide";
 
 /**
@@ -124,7 +135,7 @@ function DepartureRow({
 }
 
 /** The pull on the handle (T05 A). */
-export const PULL = {
+const PULL = {
   /** A press becomes a pull past this many px. */
   slop: 6,
   /** Let go past this many px and it closes. */
@@ -133,7 +144,7 @@ export const PULL = {
   flick: 0.5,
 } as const;
 
-export interface PanelDrag {
+interface PanelDrag {
   id: number;
   y0: number;
   y: number;
@@ -143,4 +154,147 @@ export interface PanelDrag {
   /** How far the panel is pulled, px. */
   dy: number;
   on: boolean;
+}
+
+/**
+ * The pull on the handle (T05 A), for `ReelDetails`: `ref` is its panel and
+ * `onClose` its own. The handle takes `onGrip`, `onPull` and `onLetGo`; the
+ * panel takes `freshPress` and `swallowed`, to drop the click a pull ends in.
+ */
+export function usePanelPull(
+  ref: RefObject<HTMLDivElement | null>,
+  open: boolean,
+  onClose: () => void,
+) {
+  /*
+    The pull on the handle. The panel's own transitions do the travel; while a
+    finger holds it the panel follows inline, and its release hands the rest
+    back to them from where it was let go.
+  */
+  const drag = useRef<PanelDrag | null>(null);
+  /** The click a drag ends in is not a tap on the handle. */
+  const swallow = useRef(false);
+  /** Clears the release's own timing once it has run. */
+  const release = useRef<number | undefined>(undefined);
+
+  /*
+    A fresh opening starts from the stylesheet, whatever the last release left
+    inline; and a panel closed under a finger (Escape, the next reel) is let go
+    so the stylesheet takes it from where it is. Before paint, so the opening
+    never runs a release's leftover curve.
+  */
+  useLayoutEffect(() => {
+    const panel = ref.current;
+    if (!panel) return;
+    if (open || drag.current) {
+      window.clearTimeout(release.current);
+      drag.current = null;
+      panel.removeAttribute("data-held");
+      panel.style.transition = "";
+      panel.style.transform = "";
+    }
+  }, [open]);
+
+  const onGrip = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!open || e.button > 0 || !e.isPrimary) return;
+    drag.current = {
+      id: e.pointerId,
+      y0: e.clientY,
+      y: e.clientY,
+      at: e.timeStamp,
+      v: 0,
+      dy: 0,
+      on: false,
+    };
+    ref.current?.setAttribute("data-held", "");
+  };
+
+  const onPull = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    const panel = ref.current;
+    if (!d || !panel || d.id !== e.pointerId) return;
+    /*
+      The card's swipe to the listing never sees a pull's moves, so a pull
+      that wanders sideways stays a pull. Its press does reach the card: that
+      is where the swipe forgets whatever its last gesture left behind.
+    */
+    e.stopPropagation();
+    if (!d.on) {
+      if (Math.abs(e.clientY - d.y0) < PULL.slop) return;
+      d.on = true;
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Not captured: the pull still works while the finger is on the handle.
+      }
+      window.clearTimeout(release.current);
+      panel.style.transition = "none";
+      // From here, so the panel does not jump by the slop.
+      d.y0 = e.clientY;
+    }
+    const dt = e.timeStamp - d.at;
+    if (dt > 0) d.v = (e.clientY - d.y) / dt;
+    d.y = e.clientY;
+    d.at = e.timeStamp;
+    d.dy = Math.max(0, e.clientY - d.y0);
+    panel.style.transform = `translateY(${d.dy}px)`;
+  };
+
+  const onLetGo = (
+    e: ReactPointerEvent<HTMLButtonElement>,
+    cancelled: boolean,
+  ) => {
+    const d = drag.current;
+    const panel = ref.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    panel?.removeAttribute("data-held");
+    if (!d.on || !panel) return;
+    e.stopPropagation();
+    swallow.current = true;
+    const closes = !cancelled && (d.dy > PULL.close || d.v >= PULL.flick);
+    const reduced = prefersReducedMotion();
+    let ms: number;
+    if (reduced) {
+      /*
+        Nothing travels: a closing pull fades out where it was let go, then the
+        panel goes home unseen; a short one is simply back.
+      */
+      ms = closes ? DURATION.reducedFade : 0;
+      panel.style.transition = closes
+        ? `opacity ${ms}ms linear, visibility 0s linear ${ms}ms`
+        : "none";
+      if (!closes) panel.style.transform = "";
+    } else {
+      const h = panel.offsetHeight || 1;
+      ms = closes
+        ? scaledDuration(h - Math.min(d.dy, h), h)
+        : DURATION.standard;
+      panel.style.transition = closes
+        ? `transform ${ms}ms ${EASE.move}, visibility 0s linear ${ms}ms`
+        : `transform ${ms}ms ${EASE.move}`;
+      panel.style.transform = "";
+    }
+    release.current = window.setTimeout(() => {
+      panel.style.transition = "";
+      if (closes) panel.style.transform = "";
+    }, ms + 50);
+    if (closes) onClose();
+  };
+
+  /*
+    The writes to `swallow` stay in here: the panel only asks. A value a hook
+    returns is not the caller's to change.
+  */
+  const freshPress = () => {
+    swallow.current = false;
+  };
+  /** Whether this click ends a pull, so is not a tap; asked once per click. */
+  const swallowed = () => {
+    if (!swallow.current) return false;
+    swallow.current = false;
+    return true;
+  };
+
+  return { freshPress, swallowed, onGrip, onPull, onLetGo };
 }
