@@ -1831,6 +1831,14 @@ for (const f of files) {
       "src/components/tables/report-table-sheet.tsx",
       "a sheet, opened by Report a problem",
     ],
+    [
+      "src/components/trigo/age-panel.tsx",
+      "inside the Trigo sheet, loaded in the browser only once it is opened",
+    ],
+    [
+      "src/components/trigo/composer.tsx",
+      "inside the Trigo sheet, loaded in the browser only once it is opened",
+    ],
     ["src/components/trips/date-filter.tsx", "a sheet, opened by Dates"],
     [
       "src/components/trips/island-days.tsx",

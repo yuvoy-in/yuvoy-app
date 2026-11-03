@@ -15,6 +15,7 @@ import {
   peopleSummaryFor,
   setPeopleName,
 } from "./people-state";
+import { trigoStaffCohort } from "./trigo-handlers";
 import { organiserAgeConfirmed } from "./organiser-handlers";
 
 type Experience = components["schemas"]["Experience"];
@@ -478,13 +479,15 @@ function answerMe(request: Request): Response {
         yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
         staff tester's world, or one of yuvoy-app#207's opens `creator`
         there (all but `creator-outside`), or one of yuvoy-app#222's opens
-        `people` there (all but `people-outside` and `people-all`).
+        `people` there (all but `people-outside` and `people-all`), or one of
+        yuvoy-app#223's opens `trigo` there (all but `trigo-not-released`).
       */
       cohort:
         scenarioOf(request) === "cohort-staff" ||
         exploreStageOf(scenarioOf(request)) === "staff" ||
         creatorStaffCohort(scenarioOf(request)) ||
-        peopleStaffCohort(scenarioOf(request))
+        peopleStaffCohort(scenarioOf(request)) ||
+        trigoStaffCohort(scenarioOf(request))
           ? "staff"
           : scenarioOf(request) === "cohort-early"
             ? "early"
