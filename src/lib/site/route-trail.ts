@@ -197,11 +197,18 @@ export function markStepBack(landedOn?: string) {
   // on the screen before, took it for a fragment move and marked nothing; both
   // visits then came in as steps forward, and the listing offered Back to the
   // business's page, the loop the trail is for (yuvoy-app#215).
-  const here = shown ?? state.trail.at(-1)?.path;
-  if (landedOn !== undefined && here === landedOn) return;
-  // The screen it left, when that one's visit is still to come.
+  const top = state.trail.at(-1)?.path;
+  const here = shown ?? top;
+  // Only the fragment moved, or the step back is recorded already (inside
+  // the event): the screen it landed on is both drawn and recorded. Drawn
+  // alone is not enough. React draws a traversal inside popstate and may
+  // record it after, once the screen change's transition is ready, and that
+  // visit, seen outside the event, needs this mark to be the step back.
+  if (landedOn !== undefined && here === landedOn && top === landedOn) return;
+  // The screen it left, when that one's visit is still to come. Not when the
+  // screen drawn is where it landed: then the next visit is the step back.
   const leaving =
-    landedOn !== undefined && here !== state.trail.at(-1)?.path
+    landedOn !== undefined && here !== landedOn && here !== top
       ? here
       : undefined;
   if (state.stepBack && state.leaving === leaving) return;
