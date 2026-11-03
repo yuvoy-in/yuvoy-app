@@ -96,12 +96,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const listings: components["schemas"]["ExperienceSummary"][] = [];
     let cursor: string | undefined;
     for (let page = 0; page < MAX_LISTING_PAGES; page += 1) {
-      const { data, error } = await api.GET("/experiences", {
-        params: {
-          query: { limit: LISTINGS_PAGE, ...(cursor ? { cursor } : {}) },
-        },
-      });
-      if (error || !data) break;
+      // The client throws on any answer that is not 2xx, so a refused page
+      // lands here and keeps the pages already read.
+      const data = await api
+        .GET("/experiences", {
+          params: {
+            query: { limit: LISTINGS_PAGE, ...(cursor ? { cursor } : {}) },
+          },
+        })
+        .then((answer) => answer.data)
+        .catch(() => undefined);
+      if (!data) break;
       listings.push(...data.items);
       if (data.complete || !data.nextCursor) break;
       cursor = data.nextCursor;

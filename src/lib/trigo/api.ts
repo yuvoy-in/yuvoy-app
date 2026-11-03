@@ -55,6 +55,19 @@ function onSignedOut(qc: QueryClient, error: unknown): void {
   }
 }
 
+/**
+ * A read that reads the session again on a 401. The client throws on any
+ * answer that is not 2xx, so an `if (error)` after the call never sees one.
+ */
+async function signsOut<T>(qc: QueryClient, read: Promise<T>): Promise<T> {
+  try {
+    return await read;
+  } catch (error) {
+    onSignedOut(qc, error);
+    throw error;
+  }
+}
+
 /* ------------------------------------------------------------- consent */
 
 /** Whether this traveller accepted the notice in force, and its words. */
@@ -68,11 +81,11 @@ export function useTrigoConsent(
     retry: false,
     queryFn: async ({ signal }) => {
       const client = createProxyClient();
-      const { data, error } = await client.GET("/trigo/consent", { signal });
-      if (error) {
-        onSignedOut(qc, error);
-        throw error;
-      }
+      const { data, error } = await signsOut(
+        qc,
+        client.GET("/trigo/consent", { signal }),
+      );
+      if (error) throw error;
       return data;
     },
   });
@@ -143,13 +156,11 @@ export function useTrigoConversations(
     retry: false,
     queryFn: async ({ signal }) => {
       const client = createProxyClient();
-      const { data, error } = await client.GET("/trigo/conversations", {
-        signal,
-      });
-      if (error) {
-        onSignedOut(qc, error);
-        throw error;
-      }
+      const { data, error } = await signsOut(
+        qc,
+        client.GET("/trigo/conversations", { signal }),
+      );
+      if (error) throw error;
       return data.conversations;
     },
   });
@@ -297,17 +308,17 @@ export function useTrigoChat(
           ? maxSeq(old.messages)
           : 0;
       const client = createProxyClient();
-      const { data, error } = await client.GET("/trigo/conversations/{id}", {
-        params: {
-          path: { id },
-          query: after > 0 ? { after } : undefined,
-        },
-        signal,
-      });
-      if (error) {
-        onSignedOut(qc, error);
-        throw error;
-      }
+      const { data, error } = await signsOut(
+        qc,
+        client.GET("/trigo/conversations/{id}", {
+          params: {
+            path: { id },
+            query: after > 0 ? { after } : undefined,
+          },
+          signal,
+        }),
+      );
+      if (error) throw error;
       const asks = fullReads.get(qc);
       if (ask !== undefined && asks?.get(id) === ask) asks.delete(id);
       return fromPage(old, data);
