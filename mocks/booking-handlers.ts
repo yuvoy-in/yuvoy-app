@@ -8,6 +8,7 @@ import {
 import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
+import { trigoStaffCohort } from "./trigo-handlers";
 import { organiserAgeConfirmed } from "./organiser-handlers";
 
 type Experience = components["schemas"]["Experience"];
@@ -1772,12 +1773,14 @@ export const bookingHandlers = [
           `?__scenario=cohort-staff` or `cohort-early` says so, or one of
           yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
           staff tester's world, or one of yuvoy-app#207's opens `creator`
-          there (all but `creator-outside`).
+          there (all but `creator-outside`), or one of yuvoy-app#223's opens
+          `trigo` there (all but `trigo-not-released`).
         */
         cohort:
           scenarioOf(request) === "cohort-staff" ||
           exploreStageOf(scenarioOf(request)) === "staff" ||
-          creatorStaffCohort(scenarioOf(request))
+          creatorStaffCohort(scenarioOf(request)) ||
+          trigoStaffCohort(scenarioOf(request))
             ? "staff"
             : scenarioOf(request) === "cohort-early"
               ? "early"

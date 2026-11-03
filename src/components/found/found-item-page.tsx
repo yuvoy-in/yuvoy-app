@@ -21,6 +21,7 @@ import { AsListed } from "@/components/found/as-listed";
 import { DepartmentArt } from "@/components/found/department-art";
 import { TrustLine } from "@/components/found/trust-line";
 import { SeeDetails } from "@/components/found/see-details";
+import { AskAboutButton } from "@/components/trigo/ask-about-button";
 import { ReportSheet } from "@/components/found/report-sheet";
 import { foundWords } from "@/lib/found/found-words";
 import { hostOf } from "@/lib/found/link-out";
@@ -285,6 +286,13 @@ export function FoundItemPage({
       <div className="mt-6">
         <SeeDetails item={item} surface="found_detail" />
       </div>
+
+      {/* Only while `releases.trigo` is open (yuvoy-app#223). */}
+      <AskAboutButton
+        cardId={`item:${item.id}`}
+        entry="found_card"
+        className="mt-4"
+      />
 
       {/*
         The card leaves this device's lists when the report says so, and the
