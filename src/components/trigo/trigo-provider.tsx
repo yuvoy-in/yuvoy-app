@@ -112,7 +112,15 @@ function writeAddress(value: string | null) {
   else url.searchParams.set(TRIGO_PARAM, value);
   const next = `${url.pathname}${url.search}${url.hash}`;
   const now = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  if (next !== now) window.history.replaceState(window.history.state, "", next);
+  /*
+    `null`, never `window.history.state`: Next's patched `replaceState` reads
+    a state carrying its own `__NA` mark as the router's call and passes it
+    through without updating `useSearchParams` (next/dist/client/components/
+    app-router.js). Every page the router drew carries that mark, so passing
+    the current state changed the address while the sheet never saw it.
+    Search and checkout pass `null` for the same reason.
+  */
+  if (next !== now) window.history.replaceState(null, "", next);
 }
 
 const TrigoSheet = dynamic(

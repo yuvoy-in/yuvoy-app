@@ -235,9 +235,29 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   // Not now on a card: Trigo's line "Nothing has been booked or changed."
   { method: "POST", pattern: "/trigo/actions/{id}/decline" },
   /*
-    The year a person was born, asked by Trigo's age check (`403
-    adult_confirmation_required`) for an account made before the year was
-    asked. Session only: a booking link cannot answer for a person's age.
+    Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
+    signed-in traveller's own pages, their helpers, their events and the
+    numbers. Session only in the contract. The club routes
+    (`/organisers/{id}/club`) and claims (`/organisers/{id}/claims`) are not
+    built on the web and are not here.
+  */
+  { method: "GET", pattern: "/me/organisers" },
+  { method: "POST", pattern: "/organisers" },
+  { method: "GET", pattern: "/organisers/{id}" },
+  { method: "PATCH", pattern: "/organisers/{id}" },
+  { method: "GET", pattern: "/organisers/{id}/helpers" },
+  { method: "POST", pattern: "/organisers/{id}/helpers" },
+  { method: "DELETE", pattern: "/organisers/{id}/helpers/{travellerId}" },
+  { method: "GET", pattern: "/organisers/{id}/events" },
+  { method: "POST", pattern: "/organisers/{id}/events" },
+  { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
+  { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
+  { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  /*
+    The year a person was born, asked by Trigo's age check and before the
+    organiser pages (`403 adult_confirmation_required`) for an account made
+    before the year was asked. Listed once for both. Session only: a booking
+    link cannot answer for a person's age.
   */
   { method: "PUT", pattern: "/me/age" },
 ];
