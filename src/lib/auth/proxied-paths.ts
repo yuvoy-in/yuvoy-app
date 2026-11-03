@@ -274,6 +274,8 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
   { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
   { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  // Check people in at the door (yuvoy-app#226, the web half of yuvoy-mobile#394).
+  { method: "POST", pattern: "/organiser-check-ins" },
   /*
     The year a person was born, asked by Trigo's age check, by People's age
     step and before the organiser pages (`403 adult_confirmation_required`)

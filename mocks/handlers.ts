@@ -39,6 +39,7 @@ import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
+import { doorHandlers } from "./organiser-door";
 import { meHandlers, meStageOf, meTablesStageOf } from "./me-handlers";
 import { followHandlers } from "./follow-handlers";
 import { followPeopleStageOf } from "./follow-state";
@@ -269,7 +270,14 @@ export type Scenario =
   | "me-badges-new"
   | "me-life-list-error"
   | "me-writes-fail"
-  | "me-tables";
+  | "me-tables"
+  /*
+    The door (yuvoy-app#226): the caller owns one verified organiser and
+    `organiser-door.ts` answers the codes; paused and age as named.
+  */
+  | "organisers-door"
+  | "organisers-door-paused"
+  | "organisers-door-age";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -481,6 +489,8 @@ const routes = [
   ...trigoHandlers,
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
+  /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */
+  ...doorHandlers,
 
   /* ------------------------------------------------------------- catalog */
 
