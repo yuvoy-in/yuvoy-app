@@ -33,9 +33,9 @@ export const ORGANISER_DEPARTMENTS: Readonly<Record<Category, string>> =
 /**
  * The web's words for organiser pages (yuvoy-app#224), the phone's own from
  * `packages/core/src/organisers/words.ts` on yuvoy-mobile dev, kept word for
- * word. Left out: the group lines (clubs are not on the web yet) and the
- * phone's "Add an email" button (the web shows the API's sentence with no
- * button).
+ * word. The group lines came with yuvoy-app#225 (yuvoy-mobile#395), under
+ * the web's own names. Left out: the phone's "Add an email" button (the web
+ * shows the API's sentence with no button).
  *
  * The phone's note: the app's words for organiser pages (yuvoy-mobile#393), in one place: the hub, the page form,
  * the state card, helpers, and the event form, states and numbers the event screens draw.
@@ -127,6 +127,24 @@ export const ORGANISER_WORDS = Object.freeze({
   setUp: "Set up your organiser page",
   /** Ours: the hub's button once the person has an organiser. */
   setUpAnother: "Set up another organiser page",
+  /** [proposed, @gamallasaiteja to confirm] The hub's card for a group the person holds. */
+  clubCard: (name: string): string => `Post ${name}'s events`,
+  clubCardButton: "Set up its organiser page",
+  /** [proposed, @gamallasaiteja to confirm] After a group's 201, in place of `made`. */
+  clubMade: (name: string): string =>
+    `Your organiser page is set up and checked. Your events show as posted by ${name}.`,
+  /** Ours: beside a group's name and place, shown fixed on its setup and edit forms. */
+  clubFixed: "These come from the group and stay the group's.",
+  /** The API's 404 for a group that is not shown, for a link to one no longer offered. */
+  noClub: "We could not find that group.",
+  /** The API's 409 `club_already_linked`. */
+  clubLinked: "This group already has an organiser.",
+  /** The API's 403 `not_club_holder`. */
+  notClubHolder:
+    "Only the person who holds this group on Yuvoy can set up its organiser.",
+  /** The API's 403 `people_paused`, by `details.standing`. */
+  peoplePaused: "Your use of People is paused for now.",
+  peopleEnded: "Your use of People has ended.",
   loading: "Loading your organiser pages",
   stateLabel: (state: OrganiserState): string =>
     ORGANISER_STATES[state] ?? UNKNOWN_STATE,

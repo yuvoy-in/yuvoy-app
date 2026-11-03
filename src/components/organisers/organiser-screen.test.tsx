@@ -7,11 +7,13 @@ import { DOOR_WORDS } from "@/lib/organisers/door-words";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { qk } from "@/lib/query/policy";
 import { OrganiserGate } from "./organiser-gate";
+import { handOverLinked } from "./organiser-form-parts";
 import { OrganiserScreen } from "./organiser-screen";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { __resetOrganiserMocks } from "../../../mocks/organiser-handlers";
 import {
+  CLUB_IDS,
   HELPER_OF_EVENTS,
   ORG_IDS,
   ORG_PENDING,
@@ -177,6 +179,77 @@ describe("OrganiserScreen", () => {
     open("6f1c2a10-1b2c-4d3e-8f40-0a1b2c3d4eff");
     expect(await screen.findByText(W.notFound)).toBeTruthy();
     expect(linkTo(W.postEvent)).toBeNull();
+  });
+});
+
+describe("OrganiserScreen, a group's page (yuvoy-app#225)", () => {
+  const GROUP_PAGE = { ...ORG_VERIFIED, clubId: CLUB_IDS.runners };
+
+  function asGroupPage() {
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () => HttpResponse.json(GROUP_PAGE)),
+    );
+  }
+
+  it("says the group's page is set up and checked, in place of the thanks line", async () => {
+    asGroupPage();
+    search.value = "made=club";
+    open(ORG_IDS.verified);
+    const made = await screen.findByTestId("organiser-made");
+    expect(made.textContent).toBe(W.clubMade(GROUP_PAGE.name));
+    expect(made.textContent).not.toContain(W.made);
+  });
+
+  it("says the same for a group's page opened with the plain thanks value", async () => {
+    asGroupPage();
+    search.value = "made=1";
+    open(ORG_IDS.verified);
+    const made = await screen.findByTestId("organiser-made");
+    expect(made.textContent).toBe(W.clubMade(GROUP_PAGE.name));
+  });
+
+  it("shows the sentence a group's form handed over, once", async () => {
+    asGroupPage();
+    handOverLinked(ORG_IDS.verified, W.clubLinked);
+    open(ORG_IDS.verified);
+    expect((await screen.findByTestId("organiser-linked")).textContent).toBe(
+      W.clubLinked,
+    );
+    expect(screen.queryByTestId("organiser-made")).toBeNull();
+    cleanup();
+
+    open(ORG_IDS.verified);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: GROUP_PAGE.name }),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("organiser-linked")).toBeNull();
+  });
+
+  it("keeps the handed-over sentence when the page cannot be read", async () => {
+    server.use(
+      http.get(`${BASE}/organisers/:id`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "internal",
+              message: "",
+              details: {},
+              requestId: "req_f",
+            },
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+    handOverLinked(ORG_IDS.verified, W.clubLinked);
+    open(ORG_IDS.verified);
+    expect((await screen.findByTestId("organiser-linked")).textContent).toBe(
+      W.clubLinked,
+    );
+    expect(
+      screen.getByRole("heading", { level: 1, name: W.title }),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("organiser-state-card")).toBeNull();
   });
 });
 

@@ -1799,6 +1799,10 @@ for (const f of files) {
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
     [
+      "src/components/organisers/organiser-form-body.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
       "src/components/organisers/organiser-form-parts.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
@@ -1818,6 +1822,14 @@ for (const f of files) {
     [
       "src/components/tables/report-table-sheet.tsx",
       "a sheet, opened by Report a problem",
+    ],
+    [
+      "src/components/trigo/age-panel.tsx",
+      "inside the Trigo sheet, loaded in the browser only once it is opened",
+    ],
+    [
+      "src/components/trigo/composer.tsx",
+      "inside the Trigo sheet, loaded in the browser only once it is opened",
     ],
     ["src/components/trips/date-filter.tsx", "a sheet, opened by Dates"],
     [

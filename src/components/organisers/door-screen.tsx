@@ -80,7 +80,7 @@ export function DoorScreen() {
     );
   }
 
-  const member = organisers.data.some((o) => o.state === "verified");
+  const member = organisers.data.items.some((o) => o.state === "verified");
   return member ? <DoorDesk /> : <DoorNotMember />;
 }
 

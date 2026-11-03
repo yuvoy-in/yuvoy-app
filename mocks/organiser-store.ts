@@ -1,5 +1,6 @@
 import type { components } from "../src/lib/api/schema.gen";
 import {
+  CLUBS_HELD,
   HELPER_OF_EVENTS,
   HELPER_OF_HELPERS,
   MY_ORGANISERS,
@@ -11,13 +12,15 @@ import {
 
 /**
  * What the organiser mocks remember (yuvoy-app#224): writes per scenario and
- * session, and the sessions that gave an adult answer under `organisers-age`.
- * Split out of `organiser-handlers.ts` to keep it short.
+ * session (the groups still offered and the ones set up, yuvoy-app#225,
+ * among them), and the sessions that gave an adult answer under
+ * `organisers-age`. Split out of `organiser-handlers.ts` to keep it short.
  */
 
 type Organiser = components["schemas"]["Organiser"];
 type OrganiserEvent = components["schemas"]["OrganiserEvent"];
 type OrganiserHelperListed = components["schemas"]["OrganiserHelperListed"];
+type ClubToLink = (typeof CLUBS_HELD)[number];
 
 export function scenarioOf(request: Request): string {
   return (
@@ -63,6 +66,17 @@ export interface Store {
   organisers: Organiser[];
   events: Map<string, OrganiserEvent[]>;
   helpers: Map<string, OrganiserHelperListed[]>;
+  /** `listMyOrganisers`' `clubsToLink`: held groups with no organiser yet, by name. */
+  clubsToLink: ClubToLink[];
+  /** Each group set up this session, by `clubId`, with its organiser's id. */
+  linked: Map<string, string>;
+}
+
+/** The scenarios where the caller holds groups: none of their own organisers yet. */
+export function holdsClubs(scenario: string): boolean {
+  return (
+    scenario === "organisers-club" || scenario === "organisers-club-paused"
+  );
 }
 
 const stores = new Map<string, Store>();
@@ -73,7 +87,7 @@ export function storeOf(request: Request): Store {
   const key = `${scenario}|${request.headers.get("authorization") ?? ""}`;
   let store = stores.get(key);
   if (!store) {
-    const empty = scenario === "organisers-empty";
+    const empty = scenario === "organisers-empty" || holdsClubs(scenario);
     const door = DOOR_SCENARIOS.has(scenario);
     store = {
       organisers: empty
@@ -95,6 +109,10 @@ export function storeOf(request: Request): Store {
               [ORG_IDS.helperOf, structuredClone(HELPER_OF_HELPERS)],
             ],
       ),
+      // Paused People: the groups are still held, but none is offered.
+      clubsToLink:
+        scenario === "organisers-club" ? structuredClone(CLUBS_HELD) : [],
+      linked: new Map<string, string>(),
     };
     stores.set(key, store);
   }

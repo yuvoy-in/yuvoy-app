@@ -18,13 +18,11 @@ import {
   emptyEventForm,
   lastWeekOn,
   numbersLine,
-  onLinkRows,
   organiserActions,
   organiserForm,
   organiserInput,
   organiserStateLine,
   seesHelpers,
-  sentLinkRows,
   showsCode,
   typedRupees,
   weekBefore,
@@ -189,31 +187,6 @@ describe("the page body", () => {
   });
 });
 
-describe("a link's sentence on its own row", () => {
-  it("puts the API's links.0 under row 1 when row 0 was blank and not sent", () => {
-    const form = {
-      links: [
-        { kind: "website" as const, url: "  " },
-        { kind: "other" as const, url: "https://blocked.example" },
-      ],
-    };
-    const sent = sentLinkRows(form);
-    expect(sent).toEqual([1]);
-    expect(
-      onLinkRows(
-        { "links.0": "That site cannot be linked.", name: "Too short." },
-        sent,
-      ),
-    ).toEqual({ "links.1": "That site cannot be linked.", name: "Too short." });
-  });
-
-  it("puts a link index that was never sent under the links as a whole", () => {
-    expect(onLinkRows({ "links.2": "Not a link." }, [0])).toEqual({
-      links: "Not a link.",
-    });
-  });
-});
-
 describe("times, dates and prices", () => {
   it("reads an instant as written, never in the browser's zone", () => {
     expect(civilAsWritten("2026-11-01T06:30:00+05:30")).toMatchObject({
@@ -226,6 +199,9 @@ describe("times, dates and prices", () => {
     });
     expect(civilAsWritten("1 Nov")).toBeNull();
     expect(civilAsWritten("2026-13-01T06:30")).toBeNull();
+    expect(civilAsWritten("2026-02-30T06:30")).toBeNull();
+    expect(civilAsWritten("2026-04-31T06:30")).toBeNull();
+    expect(civilAsWritten("2028-02-29T06:30")).not.toBeNull();
   });
 
   it("says a start, a span and a date", () => {
