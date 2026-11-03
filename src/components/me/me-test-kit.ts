@@ -247,6 +247,15 @@ export function meRoutes(
         : json(v === undefined ? fallback : v);
 
   const list = pick(over.list, page([trip()]));
+  // A question answered (not refused) is not asked again, as on the server:
+  // the read after a Yes or a No must not bring it back.
+  const answered = new Set<string>();
+  const listBody =
+    typeof over.list === "function" || typeof over.list === "number"
+      ? null
+      : ((over.list ?? page([trip()])) as {
+          didYouGo?: { eventId: string }[];
+        });
   // A body (or none) is held, as the server would: Nice marks its badges
   // seen and Languages changes what the next read answers, so a test can
   // render again and see what a restart would.
@@ -267,6 +276,13 @@ export function meRoutes(
   server.use(
     http.get(`${BASE}/me/life-list`, async ({ request }) => {
       await note(at.list, request);
+      if (listBody?.didYouGo && answered.size > 0)
+        return HttpResponse.json({
+          ...listBody,
+          didYouGo: listBody.didYouGo.filter(
+            (q) => !answered.has(q.eventId.toLowerCase()),
+          ),
+        } as JsonBodyType);
       return list(request);
     }),
     http.get(`${BASE}/me/badges`, async ({ request }) => {
@@ -316,9 +332,10 @@ export function meRoutes(
       if (over.patchWent) return failure(over.patchWent)();
       return HttpResponse.json(at.patchWent.bodies.at(-1) as JsonBodyType);
     }),
-    http.post(`${BASE}/me/went/:eventId`, async ({ request }) => {
+    http.post(`${BASE}/me/went/:eventId`, async ({ request, params }) => {
       await note(at.answer, request);
       if (over.answer) return failure(over.answer)();
+      answered.add(decodeURIComponent(String(params.eventId)).toLowerCase());
       // The contract's 200 WentAnswer, though the page reads none of it.
       const went =
         (at.answer.bodies.at(-1) as { went?: boolean } | undefined)?.went ??

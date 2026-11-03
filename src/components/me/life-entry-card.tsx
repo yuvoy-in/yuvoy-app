@@ -63,7 +63,10 @@ export function LifeEntryCard({
       <div className="flex gap-3">
         <Photo entry={entry} onDied={onPhotoDied} />
         <div className="min-w-0 flex-1">
-          <h3 id={titleId} className="text-body leading-snug font-bold">
+          <h3
+            id={titleId}
+            className="text-body leading-snug font-bold text-pretty"
+          >
             {target ? (
               <Link
                 href={target}

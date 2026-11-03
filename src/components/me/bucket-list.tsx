@@ -70,7 +70,7 @@ export function BucketList() {
                 ) : null}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="text-body block leading-snug font-bold">
+                <span className="text-body block leading-snug font-bold text-pretty">
                   {item.title}
                 </span>
                 {item.location ? (

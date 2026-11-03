@@ -84,7 +84,9 @@ function EarnedRow({
         {badge.emoji}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="text-body block font-bold">{badge.name}</span>
+        <span className="text-body block font-bold text-pretty">
+          {badge.name}
+        </span>
         {date ? (
           <span className="text-forest/70 block text-xs">{date}</span>
         ) : null}
@@ -136,7 +138,9 @@ function ProgressRow({ badge }: { badge: BadgeProgress }) {
         {badge.emoji}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="text-body block font-bold">{badge.name}</span>
+        <span className="text-body block font-bold text-pretty">
+          {badge.name}
+        </span>
         <span className="text-forest/70 block text-xs">
           {progressLine(badge)}
         </span>
@@ -180,7 +184,7 @@ function NewBadge({ earned }: { earned: readonly Badge[] }) {
       <p aria-hidden="true" className="text-4xl leading-none">
         {badge.emoji}
       </p>
-      <h3 id={`${ids}-name`} className="text-body font-bold">
+      <h3 id={`${ids}-name`} className="text-body font-bold text-pretty">
         {ME_WORDS.newBadge(badge.name)}
       </h3>
       <p className="text-forest/75 text-sm">{badge.description}</p>
