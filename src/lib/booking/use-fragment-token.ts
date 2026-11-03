@@ -46,11 +46,17 @@ function useCanonicalFragment(token: string | null): void {
     const fixed = canonicalFragment();
     if (!fixed) return;
     const { pathname, search } = window.location;
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${pathname}${search}${fixed}`,
-    );
+    /*
+      `null`, never `window.history.state`. Next's patched `replaceState`
+      reads a state carrying its own `__NA` mark as the router's own call and
+      passes it through without telling the router, and every page the router
+      drew carries that mark. The router then still remembers the doubled
+      address, and its history updater writes that remembered address back on
+      the next router change (a refresh, a server action), which put the old
+      booking's token back in the bar. With `null` Next copies its own state
+      across and takes the fixed address as the one it remembers.
+    */
+    window.history.replaceState(null, "", `${pathname}${search}${fixed}`);
   }, [token]);
 }
 

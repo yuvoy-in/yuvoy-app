@@ -1795,6 +1795,10 @@ for (const f of files) {
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
     [
+      "src/components/organisers/organiser-form-body.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
       "src/components/organisers/organiser-form-parts.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
@@ -1805,6 +1809,18 @@ for (const f of files) {
     [
       "src/components/organisers/organiser-helpers.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/people/age-step.tsx",
+      "the age step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/name-step.tsx",
+      "the name step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/people-settings.tsx",
+      "drawn once the People home has loaded in the browser",
     ],
     [
       "src/components/plans/guest-plan.tsx",
