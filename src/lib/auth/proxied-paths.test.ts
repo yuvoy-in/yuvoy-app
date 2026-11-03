@@ -185,14 +185,38 @@ describe("what the proxy will forward", () => {
     */
     const id = "8f14e45f-ceea-4e7a-9b1d-2c4a6e0f9b10";
     expect(allowedProxyPath("POST", `/trigo/actions/${id}/confirm`)).toBe(
-      `/trigo/actions/${id}/confirm`,
+      "/trigo/actions/{id}/confirm",
     );
     expect(allowedProxyPath("POST", `/trigo/actions/${id}/decline`)).toBe(
-      `/trigo/actions/${id}/decline`,
+      "/trigo/actions/{id}/decline",
     );
     expect(allowedProxyPath("GET", `/trigo/actions/${id}/confirm`)).toBeNull();
     expect(allowedProxyPath("GET", `/trigo/actions/${id}`)).toBeNull();
     expect(allowedProxyPath("POST", `/trigo/actions/${id}`)).toBeNull();
+  });
+
+  it("allows the organiser pages and the age step, and not the club or claims routes", () => {
+    expect(allowedProxyPath("GET", "/me/organisers")).toBe("/me/organisers");
+    expect(allowedProxyPath("POST", "/organisers")).toBe("/organisers");
+    expect(allowedProxyPath("PATCH", "/organisers/org_1")).toBe(
+      "/organisers/{id}",
+    );
+    expect(allowedProxyPath("DELETE", "/organisers/org_1/helpers/trv_1")).toBe(
+      "/organisers/{id}/helpers/{travellerId}",
+    );
+    expect(
+      allowedProxyPath("POST", "/organisers/org_1/events/post_1/cancel"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/cancel");
+    expect(
+      allowedProxyPath("GET", "/organisers/org_1/events/post_1/numbers"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/numbers");
+    expect(allowedProxyPath("PUT", "/me/age")).toBe("/me/age");
+
+    expect(allowedProxyPath("DELETE", "/organisers/org_1")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/age")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/club")).toBeNull();
+    expect(allowedProxyPath("GET", "/organisers/org_1/claims")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/claims")).toBeNull();
   });
 
   it("refuses anything not listed, including real contract paths", () => {

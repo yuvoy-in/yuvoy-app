@@ -36,6 +36,7 @@ import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { trigoActionsStageOf } from "./trigo-card-handlers";
+import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -221,7 +222,16 @@ export type Scenario =
   | "trigo-busy"
   | "trigo-not-released"
   /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
-  | `trigo-card-${string}`;
+  | `trigo-card-${string}`
+  /*
+    Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
+    with one organiser in each state; `organiser-handlers.ts` says what each
+    of these does.
+  */
+  | "organisers-empty"
+  | "organisers-paused"
+  | "organisers-age"
+  | "organisers-closed-release";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -428,8 +438,10 @@ const routes = [
   */
   ...creatorLinkHandlers,
 
-  // Trigo, the chat (yuvoy-app#223).
+  // Trigo, the chat (yuvoy-app#223). Before the organisers: see `PUT /me/age` there.
   ...trigoHandlers,
+  /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
+  ...organiserHandlers,
 
   /* ------------------------------------------------------------- catalog */
 
@@ -1222,6 +1234,7 @@ const routes = [
           creator: creatorStageOf(scenario) ?? "off",
           trigo: trigoStageOf(scenario) ?? "off",
           trigoActions: trigoActionsStageOf(scenario),
+          supply: organiserSupplyOf(scenario),
         },
       },
       { headers: mockHeaders(requestId()) },
