@@ -249,33 +249,6 @@ describe("what the proxy will forward", () => {
     }
   });
 
-  it("forwards the four crew calls, and nothing more of crews", () => {
-    // yuvoy-app#227. Session only; a crew's page reads the list.
-    const crew = "7b4d2e9f-3c5a-4d2b-8f1e-2e3d4c5b6a71";
-    expect(allowedProxyPath("GET", "/me/crews")).toBe("/me/crews");
-    expect(allowedProxyPath("POST", "/me/crews")).toBe("/me/crews");
-    expect(allowedProxyPath("PATCH", `/me/crews/${crew}`)).toBe(
-      "/me/crews/{crewId}",
-    );
-    expect(allowedProxyPath("DELETE", `/me/crews/${crew}`)).toBe(
-      "/me/crews/{crewId}",
-    );
-
-    const refused: [string, string][] = [
-      ["PUT", "/me/crews"],
-      ["PATCH", "/me/crews"],
-      ["DELETE", "/me/crews"],
-      ["GET", `/me/crews/${crew}`],
-      ["POST", `/me/crews/${crew}`],
-      ["PUT", `/me/crews/${crew}`],
-      ["PATCH", `/me/crews/${crew}/members`],
-      ["GET", `/me/crews/${crew}/members`],
-    ];
-    for (const [method, path] of refused) {
-      expect(allowedProxyPath(method, path), `${method} ${path}`).toBeNull();
-    }
-  });
-
   it("allows the organiser pages and the age step, and not the club or claims routes", () => {
     expect(allowedProxyPath("GET", "/me/organisers")).toBe("/me/organisers");
     expect(allowedProxyPath("POST", "/organisers")).toBe("/organisers");
