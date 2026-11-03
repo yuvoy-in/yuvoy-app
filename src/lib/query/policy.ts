@@ -332,6 +332,16 @@ export const qk = {
    */
   myCreatorLinks: () => ["listMyCreatorLinks"] as const,
   /**
+   * Trigo (yuvoy-app#223): whether this traveller accepted the notice in
+   * force, their recent chats, and one chat's messages. None is keyed by the
+   * session, for the reason `myBookings` gives: all three are the number's
+   * own, a chat in the traveller's own words, so they are REMOVED on sign in
+   * and sign out (`useTravellerSession`).
+   */
+  trigoConsent: () => ["getTrigoConsent"] as const,
+  trigoConversations: () => ["listTrigoConversations"] as const,
+  trigoConversation: (id: string) => ["getTrigoConversation", id] as const,
+  /**
    * The signed-in traveller's organisers and what hangs off each one
    * (yuvoy-app#224). Not keyed by the person, for the reason `myBookings`
    * gives: all of it is removed on sign in and sign out.
