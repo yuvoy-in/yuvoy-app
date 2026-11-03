@@ -191,7 +191,7 @@ describe("/add/{code}", () => {
     );
     await heading(W.asks("Priya S."));
     await user.click(screen.getByRole("button", { name: W.send }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Not found.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(W.notSent);
     expect(sent).toHaveLength(1);
     expect(screen.queryByText(W.sent)).toBeNull();
     expect(screen.queryByText(W.friends)).toBeNull();
