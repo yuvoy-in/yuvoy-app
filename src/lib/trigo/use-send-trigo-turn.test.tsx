@@ -312,4 +312,59 @@ describe("useSendTrigoTurn", () => {
       });
     },
   );
+
+  it("reads the turn limiter's Retry-After on 429 rate_limited, and none on the day's limit", async () => {
+    __signInAppRouteMock();
+    const resetsAt = "2026-11-03T18:30:00Z";
+    const answers = [
+      HttpResponse.json(
+        {
+          error: {
+            code: "rate_limited",
+            message:
+              "Too many trigo turns in a short time. Wait a moment and try again.",
+            requestId: "01JTEST",
+          },
+        },
+        { status: 429, headers: { "Retry-After": "1" } },
+      ),
+      // The day's limit sends no Retry-After. Were one there, the limit is
+      // still read from details.resetsAt and holds nothing.
+      HttpResponse.json(
+        {
+          error: {
+            code: "daily_limit_reached",
+            message: "You've used today's 20 messages.",
+            details: { resetsAt },
+            requestId: "01JTEST",
+          },
+        },
+        { status: 429, headers: { "Retry-After": "40000" } },
+      ),
+    ];
+    server.use(http.post(TURNS, () => answers.shift()));
+    const failures: TrigoFailure[] = [];
+    renderWithQuery(
+      <SendAndClassify
+        vars={{ key: "trg-web-dddddddddddddddddddddddd", text: "Hi" }}
+        onFailure={(f) => failures.push(f)}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(failures).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(failures).toHaveLength(2));
+
+    expect(failures[0]).toEqual({
+      kind: "rate_limited",
+      message:
+        "Too many trigo turns in a short time. Wait a moment and try again.",
+      retryAfterSeconds: 1,
+    });
+    expect(failures[1]).toEqual({
+      kind: "limit",
+      resetsAt,
+      message: "You've used today's 20 messages.",
+    });
+  });
 });

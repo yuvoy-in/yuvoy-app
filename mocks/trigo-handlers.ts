@@ -31,8 +31,12 @@ import { mockHeaders, mockNow } from "./fixtures";
  *     force.
  *   - `trigo-age`: a turn is `403 adult_confirmation_required` until
  *     `PUT /me/age` is `200`; then it is answered.
- *   - `trigo-busy`: `409 turn_in_progress`, with no `Retry-After`: the API
- *     sends one only on `idempotency_in_progress`.
+ *   - `trigo-busy`: `409 turn_in_progress`, with no `Retry-After`, as the
+ *     API answers it.
+ *   - `trigo-fast`: a turn is `429 rate_limited` with `Retry-After: 1`, the
+ *     API's turn limiter (yuvoy-api#598). It stands before every other check
+ *     of the turn, as the limiter stands in front of the route. Its day limit
+ *     is `trigo-limit`, which sends no `Retry-After`.
  *   - `trigo-not-released`: `trigo` stays `off`, so the turn and accept are
  *     `404`. The reads are not behind the release, as in the API.
  *
@@ -91,6 +95,7 @@ export const TRIGO_SCENARIOS: ReadonlySet<string> = new Set([
   "trigo-consent",
   "trigo-age",
   "trigo-busy",
+  "trigo-fast",
   "trigo-not-released",
 ]);
 
@@ -283,6 +288,15 @@ export const trigoHandlers = [
     const scenario = scenarioOf(request);
     if (trigoStageOf(scenario) === null) {
       return envelope("not_found", NOT_RELEASED, 404);
+    }
+    if (scenario === "trigo-fast") {
+      return envelope(
+        "rate_limited",
+        "Too many trigo turns in a short time. Wait a moment and try again.",
+        429,
+        undefined,
+        { "Retry-After": "1" },
+      );
     }
     const key = request.headers.get("idempotency-key");
     if (!key || !KEY_SHAPE.test(key)) {

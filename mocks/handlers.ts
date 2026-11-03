@@ -218,6 +218,7 @@ export type Scenario =
   | "trigo-consent"
   | "trigo-age"
   | "trigo-busy"
+  | "trigo-fast"
   | "trigo-not-released";
 
 function scenarioOf(request: Request): Scenario {

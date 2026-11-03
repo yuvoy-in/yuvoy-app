@@ -423,9 +423,10 @@ function stringDetail(error: YuvoyError, name: string): string | null {
 
 /**
  * The answer's `Retry-After`, for the kinds that offer Try again or Send
- * again: the API sends `2` on `409 idempotency_in_progress`, and the sheet
- * waits that long. Its Trigo turn limiter sends none on `429 rate_limited`
- * today; the wait is read there too, for when it does.
+ * again: the API sends `2` on `409 idempotency_in_progress`, and the seconds
+ * until its limiter lets one more turn through on `429 rate_limited`
+ * (yuvoy-api#598). The sheet waits that long. `429 daily_limit_reached`
+ * carries none: its wait is `details.resetsAt`.
  * Nothing when there was none, so those kinds read as they always did.
  */
 function waitOf(error: YuvoyError): { retryAfterSeconds?: number } {
