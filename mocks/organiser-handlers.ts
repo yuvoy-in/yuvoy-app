@@ -21,6 +21,7 @@ import {
   storeOf,
   type Store,
 } from "./organiser-store";
+import { PEOPLE_SCENARIOS } from "./people-state";
 
 export {
   __resetOrganiserMocks,
@@ -173,6 +174,8 @@ function checkFields(problems: Record<string, string>): Response | null {
 
 export const organiserHandlers = [
   http.put(url("/me/age"), async ({ request }) => {
+    // People's scenarios keep their own answer (people-handlers.ts).
+    if (PEOPLE_SCENARIOS.has(scenarioOf(request))) return undefined;
     const auth = request.headers.get("authorization");
     if (!auth?.includes("Bearer sess_")) {
       return envelope("unauthorized", "Sign in to add your birth year.", 401);
