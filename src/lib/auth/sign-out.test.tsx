@@ -121,6 +121,29 @@ describe("signing out", () => {
     ).toBeUndefined();
   });
 
+  it("forgets Me's life list, badges and settings", async () => {
+    /*
+      yuvoy-mobile#444. The life list carries the person's own photos as
+      signed links, so the next person on this browser must never see it.
+    */
+    let signOut!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <Harness onReady={(fn) => (signOut = fn)} />,
+    );
+    for (const key of [qk.myLifeList(), qk.myBadges(), qk.mySettings()]) {
+      client.setQueryDefaults(key, { gcTime: Infinity });
+      client.setQueryData(key, { kept: true });
+    }
+
+    await act(async () => {
+      await signOut();
+    });
+
+    expect(client.getQueryData(qk.myLifeList())).toBeUndefined();
+    expect(client.getQueryData(qk.myBadges())).toBeUndefined();
+    expect(client.getQueryData(qk.mySettings())).toBeUndefined();
+  });
+
   it("forgets each invitation opened, not only the list", async () => {
     /*
       The list went and each trip opened from it stayed, so Back on a shared

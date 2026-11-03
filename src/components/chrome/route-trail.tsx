@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useLayoutEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { markStepBack, recordVisit } from "@/lib/site/route-trail";
+import { markStepBack, noteShown, recordVisit } from "@/lib/site/route-trail";
 
 /**
  * Records the screens a traveller walks through, for `TrailBackButton`. Renders
@@ -35,7 +35,15 @@ function Recorder() {
     other order: a screen that was not ready to render inside the event and
     arrives after it. Forward lands on a screen that is not the one before, so
     the trail still treats it as a step forward.
+
+    The listener asks which screen is on screen, noted in a layout effect in
+    the same commit that draws it, rather than the trail's last entry, which
+    the passive effect below writes later (yuvoy-app#215): see `markStepBack`.
   */
+  useLayoutEffect(() => {
+    noteShown(pathname);
+  }, [pathname]);
+
   useEffect(() => {
     const traversed =
       typeof window !== "undefined" && window.event?.type === "popstate";
