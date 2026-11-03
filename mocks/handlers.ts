@@ -36,6 +36,7 @@ import { exportHandlers } from "./export-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
+import { crewHandlers } from "./crew-handlers";
 import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
 import { trigoActionsStageOf } from "./trigo-card-handlers";
@@ -228,6 +229,15 @@ export type Scenario =
   | "people-age-locked"
   | "people-down"
   | "people-outside"
+  /*
+    Crews, a traveller's own named lists of friends (yuvoy-app#227). Each
+    opens `people` at `staff`; `crew-handlers.ts` says what each starts with.
+  */
+  | "people-crews-none"
+  | "people-crews-full"
+  | "people-crews-big"
+  | "people-crews-empty"
+  | "people-crews-down"
   /*
     Trigo, the chat (yuvoy-app#223, R5-T5). Each but `trigo-not-released`
     opens `trigo` at `staff`; `trigo-handlers.ts` says what each does.
@@ -1483,6 +1493,8 @@ const routes = [
   ...exportHandlers,
   // People: friend requests and the friend link (yuvoy-app#222).
   ...peopleHandlers,
+  // Crews: named lists of friends (yuvoy-app#227).
+  ...crewHandlers,
   ...followHandlers,
   ...crewInviteHandlers,
   ...myPlansHandlers,
