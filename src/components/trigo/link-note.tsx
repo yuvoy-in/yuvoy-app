@@ -31,7 +31,7 @@ export function LinkNote({
   const domain = message.linkNotChecked?.domain;
   if (!domain) return null;
 
-  const failed = handoff.isError
+  const failed = handoff.error
     ? handoff.error instanceof YuvoyError && handoff.error.message
       ? handoff.error.message
       : ASK_TEAM_FAILED
