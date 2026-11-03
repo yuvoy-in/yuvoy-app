@@ -33,6 +33,7 @@ import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
 import { FadeText } from "@/components/ui/fade-text";
 import { cn } from "@/lib/cn";
+import { CARD_PARAM } from "@/lib/trigo/checkout-prefill";
 
 type Slot = components["schemas"]["Slot"];
 
@@ -96,6 +97,11 @@ export function BookScreen({ slug }: { slug: string }) {
 
   const urlDate = params.get("date");
   const urlSlot = params.get("slot");
+  /*
+    The Trigo card this checkout was opened from (yuvoy-app#223), kept in the
+    address below so its prefill applies here and on no other checkout.
+  */
+  const cardId = params.get(CARD_PARAM);
   const urlGuests = Number(params.get("guests"));
   const initialGuests =
     Number.isInteger(urlGuests) && urlGuests > 0 ? urlGuests : 1;
@@ -297,13 +303,14 @@ export function BookScreen({ slug }: { slug: string }) {
     if (date) next.set("date", date);
     if (effectiveSlotId) next.set("slot", effectiveSlotId);
     if (guests > 1) next.set("guests", String(guests));
+    if (cardId) next.set(CARD_PARAM, cardId);
     const query = next.toString();
     const target = query ? `${pathname}?${query}` : pathname;
     const { pathname: path, search } = window.location;
     if (`${path}${search}` !== target) {
       window.history.replaceState(null, "", target);
     }
-  }, [date, effectiveSlotId, guests, pathname]);
+  }, [date, effectiveSlotId, guests, pathname, cardId]);
 
   // The same frame the route's boundary drew, so nothing swaps as it lands.
   if (experience.isPending) return <CheckoutSkeleton slug={slug} />;
@@ -449,6 +456,7 @@ export function BookScreen({ slug }: { slug: string }) {
             arrive={arriving.form}
             initialGuests={guests}
             onGuestsChange={setGuests}
+            trigoCardId={cardId}
             onRefused={(message) => {
               setRefusal(message);
               void availability.refetch();

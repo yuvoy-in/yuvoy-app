@@ -25,6 +25,10 @@ import { InviteCodeForm } from "@/components/auth/invite-gate";
 import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
+import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
+import { MeCounts, MeSection } from "@/components/me/me-section";
+import { MeSettings } from "@/components/me/me-settings";
+import { PeopleRow } from "@/components/people/people-row";
 
 /**
  * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
@@ -313,6 +317,8 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
           We could not load your profile just now. Everything below still works.
         </p>
       )}
+      {/* Me (yuvoy-mobile#444): each part draws nothing while `me` is closed. */}
+      <MeCounts />
 
       {/*
         THE WAY IN, FOR A NUMBER THAT IS NOT IN YET (yuvoy-api#195).
@@ -335,6 +341,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         <InviteEntry admitted={redeemed} onAdmitted={() => setRedeemed(true)} />
       ) : null}
 
+      <MeSection className="mt-8" />
       <ButtonLink href="/trips" size="lg" block className="mt-6">
         Go to my trips
       </ButtonLink>
@@ -360,6 +367,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
       <ButtonLink href="/guides" variant="outline" block className="mt-3">
         Guides
       </ButtonLink>
+      <OrganiserAccountLink />
 
       {me ? (
         <Button
@@ -374,6 +382,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
 
       {/* Share links and their counts (yuvoy-app#207). */}
       <YourLinks toolsOn={me?.creatorToolsOn === true} />
+      <PeopleRow people={me?.people} />
 
       {/*
         The same section as the booking page's, with no reference attached:
@@ -415,6 +424,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         is where somebody comes looking for it a week later. The answer itself
         sits above it, to change at any time (yuvoy-app#181).
       */}
+      <MeSettings className="mt-10" />
       <UsageSetting className="mt-10" />
       <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
 

@@ -178,6 +178,171 @@ describe("what the proxy will forward", () => {
     expect(allowedProxyPath("GET", "/me/creator-links/C-K7QM2XPA")).toBeNull();
   });
 
+  it("forwards a Trigo card's yes and no, and nothing else on a card", () => {
+    /*
+      yuvoy-app#223 part 2. Both POST, both session only. A card is read in
+      its chat, so there is no GET for one.
+    */
+    const id = "8f14e45f-ceea-4e7a-9b1d-2c4a6e0f9b10";
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}/confirm`)).toBe(
+      "/trigo/actions/{id}/confirm",
+    );
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}/decline`)).toBe(
+      "/trigo/actions/{id}/decline",
+    );
+    expect(allowedProxyPath("GET", `/trigo/actions/${id}/confirm`)).toBeNull();
+    expect(allowedProxyPath("GET", `/trigo/actions/${id}`)).toBeNull();
+    expect(allowedProxyPath("POST", `/trigo/actions/${id}`)).toBeNull();
+  });
+
+  it("forwards the People calls by their verbs, and nothing more of People", () => {
+    /*
+      yuvoy-app#222. Every one is session only. The friend link's lookup
+      carries its code in the body, so there is no path with a code in it.
+    */
+    const person = "6a3c1f8e-2b4d-4c1a-9e0f-1d2c3b4a5f60";
+    // [method, path, the pattern it matches]
+    const ok: [string, string, string][] = [
+      ["GET", "/me/people", "/me/people"],
+      ["PATCH", "/me/people", "/me/people"],
+      ["GET", "/me/friends", "/me/friends"],
+      ["DELETE", `/me/friends/${person}`, "/me/friends/{personId}"],
+      ["POST", "/me/friend-requests", "/me/friend-requests"],
+      [
+        "POST",
+        `/me/friend-requests/${person}/answer`,
+        "/me/friend-requests/{requestId}/answer",
+      ],
+      [
+        "DELETE",
+        `/me/friend-requests/${person}`,
+        "/me/friend-requests/{requestId}",
+      ],
+      ["PUT", "/me/friend-link", "/me/friend-link"],
+      ["DELETE", "/me/friend-link", "/me/friend-link"],
+      ["POST", "/friend-links/lookup", "/friend-links/lookup"],
+      ["PUT", "/me/age", "/me/age"],
+    ];
+    for (const [method, path, pattern] of ok) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBe(pattern);
+    }
+
+    const refused: [string, string][] = [
+      ["PUT", "/me/people"],
+      ["DELETE", "/me/people"],
+      ["POST", "/me/friends"],
+      ["GET", "/me/friend-requests"],
+      ["GET", "/me/friend-link"],
+      ["GET", "/friend-links/lookup"],
+      ["GET", "/friend-links/ABCDE-FGHIJ"],
+      ["POST", "/me/age"],
+      ["GET", "/me/age"],
+      // Not built yet: one person's card, reports, the friends' goings.
+      ["GET", `/people/${person}`],
+      ["POST", `/people/${person}/reports`],
+      ["GET", "/me/friends-going"],
+      ["GET", "/me/friends/activity"],
+      ["GET", `/me/friend-requests/${person}/answer`],
+    ];
+    for (const [method, path] of refused) {
+      expect(allowedProxyPath(method, path), `${method} ${path}`).toBeNull();
+    }
+  });
+
+  it("allows the organiser pages and the age step, and not the club or claims routes", () => {
+    expect(allowedProxyPath("GET", "/me/organisers")).toBe("/me/organisers");
+    expect(allowedProxyPath("POST", "/organisers")).toBe("/organisers");
+    expect(allowedProxyPath("PATCH", "/organisers/org_1")).toBe(
+      "/organisers/{id}",
+    );
+    expect(allowedProxyPath("DELETE", "/organisers/org_1/helpers/trv_1")).toBe(
+      "/organisers/{id}/helpers/{travellerId}",
+    );
+    expect(
+      allowedProxyPath("POST", "/organisers/org_1/events/post_1/cancel"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/cancel");
+    expect(
+      allowedProxyPath("GET", "/organisers/org_1/events/post_1/numbers"),
+    ).toBe("/organisers/{id}/events/{eventPostId}/numbers");
+    expect(allowedProxyPath("PUT", "/me/age")).toBe("/me/age");
+    expect(allowedProxyPath("POST", "/organiser-check-ins")).toBe(
+      "/organiser-check-ins",
+    );
+
+    expect(allowedProxyPath("DELETE", "/organisers/org_1")).toBeNull();
+    expect(allowedProxyPath("GET", "/organiser-check-ins")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/age")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/club")).toBeNull();
+    expect(allowedProxyPath("GET", "/organisers/org_1/claims")).toBeNull();
+    expect(allowedProxyPath("POST", "/organisers/org_1/claims")).toBeNull();
+  });
+
+  it("forwards Me's life list, badges and two settings, and nothing beside them", () => {
+    /*
+      yuvoy-mobile#444. Who sees a trip or a table goes by its entry, who sees
+      a went entry only by its event. A friend's life list and the cheers are
+      not built on the web yet, so they are not here.
+    */
+    const entry = "/me/life-list/trip:b0a11000-0000-4000-8000-000000000001";
+    const event = "/me/went/e7e10000-0000-4000-8000-000000000009";
+    expect(allowedProxyPath("GET", "/me/life-list")).toBe("/me/life-list");
+    expect(allowedProxyPath("PATCH", entry)).toBe("/me/life-list/{entryId}");
+    expect(allowedProxyPath("POST", event)).toBe("/me/went/{eventId}");
+    expect(allowedProxyPath("PATCH", event)).toBe("/me/went/{eventId}");
+    expect(allowedProxyPath("GET", "/me/badges")).toBe("/me/badges");
+    expect(allowedProxyPath("POST", "/me/badges/seen")).toBe("/me/badges/seen");
+    expect(allowedProxyPath("GET", "/me/settings")).toBe("/me/settings");
+    expect(allowedProxyPath("PATCH", "/me/settings")).toBe("/me/settings");
+
+    expect(allowedProxyPath("POST", "/me/life-list")).toBeNull();
+    expect(allowedProxyPath("GET", entry)).toBeNull();
+    expect(allowedProxyPath("DELETE", entry)).toBeNull();
+    expect(allowedProxyPath("GET", event)).toBeNull();
+    expect(allowedProxyPath("DELETE", event)).toBeNull();
+    expect(allowedProxyPath("POST", "/me/badges")).toBeNull();
+    expect(allowedProxyPath("GET", "/me/badges/seen")).toBeNull();
+    expect(allowedProxyPath("PUT", "/me/settings")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/me/settings")).toBeNull();
+    const person = "/people/a1b2c3d4-0000-4000-8000-000000000001";
+    expect(allowedProxyPath("GET", `${person}/life-list`)).toBeNull();
+    expect(
+      allowedProxyPath("POST", `${person}/life-list/went:e7e1/cheer`),
+    ).toBeNull();
+  });
+
+  it("forwards following a group and the crew invite, and their near misses", () => {
+    /*
+      yuvoy-mobile#392. Read the follows, follow, stop following, ask a crew
+      along to a plan, and the plans list the invite picks from.
+    */
+    const clubId = "5b1e7c2a-9d40-4f3e-8a61-2c7d9e0f1a34";
+    const planId = "8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52";
+    expect(allowedProxyPath("GET", "/me/club-follows")).toBe(
+      "/me/club-follows",
+    );
+    expect(allowedProxyPath("PUT", `/me/club-follows/${clubId}`)).toBe(
+      "/me/club-follows/{clubId}",
+    );
+    expect(allowedProxyPath("DELETE", `/me/club-follows/${clubId}`)).toBe(
+      "/me/club-follows/{clubId}",
+    );
+    expect(allowedProxyPath("POST", `/plans/${planId}/crew-invites`)).toBe(
+      "/plans/{planId}/crew-invites",
+    );
+    expect(allowedProxyPath("GET", "/me/plans")).toBe("/me/plans");
+
+    // The near misses: a verb the contract does not have on these paths.
+    expect(allowedProxyPath("PATCH", `/me/club-follows/${clubId}`)).toBeNull();
+    expect(allowedProxyPath("GET", `/me/club-follows/${clubId}`)).toBeNull();
+    expect(allowedProxyPath("POST", "/me/club-follows")).toBeNull();
+    expect(allowedProxyPath("DELETE", "/me/club-follows")).toBeNull();
+    expect(allowedProxyPath("GET", `/plans/${planId}/crew-invites`)).toBeNull();
+    expect(allowedProxyPath("POST", "/me/plans")).toBeNull();
+    expect(
+      allowedProxyPath("PUT", `/me/club-follows/${clubId}/extra`),
+    ).toBeNull();
+  });
+
   it("refuses anything not listed, including real contract paths", () => {
     // Real endpoints. Being real is not the same as being proxied.
     expect(allowedProxyPath("GET", "/experiences/try-dive")).toBeNull();

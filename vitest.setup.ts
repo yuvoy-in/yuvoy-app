@@ -7,6 +7,7 @@ import { __resetAppRouteMocks } from "./mocks/app-route-handlers";
 import { __resetSavedMocks } from "./mocks/saved-handlers";
 import { __resetPlanLinkMocks } from "./mocks/plan-link-handlers";
 import { __resetClubMocks } from "./mocks/club-handlers";
+import { __resetTrigoMocks } from "./mocks/trigo-handlers";
 import { __resetClockOffset } from "./src/lib/booking/clock";
 
 /*
@@ -30,6 +31,8 @@ afterEach(async () => {
   __resetSavedMocks();
   // So are a plan link's guests and nonces (yuvoy-mobile#373).
   __resetPlanLinkMocks();
+  // And Trigo's chats, keys and age answers (yuvoy-app#223).
+  __resetTrigoMocks();
   // And the groups hidden or claimed (yuvoy-mobile#386).
   __resetClubMocks();
   // The measured server-clock offset is module state; one test's fixture

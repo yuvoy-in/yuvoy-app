@@ -118,6 +118,60 @@ export const CACHE = {
   },
 
   /**
+   * Every organiser read (yuvoy-app#224): the list, a page, its events, an
+   * event's numbers and the helpers. "Never cached" in the contract, so every
+   * mount reads again. Kept a minute rather than none, unlike the share
+   * links: a page just made or saved is written into its entry, and the
+   * screen it opens next must find it there. Sign in and sign out remove all
+   * of it (`forgetOrganisers`).
+   */
+  organisers: {
+    staleTime: 0,
+    gcTime: 60_000,
+    refetchOnMount: "always",
+  },
+  /**
+   * People (yuvoy-app#222): the home, the friends list, and a friend link's
+   * lookup. A request can arrive at any moment and an answer moves people
+   * between lists, so each is read again whenever its screen opens. The
+   * lookup is "never stored by a cache" in the contract, so nothing of it is
+   * kept once the page is gone.
+   */
+  getMyPeople: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
+  listMyFriends: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
+  // A POST limited to 30 a minute: never again on window focus.
+  lookupFriendLink: {
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  },
+
+  /**
+   * The groups a traveller follows (yuvoy-mobile#392). Read again on every
+   * mount, because a group taken out of the directory drops out of it on the
+   * API's side. Kept five minutes so a card and the group screen agree at
+   * once after a tap while the read runs; sign in and sign out remove it.
+   */
+  listMyClubFollows: {
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchOnMount: "always",
+  },
+
+  /**
+   * The traveller's own plans, for the crew invite's picker
+   * (yuvoy-mobile#392). Read again each time the picker opens: a plan made
+   * or closed a minute ago must be right in the list. Removed on sign in and
+   * sign out with the rest of what belongs to a number.
+   */
+  listMyPlans: {
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchOnMount: "always",
+  },
+
+  /**
    * The groups directory and a group's page (yuvoy-mobile#386). The API
    * answers `Cache-Control: no-store`: a group can be hidden by a removal
    * request at any moment, and one shown after that is a listing somebody
@@ -212,6 +266,12 @@ export const qk = {
    * answer carries the reader's own request, the names and the venue.
    */
   table: (id: string) => ["getTable", id] as const,
+  /**
+   * The date alerts and trip drafts on the signed-in number (yuvoy-app#220).
+   * Not keyed, like `myBookings`: removed on sign-in and sign-out.
+   */
+  myDateAlerts: () => ["listMyDateAlerts"] as const,
+  myTripDrafts: () => ["listMyTripDrafts"] as const,
   /** An invite link's preview, unauthenticated, for `/i/{token}`. */
   invitePreview: (token: string) => ["previewTripInvite", token] as const,
   /** The guests on a booking, as the booker sees them. */
@@ -329,6 +389,56 @@ export const qk = {
    * sign out with the rest of what belongs to a number.
    */
   myCreatorLinks: () => ["listMyCreatorLinks"] as const,
+  /**
+   * Trigo (yuvoy-app#223): whether this traveller accepted the notice in
+   * force, their recent chats, and one chat's messages. None is keyed by the
+   * session, for the reason `myBookings` gives: all three are the number's
+   * own, a chat in the traveller's own words, so they are REMOVED on sign in
+   * and sign out (`useTravellerSession`).
+   */
+  trigoConsent: () => ["getTrigoConsent"] as const,
+  trigoConversations: () => ["listTrigoConversations"] as const,
+  trigoConversation: (id: string) => ["getTrigoConversation", id] as const,
+  /**
+   * The signed-in traveller's organisers and what hangs off each one
+   * (yuvoy-app#224). Not keyed by the person, for the reason `myBookings`
+   * gives: all of it is removed on sign in and sign out.
+   */
+  myOrganisers: () => ["listMyOrganisers"] as const,
+  organiser: (id: string) => ["getOrganiser", id] as const,
+  organiserEvents: (id: string) => ["listOrganiserEvents", id] as const,
+  /** `on` is "" for the current date, so the two blocks of a weekly event are two entries. */
+  organiserEventNumbers: (id: string, postId: string, on?: string | null) =>
+    ["getOrganiserEventNumbers", id, postId, on ?? ""] as const,
+  organiserHelpers: (id: string) => ["listOrganiserHelpers", id] as const,
+  /**
+   * Me (yuvoy-mobile#444): the life list, its badges and the settings it
+   * shows. Not keyed by anything, for the reason `myBookings` gives, and
+   * belonging to a number, so removed on sign in and sign out with the rest.
+   * The life list holds five-minute photo links and lives in memory only.
+   */
+  myLifeList: () => ["getMyLifeList"] as const,
+  myBadges: () => ["getMyBadges"] as const,
+  mySettings: () => ["getMySettings"] as const,
+  /**
+   * People (yuvoy-app#222). Not keyed by anything, for the reason
+   * `myBookings` gives, and removed on sign in and sign out
+   * (`forgetPeople`). The lookup is keyed by the code as the page has it.
+   */
+  myPeople: () => ["getMyPeople"] as const,
+  myFriends: () => ["listMyFriends"] as const,
+  friendLink: (code: string) => ["lookupFriendLink", code] as const,
+  /**
+   * The groups the signed-in traveller follows (yuvoy-mobile#392). Not keyed
+   * by anything, for the reason `myBookings` gives; removed on sign in and
+   * sign out.
+   */
+  myClubFollows: () => ["listMyClubFollows"] as const,
+  /**
+   * The signed-in traveller's plans, upcoming or past (yuvoy-mobile#392's
+   * invite picker reads `upcoming`). Removed on sign in and sign out.
+   */
+  myPlans: (when: "upcoming" | "past") => ["listMyPlans", when] as const,
   /**
    * One place's groups (yuvoy-mobile#386): `GET /me/clubs` signed in,
    * `GET /clubs` signed out. Keyed by which, as `places` is: a staff number

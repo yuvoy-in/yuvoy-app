@@ -9,6 +9,16 @@ import type { components, paths } from "../src/lib/api/schema.gen";
 import { exploreStageOf } from "./found-handlers";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
 import { clubStaffCohort } from "./club-handlers";
+import {
+  PEOPLE_SCENARIOS,
+  peopleAccountFor,
+  peopleStaffCohort,
+  peopleSummaryFor,
+  setPeopleName,
+} from "./people-state";
+import { trigoStaffCohort } from "./trigo-handlers";
+import { organiserAgeConfirmed } from "./organiser-handlers";
+import { meStaffCohort } from "./me-handlers";
 
 type Experience = components["schemas"]["Experience"];
 
@@ -432,6 +442,131 @@ function reference(): string {
   for (let i = 0; i < 8; i++)
     out += chars[Math.floor(Math.random() * chars.length)];
   return `YV-${out}`;
+}
+
+/** `GET /me`, which `PATCH /me` under a People scenario answers too. */
+function answerMe(request: Request): Response {
+  if (!request.headers.get("authorization")) {
+    return envelope("unauthorized", "Sign in first.", 401);
+  }
+  if (scenarioOf(request) === "session-expired") {
+    return envelope("token_expired", "That session has ended.", 401);
+  }
+
+  const fresh = scenarioOf(request) === "first-sign-in";
+  /*
+    Signed in through the email door with no number proved
+    (`?__scenario=email-door`, yuvoy-api#304): `phone` is null and the
+    proven email is the way in.
+  */
+  const emailDoor = scenarioOf(request) === "email-door";
+  /*
+    People (yuvoy-app#222): under its scenarios the name and the age answer
+    are the session's, so the name and age steps change what this says, and
+    `people` (the Account row's summary) is here while the release is open.
+  */
+  const auth = request.headers.get("authorization")!;
+  const peopleAccount = peopleAccountFor(auth, scenarioOf(request));
+  const peopleSummary = peopleSummaryFor(auth, scenarioOf(request));
+  return HttpResponse.json(
+    {
+      phone: emailDoor ? null : "+919000000000",
+      name: peopleAccount ? peopleAccount.name : fresh ? null : "Asha Menon",
+      email: fresh ? null : "asha@example.com",
+      emailProven: emailDoor,
+      provenEmail: emailDoor ? "asha@example.com" : null,
+      /*
+        Who sees releases early (R0-T2): nobody, unless
+        `?__scenario=cohort-staff` or `cohort-early` says so, or one of
+        yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
+        staff tester's world, or one of yuvoy-app#207's opens `creator`
+        there (all but `creator-outside`), or one of yuvoy-app#222's opens
+        `people` there (all but `people-outside` and `people-all`), or one of
+        yuvoy-app#223's opens `trigo` there (all but `trigo-not-released`), or
+        one of yuvoy-mobile#444's opens `me` there, or one of
+        yuvoy-mobile#386's opens `people` there (all but `clubs-all` and
+        `clubs-outside`).
+      */
+      cohort:
+        scenarioOf(request) === "cohort-staff" ||
+        exploreStageOf(scenarioOf(request)) === "staff" ||
+        creatorStaffCohort(scenarioOf(request)) ||
+        peopleStaffCohort(scenarioOf(request)) ||
+        trigoStaffCohort(scenarioOf(request)) ||
+        meStaffCohort(scenarioOf(request)) ||
+        clubStaffCohort(scenarioOf(request))
+          ? "staff"
+          : scenarioOf(request) === "cohort-early"
+            ? "early"
+            : null,
+      interests: fresh ? [] : ["adventure", "scuba-diving"],
+      /*
+        The tools for a traveller's own videos and links (R12-T1): false
+        until they turn them on, true under yuvoy-app#207's scenarios but
+        `creator-tools-off`.
+      */
+      creatorToolsOn: creatorToolsOnFor(scenarioOf(request)),
+      /*
+        The 18+ answer: true, except under `organisers-age` until
+        `PUT /me/age` is answered (yuvoy-app#224), and the People session's
+        own answer under a People scenario (yuvoy-app#222).
+      */
+      ageConfirmed: organiserAgeConfirmed(request),
+      ...(peopleAccount ? { ageConfirmed: peopleAccount.ageConfirmed } : {}),
+      ...(peopleSummary ? { people: peopleSummary } : {}),
+      onboardingRequired: fresh,
+      memberSince: fresh ? null : "2026-07-02T04:30:00Z",
+      trips: { total: 3, upcoming: 1, completed: 2 },
+      reviews: { count: 1 },
+      support: {
+        whatsappE164: "+919000000001",
+        hours: "9am to 7pm, every day",
+      },
+      /*
+        Booking by invitation (yuvoy-api#195). Production has sent this
+        since 6caa728, so the mock does too: a screen that never sees the
+        field is green against data production never sends.
+
+        True by default, because this number held a booking before
+        invitations began and the migration admitted every such number.
+        `?__scenario=not-admitted` (and the two scenarios below that need
+        a number that is not in) says false until a code is redeemed, and
+        `?__scenario=admitted-absent` leaves the field out, as an API from
+        before #195 would.
+      */
+      ...(scenarioOf(request) === "admitted-absent"
+        ? {}
+        : { admitted: isAdmitted(request) }),
+      /*
+        The days on the island (yuvoy-api#257): "Always present on this
+        API", null when none is kept, so the mock always sends the key.
+        `?__scenario=stay-absent` leaves it out, as an API from before #257
+        would, which is the one way the app keeps the days on the phone.
+      */
+      ...(scenarioOf(request) === "stay-absent"
+        ? {}
+        : {
+            stay:
+              staysByCredential.get(request.headers.get("authorization")!) ??
+              null,
+          }),
+      /*
+        Present only under a traveller session. The mock cannot tell a
+        session token from a status token by inspection, so it keys on the
+        prefix the verify handler mints.
+      */
+      ...(request.headers.get("authorization")?.includes("Bearer sess_")
+        ? {
+            session: {
+              expiresAt: new Date(
+                mockNow() + 14 * 24 * 60 * 60_000,
+              ).toISOString(),
+            },
+          }
+        : {}),
+    },
+    { headers: mockHeaders(rid()) },
+  );
 }
 
 export const bookingHandlers = [
@@ -1745,104 +1880,35 @@ export const bookingHandlers = [
     common first-sign-in state and the one #32 and #38 branch on. The scenario
     switch reaches it without needing a second fixture number.
   */
-  http.get(url("/me"), async ({ request }) => {
-    if (!request.headers.get("authorization")) {
-      return envelope("unauthorized", "Sign in first.", 401);
-    }
-    if (scenarioOf(request) === "session-expired") {
-      return envelope("token_expired", "That session has ended.", 401);
-    }
+  http.get(url("/me"), ({ request }) => answerMe(request)),
 
-    const fresh = scenarioOf(request) === "first-sign-in";
-    /*
-      Signed in through the email door with no number proved
-      (`?__scenario=email-door`, yuvoy-api#304): `phone` is null and the
-      proven email is the way in.
-    */
-    const emailDoor = scenarioOf(request) === "email-door";
-    return HttpResponse.json(
-      {
-        phone: emailDoor ? null : "+919000000000",
-        name: fresh ? null : "Asha Menon",
-        email: fresh ? null : "asha@example.com",
-        emailProven: emailDoor,
-        provenEmail: emailDoor ? "asha@example.com" : null,
-        /*
-          Who sees releases early (R0-T2): nobody, unless
-          `?__scenario=cohort-staff` or `cohort-early` says so, or one of
-          yuvoy-app#179's scenarios opens `explore` at `staff`, which is a
-          staff tester's world, or one of yuvoy-app#207's opens `creator`
-          there (all but `creator-outside`).
-        */
-        cohort:
-          scenarioOf(request) === "cohort-staff" ||
-          exploreStageOf(scenarioOf(request)) === "staff" ||
-          creatorStaffCohort(scenarioOf(request)) ||
-          clubStaffCohort(scenarioOf(request))
-            ? "staff"
-            : scenarioOf(request) === "cohort-early"
-              ? "early"
-              : null,
-        interests: fresh ? [] : ["adventure", "scuba-diving"],
-        /*
-          The tools for a traveller's own videos and links (R12-T1): false
-          until they turn them on, true under yuvoy-app#207's scenarios but
-          `creator-tools-off`.
-        */
-        creatorToolsOn: creatorToolsOnFor(scenarioOf(request)),
-        onboardingRequired: fresh,
-        memberSince: fresh ? null : "2026-07-02T04:30:00Z",
-        trips: { total: 3, upcoming: 1, completed: 2 },
-        reviews: { count: 1 },
-        support: {
-          whatsappE164: "+919000000001",
-          hours: "9am to 7pm, every day",
-        },
-        /*
-          Booking by invitation (yuvoy-api#195). Production has sent this
-          since 6caa728, so the mock does too: a screen that never sees the
-          field is green against data production never sends.
-
-          True by default, because this number held a booking before
-          invitations began and the migration admitted every such number.
-          `?__scenario=not-admitted` (and the two scenarios below that need
-          a number that is not in) says false until a code is redeemed, and
-          `?__scenario=admitted-absent` leaves the field out, as an API from
-          before #195 would.
-        */
-        ...(scenarioOf(request) === "admitted-absent"
-          ? {}
-          : { admitted: isAdmitted(request) }),
-        /*
-          The days on the island (yuvoy-api#257): "Always present on this
-          API", null when none is kept, so the mock always sends the key.
-          `?__scenario=stay-absent` leaves it out, as an API from before #257
-          would, which is the one way the app keeps the days on the phone.
-        */
-        ...(scenarioOf(request) === "stay-absent"
-          ? {}
-          : {
-              stay:
-                staysByCredential.get(request.headers.get("authorization")!) ??
-                null,
-            }),
-        /*
-          Present only under a traveller session. The mock cannot tell a
-          session token from a status token by inspection, so it keys on the
-          prefix the verify handler mints.
-        */
-        ...(request.headers.get("authorization")?.includes("Bearer sess_")
-          ? {
-              session: {
-                expiresAt: new Date(
-                  mockNow() + 14 * 24 * 60 * 60_000,
-                ).toISOString(),
-              },
-            }
-          : {}),
-      },
-      { headers: mockHeaders(rid()) },
-    );
+  /*
+    Saving the profile (`updateMyAccount`), mocked only under the People
+    scenarios (yuvoy-app#222), where the name step sends a first name and
+    People reads `needsName` from it. The name is kept for the session and
+    the answer is the account, as `GET /me` would send it now. Every other
+    scenario passes through, as before.
+  */
+  http.patch(url("/me"), async ({ request }) => {
+    const scenario = scenarioOf(request);
+    if (!PEOPLE_SCENARIOS.has(scenario)) return undefined;
+    const auth = request.headers.get("authorization");
+    if (!auth) return envelope("unauthorized", "Sign in first.", 401);
+    let body: { name?: unknown } | null = null;
+    try {
+      body = (await request.json()) as { name?: unknown } | null;
+    } catch {
+      body = null;
+    }
+    if (body?.name !== undefined) {
+      if (typeof body.name !== "string" || !body.name.trim()) {
+        return envelope("invalid_input", "Add your name.", 400, {
+          name: "Your name, as friends know you.",
+        });
+      }
+      setPeopleName(auth, scenario, body.name);
+    }
+    return answerMe(request);
   }),
 
   /*

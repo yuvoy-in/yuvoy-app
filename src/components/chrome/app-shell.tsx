@@ -7,6 +7,7 @@ import { Wordmark } from "@/components/ui/wordmark";
 import { BookIcon } from "@/components/ui/icons";
 import { SECONDARY_ROUTES } from "@/lib/site/nav";
 import { LoginButton } from "@/components/auth/login-button";
+import { AskTrigoButton } from "@/components/trigo/ask-trigo-button";
 
 /**
  * The app chassis (v2.7).
@@ -83,7 +84,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           a click anywhere behind it; only the button itself takes one.
         */}
         <div className="pointer-events-none absolute top-7 right-8 z-30 hidden lg:block">
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto flex items-center gap-3">
+            {/* Only while `releases.trigo` is open (yuvoy-app#223). */}
+            <AskTrigoButton />
             <LoginButton />
           </div>
         </div>
