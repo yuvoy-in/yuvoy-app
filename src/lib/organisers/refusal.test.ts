@@ -70,10 +70,10 @@ describe("organiserRefusal", () => {
     });
   });
 
-  it("knows the numbers' on, and no group key", () => {
+  it("knows the numbers' on and a link's own key", () => {
     expect(isOrganiserField("on")).toBe(true);
     expect(isOrganiserField("links.2")).toBe(true);
-    expect(isOrganiserField("clubId")).toBe(false);
+    expect(isOrganiserField("nope")).toBe(false);
   });
 
   it("reads the sign-in, age, member and owner refusals", () => {
