@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import { chooseDeparture } from "./support/checkout";
 
 /**
  * yuvoy-app#219, the web half of yuvoy-mobile#368: what a whole-group price
@@ -7,13 +8,22 @@ import { test, expect } from "@playwright/test";
  */
 
 const CHARTER = "/e/private-boat-charter";
-const CHARTER_BOOK = `${CHARTER}/book?slot=slot_private-boat-charter_a`;
+
+/**
+ * Checkout with a party already set. The departure is then chosen on the
+ * calendar: a `?slot=` with no `?date=` opens on the day picker, so the form
+ * would never render.
+ */
+async function charterCheckout(page: Page, guests: number) {
+  await page.goto(`${CHARTER}/book?guests=${guests}`);
+  await chooseDeparture(page);
+}
 
 test.describe("a price for the whole group", () => {
   test("says what it comes to each for more than one guest", async ({
     page,
   }) => {
-    await page.goto(`${CHARTER_BOOK}&guests=4`);
+    await charterCheckout(page, 4);
     const each = page.getByTestId("checkout-each");
     await expect(each).toHaveText("₹4,500 each for 4 of you");
     // The Total stays the price of the boat.
@@ -22,7 +32,7 @@ test.describe("a price for the whole group", () => {
   });
 
   test("says nothing each for one guest", async ({ page }) => {
-    await page.goto(`${CHARTER_BOOK}&guests=1`);
+    await charterCheckout(page, 1);
     await expect(page.getByLabel(/Your name/i)).toBeVisible();
     await expect(page.getByTestId("checkout-each")).toHaveCount(0);
   });
