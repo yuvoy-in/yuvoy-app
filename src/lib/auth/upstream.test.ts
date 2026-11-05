@@ -210,6 +210,24 @@ describe("the replay marker on the way back", () => {
   });
 });
 
+describe("the file name on the way back", () => {
+  it("carries the API's Content-Disposition as sent", async () => {
+    /*
+      yuvoy-app#221. The data download is named by the API with its own UTC
+      day; without this the browser would save it under a name of its own.
+    */
+    const disposition = 'attachment; filename="yuvoy-my-data-2026-10-19.json"';
+    fetchMock.mockResolvedValue(ok({ "Content-Disposition": disposition }));
+    const answer = await callUpstream({ method: "GET", path: "/me/export" });
+    expect(answer.contentDisposition).toBe(disposition);
+  });
+
+  it("is null when the API names no file", async () => {
+    const answer = await callUpstream({ method: "GET", path: "/me" });
+    expect(answer.contentDisposition).toBeNull();
+  });
+});
+
 describe("the allowlist itself", () => {
   it("names Idempotency-Key", () => {
     // `scripts/qa.mjs` proves this list covers every required header the

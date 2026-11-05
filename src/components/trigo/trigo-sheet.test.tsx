@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import type { TrigoFailure, TrigoMessage } from "@/lib/trigo/api";
@@ -18,6 +18,7 @@ import {
   OFFLINE_LINE,
   SIGNED_OUT_LINE,
   TRY_AGAIN,
+  TRY_AGAIN_SOON,
   TURN_OFF,
   remainingLine,
 } from "@/lib/trigo/words";
@@ -241,7 +242,12 @@ beforeEach(() => {
   setOnline(true);
 });
 
-afterEach(() => setOnline(true));
+afterEach(() => {
+  setOnline(true);
+  // A test that times out under fake timers never reaches its own
+  // useRealTimers, and every test after it would wait on a frozen clock.
+  vi.useRealTimers();
+});
 
 describe("Trigo sheet: who may chat", () => {
   it("signed out, says why and offers the way in back to this address", () => {
@@ -444,6 +450,9 @@ describe("Trigo sheet: when a message does not go", () => {
     async (failure) => {
       const user = await failWith(failure);
       expect(screen.getByText(IN_PROGRESS_LINE)).toBeInTheDocument();
+      // No Retry-After: Try again is on at once, as before.
+      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeEnabled();
+      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
       s.answer = null;
       await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
       expect(s.sent).toHaveLength(2);
@@ -451,6 +460,76 @@ describe("Trigo sheet: when a message does not go", () => {
       expect(s.sent[1]?.text).toBe(s.sent[0]?.text);
     },
   );
+
+  /*
+    The two Retry-After tests type on the real clock and fake setTimeout only
+    from the send on. user-event's calls end on Testing Library's async
+    wrapper, which waits for a setTimeout(0) that only Jest's fake timers are
+    advanced past, so under vitest's it never returns. The send itself is a
+    plain click.
+  */
+  it("Try again waits out the answer's Retry-After, then sends the same key", async () => {
+    s.answer = () => ({
+      failure: { kind: "idempotency_in_progress", retryAfterSeconds: 3 },
+    });
+    open();
+    const user = await write("Where to stay in Gokarna?");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: SEND }));
+
+      const retry = screen.getByRole("button", { name: TRY_AGAIN });
+      expect(retry).toBeDisabled();
+      expect(retry).toHaveAccessibleDescription(TRY_AGAIN_SOON);
+      // Send is held too, so the wait cannot be skipped from the composer.
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(2_999));
+      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeDisabled();
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeEnabled();
+      expect(screen.getByRole("button", { name: SEND })).toBeEnabled();
+      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    s.answer = null;
+    await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
+    expect(s.sent).toHaveLength(2);
+    expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
+  });
+
+  it("a rate limit with Retry-After holds Send until it has passed", async () => {
+    s.answer = () => ({
+      failure: {
+        kind: "rate_limited",
+        message: "Slow down a little.",
+        retryAfterSeconds: 2,
+      },
+    });
+    open();
+    await write("Where to stay in Gokarna?");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(screen.getByRole("button", { name: SEND }));
+
+      expect(screen.getByText("Slow down a little.")).toBeInTheDocument();
+      expect(screen.getByText(TRY_AGAIN_SOON)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(1_999));
+      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole("button", { name: SEND })).toBeEnabled();
+      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("the day's limit shows the limit panel and turns Send off", async () => {
     await failWith({

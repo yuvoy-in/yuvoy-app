@@ -628,6 +628,16 @@ export const EXPERIENCE_DETAIL: Record<string, Experience> = Object.fromEntries(
             },
           }
         : {}),
+      // A registration in date, so the listing page has its line
+      // (yuvoy-app#219). Every other listing sends none.
+      ...(e.slug === "private-boat-charter"
+        ? {
+            compliance: {
+              label: "Registered with A&N Tourism",
+              validTo: "2027-06-30",
+            },
+          }
+        : {}),
     },
   ]),
 );

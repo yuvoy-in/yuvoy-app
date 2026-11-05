@@ -1222,28 +1222,203 @@ for (const f of files) {
    * the redesign's before page, 3 Oct 2026). The label around each one is
    * clickable too, but a target that is only findable by its words is not one
    * a thumb can aim at.
+   *
+   * One shape passes without a size: an `sr-only` input inside a `<label>`
+   * that is itself 24px tall or more, because then the label is the control
+   * (the visibility chips on a Me life entry, yuvoy-mobile#444). The label
+   * counts only when its own classes say so, in every state and at every
+   * breakpoint: the smallest of its `size-`, `h-`, `min-h-` and `max-h-`
+   * tokens (a `sm:h-5` or the `"h-5"` branch of a ternary counts), and of any
+   * `chipVariants({ size })` height read from `ui/chip.tsx`, is 24px or more.
+   *
+   * No skip, so the input is judged on its own size, when:
+   * - the input is not one plain `className="…"` string, so `sr-only` could
+   *   apply in only one state; or it also carries a `size-N` under 6, or a
+   *   `not-sr-only`;
+   * - the input has no enclosing `<label>`, or that label states no height;
+   * - the label is itself `sr-only`, `hidden` or `invisible`, at any
+   *   breakpoint, so there is no visible control left;
+   * - a `chipVariants` size is not a string literal.
+   * The fixture below holds both sides of each line (api-r1's review,
+   * 3 Nov 2026).
    */
-  for (const f of files) {
-    const src = code(f);
+  const CHIP_PX = (() => {
+    const chip = readFileSync(join(SRC, "components/ui/chip.tsx"), "utf8");
+    const sizes = /size:\s*\{([\s\S]*?)\}/.exec(chip)?.[1] ?? "";
+    const out = {};
+    for (const s of sizes.matchAll(/(\w+):\s*"([^"]*)"/g)) {
+      const h = /(?:^|\s)(?:min-h|h|size)-(\d+(?:\.\d+)?)(?:\s|$)/.exec(s[2]);
+      if (h) out[s[1]] = Number(h[1]) * 4;
+    }
+    return out;
+  })();
+
+  /** A class token without its variant prefixes: `sm:hover:h-5` is `h-5`. */
+  const bare = (c) => c.split(":").pop();
+
+  /**
+   * The smallest height a label's own classes can give it, in px, or null
+   * when they state none, a chip size is not a literal, or the label hides.
+   */
+  const labelPx = (attrs) => {
+    const tokens = classTokens(attrs).map(bare);
+    if (tokens.some((c) => /^(sr-only|hidden|invisible)$/.test(c))) return null;
+    const px = tokens
+      .map((c) => /^(?:size|h|min-h|max-h)-(\d+(?:\.\d+)?)$/.exec(c)?.[1])
+      .filter(Boolean)
+      .map((n) => Number(n) * 4);
+    for (const c of attrs.matchAll(/chipVariants\(\{([^}]*)\}/g)) {
+      if (!/\bsize:/.test(c[1])) continue;
+      const size = /\bsize:\s*["'](\w+)["']\s*(?:,|$)/.exec(c[1].trim())?.[1];
+      if (!size || !CHIP_PX[size]) return null;
+      px.push(CHIP_PX[size]);
+    }
+    return px.length ? Math.min(...px) : null;
+  };
+
+  /**
+   * True when the input is hidden in every state: its className is one plain
+   * string with `sr-only` in it, and nothing that undoes or resizes it.
+   */
+  const alwaysSrOnly = (attrs) => {
+    const v = /className=(?:"([^"]*)"|\{\s*"([^"]*)"\s*\})/.exec(attrs);
+    if (!v) return false;
+    const tokens = (v[1] ?? v[2]).split(/\s+/).filter(Boolean);
+    if (!tokens.includes("sr-only")) return false;
+    if (tokens.some((c) => /not-sr-only$/.test(c))) return false;
+    return !tokens.some((c) => {
+      const n = /^size-(\d+(?:\.\d+)?)$/.exec(bare(c))?.[1];
+      return n !== undefined && Number(n) < 6;
+    });
+  };
+
+  /** The open tag of the `<label>` an index sits inside, or null. */
+  const enclosingLabel = (src, at) => {
+    const open = src.lastIndexOf("<label", at);
+    if (open === -1 || src.indexOf("</label>", open) < at) return null;
+    return openTag(src, open);
+  };
+
+  const smallTargets = (src, name) => {
+    const found = [];
     for (const m of src.matchAll(/<input[\s/>]/g)) {
       const attrs = openTag(src, m.index);
       const kind = /type=["'](checkbox|radio)["']/.exec(attrs)?.[1];
       if (!kind) continue;
-      const sizes = classTokens(attrs)
+      const own = classTokens(attrs);
+      if (alwaysSrOnly(attrs)) {
+        const label = enclosingLabel(src, m.index);
+        if (label && (labelPx(label) ?? 0) >= 24) continue;
+      }
+      const sizes = own
         .map((c) => /^size-(\d+(?:\.\d+)?)$/.exec(c)?.[1])
         .filter(Boolean)
         .map((n) => Number(n) * 4);
       const smallest = sizes.length ? Math.min(...sizes) : null;
       if (smallest === null || smallest < 24) {
-        problems.push(
-          `${rel(f)}: a ${kind} is ${smallest === null ? "unsized (about 13px)" : `${smallest}px`} — ` +
+        found.push(
+          `${name}: a ${kind} is ${smallest === null ? "unsized (about 13px)" : `${smallest}px`}: ` +
             `a tick or a radio is a 24px target at the least (WCAG 2.5.8). ` +
-            `Give it size-6. Every one in checkout was size-4 until the ` +
-            `redesign (3 Oct 2026).`,
+            `Give it size-6, or make it sr-only inside a label of size-6 or ` +
+            `more. Every one in checkout was size-4 until the redesign ` +
+            `(3 Oct 2026).`,
         );
       }
     }
+    return found;
+  };
+
+  // The fixture: what must fail and what may pass, checked on every run.
+  const FIXTURE = [
+    [1, `<input type="radio" className="sr-only" />`],
+    [
+      1,
+      `<label className="flex gap-2"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-5"><input type="checkbox" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="checkbox" className="size-4" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9">a</label><input type="radio" className="sr-only" />`,
+    ],
+    [
+      0,
+      `<label className="min-h-11"><input type="checkbox" className="sr-only" />a</label>`,
+    ],
+    [
+      0,
+      `<label className={cn(chipVariants({ size: "md", tone: on ? "selected" : "neutral" }), "x")}><input type="radio" name={n} onChange={() => {}} className="sr-only" />a</label>`,
+    ],
+    [0, `<input type="checkbox" className="size-6" />`],
+    // api-r1's review of 15024104: each of these must still fail.
+    [
+      1,
+      `<label className={on ? "h-9" : "h-5"}><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9 sm:h-5"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9 max-h-4"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="sr-only h-9"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="hidden h-9"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9 md:hidden"><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className={on ? "sr-only" : "size-4"} />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className={cn("sr-only", on && "x")} />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className="sr-only size-4" />a</label>`,
+    ],
+    [
+      1,
+      `<label className="h-9"><input type="radio" className="sr-only focus:not-sr-only" />a</label>`,
+    ],
+    [
+      1,
+      `<label className={cn(chipVariants({ size: big ? "md" : "sm" }))}><input type="radio" className="sr-only" />a</label>`,
+    ],
+    [
+      0,
+      `<label className={cn(chipVariants({ size: "sm" }), "min-h-11")}><input type="radio" className="sr-only" />a</label>`,
+    ],
+  ];
+  for (const [want, src] of FIXTURE) {
+    const got = smallTargets(src, "fixture").length;
+    if (got !== want)
+      problems.push(
+        `qa.mjs: rule 16b's fixture expected ${want} problem(s) and found ${got} for ${src}`,
+      );
   }
+  if (!CHIP_PX.md)
+    problems.push(
+      "qa.mjs: rule 16b read no chip heights out of src/components/ui/chip.tsx",
+    );
+
+  for (const f of files) problems.push(...smallTargets(code(f), rel(f)));
 }
 
 /* --------- 17. every contract error code is one the client recognises ---- */
@@ -1783,7 +1958,15 @@ for (const f of files) {
       "the leaving sheet, opened by See details",
     ],
     [
+      "src/components/me/life-entry-card.tsx",
+      "drawn once the life list has loaded in the browser (MeSection)",
+    ],
+    [
       "src/components/organisers/age-step.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/organisers/door-screen.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
     [
@@ -1809,6 +1992,22 @@ for (const f of files) {
     [
       "src/components/organisers/organiser-helpers.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/people/age-step.tsx",
+      "the age step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/name-step.tsx",
+      "the name step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/crew-editor.tsx",
+      "drawn once the crews list has loaded in the browser",
+    ],
+    [
+      "src/components/people/people-settings.tsx",
+      "drawn once the People home has loaded in the browser",
     ],
     [
       "src/components/plans/guest-plan.tsx",

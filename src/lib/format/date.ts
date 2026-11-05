@@ -121,9 +121,21 @@ function weekdayOf(year: number, month: number, day: number): number {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
+/** Days in a month of the civil calendar: day 0 of the next month is this month's last. */
+function daysIn(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** A real calendar day, so 31 Feb or 31 Apr is refused rather than rolled into March or May. */
 function plausible(year: number, month: number, day: number): boolean {
   return (
-    Number.isInteger(year) && month >= 1 && month <= 12 && day >= 1 && day <= 31
+    Number.isInteger(year) &&
+    Number.isInteger(month) &&
+    Number.isInteger(day) &&
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysIn(year, month)
   );
 }
 

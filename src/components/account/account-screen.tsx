@@ -13,6 +13,7 @@ import {
 } from "@/components/auth/sign-in-form";
 import { LegalLinks } from "@/components/site/legal-links";
 import { UsageSetting } from "./usage-setting";
+import { DownloadMyData } from "./download-my-data";
 import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
 import { useMyAccount, type TravellerAccount } from "@/lib/auth/use-my-account";
@@ -26,6 +27,9 @@ import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
 import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
+import { MeCounts, MeSection } from "@/components/me/me-section";
+import { MeSettings } from "@/components/me/me-settings";
+import { PeopleRow } from "@/components/people/people-row";
 
 /**
  * Signing in — T5, rebuilt on the real sign-in (yuvoy-app#34, yuvoy-api#172).
@@ -59,11 +63,18 @@ import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
  * against the drop-off.
  */
 export function AccountScreen() {
-  const { signedIn, signOut } = useTravellerSession();
+  const { signedIn, signOut, refresh } = useTravellerSession();
   const router = useRouter();
   const flow = useSignInFlow();
+  /*
+    Why the sign-in form is showing, when the API ended the session from a
+    signed-in row (yuvoy-app#221: "Sign in to download your data."). The row
+    that was refused is gone by then, so its sentence is said here.
+  */
+  const [endedNote, setEndedNote] = useState<string | null>(null);
 
   function afterSignIn() {
+    setEndedNote(null);
     /*
       Back where the Login button was pressed (yuvoy-app#56 item 5).
 
@@ -110,7 +121,17 @@ export function AccountScreen() {
     return <AccountWaiting label="Checking this device" />;
   }
 
-  if (signedIn) return <SignedIn onSignOut={signOut} />;
+  if (signedIn) {
+    return (
+      <SignedIn
+        onSignOut={signOut}
+        onSessionEnded={async (message) => {
+          setEndedNote(message);
+          await refresh();
+        }}
+      />
+    );
+  }
 
   return (
     <Screen>
@@ -141,6 +162,12 @@ export function AccountScreen() {
               "Yuvoy is by invitation for now, so booking needs your number and a code. Sign in and every trip on that number is in one place, including ones booked on another phone. No password and no sign-up."
             : "Booking never needs one. Sign in with your number and every trip on it is in one place, including ones booked on another phone. No password and no sign-up."}
       </p>
+
+      {endedNote && !flow.sent ? (
+        <p role="alert" className="text-terra-deep mt-3 text-sm">
+          {endedNote}
+        </p>
+      ) : null}
 
       <SignInSteps
         flow={flow}
@@ -245,7 +272,13 @@ function AccountWaiting({ label }: { label: string }) {
  * rather than rendered as "Member since". Same for a name: the header offers a
  * way to add one instead of inventing a greeting.
  */
-function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
+function SignedIn({
+  onSignOut,
+  onSessionEnded,
+}: {
+  onSignOut: () => Promise<void>;
+  onSessionEnded: (message: string) => Promise<void>;
+}) {
   const account = useMyAccount(true);
   const [editing, setEditing] = useState(false);
   /*
@@ -314,6 +347,8 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
           We could not load your profile just now. Everything below still works.
         </p>
       )}
+      {/* Me (yuvoy-mobile#444): each part draws nothing while `me` is closed. */}
+      <MeCounts />
 
       {/*
         THE WAY IN, FOR A NUMBER THAT IS NOT IN YET (yuvoy-api#195).
@@ -336,6 +371,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
         <InviteEntry admitted={redeemed} onAdmitted={() => setRedeemed(true)} />
       ) : null}
 
+      <MeSection className="mt-8" />
       <ButtonLink href="/trips" size="lg" block className="mt-6">
         Go to my trips
       </ButtonLink>
@@ -376,6 +412,7 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
 
       {/* Share links and their counts (yuvoy-app#207). */}
       <YourLinks toolsOn={me?.creatorToolsOn === true} />
+      <PeopleRow people={me?.people} />
 
       {/*
         The same section as the booking page's, with no reference attached:
@@ -412,11 +449,19 @@ function SignedIn({ onSignOut }: { onSignOut: () => Promise<void> }) {
       </p>
 
       {/*
+        The traveller's own data, as one file (yuvoy-app#221). With the
+        privacy rows rather than the account rows: it is the DPDP Act's
+        document, read for the caller.
+      */}
+      <DownloadMyData onSessionEnded={onSessionEnded} className="mt-10" />
+
+      {/*
         The standing place for the policy — yuvoy-app#15. The consent banner
         carries it at the moment of asking and then never appears again; this
         is where somebody comes looking for it a week later. The answer itself
         sits above it, to change at any time (yuvoy-app#181).
       */}
+      <MeSettings className="mt-10" />
       <UsageSetting className="mt-10" />
       <LegalLinks className="border-paper-line mt-10 border-t pt-6 text-xs" />
 

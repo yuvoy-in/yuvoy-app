@@ -32,10 +32,21 @@ import { statedSampleById } from "./found-stated-fixtures";
 import { checkedClock } from "./checked-clock";
 import { tableHandlers } from "./table-handlers";
 import { planHandlers } from "./plan-handlers";
+import { exportHandlers } from "./export-handlers";
 import { planLinkHandlers } from "./plan-link-handlers";
 import { creatorLinkHandlers, creatorStageOf } from "./creator-link-handlers";
+import { peopleHandlers } from "./people-handlers";
+import { crewHandlers } from "./crew-handlers";
+import { peopleStageOf } from "./people-state";
 import { trigoHandlers, trigoStageOf } from "./trigo-handlers";
+import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserHandlers, organiserSupplyOf } from "./organiser-handlers";
+import { doorHandlers } from "./organiser-door";
+import { meHandlers, meStageOf, meTablesStageOf } from "./me-handlers";
+import { followHandlers } from "./follow-handlers";
+import { followPeopleStageOf } from "./follow-state";
+import { crewInviteHandlers } from "./crew-invite-handlers";
+import { myPlansHandlers, plansStageOf } from "./my-plans-handlers";
 
 /**
  * Handlers for every endpoint Phase 1 touches, plus a way to reach every
@@ -207,6 +218,27 @@ export type Scenario =
   | "creator-tools-off"
   | "creator-outside"
   /*
+    People: friend requests and the friend link (yuvoy-app#222). Each opens
+    `people`, at `staff` but `people-all`; `people-handlers.ts` says what
+    each does and lists the fixed friend link codes.
+  */
+  | "people"
+  | "people-all"
+  | "people-first"
+  | "people-paused"
+  | "people-age-locked"
+  | "people-down"
+  | "people-outside"
+  /*
+    Crews, a traveller's own named lists of friends (yuvoy-app#227). Each
+    opens `people` at `staff`; `crew-handlers.ts` says what each starts with.
+  */
+  | "people-crews-none"
+  | "people-crews-full"
+  | "people-crews-big"
+  | "people-crews-empty"
+  | "people-crews-down"
+  /*
     Trigo, the chat (yuvoy-app#223, R5-T5). Each but `trigo-not-released`
     opens `trigo` at `staff`; `trigo-handlers.ts` says what each does.
   */
@@ -219,7 +251,10 @@ export type Scenario =
   | "trigo-consent"
   | "trigo-age"
   | "trigo-busy"
+  | "trigo-fast"
   | "trigo-not-released"
+  /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
+  | `trigo-card-${string}`
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
     with one organiser in each state; `organiser-handlers.ts` says what each
@@ -234,7 +269,26 @@ export type Scenario =
     in one step (yuvoy-app#225); `organiser-club.ts` says what each does.
   */
   | "organisers-club"
-  | "organisers-club-paused";
+  | "organisers-club-paused"
+  /*
+    Me on the Account screen (yuvoy-mobile#444). Each but `me-off` opens `me`
+    and `going` at `staff`; `me-handlers.ts` says what each does.
+  */
+  | "me-off"
+  | "me-life-list"
+  | "me-life-list-long"
+  | "me-empty"
+  | "me-badges-new"
+  | "me-life-list-error"
+  | "me-writes-fail"
+  | "me-tables"
+  /*
+    The door (yuvoy-app#226): the caller owns one verified organiser and
+    `organiser-door.ts` answers the codes; paused and age as named.
+  */
+  | "organisers-door"
+  | "organisers-door-paused"
+  | "organisers-door-age";
 
 function scenarioOf(request: Request): Scenario {
   const fromHeader = request.headers.get("x-yuvoy-scenario");
@@ -440,11 +494,14 @@ const routes = [
     `/experiences/:slug` says they do not exist (yuvoy-app#207).
   */
   ...creatorLinkHandlers,
+  ...meHandlers,
 
   // Trigo, the chat (yuvoy-app#223). Before the organisers: see `PUT /me/age` there.
   ...trigoHandlers,
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
+  /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */
+  ...doorHandlers,
 
   /* ------------------------------------------------------------- catalog */
 
@@ -1206,7 +1263,11 @@ const routes = [
     The app's config, with how far each release has reached (R0-T2): every
     release `off`, as on dev and production today, unless a scenario moves
     `explore`, `checkedCities` (yuvoy-app#180's, at `staff`), `creator`
-    (yuvoy-app#207's, at `staff`) or `trigo` (yuvoy-app#223's, at `staff`).
+    (yuvoy-app#207's, at `staff`), `people` (yuvoy-app#222's, at `staff`,
+    or `all` under `people-all`), `trigo` (yuvoy-app#223's, at `staff`),
+    or `me`, `going` and `tables` (yuvoy-mobile#444's, at `staff`).
+    `trigoActions` is the one at `all`, so a card's buttons show wherever
+    Trigo does; `trigo-card-actions-off` turns it `off`.
   */
   http.get(url("/app-config"), async ({ request }) => {
     const failed = await commonFailure(request);
@@ -1234,7 +1295,15 @@ const routes = [
           checkedCities: checkedStageOf(scenario) ?? "off",
           creator: creatorStageOf(scenario) ?? "off",
           trigo: trigoStageOf(scenario) ?? "off",
+          trigoActions: trigoActionsStageOf(scenario),
           supply: organiserSupplyOf(scenario),
+          // yuvoy-mobile#444: Did you go asks only while `going` is open.
+          me: meStageOf(scenario) ?? "off",
+          going: meStageOf(scenario) ?? "off",
+          tables: meTablesStageOf(scenario) ?? "off",
+          people:
+            peopleStageOf(scenario) ?? followPeopleStageOf(scenario) ?? "off",
+          plans: plansStageOf(scenario) ?? "off",
         },
       },
       { headers: mockHeaders(requestId()) },
@@ -1420,6 +1489,15 @@ const routes = [
   ...planHandlers,
   // A plan by its link (yuvoy-mobile#373), reached only through /p/api/.
   ...planLinkHandlers,
+  // Download my data (yuvoy-app#221).
+  ...exportHandlers,
+  // People: friend requests and the friend link (yuvoy-app#222).
+  ...peopleHandlers,
+  // Crews: named lists of friends (yuvoy-app#227).
+  ...crewHandlers,
+  ...followHandlers,
+  ...crewInviteHandlers,
+  ...myPlansHandlers,
 ];
 
 // Under R3's scenarios every answer is dated by their clock (`checked-clock.ts`).

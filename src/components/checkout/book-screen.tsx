@@ -33,6 +33,7 @@ import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
 import { FadeText } from "@/components/ui/fade-text";
 import { cn } from "@/lib/cn";
+import { CARD_PARAM } from "@/lib/trigo/checkout-prefill";
 
 type Slot = components["schemas"]["Slot"];
 
@@ -96,6 +97,11 @@ export function BookScreen({ slug }: { slug: string }) {
 
   const urlDate = params.get("date");
   const urlSlot = params.get("slot");
+  /*
+    The Trigo card this checkout was opened from (yuvoy-app#223), kept in the
+    address below so its prefill applies here and on no other checkout.
+  */
+  const cardId = params.get(CARD_PARAM);
   const urlGuests = Number(params.get("guests"));
   const initialGuests =
     Number.isInteger(urlGuests) && urlGuests > 0 ? urlGuests : 1;
@@ -207,11 +213,37 @@ export function BookScreen({ slug }: { slug: string }) {
   const [userAnchor, setUserAnchor] = useState<string | null>(
     urlDate ? monthStart(urlDate) : null,
   );
+
+  /*
+    An old link names the departure and not the day (yuvoy-app#245): the
+    listing linked to `?slot=&guests=` from 24 Aug to 15 Sep 2026. Only such a
+    link sets a slot while no day is, so this runs once, on the first read:
+    an open departure gives the day and the month, as `?date=` would; one
+    gone, full or past its cutoff is dropped and the calendar opens as usual.
+
+    Kept in state, so a departure that closes while the page is open stays on
+    screen as closed, as with `?date=`, rather than the day vanishing. Set
+    during render like `seen` below, not in an effect, and `day` carries it
+    in this same render, so the screen arrives whole.
+  */
+  let linkedDay: string | null = null;
+  if (date === null && slotId !== null && availability.data) {
+    const linked = availability.data.slots?.find((s) => s.id === slotId);
+    if (linked?.localDate && !linked.soldOut && slotIsOpen(linked, now)) {
+      linkedDay = linked.localDate;
+      setDate(linkedDay);
+      setUserAnchor(monthStart(linkedDay));
+    } else {
+      setSlotId(null);
+    }
+  }
+  const day = date ?? linkedDay;
+
   const anchor =
     userAnchor ?? monthStart(firstOpenDay(days) ?? urlDate ?? today);
 
-  const chosenDay: DayAvailability | undefined = date
-    ? days.get(date)
+  const chosenDay: DayAvailability | undefined = day
+    ? days.get(day)
     : undefined;
 
   /*
@@ -232,7 +264,7 @@ export function BookScreen({ slug }: { slug: string }) {
 
   // The heading reads the choice: the day and the hour once a departure is
   // chosen, the question until then.
-  const chosenCivil = date ? civilFromDate(date) : null;
+  const chosenCivil = day ? civilFromDate(day) : null;
   const heading =
     chosenCivil && slot
       ? `${weekdayDayMonth(chosenCivil)} · ${(slot.localStartTime ?? "").slice(0, 5)}`
@@ -246,7 +278,7 @@ export function BookScreen({ slug }: { slug: string }) {
     the day and the time) arrives whole, the heading included. Derived during
     render from the last values seen, not set in an effect.
   */
-  const timesFor = chosenDay ? date : null;
+  const timesFor = chosenDay ? day : null;
   const formFor = slot?.id ?? null;
   // Only a change made once the dates were on screen is a choice made here;
   // what appears as they load (a link naming the day) is simply there.
@@ -294,16 +326,17 @@ export function BookScreen({ slug }: { slug: string }) {
   */
   useEffect(() => {
     const next = new URLSearchParams();
-    if (date) next.set("date", date);
+    if (day) next.set("date", day);
     if (effectiveSlotId) next.set("slot", effectiveSlotId);
     if (guests > 1) next.set("guests", String(guests));
+    if (cardId) next.set(CARD_PARAM, cardId);
     const query = next.toString();
     const target = query ? `${pathname}?${query}` : pathname;
     const { pathname: path, search } = window.location;
     if (`${path}${search}` !== target) {
       window.history.replaceState(null, "", target);
     }
-  }, [date, effectiveSlotId, guests, pathname]);
+  }, [day, effectiveSlotId, guests, pathname, cardId]);
 
   // The same frame the route's boundary drew, so nothing swaps as it lands.
   if (experience.isPending) return <CheckoutSkeleton slug={slug} />;
@@ -398,7 +431,7 @@ export function BookScreen({ slug }: { slug: string }) {
           anchor={anchor}
           onAnchor={setUserAnchor}
           days={days}
-          value={date}
+          value={day}
           today={today}
           state={
             availability.isPending
@@ -449,6 +482,7 @@ export function BookScreen({ slug }: { slug: string }) {
             arrive={arriving.form}
             initialGuests={guests}
             onGuestsChange={setGuests}
+            trigoCardId={cardId}
             onRefused={(message) => {
               setRefusal(message);
               void availability.refetch();
