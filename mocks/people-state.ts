@@ -1,4 +1,5 @@
 import type { components } from "../src/lib/api/schema.gen";
+import { bigFriends, startingCrews } from "./crew-fixtures";
 import { mockNow } from "./fixtures";
 import {
   CODE_OWNERS,
@@ -21,6 +22,7 @@ type PeopleHome = components["schemas"]["PeopleHome"];
 type PeopleSummary = components["schemas"]["PeopleSummary"];
 type PersonRef = components["schemas"]["PersonRef"];
 type FriendLink = components["schemas"]["FriendLink"];
+type Crew = components["schemas"]["Crew"];
 
 /** Every scenario that sets the `people` release; `people-handlers.ts` says what each does. */
 export const PEOPLE_SCENARIOS: ReadonlySet<string> = new Set([
@@ -31,6 +33,12 @@ export const PEOPLE_SCENARIOS: ReadonlySet<string> = new Set([
   "people-age-locked",
   "people-down",
   "people-outside",
+  // Crews (yuvoy-app#227); `crew-handlers.ts` says what each starts with.
+  "people-crews-none",
+  "people-crews-full",
+  "people-crews-big",
+  "people-crews-empty",
+  "people-crews-down",
 ]);
 
 /** The stage a scenario gives `people`; null is `off`. */
@@ -58,6 +66,8 @@ export interface PeopleState extends Omit<
   friends: ReturnType<typeof startingFriends>;
   /** For new link codes, so each is new. */
   links: number;
+  /** The traveller's crews, newest first (yuvoy-app#227). */
+  crews: Crew[];
 }
 
 const DAY = 86_400_000;
@@ -83,6 +93,7 @@ function startState(scenario: string): PeopleState {
     friendLink: null,
     privateUpcomingGoing: 0,
     links: 0,
+    crews: [],
   };
   if (scenario === "people-first") {
     return {
@@ -97,6 +108,8 @@ function startState(scenario: string): PeopleState {
     return { ...blank, ageConfirmed: false, name: "Asha Menon", sharing: null };
   }
   const paused = scenario === "people-paused";
+  const friends =
+    scenario === "people-crews-big" ? bigFriends(now) : startingFriends(now);
   return {
     ...blank,
     ...startingRequests(now),
@@ -105,8 +118,9 @@ function startState(scenario: string): PeopleState {
     sharing: "friends",
     standing: paused ? "requests_paused" : "ok",
     standingUntil: paused ? new Date(now + 7 * DAY).toISOString() : null,
-    friends: startingFriends(now),
+    friends,
     friendLink: linkFor(OWN_LINK_CODE, 17, 21),
+    crews: startingCrews(scenario, now, friends),
   };
 }
 
@@ -245,6 +259,23 @@ export function look(s: PeopleState, code: string): Looked {
         : owner,
     relation,
   };
+}
+
+/**
+ * Unfriend, as the API does it: the person leaves the caller's friends and
+ * every one of the caller's crews at once (and the caller theirs, which the
+ * mock does not keep). Ids compare in any case.
+ */
+export function unfriend(s: PeopleState, id: string): void {
+  const gone = id.toLowerCase();
+  const other = (personId: string) => personId.toLowerCase() !== gone;
+  s.friends = s.friends.filter((f) => other(f.personId));
+  // A new object for a crew that changes, so a list read earlier keeps it.
+  s.crews = s.crews.map((c) =>
+    c.members.some((m) => !other(m.personId))
+      ? { ...c, members: c.members.filter((m) => other(m.personId)) }
+      : c,
+  );
 }
 
 /** Forget one session's People, as an under-18 answer closes the account. */

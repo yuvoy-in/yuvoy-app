@@ -41,13 +41,7 @@ export function foreignRequest(request: Request): NextResponse | null {
   const method = request.method.toUpperCase();
   if (method === "GET" || method === "HEAD") return null;
 
-  const site = headers.get("sec-fetch-site");
-  if (site !== null) {
-    if (site !== "same-origin") return refuse();
-  } else {
-    const origin = headers.get("origin");
-    if (origin !== null && !isOwnOrigin(origin, request)) return refuse();
-  }
+  if (!fromThisOrigin(request)) return refuse();
 
   if (carriesBody(request) && !declaresJson(headers.get("content-type"))) {
     return NextResponse.json(
@@ -97,7 +91,23 @@ export function isOwnOrigin(origin: string, request: Request): boolean {
   return own.includes(host);
 }
 
-function refuse(): NextResponse {
+/**
+ * Fetch Metadata, falling back to Origin: `Sec-Fetch-Site` must be
+ * `same-origin` where the browser sends one (every current engine); where it
+ * does not, an `Origin` that is present must be this host.
+ *
+ * Exported for a read the API counts (`GET /me/export`), which the proxy
+ * holds to this check as it would a write.
+ */
+export function fromThisOrigin(request: Request): boolean {
+  const site = request.headers.get("sec-fetch-site");
+  if (site !== null) return site === "same-origin";
+  const origin = request.headers.get("origin");
+  return origin === null || isOwnOrigin(origin, request);
+}
+
+/** The answer to a request another site sent. */
+export function refuse(): NextResponse {
   return NextResponse.json(
     {
       error: {

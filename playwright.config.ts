@@ -31,6 +31,13 @@ const E2E_ORIGIN = `http://127.0.0.1:${E2E_PORT}`;
  */
 const WEBKIT_ONLY = /(ios-input-zoom|hydration|motion-webkit)\.spec\.ts/;
 
+/**
+ * Specs that run on Chromium AND on the iPhone, because WebKit handles the
+ * thing differently enough to break it. `download-my-data`: a blob download
+ * whose object URL is let go too soon fails in iOS Safari (yuvoy-app#221).
+ */
+const WEBKIT_TOO = /download-my-data\.spec\.ts/;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -78,7 +85,7 @@ export default defineConfig({
     */
     {
       name: "iphone",
-      testMatch: WEBKIT_ONLY,
+      testMatch: [WEBKIT_ONLY, WEBKIT_TOO],
       use: { ...devices["iPhone 14"] },
     },
   ],

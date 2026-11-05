@@ -37,7 +37,7 @@ const KEPT: Record<string, { words: RegExp; why: string }> = {
     words: /./,
     why: "describes today's product; rewritten when R2 reaches everyone",
   },
-  "src/components/booking/booking-screen.tsx": {
+  "src/components/booking/booking-screen-facts.tsx": {
     words: /\bjetty\b/,
     why: "only bookable markets sell, and the only one is Andaman (R0-T1)",
   },

@@ -146,6 +146,11 @@ export const CACHE = {
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
   },
+  /**
+   * Crews (yuvoy-app#227). Read again whenever People or a crew opens, so a
+   * crew changed in the app on a phone is not shown as it was.
+   */
+  listMyCrews: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
 
   /**
    * The groups a traveller follows (yuvoy-mobile#392). Read again on every
@@ -428,6 +433,8 @@ export const qk = {
   myPeople: () => ["getMyPeople"] as const,
   myFriends: () => ["listMyFriends"] as const,
   friendLink: (code: string) => ["lookupFriendLink", code] as const,
+  /** Crews (yuvoy-app#227): one list, forgotten with People. */
+  myCrews: () => ["listMyCrews"] as const,
   /**
    * The groups the signed-in traveller follows (yuvoy-mobile#392). Not keyed
    * by anything, for the reason `myBookings` gives; removed on sign in and

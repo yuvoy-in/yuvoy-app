@@ -2007,6 +2007,10 @@ for (const f of files) {
       "the name step, drawn after the API asks for it in the browser",
     ],
     [
+      "src/components/people/crew-editor.tsx",
+      "drawn once the crews list has loaded in the browser",
+    ],
+    [
       "src/components/people/people-settings.tsx",
       "drawn once the People home has loaded in the browser",
     ],

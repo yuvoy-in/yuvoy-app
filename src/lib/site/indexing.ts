@@ -135,10 +135,11 @@ export const PRIVATE_ROUTES = [
   */
   "/p/",
   /*
-    People and a friend link (yuvoy-app#222). People is signed in only and
-    keyed by the reader's session, so a crawler is served a sign-in line. A
-    friend link carries its code in the path: whoever opens it can ask to be
-    a friend, and the link dies when it is switched off or runs out.
+    People, crews and a friend link (yuvoy-app#222, yuvoy-app#227). People
+    is signed in only and keyed by the reader's session, so a crawler is
+    served a sign-in line. A friend link carries its code in the path:
+    whoever opens it can ask to be a friend, and the link dies when it is
+    switched off or runs out.
   */
   "/people",
   "/add/",
