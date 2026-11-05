@@ -38,7 +38,7 @@ export function ClubCard({ club }: { club: Club }) {
         <span className="text-forest/70 text-sm break-words">
           {clubMeta(club)}
         </span>
-        <span className="text-forest/60 text-sm break-words">
+        <span className="text-forest/70 text-sm break-words">
           {CLUB_WORDS.from(club.sourceName)}
         </span>
         <span className="mt-1">
