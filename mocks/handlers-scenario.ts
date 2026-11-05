@@ -229,4 +229,22 @@ export type Scenario =
   */
   | "organisers-door"
   | "organisers-door-paused"
-  | "organisers-door-age";
+  | "organisers-door-age"
+  /*
+    The groups directory (yuvoy-mobile#386). Each opens `people` at `staff`
+    with a staff cohort but `clubs-all` (at `all`) and `clubs-outside` (no
+    cohort); `club-handlers.ts` says what each does.
+  */
+  | "clubs"
+  | "clubs-all"
+  | "clubs-outside"
+  | "clubs-unavailable"
+  | "clubs-no-age"
+  | "clubs-no-name"
+  | "clubs-paused"
+  | "clubs-ended"
+  | "clubs-claim-waiting"
+  | "clubs-claim-limit"
+  | "clubs-report-limit"
+  | "clubs-removal-limit"
+  | "clubs-hidden-meanwhile";

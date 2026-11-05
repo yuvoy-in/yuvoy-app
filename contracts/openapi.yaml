@@ -9100,7 +9100,7 @@ components:
       type: object
       additionalProperties: false
       description: A group that meets in a place, typed by the Yuvoy team from the group's own public page. Every key is present.
-      required: [clubId, slug, destinationKey, name, what, category, meets, area, emoji, sourceName, sourceUrl, onYuvoy]
+      required: [clubId, slug, destinationKey, name, what, category, meets, area, emoji, sourceName, sourceUrl, onYuvoy, claimable]
       properties:
         clubId: { type: string, format: uuid }
         slug: { type: string }
@@ -9114,6 +9114,7 @@ components:
         sourceName: { type: string, description: 'Shown as "From <sourceName>".' }
         sourceUrl: { type: string, format: uri, description: The group's own public page. }
         onYuvoy: { type: boolean, description: 'True once somebody who runs the group has claimed it. False reads "Not on Yuvoy yet".' }
+        claimable: { type: boolean, description: 'True when a claim would be taken: the group has not been claimed, or it stays `onYuvoy` but the person who held it has erased their account. False when somebody holds it, which `claimClub` answers 409. Says nothing about who.' }
     ClubList:
       type: object
       additionalProperties: false

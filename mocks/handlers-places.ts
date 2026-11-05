@@ -21,6 +21,7 @@ import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserSupplyOf } from "./organiser-handlers";
 import { meStageOf, meTablesStageOf } from "./me-handlers";
 import { followPeopleStageOf } from "./follow-state";
+import { clubPeopleStageOf } from "./club-handlers";
 import { plansStageOf } from "./my-plans-handlers";
 import {
   commonFailure,
@@ -140,7 +141,10 @@ export const placeRoutes = [
           going: meStageOf(scenario) ?? "off",
           tables: meTablesStageOf(scenario) ?? "off",
           people:
-            peopleStageOf(scenario) ?? followPeopleStageOf(scenario) ?? "off",
+            peopleStageOf(scenario) ??
+            clubPeopleStageOf(scenario) ??
+            followPeopleStageOf(scenario) ??
+            "off",
           plans: plansStageOf(scenario) ?? "off",
         },
       },

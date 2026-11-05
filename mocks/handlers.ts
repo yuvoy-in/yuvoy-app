@@ -12,6 +12,7 @@ import { crewHandlers } from "./crew-handlers";
 import { trigoHandlers } from "./trigo-handlers";
 import { organiserHandlers } from "./organiser-handlers";
 import { doorHandlers } from "./organiser-door";
+import { clubHandlers } from "./club-handlers";
 import { meHandlers } from "./me-handlers";
 import { followHandlers } from "./follow-handlers";
 import { crewInviteHandlers } from "./crew-invite-handlers";
@@ -47,6 +48,7 @@ const routes = [
   ...organiserHandlers,
   /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */
   ...doorHandlers,
+  ...clubHandlers,
 
   ...catalogRoutes,
 
