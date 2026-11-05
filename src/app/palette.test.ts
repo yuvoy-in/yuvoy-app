@@ -220,6 +220,29 @@ describe("palette", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("keeps labels at forest/75 or more", () => {
+    /*
+      The same ladder's second rung. A label is 13/18, smaller than body
+      text, so its floor is forest/75 (6.00:1), not body's forest/70. The
+      check reads each class string: one holding `label` or `text-label`
+      beside `text-forest/70` or less fails (yuvoy-app#223).
+    */
+    const offenders = FILES.flatMap((f) =>
+      (read(f).match(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g) ?? [])
+        .map((s) => s.slice(1, -1).split(/\s+/))
+        .filter(
+          (t) =>
+            t.some((c) => c === "label" || c === "text-label") &&
+            t.some((c) => {
+              const n = /^text-forest\/(\d+)$/.exec(c)?.[1];
+              return n !== undefined && Number(n) <= 70;
+            }),
+        )
+        .map((t) => `${rel(f)}: ${t.join(" ")}`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it("keeps the marketing near-square out of the app's controls (v2.7)", () => {
     // The app is rounded. A 2px control here is the marketing site's tell,
     // and the four radius tokens plus the pill cover every shape a screen

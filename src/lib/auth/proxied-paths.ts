@@ -257,7 +257,7 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
     Ask Trigo (yuvoy-app#223, R5-T5). Every Trigo call is session only in the
     contract: the chat belongs to the account, and the team replies to the
     account. `src/lib/trigo/api.ts` and `src/lib/trigo/actions.ts` call them.
-    Hand-off, report and Trigo's memory have no screen yet and are not here.
+    Report and Trigo's memory have no screen yet and are not here.
   */
   // One typed message and its answer, with an Idempotency-Key per message.
   { method: "POST", pattern: "/trigo/turns" },
@@ -267,6 +267,9 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   { method: "GET", pattern: "/trigo/conversations/{id}" },
   // The highest seq on screen, so the chat stops counting as unread.
   { method: "POST", pattern: "/trigo/conversations/{id}/read" },
+  // "Ask the team to check" under a reply to a link Trigo did not open: the
+  // team's line joins the chat (yuvoy-app#223 (c)).
+  { method: "POST", pattern: "/trigo/conversations/{id}/handoff" },
   // Whether the person has accepted the current notice.
   { method: "GET", pattern: "/trigo/consent" },
   // Accepting the notice, with `surface: web`.
