@@ -8,7 +8,8 @@ import { test, expect } from "@playwright/test";
  * It was, for about an hour, and it broke the post-deploy production audit.
  *
  * `audit.spec.ts` is pointed at the LIVE origin after every production deploy
- * (`.github/workflows/audit.yml` runs that file and nothing else). These cases
+ * (`.github/workflows/audit.yml` runs that file and `audit-pages.spec.ts` and
+ * nothing else). These cases
  * depend on MOCK scan codes — `ISLAND-HAV-01`, `HAVELOCK-01` — which exist in
  * `mocks/handlers.ts` and nowhere else. Against production every one of them
  * resolves to `{"target":"/","known":false}`, the redirect lands on the feed,
