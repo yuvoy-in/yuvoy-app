@@ -103,6 +103,10 @@ that Concept 09's panel survives a swipe and updates.
 
 It exits non-zero on any of them.
 
+`audit.mjs` is still the one to run. It holds the setup, the axe pass and the
+summary, and runs its sections from `audit-concepts.mjs`, `audit-column.mjs`
+and `audit-column-states.mjs`, in that order.
+
 It is served rather than opened because axe fetches every stylesheet to run
 colour contrast, and a `file://` stylesheet is cross-origin to it: over `file://`
 the contrast rule does not fail, it does not run. `file-check.mjs` covers the
