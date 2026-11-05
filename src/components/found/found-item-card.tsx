@@ -99,7 +99,7 @@ export function FoundItemCard({
         <div className="min-w-0 flex-1">
           {departmentName || status ? (
             <div className="mb-0.5 flex min-h-[22px] items-center justify-between gap-2">
-              <p className="text-label text-forest/70 truncate font-medium">
+              <p className="text-label text-forest/75 truncate font-medium">
                 {departmentName ?? ""}
               </p>
               {status ? (

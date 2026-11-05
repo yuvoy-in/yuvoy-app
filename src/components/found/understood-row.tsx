@@ -51,7 +51,7 @@ export function UnderstoodRow({
       className="flex flex-wrap items-center gap-2"
       data-testid="found-understood"
     >
-      <span id={labelId} className="label text-forest/70">
+      <span id={labelId} className="label text-forest/75">
         {foundWords.search.showing}
       </span>
       {chips.map((chip) =>

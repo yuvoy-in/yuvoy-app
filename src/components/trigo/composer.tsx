@@ -114,7 +114,7 @@ export function Composer({
           {SEND}
         </Button>
       </div>
-      <p id={noteId} className="text-forest/70 label mt-2">
+      <p id={noteId} className="text-forest/75 label mt-2">
         {COMPOSER_NOTE}
         {left <= TRIGO_DRAFT_MAX - COUNT_FROM ? (
           <span className="ml-2">{charactersLeft(left)}</span>

@@ -253,6 +253,10 @@ export type Scenario =
   | "trigo-busy"
   | "trigo-fast"
   | "trigo-not-released"
+  /* Cards and the link note in a reply (yuvoy-app#223 (b), (c)): `trigo-reply-handlers.ts`. */
+  | "trigo-reply-cards"
+  | "trigo-reply-link"
+  | "trigo-reply-link-ended"
   /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
   | `trigo-card-${string}`
   /*
