@@ -144,10 +144,10 @@ verified this way. It verifies exactly one origin.
 - **Submitting a sitemap does not cause indexing.** Google is explicit that it
   is a discovery hint. Nothing here promises a ranking or an index outcome.
 - **Search Console is not a substitute for the production audit.** `pnpm audit`
-  in this repo (`e2e/audit.spec.ts`, run after every production deploy and
-  weekly) is what catches a broken canonical or a missing OG image within
-  minutes. Search Console is what catches what Google decided to do about it,
-  weeks later. They answer different questions.
+  in this repo (`e2e/audit.spec.ts` and `e2e/audit-pages.spec.ts`, run after
+  every production deploy and weekly) is what catches a broken canonical or a
+  missing OG image within minutes. Search Console is what catches what Google
+  decided to do about it, weeks later. They answer different questions.
 
 ## `/search` leaves the index while the invite gate is on
 
