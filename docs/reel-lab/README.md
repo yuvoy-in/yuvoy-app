@@ -62,7 +62,8 @@ js/data.js            twelve rows shaped exactly like GET /reels, and the
 js/posters.js         procedural frames, and the luminance read
 js/frame-read.js      where a frame is quiet, and what writing there costs
 js/strip.js           the shared scroller
-js/column.js          the Column family: foot, rail, saved set, sheet chassis
+js/column.js          the Column family: foot, rail, saved set
+js/column-sheet.js    the Column family's sheet: body, action, handle, chassis, drag
 js/lab.js             registry, viewport presets, instruments
 js/concepts/*.js      one file per concept
 ```
