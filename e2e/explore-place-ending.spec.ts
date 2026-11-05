@@ -74,7 +74,7 @@ async function signIn(page: Page) {
 const coorg = (scenario: string, extra = "") =>
   `/?place=${COORG}${extra}&__scenario=${scenario}`;
 
-/* Coorg's cards the tests name, by title (`mocks/found-fixtures.ts`). */
+/* Coorg's cards the tests name, by title (`mocks/found-fixture-cards.ts`). */
 const RAFTING = "White water rafting on the Barapole"; // FOUND_IDS.found
 const ESTATE = "Coffee estate walk and tasting"; // FOUND_IDS.checked
 
