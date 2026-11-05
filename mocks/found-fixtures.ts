@@ -36,7 +36,6 @@
  */
 import type { components } from "../src/lib/api/schema.gen";
 import { BENGALURU, COORG, FOUND_IDS, FOUND_PLACES } from "./found-fixture-ids";
-import { lapsed } from "./found-fixture-words";
 import {
   bengaluru,
   coorg,
