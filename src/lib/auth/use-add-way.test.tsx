@@ -123,8 +123,13 @@ function addWay() {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   });
-  /** The add, inside `act`, so its state lands before the next line. */
-  const run = (input: Parameters<typeof result.current.mutateAsync>[0]) =>
+  /**
+   * The add, inside `act`, so its state lands before the next line. Wrapped
+   * in an async function so it returns a real Promise: React 19's `act`
+   * returns a thenable with no `.catch`, and a refusal caught with `.catch`
+   * on it threw instead, left the act scope open and broke every later test.
+   */
+  const run = async (input: Parameters<typeof result.current.mutateAsync>[0]) =>
     act(() => result.current.mutateAsync(input));
   return { run, invalidated };
 }

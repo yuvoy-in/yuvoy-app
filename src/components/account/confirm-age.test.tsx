@@ -109,8 +109,13 @@ describe("Confirm your age", () => {
   });
 
   it("sends the year, then goes and says so", async () => {
-    signedIn(json(me({ ageConfirmed: false })), json(me()));
+    /*
+      /me says the age is confirmed only once the year has gone, as the API
+      does. Counting reads instead broke when Account read /me twice before
+      the year was sent.
+    */
     const put = answer("put", "/me/age", json({ ageConfirmed: true }));
+    signedIn(() => json(me({ ageConfirmed: put.length > 0 }))());
     await sendYear(1990);
 
     expect(await screen.findByRole("status")).toHaveTextContent(W.done);

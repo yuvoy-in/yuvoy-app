@@ -271,6 +271,8 @@ function AddWay({
       <OwnForm
         key={stage}
         className="mt-4 space-y-4"
+        /* Our own checks (emailProblem), not the browser's bubble. */
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           e.stopPropagation();

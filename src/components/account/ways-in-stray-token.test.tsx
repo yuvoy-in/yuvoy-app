@@ -43,12 +43,23 @@ afterEach(cleanup);
 describe("a stray sessionToken on the link answer", () => {
   it("is not in the add's own result, at any step, nor in storage", async () => {
     const api = numberOnly();
-    const states: Array<{ status: string; data: unknown; json: string }> = [];
+    const states: Array<{
+      add: boolean;
+      status: string;
+      data: unknown;
+      json: string;
+    }> = [];
     const watch = (client: Client) => {
       client.getMutationCache().subscribe((event) => {
         const state = event.mutation?.state;
         if (!state) return;
         states.push({
+          // The add takes the code; the code request before it does not.
+          add: Boolean(
+            state.variables &&
+            typeof state.variables === "object" &&
+            "code" in state.variables,
+          ),
           status: state.status,
           data: state.data,
           json: JSON.stringify(state),
@@ -66,7 +77,14 @@ describe("a stray sessionToken on the link answer", () => {
     expect(await within(region).findByRole("status")).toHaveTextContent(
       A.added,
     );
-    const done = states.filter((state) => state.status === "success");
+    /*
+      The code request's own answer carries `devCode` in development, so only
+      the add's states are held to "no data"; every state, the request's
+      included, is still held to "no token".
+    */
+    const done = states.filter(
+      (state) => state.add && state.status === "success",
+    );
     expect(done.length).toBeGreaterThan(0);
     for (const state of done) expect(state.data).toBeUndefined();
     for (const state of states) expect(state.json).not.toContain(STRAY);

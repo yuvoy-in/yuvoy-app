@@ -430,7 +430,11 @@ describe("the account", () => {
     );
     signedIn();
     expect(await screen.findByText("Asha Menon")).toBeInTheDocument();
-    expect(screen.getByText("asha@example.com")).toBeInTheDocument();
+    // Once on the Signed in as line, once in Ways in (yuvoy-app#229).
+    expect(screen.getByText(/^Signed in as/)).toHaveTextContent(
+      "Signed in as asha@example.com",
+    );
+    expect(screen.getAllByText("asha@example.com")).toHaveLength(2);
     expect(screen.queryByText("+919000000000")).toBeNull();
   });
 

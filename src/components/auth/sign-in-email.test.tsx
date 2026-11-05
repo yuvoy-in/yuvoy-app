@@ -127,7 +127,8 @@ describe("the doors", () => {
     expect(screen.queryByLabelText("Your WhatsApp number")).toBeNull();
   });
 
-  it("never offers email at the invite gate: an invitation admits a number", async () => {
+  it("offers both doors at the invite gate: an invitation admits the traveller, not only a number", async () => {
+    // yuvoy-api#351: one signed in by email redeems an invitation too.
     emailSwitch(true);
     const user = userEvent.setup();
     renderWithQuery(
@@ -135,11 +136,14 @@ describe("the doors", () => {
     );
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(
+      await screen.findByRole("button", { name: EMAIL_SIGN_IN.door }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: EMAIL_SIGN_IN.phoneDoor }),
+    );
+    expect(
       await screen.findByLabelText("Your WhatsApp number"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: EMAIL_SIGN_IN.door }),
-    ).toBeNull();
   });
 });
 
@@ -367,10 +371,11 @@ describe("the year step, for a person no account holds yet", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     // The sentence lands on the code field it is about, not on the year.
-    expect(await screen.findByLabelText("Sign-in code")).toHaveValue("");
+    const code = await screen.findByLabelText("Sign-in code");
+    expect(code).toHaveValue("");
     expect(screen.queryByLabelText("What year were you born?")).toBeNull();
-    expect(
-      await screen.findByText("That does not look like the code"),
-    ).toBeInTheDocument();
+    expect(code).toHaveAccessibleDescription(
+      /It is six digits, numbers only\./,
+    );
   });
 });
