@@ -599,6 +599,17 @@ repo=yuvoy-in/yuvoy-api
 #
 # Checked with `git ls-remote` immediately before pinning.
 
-ref=d879826904b18b656cf5b08bb75e6be19d09e351
+# 2 Nov 2026. Forward from d879826904b1 to 53081d5df738, API master. Read for
+# removals first: nothing is removed.
+#
+# Consumed in this change (yuvoy-mobile#386): `Club.claimable` (yuvoy-api#594).
+# A group's page shows Claim while it is true, so a group whose holder erased
+# their account (still `onYuvoy`) can be claimed again. The On Yuvoy label
+# stays on `onYuvoy`.
+#
+# Checked with `git ls-remote` against the local yuvoy-api origin/master just
+# before pinning.
+
+ref=53081d5df738156293b62df483cc73a54a867f10
 branch=master
-pinned_on=2026-10-31
+pinned_on=2026-11-02
