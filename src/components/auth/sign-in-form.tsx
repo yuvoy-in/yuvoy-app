@@ -205,6 +205,12 @@ export function SignInSteps({
         key={stage}
         ref={steps}
         className="mt-8 space-y-5"
+        /*
+          Our own checks, not the browser's: a browser stops "asha@" in a
+          type="email" field with its own bubble, so the sentence on the field
+          (emailProblem) never showed.
+        */
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           /*
