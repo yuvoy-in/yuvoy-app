@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   EMPTY_TRAIL,
   cameFrom,
@@ -70,6 +70,22 @@ describe("visit", () => {
     expect(state.stepBack).toBe(false);
   });
 
+  it("keeps a browser back that beat a recording for the screen it landed on", () => {
+    // Back from the business's page before its visit was recorded: that
+    // visit is a step forward, and the step back waits for the listing.
+    const pending: TrailState = {
+      ...walk("/", "/e/a"),
+      stepBack: true,
+      leaving: "/o/op",
+    };
+    const left = visit(pending, "/o/op");
+    expect(paths(left)).toEqual(["/", "/e/a", "/o/op"]);
+    expect(left.stepBack).toBe(true);
+    const landed = visit(left, "/e/a");
+    expect(paths(landed)).toEqual(["/", "/e/a"]);
+    expect(landed.stepBack).toBe(false);
+  });
+
   it("keeps a bounded trail", () => {
     const hrefs = Array.from({ length: 80 }, (_, i) => `/e/${i}`);
     const state = walk(...hrefs);
@@ -137,5 +153,129 @@ describe("originOf", () => {
     "/o/op/listings/more",
   ])("%s is not somewhere Back returns to", (href) => {
     expect(originOf(href)).toBeNull();
+  });
+});
+
+/**
+ * The store, in each order the browser's back can reach it. React decides
+ * when the recorder's effects run, so each test plays one order by hand.
+ */
+describe("the browser's back, in any order (yuvoy-app#215)", () => {
+  const fresh = async () => {
+    vi.resetModules();
+    return import("./route-trail");
+  };
+  type Trail = Awaited<ReturnType<typeof fresh>>;
+
+  // Listing, then the business's page, both drawn and recorded.
+  const listingThenBusiness = (t: Trail) => {
+    t.noteShown("/e/a");
+    t.recordVisit("/e/a");
+    t.noteShown("/o/op");
+    t.recordVisit("/o/op");
+  };
+
+  it("is a step back when it beats the recording of the screen it left", async () => {
+    const t = await fresh();
+    t.noteShown("/e/a");
+    t.recordVisit("/e/a");
+    // The business's page is drawn, its visit not yet recorded: with a view
+    // transition React runs that effect once the transition is ready.
+    t.noteShown("/o/op");
+    // The browser's back, seen by the listener inside popstate.
+    t.markStepBack("/e/a");
+    // Both visits then recorded outside the event.
+    t.recordVisit("/o/op");
+    t.noteShown("/e/a");
+    t.recordVisit("/e/a");
+
+    expect(paths(t.__routeTrail())).toEqual(["/e/a"]);
+    expect(cameFrom(t.__routeTrail(), "/e/a")).toBeNull();
+  });
+
+  it("is a step back when React draws the listing inside the event", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    t.noteShown("/e/a");
+    t.recordVisit("/e/a", true);
+    t.markStepBack("/e/a");
+    expect(paths(t.__routeTrail())).toEqual(["/e/a"]);
+    expect(t.__routeTrail().stepBack).toBe(false);
+  });
+
+  it("is a step back when the listing is drawn after the event", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    t.markStepBack("/e/a");
+    t.noteShown("/e/a");
+    t.recordVisit("/e/a");
+    expect(paths(t.__routeTrail())).toEqual(["/e/a"]);
+    expect(t.__routeTrail().stepBack).toBe(false);
+  });
+
+  it("is no step at all when only the fragment moved", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    t.markStepBack("/o/op");
+    expect(t.__routeTrail().stepBack).toBe(false);
+    t.noteShown("/e/a");
+    t.recordVisit("/e/a");
+    expect(paths(t.__routeTrail())).toEqual(["/e/a", "/o/op", "/e/a"]);
+  });
+
+  it("is spent by a landing the page sends on to another path", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    t.noteShown("/e/b");
+    t.recordVisit("/e/b");
+    // A back to the business's page whose landing is never recorded there:
+    // the page sends the browser on to another path on the client, as
+    // /f/<id> does for a merged card.
+    t.markStepBack("/o/op");
+    t.noteShown("/o/c");
+    t.recordVisit("/o/c");
+    expect(t.__routeTrail().stepBack).toBe(false);
+    expect(t.steppingBack()).toBe(false);
+    // A later tap onto the business's page is a step forward, not the old
+    // back finally landing.
+    t.noteShown("/o/op");
+    t.recordVisit("/o/op");
+    expect(paths(t.__routeTrail())).toEqual([
+      "/e/a",
+      "/o/op",
+      "/e/b",
+      "/o/c",
+      "/o/op",
+    ]);
+  });
+
+  it("is spent by a redirected landing after the screen it left is recorded", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    // The business's page is drawn, not yet recorded, and the back's landing
+    // is sent on to another path.
+    t.noteShown("/e/b");
+    t.markStepBack("/o/op");
+    t.recordVisit("/e/b");
+    expect(t.__routeTrail().stepBack).toBe(true);
+    t.noteShown("/o/c");
+    t.recordVisit("/o/c");
+    expect(t.__routeTrail().stepBack).toBe(false);
+  });
+
+  it("is a step back inside the event after a redirected landing", async () => {
+    const t = await fresh();
+    listingThenBusiness(t);
+    t.noteShown("/e/b");
+    t.recordVisit("/e/b");
+    t.markStepBack("/o/op");
+    t.noteShown("/o/c");
+    t.recordVisit("/o/c");
+    // The next back is drawn inside the event: it is the step back.
+    t.noteShown("/e/b");
+    t.recordVisit("/e/b", true);
+    t.markStepBack("/e/b");
+    expect(paths(t.__routeTrail())).toEqual(["/e/a", "/o/op", "/e/b"]);
+    expect(t.__routeTrail().stepBack).toBe(false);
   });
 });

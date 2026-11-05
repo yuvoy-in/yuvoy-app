@@ -55,6 +55,29 @@ describe("sitemap", () => {
     expect(all.some((p) => p.startsWith("/o/"))).toBe(false);
   });
 
+  it("keeps the businesses already read when a later page is refused", async () => {
+    const first = EXPERIENCES.find((e) => e.operator?.slug);
+    expect(first).toBeDefined();
+    server.use(
+      http.get(`${BASE}/experiences`, ({ request }) => {
+        if (!new URL(request.url).searchParams.get("cursor")) {
+          return HttpResponse.json({
+            items: [first],
+            nextCursor: "cGFnZTI=",
+            complete: false,
+          });
+        }
+        return HttpResponse.json(
+          { error: { code: "invalid_input", message: "bad cursor" } },
+          { status: 400 },
+        );
+      }),
+    );
+
+    const businesses = (await paths()).filter((p) => p.startsWith("/o/"));
+    expect(businesses).toEqual([`/o/${first?.operator?.slug}`]);
+  });
+
   it("lists each found card the API calls indexable, daily at 0.6", async () => {
     server.use(
       http.get(`${BASE}/events/index`, () =>

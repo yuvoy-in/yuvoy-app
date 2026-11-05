@@ -11,6 +11,7 @@ import {
   nextRequestId,
   peopleOpen,
   stateOf,
+  unfriend,
   type PeopleState,
 } from "./people-state";
 
@@ -28,7 +29,8 @@ import {
  *     page, so a second page of 3), a live link (`ASHAM-LNK22`, 17 requests
  *     left). `GET /me` says 2 requests waiting. Every change is kept for the
  *     session: Accept makes a friend, Decline and Take back remove the
- *     request, Unfriend removes the friend, a new link has a new code and
+ *     request, Unfriend removes the friend (and takes them out of the
+ *     traveller's crews, as the API does), a new link has a new code and
  *     the old one stops working, Switch off leaves no link, and the sharing
  *     choice and the email switch stay as saved. Asking is always `202`.
  *     Answering a request that is not waiting is `404`.
@@ -48,6 +50,9 @@ import {
  *     `people`, so the row shows and the screen fails.
  *   - `people-outside`: `people` at `staff` and the caller is not staff, so
  *     every People route is `404` and `GET /me` has no `people`.
+ *
+ * Crews and the `people-crews-*` scenarios are in `crew-handlers.ts`
+ * (yuvoy-app#227), which uses the refusals below.
  *
  * The fixed friend link codes (any case, hyphen optional), looked up and
  * then asked with Send request:
@@ -70,13 +75,13 @@ import {
  */
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
-const url = (p: string) => `${BASE}${p}`;
+export const url = (p: string) => `${BASE}${p}`;
 
 let seq = 0;
-const rid = () =>
+export const rid = () =>
   `01J${(++seq).toString(36).toUpperCase().padStart(6, "0")}MOCK`;
 
-function envelope(
+export function envelope(
   code: string,
   message: string,
   status: number,
@@ -88,7 +93,10 @@ function envelope(
   );
 }
 
-const json = (body: Parameters<typeof HttpResponse.json>[0], status = 200) =>
+export const json = (
+  body: Parameters<typeof HttpResponse.json>[0],
+  status = 200,
+) =>
   HttpResponse.json(body, {
     status,
     headers: { ...mockHeaders(rid()), "cache-control": "no-store" },
@@ -104,13 +112,13 @@ function scenarioOf(request: Request): string {
 
 /* -------------------------------------------------------------- refusals */
 
-type Gate = { s: PeopleState; scenario: string } | Response;
+export type Gate = { s: PeopleState; scenario: string } | Response;
 
 /**
  * What every People route checks first, in the API's order: a session, a
  * full sign-in, the release, then (here only) the outage.
  */
-function gate(request: Request): Gate {
+export function gate(request: Request): Gate {
   const auth = request.headers.get("authorization");
   if (!auth) {
     return envelope("unauthorized", "Sign in to see People.", 401);
@@ -143,20 +151,22 @@ const NAME_REQUIRED = () =>
   );
 
 /** The adult and first-name checks every yes needs. */
-function adultWithName(s: PeopleState): Response | null {
+export function adultWithName(s: PeopleState): Response | null {
   if (!s.ageConfirmed) return ADULTS_ONLY();
   if (needsNameOf(s.name)) return NAME_REQUIRED();
   return null;
 }
 
-function paused(s: PeopleState, message: string): Response {
+export function paused(s: PeopleState, message: string): Response {
   return envelope("people_paused", message, 403, {
     standing: s.standing,
     until: s.standingUntil,
   });
 }
 
-async function bodyOf(request: Request): Promise<Record<string, unknown>> {
+export async function bodyOf(
+  request: Request,
+): Promise<Record<string, unknown>> {
   try {
     const body = (await request.json()) as unknown;
     return body && typeof body === "object"
@@ -224,11 +234,12 @@ export const peopleHandlers = [
     return json({ friends, nextCursor: next });
   }),
 
-  // Nobody is told, and 204 also when the two were not friends.
+  // Nobody is told, and 204 also when the two were not friends. The person
+  // also leaves every one of the caller's crews, in the same step as the API.
   http.delete(url("/me/friends/:personId"), ({ request, params }) => {
     const g = gate(request);
     if (g instanceof Response) return g;
-    g.s.friends = g.s.friends.filter((f) => f.personId !== params.personId);
+    unfriend(g.s, String(params.personId));
     return new HttpResponse(null, { status: 204, headers: mockHeaders(rid()) });
   }),
 

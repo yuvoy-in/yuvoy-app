@@ -240,7 +240,7 @@ export const appRouteHandlers = [
     const text = await forwarded.text();
     // The headers the real route passes on, and no others.
     const headers = new Headers();
-    for (const name of ["Content-Type", "Retry-After"]) {
+    for (const name of ["Content-Type", "Retry-After", "Content-Disposition"]) {
       const value = forwarded.headers.get(name);
       if (value) headers.set(name, value);
     }

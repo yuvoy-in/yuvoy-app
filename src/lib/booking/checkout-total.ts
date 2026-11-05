@@ -1,4 +1,5 @@
 import type { components } from "@/lib/api/schema.gen";
+import { formatMoney } from "@/lib/format/money";
 
 type Money = components["schemas"]["Money"];
 type PricingUnit = NonNullable<
@@ -40,4 +41,29 @@ export function checkoutTotal(
         : price.amountMinor * guests,
     currency: price.currency,
   };
+}
+
+/**
+ * The muted line under the Total on a listing priced for the whole group,
+ * boat or not (yuvoy-app#219, the web half of yuvoy-mobile#368):
+ * "₹2,000 each for 4 of you".
+ *
+ * Only said for more than one guest, and never for a per-person price, where
+ * the total already is so much each. The share is rounded to the paisa so it
+ * reads as money, and it is only words: the Total, the button and
+ * `expectTotalPaise` stay the API's whole-group figure. Same rule and same
+ * words as the traveller app's `perPersonLine`.
+ */
+export function perPersonLine(
+  total: Money | null,
+  guests: number,
+  pricingUnit: PricingUnit | undefined,
+): string | null {
+  if (!total || pricingUnit !== "per_group") return null;
+  if (!Number.isInteger(guests) || guests < 2) return null;
+  const each = {
+    amountMinor: Math.round(total.amountMinor / guests),
+    currency: total.currency,
+  };
+  return `${formatMoney(each)} each for ${guests} of you`;
 }

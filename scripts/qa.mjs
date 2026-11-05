@@ -1991,6 +1991,10 @@ for (const f of files) {
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
     [
+      "src/components/organisers/door-screen.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
       "src/components/organisers/organiser-event-form-parts.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
@@ -2021,6 +2025,10 @@ for (const f of files) {
     [
       "src/components/people/name-step.tsx",
       "the name step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/crew-editor.tsx",
+      "drawn once the crews list has loaded in the browser",
     ],
     [
       "src/components/people/people-settings.tsx",

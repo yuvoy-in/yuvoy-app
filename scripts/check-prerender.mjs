@@ -41,6 +41,9 @@ const ALLOWED = {
   "/account": "Settings and consent. All state is client-side and per-device.",
   "/apple-icon.png": "Build asset.",
   "/favicon.ico": "Build asset.",
+  "/door":
+    "Checking people in at the door (yuvoy-app#226). The code is in the " +
+    "fragment, which no server sees, and the check-in is sent by script.",
   "/finder":
     "What YuvoyFinder reads and how a site stops it (yuvoy-api#324). Fixed " +
     "words in the page, so the HTML changes only on deploy.",
@@ -72,6 +75,9 @@ const ALLOWED = {
   "/people":
     "People (yuvoy-app#222). A client screen read with the session through " +
     "the proxy. The shell carries no data and no clock.",
+  "/people/crews/new":
+    "A new crew (yuvoy-app#227). A form read with the session through the " +
+    "proxy. The shell carries no data and no clock.",
   "/robots.txt": "Static, gated on NEXT_PUBLIC_ALLOW_INDEXING at build time.",
   "/saved":
     "The wishlist. Reads IndexedDB in the browser, same as /trips. The shell " +

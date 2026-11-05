@@ -14,6 +14,7 @@ import {
 } from "@/components/auth/sign-in-form";
 import { LegalLinks } from "@/components/site/legal-links";
 import { UsageSetting } from "./usage-setting";
+import { DownloadMyData } from "./download-my-data";
 import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
 import { useMyAccount } from "@/lib/auth/use-my-account";
@@ -79,7 +80,7 @@ const OPEN_INTRO =
  * against the drop-off.
  */
 export function AccountScreen() {
-  const { signedIn, signOut } = useTravellerSession();
+  const { signedIn, signOut, refresh } = useTravellerSession();
   const router = useRouter();
   const flow = useSignInFlow();
   /*
@@ -89,7 +90,15 @@ export function AccountScreen() {
   */
   const [closed, setClosed] = useState<string | null>(null);
 
+  /*
+    Why the sign-in form is showing, when the API ended the session from a
+    signed-in row (yuvoy-app#221: "Sign in to download your data."). The row
+    that was refused is gone by then, so its sentence is said here.
+  */
+  const [endedNote, setEndedNote] = useState<string | null>(null);
+
   function afterSignIn() {
+    setEndedNote(null);
     /*
       Back where the Login button was pressed (yuvoy-app#56 item 5).
 
@@ -152,6 +161,10 @@ export function AccountScreen() {
           setClosed(message);
           void signOut();
         }}
+        onSessionEnded={async (message) => {
+          setEndedNote(message);
+          await refresh();
+        }}
       />
     );
   }
@@ -171,6 +184,12 @@ export function AccountScreen() {
       ) : null}
       {sentence ? (
         <p className="text-forest/70 text-body mt-3 text-pretty">{sentence}</p>
+      ) : null}
+
+      {endedNote && !flow.sent ? (
+        <p role="alert" className="text-terra-deep mt-3 text-sm">
+          {endedNote}
+        </p>
       ) : null}
 
       <SignInSteps
@@ -279,9 +298,11 @@ function AccountWaiting({ label }: { label: string }) {
 function SignedIn({
   onSignOut,
   onUnderAge,
+  onSessionEnded,
 }: {
   onSignOut: () => Promise<void>;
   onUnderAge: (message: string) => void;
+  onSessionEnded: (message: string) => Promise<void>;
 }) {
   const account = useMyAccount(true);
   const [editing, setEditing] = useState(false);
@@ -468,6 +489,13 @@ function SignedIn({
         Nothing is cancelled: signing in again with the same number brings every
         trip back.
       </p>
+
+      {/*
+        The traveller's own data, as one file (yuvoy-app#221). With the
+        privacy rows rather than the account rows: it is the DPDP Act's
+        document, read for the caller.
+      */}
+      <DownloadMyData onSessionEnded={onSessionEnded} className="mt-10" />
 
       {/*
         The standing place for the policy — yuvoy-app#15. The consent banner

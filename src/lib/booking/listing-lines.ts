@@ -14,6 +14,8 @@
  * nothing beside a price.
  */
 
+import { civilFromDate, dayMonth } from "@/lib/format/date";
+
 /**
  * How everybody pays today, stated as a fact about the island, not as a stop
  * gap: "on Havelock this is how people pay". It covers request listings too,
@@ -46,6 +48,26 @@ export function paymentLine(experience: object): string {
  */
 export function cancellationLine(experience: object): string | null {
   return phrase(experience, "cancellationSummary");
+}
+
+/**
+ * The operator's tourism registration, while it is valid (yuvoy-app#219, the
+ * web half of yuvoy-mobile#368): "Registered with A&N Tourism · valid to
+ * 30 Jun 2027".
+ *
+ * The API's `label` verbatim, then the last valid day written out. The API
+ * sends `compliance` only while the registration is verified and in date, so
+ * its absence says nothing at all: no placeholder and no "not registered". A
+ * blank label or a date that cannot be read is treated the same way, rather
+ * than guessed at. Same words as the traveller app's `registrationLine`.
+ */
+export function registrationLine(
+  compliance: { label?: string; validTo?: string } | undefined,
+): string | null {
+  const label = compliance?.label?.trim();
+  const civil = compliance?.validTo ? civilFromDate(compliance.validTo) : null;
+  if (!label || !civil) return null;
+  return `${label} · valid to ${dayMonth(civil)} ${civil.year}`;
 }
 
 /** A non-blank string the server sent under `key`, trimmed, or null. */
