@@ -82,7 +82,7 @@ export function AccountScreen() {
       `useSearchParams`. The hook would bail this whole page out of static
       rendering unless it sat inside a Suspense boundary, and a boundary
       around the screen empties the prerendered HTML: `/account` is where the
-      privacy and terms links live, `e2e/audit.spec.ts` asserts them in the
+      privacy and terms links live, `e2e/audit-pages.spec.ts` asserts them in the
       SERVER-RENDERED source, and it caught exactly that. The value is only
       needed at the instant sign-in succeeds, which is browser-only anyway.
 
