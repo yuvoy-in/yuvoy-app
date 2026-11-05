@@ -20,7 +20,7 @@ import { http, HttpResponse } from "msw";
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
 /**
- * Search — a bar, one Filters button, and results as reels (yuvoy-app#37).
+ * Search: a bar, one Filters button, and results as reels (yuvoy-app#37).
  *
  * ## The address is real enough to hold a search
  *
