@@ -127,7 +127,7 @@ export const TRIP_DRAFT_DONE = "Saved to your trips.";
 /*
   The cards in a reply and the note on a link Trigo did not open
   (yuvoy-app#223 (b) and (c)). Every line on a live card is the server's.
-  These three are proposed on yuvoy-app#223 and wait for Sai Teja's yes.
+  These four are proposed on yuvoy-app#223 and wait for Sai Teja's yes.
 */
 
 /** On a card whose listing or event is gone, in place of the price and the link. */
