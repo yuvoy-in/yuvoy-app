@@ -1,7 +1,7 @@
 /*
   The shared reel scroller.
 
-  This is the laboratory's copy of `src/components/feed/reel-strip.tsx`, and the
+  This is the laboratory's copy of `src/components/feed/reel-scroller.tsx`, and the
   seam is deliberately in the same place: **the strip owns the scroll, the
   observers, the preload budget, the gesture and the tail; the concept owns only
   what is drawn over the picture.** Four surfaces already share `ReelStrip` in

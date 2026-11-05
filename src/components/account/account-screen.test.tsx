@@ -19,7 +19,7 @@ const nav = vi.hoisted(() => ({ replaced: [] as string[] }));
   `next` is read off `window.location` in the submit handler, not with
   `useSearchParams`: the hook would bail `/account` out of static rendering,
   and a Suspense boundary around the screen empties the prerendered HTML that
-  carries the privacy and terms links (`e2e/audit.spec.ts` caught that). So a
+  carries the privacy and terms links (`e2e/audit-pages.spec.ts` caught that). So a
   test sets the real address rather than a mocked hook.
 */
 const atAccount = (search = "") =>
