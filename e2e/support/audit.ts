@@ -15,7 +15,9 @@ export const ALLOWED_JSONLD_TYPES = new Set([
 export const BANNED_JSONLD_KEYS =
   /"(aggregateRating|ratingValue|reviewCount|offers|price|priceCurrency|availability)"/;
 
-export async function sitemapPaths(request: APIRequestContext): Promise<string[]> {
+export async function sitemapPaths(
+  request: APIRequestContext,
+): Promise<string[]> {
   const res = await request.get("/sitemap.xml");
   expect(res.status(), "/sitemap.xml must serve").toBe(200);
 
