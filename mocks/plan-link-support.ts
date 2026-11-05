@@ -116,7 +116,10 @@ export const earlierPaidByKey = new Map<string, Set<string>>();
 /** Replies that belong to an account, by session token. */
 export const membersBySession = new Map<string, PlanMe>();
 /** First-reply nonces: the name sent with each, the key it made, and when. */
-export const nonces = new Map<string, { name: string; key: string; at: number }>();
+export const nonces = new Map<
+  string,
+  { name: string; key: string; at: number }
+>();
 /** Keys handed out so far, so each is new. */
 let minted = 0;
 
