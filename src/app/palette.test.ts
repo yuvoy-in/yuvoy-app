@@ -125,7 +125,7 @@ describe("palette", () => {
       "src/lib/site/theme.ts",
       // The fixture posters. Their literals are asserted to BE tokens below,
       // which is stronger than banning them.
-      "mocks/fixtures.ts",
+      "mocks/fixtures-listings.ts",
       // The OG card renders through Satori, outside the CSS pipeline, so a
       // custom property cannot reach it. Asserted to be tokens below.
       "src/app/opengraph-image.tsx",
@@ -153,7 +153,7 @@ describe("palette", () => {
     // comment explaining why it must never return. Reading comments would
     // flag the file for documenting its own rule.
     const fixtures = stripComments(
-      readFileSync(join(MOCKS, "fixtures.ts"), "utf8"),
+      readFileSync(join(MOCKS, "fixtures-listings.ts"), "utf8"),
     );
     const used = [...fixtures.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
       m[0].toLowerCase(),
