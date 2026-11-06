@@ -144,6 +144,10 @@ describe("the doors", () => {
     expect(
       door.compareDocumentPosition(number) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    await user.click(number);
+    expect(
+      await screen.findByLabelText("Your WhatsApp number"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -371,9 +375,10 @@ describe("the year step, for a person no account holds yet", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     // The sentence lands on the code field it is about, not on the year.
-    expect(await screen.findByLabelText("Sign-in code")).toHaveValue("");
+    const code = await screen.findByLabelText("Sign-in code");
+    expect(code).toHaveValue("");
     expect(screen.queryByLabelText("What year were you born?")).toBeNull();
-    expect(screen.getByLabelText("Sign-in code")).toHaveAccessibleDescription(
+    expect(code).toHaveAccessibleDescription(
       /It is six digits, numbers only\./,
     );
   });

@@ -17,14 +17,11 @@ import { UsageSetting } from "./usage-setting";
 import { DownloadMyData } from "./download-my-data";
 import { safeNextPath } from "@/lib/site/next-path";
 import { Skeleton, LoadingState } from "@/components/states";
-import { useMyAccount, type TravellerAccount } from "@/lib/auth/use-my-account";
-import { civilInZone, monthName } from "@/lib/format/date";
+import { useMyAccount } from "@/lib/auth/use-my-account";
 import { HelpSection } from "@/components/support/help-section";
 import { SheetPresence } from "@/components/ui/sheet";
 import { EditProfileSheet } from "./edit-profile-sheet";
 import { FirstSignIn } from "./first-sign-in";
-import { InviteCodeForm } from "@/components/auth/invite-gate";
-import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
 import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
@@ -32,6 +29,9 @@ import { DateAlertsLink } from "./date-alerts-link";
 import { MeCounts, MeSection } from "@/components/me/me-section";
 import { MeSettings } from "@/components/me/me-settings";
 import { PeopleRow } from "@/components/people/people-row";
+import { InviteEntry, counts, memberSince } from "./account-parts";
+import { AgeClosed, CONFIRM_AGE_WORDS, ConfirmAgePanel } from "./confirm-age";
+import { WaysIn } from "./ways-in";
 
 /*
   NOT "booking never needs one" while invitations are on (yuvoy-api#195).
@@ -85,6 +85,13 @@ export function AccountScreen() {
   const router = useRouter();
   const flow = useSignInFlow();
   /*
+    An under-18 answer to Confirm your age (yuvoy-app#229): the account is
+    closed and signed out. Held above the signed-in check, so the sign-out
+    does not replace the sentence with the sign-in form.
+  */
+  const [closed, setClosed] = useState<string | null>(null);
+
+  /*
     Why the sign-in form is showing, when the API ended the session from a
     signed-in row (yuvoy-app#221: "Sign in to download your data."). The row
     that was refused is gone by then, so its sentence is said here.
@@ -135,6 +142,14 @@ export function AccountScreen() {
     if (next) router.replace(next);
   }
 
+  if (closed) {
+    return (
+      <Screen>
+        <AgeClosed message={closed} />
+      </Screen>
+    );
+  }
+
   if (signedIn === undefined) {
     return <AccountWaiting label="Checking this device" />;
   }
@@ -143,6 +158,10 @@ export function AccountScreen() {
     return (
       <SignedIn
         onSignOut={signOut}
+        onUnderAge={(message) => {
+          setClosed(message);
+          void signOut();
+        }}
         onSessionEnded={async (message) => {
           setEndedNote(message);
           await refresh();
@@ -279,13 +298,17 @@ function AccountWaiting({ label }: { label: string }) {
  */
 function SignedIn({
   onSignOut,
+  onUnderAge,
   onSessionEnded,
 }: {
   onSignOut: () => Promise<void>;
+  onUnderAge: (message: string) => void;
   onSessionEnded: (message: string) => Promise<void>;
 }) {
   const account = useMyAccount(true);
   const [editing, setEditing] = useState(false);
+  // Confirmed a moment ago: `/me` now says so and the panel has gone.
+  const [ageDone, setAgeDone] = useState(false);
   /*
     A code redeemed on this screen, a moment ago.
 
@@ -321,14 +344,16 @@ function SignedIn({
       {me ? (
         <div className="mt-3">
           {/*
-            How this account signs in: the number, or, for an account made
-            through the email door with no number proved yet, the proven
-            address. Neither, and the line is left out.
+            How this account signs in (yuvoy-app#229): the number, else the
+            proven address, else Google. A Google-only account never reads as
+            having no way in. None of them, and the line is left out.
           */}
           {me.phone || me.provenEmail ? (
             <p className="text-forest/80 text-sm">
-              {me.phone || me.provenEmail}
+              Signed in as <span>{me.phone || me.provenEmail}</span>
             </p>
+          ) : me.googleSignIn ? (
+            <p className="text-forest/80 text-sm">Signed in with Google</p>
           ) : null}
           {me.memberSince ? (
             <p className="text-forest/70 mt-1 text-sm">
@@ -375,6 +400,19 @@ function SignedIn({
       (standingOfAccount(me) === "not-admitted" || redeemed) ? (
         <InviteEntry admitted={redeemed} onAdmitted={() => setRedeemed(true)} />
       ) : null}
+
+      {me?.ageConfirmed === false ? (
+        <ConfirmAgePanel
+          onDone={() => setAgeDone(true)}
+          onUnderAge={onUnderAge}
+        />
+      ) : ageDone ? (
+        <p role="status" className="text-forest/80 mt-6 text-sm">
+          {CONFIRM_AGE_WORDS.done}
+        </p>
+      ) : null}
+
+      {me ? <WaysIn me={me} /> : null}
 
       <MeSection className="mt-8" />
       <ButtonLink href="/trips" size="lg" block className="mt-6">
@@ -478,69 +516,4 @@ function SignedIn({
       ) : null}
     </Screen>
   );
-}
-
-/**
- * "Enter your invite code", on the one screen a traveller who is not in can
- * always reach (yuvoy-api#195).
- *
- * The gate itself asks for a code wherever somebody is stopped by it. This is
- * the standing place for it: somebody who was given a code and has not used
- * it yet has nowhere else to type it, because every screen that would ask is
- * behind the gate and shows the landing instead.
- *
- * The SAME form as the gate's, not a second one, so there is one set of
- * sentences for a code that is unknown, used, expired or throttled.
- *
- * No `autoFocus`. This renders with the page rather than after a tap, and a
- * field that takes the focus on load moves a screen reader away from the
- * heading and opens the keyboard over the rest of the screen.
- */
-function InviteEntry({
-  admitted,
-  onAdmitted,
-}: {
-  admitted: boolean;
-  onAdmitted: () => void;
-}) {
-  return (
-    <Panel className="mt-6">
-      <p className="text-sm font-bold text-balance">Enter your invite code</p>
-      <p className="text-forest/70 text-body mt-1.5 text-pretty">
-        Yuvoy is by invitation for now. Enter the code you were given, once, and
-        you are in on any phone you sign in on.
-      </p>
-      <InviteCodeForm onAdmitted={onAdmitted} />
-      {/*
-        A way onward rather than a screen that congratulates you and stops.
-        The form says what happened; this is where to go with it.
-      */}
-      {admitted ? (
-        <ButtonLink href="/" size="sm" className="mt-4">
-          Start looking
-        </ButtonLink>
-      ) : null}
-    </Panel>
-  );
-}
-
-/**
- * "Member since Sep 2026".
- *
- * Built from civil fields rather than formatted, for the reason in
- * `lib/format/date`: `Intl` takes its month names from the runtime's CLDR, and
- * this screen is server rendered (yuvoy-app#67).
- */
-function memberSince(iso: string): string | null {
-  const civil = civilInZone(iso, "Asia/Kolkata");
-  return civil ? `${monthName(civil)} ${civil.year}` : null;
-}
-
-/** "3 trips · 1 review", with the singular where it belongs. */
-function counts(me: TravellerAccount): string {
-  const trips = me.trips?.total ?? 0;
-  const reviews = me.reviews?.count ?? 0;
-  const plural = (n: number, word: string) =>
-    `${n} ${word}${n === 1 ? "" : "s"}`;
-  return `${plural(trips, "trip")} · ${plural(reviews, "review")}`;
 }
