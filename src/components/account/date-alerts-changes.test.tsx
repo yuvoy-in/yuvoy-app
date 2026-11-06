@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { TRIGO_LISTS_WORDS as W } from "@/lib/trigo/lists-words";
 import { DateAlertsScreen } from "./date-alerts-screen";
@@ -117,19 +118,31 @@ describe("Date alerts: stop", () => {
 describe("Date alerts: a list that did not load", () => {
   it("shows the error state on a 503, not the empty line, and Try again reads it again", async () => {
     signedIn();
-    const read = serveAlerts(() => refuse(503, "unavailable", LISTS_DOWN), []);
+    /*
+      Down until Try again. The client asks a 503 again twice before it is an
+      answer, with a backoff of up to about a second in all, so the list stays
+      down for every one of those and the wait here is longer.
+    */
+    let down = true;
+    const read = serveAlerts(() =>
+      down
+        ? refuse(503, "unavailable", LISTS_DOWN)
+        : HttpResponse.json({ alerts: [] }),
+    );
     show();
 
-    const failed = await screen.findByRole("alert");
+    const failed = await screen.findByRole("alert", {}, { timeout: 3000 });
     expect(failed).toHaveTextContent(W.alertsFailed);
     expect(failed).toHaveTextContent(LISTS_DOWN);
     expect(screen.queryByText(W.alertsEmpty)).toBeNull();
 
+    down = false;
+    const before = read.count;
     await userEvent.click(
       within(failed).getByRole("button", { name: W.tryAgain }),
     );
     expect(await screen.findByText(W.alertsEmpty)).toBeInTheDocument();
-    expect(read.count).toBe(2);
+    expect(read.count).toBe(before + 1);
   });
 
   it("says the sign-in expired on a 401, with the way back in", async () => {
@@ -152,7 +165,8 @@ describe("Date alerts: a list that did not load", () => {
     serveAlerts(() => refuse(500, "internal_error", "Something broke."));
     show();
 
-    const failed = await screen.findByRole("alert");
+    // A 500 is asked again too before it is an answer: the longer wait.
+    const failed = await screen.findByRole("alert", {}, { timeout: 3000 });
     expect(failed).toHaveTextContent(W.alertsFailed);
     expect(failed).toHaveTextContent("It is us, not you");
     expect(

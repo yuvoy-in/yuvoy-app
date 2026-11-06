@@ -22,8 +22,15 @@ export function refuse(status: number, code: string, message: string) {
 
 export const noContent = () => new HttpResponse(null, { status: 204 });
 
-/** `GET /app-config` with `trigo` at a stage, and `GET /me` answering. */
-export function release(stage: "off" | "all" = "all") {
+/**
+ * `GET /app-config` with `trigo` at a stage, and no `Date` header.
+ *
+ * The shared mock dates its answers by the fixture's clock (19 Aug 2026),
+ * and the API client takes the server's clock from them. Trips reads this
+ * for the Drafts tab, so a Trips test that lays out days by this device's
+ * today answers it here, as a server on the same clock would.
+ */
+export function appConfig(stage: "off" | "all" = "all") {
   server.use(
     http.get(`${BASE}/app-config`, () =>
       HttpResponse.json({
@@ -34,6 +41,13 @@ export function release(stage: "off" | "all" = "all") {
         releases: { trigo: stage },
       }),
     ),
+  );
+}
+
+/** `GET /app-config` with `trigo` at a stage, and `GET /me` answering. */
+export function release(stage: "off" | "all" = "all") {
+  appConfig(stage);
+  server.use(
     http.get(`${BASE}/me`, () =>
       HttpResponse.json({
         phone: "+919000000000",
