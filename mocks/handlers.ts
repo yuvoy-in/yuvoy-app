@@ -1,4 +1,5 @@
 import { bookingHandlers } from "./booking-handlers";
+import { waysInHandlers } from "./ways-in-handlers";
 import { savedHandlers } from "./saved-handlers";
 import { foundHandlers } from "./found-handlers";
 import { checkedClock } from "./checked-clock";
@@ -10,6 +11,7 @@ import { creatorLinkHandlers } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
 import { crewHandlers } from "./crew-handlers";
 import { trigoHandlers } from "./trigo-handlers";
+import { trigoListHandlers } from "./trigo-list-handlers";
 import { organiserHandlers } from "./organiser-handlers";
 import { doorHandlers } from "./organiser-door";
 import { clubHandlers } from "./club-handlers";
@@ -44,6 +46,8 @@ const routes = [
 
   // Trigo, the chat (yuvoy-app#223). Before the organisers: see `PUT /me/age` there.
   ...trigoHandlers,
+  /* Date alerts and trip drafts (yuvoy-app#220). */
+  ...trigoListHandlers,
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
   /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */
@@ -56,6 +60,8 @@ const routes = [
 
   ...placeRoutes,
 
+  // Adding a way in (yuvoy-app#229): verify with a bearer, ahead of the sign-in.
+  ...waysInHandlers,
   ...bookingHandlers,
   ...savedHandlers,
   ...foundHandlers,

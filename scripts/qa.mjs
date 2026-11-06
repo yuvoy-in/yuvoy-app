@@ -1841,7 +1841,12 @@ for (const f of files) {
  *
  * "The code we sent" and "we sent a code" go too: the API answers every
  * number the same way so it never confirms a send, and a screen that does
- * tells anybody that the number has booked.
+ * tells anybody that the number has booked. Every way of saying it goes:
+ * "We've sent", "we have sent you a code", "A code was sent", "Code sent",
+ * a line that opens "Sent." and "We emailed you a code", with a straight or
+ * curly apostrophe and with the words split over lines in JSX. "Nothing was
+ * sent" and "We have sent you an email about it" are not about a code and
+ * pass (mobile's copy-guard has the same rule, yuvoy-mobile#340).
  *
  * And "the email on your latest booking" goes (yuvoy-api#303): a booking's
  * email gets no code since the address typed at a guest checkout stopped
@@ -1868,11 +1873,23 @@ for (const f of files) {
         `\`codeSentSentence\` instead.`,
     );
   }
-  if (
-    /\bcode we sent\b|\bwe sent (you )?(a|the|your)\b[^"'`\n]{0,30}\bcode\b/i.test(
-      s,
-    )
-  ) {
+  const saysCodeSent = [
+    /\bcode\s+we(?:['’]ve|\s+have)?\s+(?:just\s+)?sent\b/i,
+    /\bwe(?:['’]ve|\s+have)?\s+(?:just\s+)?sent\s+(?:you\s+)?(?:a|an|the|your|another|one)\b[^"'`]{0,30}?\bcode\b/i,
+    // "was" and "has been" report a send; "A code is sent only to..." is a
+    // rule and passes.
+    /\bcode\s+(?:was|has\s+been|got)\s+(?:just\s+)?sent\b/i,
+    // "Code sent" as a line of its own; "the code sent to" mid-sentence passes.
+    /["'`>]\s*(?:a\s+)?(?:new\s+)?code\s+sent\b/i,
+    // "Enter the code sent to your email" claims the send as "the code we
+    // sent" does; "the code sent to hello@business.in" names no one and passes.
+    /\bcode\s+sent\s+to\s+(?:you|your)\b/i,
+    // "Sent." only where a code or the inbox follows, so "Sent." after a
+    // report or a booking message passes.
+    /["'`>]\s*sent\s*[.!][^"'`<]{0,60}\b(?:code|check\s+your\s+(?:email|inbox))\b/i,
+    /\b(?:emailed|texted|messaged)\s+(?:you\s+)?(?:a|an|the|your)?\s*(?:new\s+)?(?:sign-in\s+)?code\b/i,
+  ];
+  if (saysCodeSent.some((r) => r.test(s))) {
     problems.push(
       `${rel(f)}: says a code was sent. The API answers every number the ` +
         `same way so it never confirms one, and a screen that does tells ` +
@@ -1922,12 +1939,20 @@ for (const f of files) {
       "drawn once the account has loaded in the browser",
     ],
     [
+      "src/components/account/ways-in.tsx",
+      "the add form, opened by Add an email or Add a number",
+    ],
+    [
       "src/components/auth/contact-fields.tsx",
       "inside checkout, drawn once its departures have loaded",
     ],
     [
       "src/components/auth/sign-in-form.tsx",
       "the code step, after the number is sent",
+    ],
+    [
+      "src/components/auth/year-fields.tsx",
+      "the year step and People's age step, drawn after the API asks in the browser",
     ],
     [
       "src/components/booking/message-thread.tsx",

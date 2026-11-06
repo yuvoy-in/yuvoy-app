@@ -1,4 +1,5 @@
 import type { components } from "../src/lib/api/schema.gen";
+import { PLACES } from "./fixtures";
 
 /**
  * The field checks the organiser mocks make on a page or an event body,
@@ -8,6 +9,43 @@ import type { components } from "../src/lib/api/schema.gen";
 
 type Organiser = components["schemas"]["Organiser"];
 type OrganiserEvent = components["schemas"]["OrganiserEvent"];
+
+/**
+ * Places the API names but `GET /places` does not list yet: an organiser's
+ * `placeName` still reads right there (yuvoy-api#596).
+ */
+export const NOT_OPEN_PLACES: Readonly<Record<string, string>> = {
+  "andaman/long_island": "Long Island",
+};
+
+/** `placeName` as the API fills it: the listed name, else the unlisted one. */
+export function placeNameOf(key: string): string {
+  for (const market of PLACES.markets) {
+    const found = market.destinations.find((d) => d.key === key);
+    if (found) return found.name;
+  }
+  return NOT_OPEN_PLACES[key] ?? key;
+}
+
+/** The API's whole-body 400 for a field the input lacks (`planBody`). */
+export const BAD_BODY = "Send it as the API contract describes it.";
+
+/** `placeName` is read only: a page body that sends it is a bad body. */
+export const sendsReadOnly = (body: Record<string, unknown>) =>
+  "placeName" in body;
+
+export async function bodyOf(
+  request: Request,
+): Promise<Record<string, unknown>> {
+  try {
+    const body = (await request.json()) as unknown;
+    return typeof body === "object" && body !== null
+      ? (body as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 /** A sent string, trimmed; anything else is empty. */
 export const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -54,6 +92,7 @@ export function pageFrom(body: Record<string, unknown>) {
   return {
     name: text(body.name),
     destinationKey: text(body.destinationKey),
+    placeName: placeNameOf(text(body.destinationKey)),
     departments: (body.departments as string[]).slice(0, 3),
     ...(text(body.about) ? { about: text(body.about) } : {}),
     links: Array.isArray(body.links) ? (body.links as Organiser["links"]) : [],

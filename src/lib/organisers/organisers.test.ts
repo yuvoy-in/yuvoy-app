@@ -37,6 +37,7 @@ function organiser(over: Partial<Organiser> = {}): Organiser {
     slug: "sunrise-walkers",
     name: "Sunrise Walkers",
     destinationKey: "goa",
+    placeName: "Goa",
     departments: ["outdoors"],
     links: [],
     state: "verified",
@@ -184,6 +185,8 @@ describe("the page body", () => {
       contactEmail: "walks@example.com",
       runsIt: true,
     });
+    // `placeName` is read only: the API refuses a body that sends it (#230).
+    expect(organiserInput(organiserForm(page))).not.toHaveProperty("placeName");
   });
 });
 

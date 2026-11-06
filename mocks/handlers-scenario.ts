@@ -167,6 +167,18 @@ export type Scenario =
   | "people-down"
   | "people-outside"
   /*
+    The email door (yuvoy-app#229): `features.signIn.email` is off unless one
+    of these opens it. `email-sign-in-closed` opens it on the config and then
+    answers `503 sign_in_unavailable` on the send; `email-sign-in-limited`
+    answers `429`. `booking-handlers-auth.ts` says what a new address
+    does.
+  */
+  | "email-sign-in"
+  | "email-sign-in-closed"
+  | "email-sign-in-limited"
+  /* An email account (`email-door`'s `GET /me`) with the door open. */
+  | "email-sign-in-email-door"
+  /*
     Crews, a traveller's own named lists of friends (yuvoy-app#227). Each
     opens `people` at `staff`; `crew-handlers.ts` says what each starts with.
   */
@@ -175,6 +187,15 @@ export type Scenario =
   | "people-crews-big"
   | "people-crews-empty"
   | "people-crews-down"
+  /*
+    The email door (yuvoy-app#229): `features.signIn.email` is off unless one
+    of these opens it. `email-sign-in-closed` opens it on the config and then
+    answers `503 sign_in_unavailable` on the send; `email-sign-in-limited`
+    answers `429`. `booking-handlers-auth.ts` says what a new address does.
+  */
+  | "email-sign-in"
+  | "email-sign-in-closed"
+  | "email-sign-in-limited"
   /*
     Trigo, the chat (yuvoy-app#223, R5-T5). Each but `trigo-not-released`
     opens `trigo` at `staff`; `trigo-handlers.ts` says what each does.
@@ -196,6 +217,9 @@ export type Scenario =
   | "trigo-reply-link-ended"
   /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
   | `trigo-card-${string}`
+  /* Date alerts and trip drafts (yuvoy-app#220): `trigo-list-handlers.ts`. */
+  | "trigo-lists"
+  | `trigo-lists-${string}`
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
     with one organiser in each state; `organiser-handlers.ts` says what each

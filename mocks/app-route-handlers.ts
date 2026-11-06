@@ -116,12 +116,29 @@ export const appRouteHandlers = [
   }),
 
   http.post(appRoute("/api/session"), async ({ request }) => {
-    const body = (await request.json()) as { phone?: string; code?: string };
+    const body = (await request.json()) as {
+      phone?: string;
+      email?: string;
+      code?: string;
+      birthYear?: number;
+      birthdayPassed?: boolean;
+    };
+    const scenario = request.headers.get("x-yuvoy-scenario");
 
+    // The same fields the real route forwards (yuvoy-app#229).
     const answer = await fetch(`${API_BASE}/me/sign-in/verify`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: body?.phone, code: body?.code }),
+      headers: {
+        "Content-Type": "application/json",
+        ...(scenario ? { "x-yuvoy-scenario": scenario } : {}),
+      },
+      body: JSON.stringify({
+        phone: body?.phone,
+        email: body?.email,
+        code: body?.code,
+        birthYear: body?.birthYear,
+        birthdayPassed: body?.birthdayPassed,
+      }),
     });
 
     if (!answer.ok) {

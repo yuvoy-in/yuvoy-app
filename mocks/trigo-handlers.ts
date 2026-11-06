@@ -11,6 +11,10 @@ import {
   replyExtrasFor,
   trigoReplyHandlers,
 } from "./trigo-reply-handlers";
+import {
+  TRIGO_LIST_SCENARIOS,
+  __resetTrigoListMocks,
+} from "./trigo-list-handlers";
 
 /**
  * Trigo, the chat (yuvoy-app#223, R5-T5, yuvoy-mobile#356): the turn, the
@@ -54,6 +58,8 @@ import {
  *   - `trigo-reply-cards`, `trigo-reply-link`, `trigo-reply-link-ended`: as
  *     `trigo-reply`, with cards or a link note on each reply, and the
  *     hand-off (yuvoy-app#223 (b) and (c)). See `trigo-reply-handlers.ts`.
+ *   - `trigo-lists*`: the date alerts and trip drafts (yuvoy-app#220). See
+ *     `trigo-list-handlers.ts`.
  *
  * Chats are kept per scenario and session (the `Authorization` header), so
  * two e2e projects signed in as different numbers never see each other's.
@@ -114,6 +120,7 @@ export const TRIGO_SCENARIOS: ReadonlySet<string> = new Set([
   "trigo-not-released",
   ...TRIGO_CARD_SCENARIOS,
   ...TRIGO_REPLY_SCENARIOS,
+  ...TRIGO_LIST_SCENARIOS,
 ]);
 
 /** The stage a scenario gives `trigo`; null is `off`. */
@@ -667,4 +674,6 @@ export const trigoHandlers = [
 /** Test-only: forget the chats, keys and answers between cases. */
 export function __resetTrigoMocks(): void {
   states.clear();
+  // And the date alerts and drafts stopped or deleted (yuvoy-app#220).
+  __resetTrigoListMocks();
 }

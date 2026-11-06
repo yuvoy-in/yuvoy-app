@@ -204,3 +204,97 @@ describe("a sign-out the server never heard", () => {
     expect(later.tasks).toHaveLength(0);
   });
 });
+
+describe("signing in by email, with the year (yuvoy-app#229)", () => {
+  function capture() {
+    const seen: { body: unknown } = { body: undefined };
+    server.use(
+      http.post(`${BASE}/me/sign-in/verify`, async ({ request }) => {
+        seen.body = await request.json();
+        return HttpResponse.json({
+          sessionToken: "sess_new",
+          expiresAt: "2026-11-30T00:00:00Z",
+        });
+      }),
+    );
+    return seen;
+  }
+
+  it("passes the address and the code, and no number", async () => {
+    const seen = capture();
+    const answer = await POST(
+      own("POST", { email: " asha@example.com ", code: "123456" }),
+    );
+    expect(await answer.json()).toEqual({ signedIn: true });
+    expect(seen.body).toEqual({ email: "asha@example.com", code: "123456" });
+  });
+
+  it("passes the year and the birthday as the contract types them", async () => {
+    const seen = capture();
+    await POST(
+      own("POST", {
+        email: "asha@example.com",
+        code: "123456",
+        birthYear: 2008,
+        birthdayPassed: false,
+      }),
+    );
+    expect(seen.body).toEqual({
+      email: "asha@example.com",
+      code: "123456",
+      birthYear: 2008,
+      birthdayPassed: false,
+    });
+  });
+
+  it("leaves out a year that is not a whole number, and a birthday with no year", async () => {
+    const seen = capture();
+    await POST(
+      own("POST", {
+        phone: "+919000003210",
+        code: "123456",
+        birthYear: "1990",
+        birthdayPassed: true,
+      }),
+    );
+    expect(seen.body).toEqual({ phone: "+919000003210", code: "123456" });
+  });
+
+  it("refuses a number and an address together, without asking the API", async () => {
+    const seen = capture();
+    const answer = await POST(
+      own("POST", {
+        phone: "+919000003210",
+        email: "asha@example.com",
+        code: "123456",
+      }),
+    );
+    expect(answer.status).toBe(400);
+    expect(seen.body).toBeUndefined();
+  });
+
+  it("passes the API's year question through unchanged", async () => {
+    server.use(
+      http.post(`${BASE}/me/sign-in/verify`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "invalid_input",
+              message: "Tell us the year you were born.",
+              details: { birthYear: "Tell us the year you were born." },
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    const answer = await POST(
+      own("POST", { email: "new@example.com", code: "123456" }),
+    );
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toMatchObject({
+      error: { details: { birthYear: "Tell us the year you were born." } },
+    });
+    expect(jar.written).toBe(0);
+  });
+});
