@@ -370,9 +370,9 @@ describe("/people/crews/{crewId}: Invite to a plan", () => {
     crews(EMPTY);
     show();
     await heading("College gang");
-    // The count line under the title says it too, so look in the members.
-    const members = screen.getByRole("region", { name: W.pickHead });
-    expect(within(members).getByText(W.nobody)).toBeInTheDocument();
+    // Only the count line says so: an empty crew has no members section.
+    expect(screen.getAllByText(W.nobody)).toHaveLength(1);
+    expect(screen.queryByRole("region", { name: W.pickHead })).toBeNull();
     expect(
       screen.queryByRole("button", { name: CREW_INVITE_WORDS.button }),
     ).toBeNull();
