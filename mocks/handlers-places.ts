@@ -122,7 +122,12 @@ export const placeRoutes = [
         features: {
           payments: "coming_soon",
           inviteOnly: false,
-          signIn: { email: true, google: false, apple: false },
+          // Off as on dev and production today, unless a scenario opens it.
+          signIn: {
+            email: scenario.startsWith("email-sign-in"),
+            google: false,
+            apple: false,
+          },
         },
         support: {
           whatsappE164: "+919000000001",

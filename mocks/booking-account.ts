@@ -153,6 +153,68 @@ export function answerMe(request: Request): Response {
  */
 export const DEV_SIGN_IN_CODE = "123456";
 
+/** The number the mock treats as a person no account holds yet (yuvoy-app#229). */
+export const NEW_SIGN_IN_PHONE = "+919000000018";
+
+/** The email door shut: its switch is off (yuvoy-app#229). The API's words. */
+export const EMAIL_DOOR_SHUT = () =>
+  envelope(
+    "sign_in_unavailable",
+    "Signing in this way is not open yet. Sign in with your WhatsApp number.",
+    503,
+  );
+
+/**
+ * The year asked of a new person, as the API rules on it (yuvoy-app#229):
+ * none is a 400 naming `birthYear`; this year minus 18 without
+ * `birthdayPassed` is a 400 naming that; under 18 is
+ * `403 under_age_sign_up`, nothing made. Null for an adult. "This year" is
+ * India's, from the mock's clock.
+ */
+export function yearRefusal(birthYear: unknown, birthdayPassed: unknown) {
+  if (birthYear === undefined || birthYear === null) {
+    return envelope("invalid_input", "Tell us the year you were born.", 400, {
+      birthYear: "Tell us the year you were born.",
+    });
+  }
+  if (!Number.isInteger(birthYear) || (birthYear as number) < 1900) {
+    return envelope(
+      "invalid_input",
+      "Enter the year you were born, like 1995.",
+      400,
+      { birthYear: "Enter the year you were born, like 1995." },
+    );
+  }
+  const thisYear = Number(
+    new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+    }).format(new Date(mockNow())),
+  );
+  const edge = thisYear - 18;
+  const year = birthYear as number;
+  const passed =
+    typeof birthdayPassed === "boolean" ? birthdayPassed : undefined;
+  if (year === edge && passed === undefined) {
+    return envelope(
+      "invalid_input",
+      "Tell us whether you have had your birthday this year.",
+      400,
+      {
+        birthdayPassed: "Tell us whether you have had your birthday this year.",
+      },
+    );
+  }
+  if (year > edge || (year === edge && passed === false)) {
+    return envelope(
+      "under_age_sign_up",
+      "Yuvoy accounts are for people 18 and over. You can still look around without an account.",
+      403,
+    );
+  }
+  return null;
+}
+
 /**
  * The invite codes the mock knows (yuvoy-api#195), normalised: no hyphen,
  * capitals. Each is eight characters of the real alphabet, which has no

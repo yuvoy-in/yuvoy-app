@@ -176,6 +176,15 @@ export type Scenario =
   | "people-crews-empty"
   | "people-crews-down"
   /*
+    The email door (yuvoy-app#229): `features.signIn.email` is off unless one
+    of these opens it. `email-sign-in-closed` opens it on the config and then
+    answers `503 sign_in_unavailable` on the send; `email-sign-in-limited`
+    answers `429`. `booking-handlers-auth.ts` says what a new address does.
+  */
+  | "email-sign-in"
+  | "email-sign-in-closed"
+  | "email-sign-in-limited"
+  /*
     Trigo, the chat (yuvoy-app#223, R5-T5). Each but `trigo-not-released`
     opens `trigo` at `staff`; `trigo-handlers.ts` says what each does.
   */

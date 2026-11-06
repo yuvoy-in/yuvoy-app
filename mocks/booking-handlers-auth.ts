@@ -4,12 +4,15 @@ import { PEOPLE_SCENARIOS, setPeopleName } from "./people-state";
 import { envelope, rid, scenarioOf, url } from "./booking-support";
 import {
   DEV_SIGN_IN_CODE,
+  EMAIL_DOOR_SHUT,
   MOCK_INVITE_CODES,
+  NEW_SIGN_IN_PHONE,
   admittedByCode,
   answerMe,
   isAdmitted,
   stayProblems,
   staysByCredential,
+  yearRefusal,
 } from "./booking-account";
 
 /*
@@ -34,7 +37,48 @@ export const authHandlers = [
   */
 
   http.post(url("/me/sign-in/request"), async ({ request }) => {
-    const body = (await request.json()) as { phone?: string };
+    const body = (await request.json()) as { phone?: string; email?: string };
+    const scenario = scenarioOf(request);
+
+    if (body.email !== undefined) {
+      /*
+        The email door (yuvoy-app#229), as the API answers it: shut
+        (`503 sign_in_unavailable`) while the switch is off, a 400 that names
+        the field for an address that is not one, and the same 202 for every
+        address, so the answer reveals none of them.
+      */
+      if (
+        !scenario.startsWith("email-sign-in") ||
+        scenario === "email-sign-in-closed"
+      ) {
+        return EMAIL_DOOR_SHUT();
+      }
+      const email = body.email.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        return envelope(
+          "invalid_input",
+          "Enter an email address, like name@example.com.",
+          400,
+          { email: "Enter an email address, like name@example.com." },
+        );
+      }
+      if (scenario === "email-sign-in-limited") {
+        return envelope(
+          "rate_limited",
+          "Too many codes for this address. Try again in an hour.",
+          429,
+        );
+      }
+      return HttpResponse.json(
+        {
+          sent: true,
+          message: "A code is on its way to that address.",
+          devCode: DEV_SIGN_IN_CODE,
+        },
+        { status: 202, headers: mockHeaders(rid()) },
+      );
+    }
+
     const phone = body.phone?.trim() ?? "";
 
     // E.164 or nothing. The real API is strict here and the screen has a
@@ -44,7 +88,7 @@ export const authHandlers = [
     }
     // Reachable with `?__scenario=otp-rate-limited`, so the 429 copy is
     // testable without sending six codes.
-    if (scenarioOf(request) === "otp-rate-limited") {
+    if (scenario === "otp-rate-limited") {
       return envelope("rate_limited", "Too many codes for that number.", 429);
     }
 
@@ -69,11 +113,23 @@ export const authHandlers = [
   }),
 
   http.post(url("/me/sign-in/verify"), async ({ request }) => {
-    const body = (await request.json()) as { phone?: string; code?: string };
+    const body = (await request.json()) as {
+      phone?: string;
+      email?: string;
+      code?: string;
+      birthYear?: unknown;
+      birthdayPassed?: unknown;
+    };
     const phone = body.phone?.trim() ?? "";
+    const email = body.email?.trim().toLowerCase() ?? "";
     const code = body.code?.trim() ?? "";
+    const scenario = scenarioOf(request);
 
-    if (!phone) {
+    /*
+      No door check here: the browser's `POST /api/session` carries no
+      scenario header, so this sees none. The send is where the door shuts.
+    */
+    if (!phone && !email) {
       return envelope("invalid_input", "That is not a phone number.", 400);
     }
     /*
@@ -89,7 +145,7 @@ export const authHandlers = [
       and only after the code checked out, so it tells nobody without the
       code anything (`AccountDeletionPending`).
     */
-    if (scenarioOf(request) === "account-deletion-pending") {
+    if (scenario === "account-deletion-pending") {
       return envelope(
         "account_deletion_pending",
         // The API's own words (yuvoy-api handler/account_deletion.go).
@@ -98,9 +154,19 @@ export const authHandlers = [
       );
     }
 
+    /*
+      A person no account holds yet (yuvoy-app#229): an address that starts
+      with "new", or the number NEW_SIGN_IN_PHONE. The year is asked before
+      anything is made, and the code stays good for the answer.
+    */
+    if (email.startsWith("new") || phone === NEW_SIGN_IN_PHONE) {
+      const refused = yearRefusal(body.birthYear, body.birthdayPassed);
+      if (refused) return refused;
+    }
+
     return HttpResponse.json(
       {
-        sessionToken: `sess_${phone.replace(/\D/g, "")}`,
+        sessionToken: `sess_${(phone || email).replace(/[^a-z0-9]/gi, "")}`,
         expiresAt: new Date(mockNow() + 30 * 24 * 60 * 60_000).toISOString(),
       },
       { headers: mockHeaders(rid()) },
