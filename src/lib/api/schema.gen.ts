@@ -6865,7 +6865,7 @@ export interface components {
             /** @enum {string} */
             kind: "book" | "move_booking" | "add_people" | "date_alert" | "trip_draft";
             /**
-             * @description expired once a proposed card is past expiresAt. A confirmed book card stays confirmed while a reservation made under its key is live (a hold not past its expiry, or a request waiting for the business), past expiresAt too, and confirm answers the same checkout; it reads expired past expiresAt when no reservation was made, or once the reservation ended with no booking. used once a booking carries a book card, and once a date-alert or trip-draft card is confirmed.
+             * @description expired once a proposed card is past expiresAt. A confirmed book card stays confirmed while a reservation of the card's own traveller made under its key is live (a hold not past its expiry, or a request waiting for the business; liveReservation says which), past expiresAt too, and confirm answers the same checkout; it reads expired past expiresAt when no reservation was made, or once the reservation ended with no booking. used once a booking carries a book card, and once a date-alert or trip-draft card is confirmed.
              * @enum {string}
              */
             state: "proposed" | "confirmed" | "declined" | "expired" | "used" | "superseded";
@@ -6881,6 +6881,20 @@ export interface components {
             declineLabel: "Not now";
             /** @description Set once a reservation carries this card, or for a change. */
             bookingReference?: string | null;
+            /** @description Set only on a book card in state confirmed while a reservation of the card's own traveller made under its key is live: a hold not past its expiry, or a request waiting for the business. Another traveller's checkout under the same key is never shown here. That card is not one whose checkout was never finished, so show the waiting reservation (the hold and when it ends, or the request and when it closes), not Go to checkout: a checkout with a changed party is refused under this card's key (409 idempotency_key_reuse), and under a new key would make a second request. Null on every other card: a book card with no reservation yet, or whose reservation ended or became a booking (bookingReference), and every card of another kind or state. Not in required, so a client that does not read it keeps working. */
+            liveReservation?: components["schemas"]["TrigoLiveReservation"] | null;
+        };
+        TrigoLiveReservation: {
+            /**
+             * @description hold: seats held for the traveller to pay, also a request the business accepted. request: sent to the business, not answered yet.
+             * @enum {string}
+             */
+            kind: "hold" | "request";
+            /**
+             * Format: date-time
+             * @description For a hold, when it ends and its seats go back on sale. For a request, when it closes if the business has not answered, which can be just past until the request is closed. Null only for a request with no such time.
+             */
+            expiresAt: string | null;
         };
         TrigoLinkNotChecked: {
             /** @example insider.in */
