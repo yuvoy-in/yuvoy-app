@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Field } from "@/components/ui/field";
@@ -8,11 +8,11 @@ import { Screen } from "@/components/chrome/screen";
 import { Button } from "@/components/ui/button";
 import { SearchIcon } from "@/components/ui/icons";
 import { ReelGrid } from "@/components/feed/reel-grid";
-import { RollingNumber } from "@/components/ui/rolling-number";
 import { SheetPresence } from "@/components/ui/sheet";
 import { FilterSheet, GroupPricedNote } from "./filter-sheet";
 import { ActiveFilters } from "./active-filters";
 import { GuideDoor, SearchHeading, SearchSkeleton } from "./search-parts";
+import { FilterCount } from "./search-filter-count";
 import { playableReels, type ReelsPage } from "@/lib/feed/reels";
 import {
   filtersFromParams,
@@ -22,7 +22,6 @@ import {
 } from "@/lib/search/filters";
 import { activeFilterCount, withoutFilters } from "@/lib/search/labels";
 import { useSearchReels, useVocabulary } from "@/lib/search/use-search-reels";
-import { DURATION, EASE, prefersReducedMotion } from "@/lib/motion";
 import { useDelayedFlag } from "@/lib/motion/use-delayed-flag";
 import { useListMotion } from "@/lib/motion/use-list-motion";
 import { useChangedBeforeHydration } from "@/lib/react/use-changed-before-hydration";
@@ -477,38 +476,3 @@ export function SearchScreen({
 }
 
 type ResultsView = "loading" | "error" | "empty" | "grid";
-
-/**
- * The count on Filters. It rolls to its new figure (T14 A), and the badge
- * grows in when a first filter is applied on this screen. Hidden from
- * assistive technology: the button's own name carries the number.
- */
-function FilterCount({ count, arrive }: { count: number; arrive: boolean }) {
-  const ref = useRef<HTMLSpanElement | null>(null);
-  // Read once: a badge drawn with the screen is simply there.
-  const appears = useRef(arrive);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || !appears.current || typeof el.animate !== "function") return;
-    el.animate(
-      prefersReducedMotion()
-        ? [{ opacity: 0 }, { opacity: 1 }]
-        : [
-            { opacity: 0, transform: "scale(0.96)" },
-            { opacity: 1, transform: "none" },
-          ],
-      prefersReducedMotion()
-        ? { duration: DURATION.reducedFade, easing: "linear" }
-        : { duration: DURATION.quick, easing: EASE.interaction },
-    );
-  }, []);
-  return (
-    <span
-      ref={ref}
-      aria-hidden="true"
-      className="bg-forest text-paper ml-1.5 inline-flex size-5 items-center justify-center overflow-hidden rounded-full text-xs font-bold"
-    >
-      <RollingNumber value={count} />
-    </span>
-  );
-}

@@ -7,6 +7,11 @@ import {
   trigoCardHandlers,
 } from "./trigo-card-handlers";
 import {
+  TRIGO_REPLY_SCENARIOS,
+  replyExtrasFor,
+  trigoReplyHandlers,
+} from "./trigo-reply-handlers";
+import {
   TRIGO_LIST_SCENARIOS,
   __resetTrigoListMocks,
 } from "./trigo-list-handlers";
@@ -50,6 +55,9 @@ import {
  *     `404`. The reads are not behind the release, as in the API.
  *   - `trigo-card-*`: as `trigo-reply`, and each reply carries a confirm card
  *     (yuvoy-app#223 part 2). See `trigo-card-handlers.ts`.
+ *   - `trigo-reply-cards`, `trigo-reply-link`, `trigo-reply-link-ended`: as
+ *     `trigo-reply`, with cards or a link note on each reply, and the
+ *     hand-off (yuvoy-app#223 (b) and (c)). See `trigo-reply-handlers.ts`.
  *   - `trigo-lists*`: the date alerts and trip drafts (yuvoy-app#220). See
  *     `trigo-list-handlers.ts`.
  *
@@ -111,6 +119,7 @@ export const TRIGO_SCENARIOS: ReadonlySet<string> = new Set([
   "trigo-fast",
   "trigo-not-released",
   ...TRIGO_CARD_SCENARIOS,
+  ...TRIGO_REPLY_SCENARIOS,
   ...TRIGO_LIST_SCENARIOS,
 ]);
 
@@ -436,6 +445,7 @@ export const trigoHandlers = [
       fixed,
     );
     reply.actionCard = trigoCardFor(scenario, mockNow());
+    Object.assign(reply, replyExtrasFor(scenario));
     state.messages.push(mine, reply);
     state.remaining -= 1;
     state.conversation = { ...state.conversation, lastMessageAt: now };
@@ -630,6 +640,30 @@ export const trigoHandlers = [
         say: (text) => {
           const line = message(state, "trigo", text, false);
           state.messages.push(line);
+          return line;
+        },
+      };
+    },
+  }),
+
+  ...trigoReplyHandlers({
+    url,
+    scenarioOf,
+    sessionOf,
+    envelope,
+    headers: () => mockHeaders(rid()),
+    isTrigo: (scenario) => trigoStageOf(scenario) !== null,
+    chatOf: (request, auth) => {
+      const state = stateOf(request, auth);
+      return {
+        conversationId: state.conversation?.id ?? null,
+        messages: state.messages,
+        team: state.conversation?.team ?? TEAM,
+        handOff: (text, team) => {
+          const line = message(state, "system", text, false);
+          state.messages.push(line);
+          if (state.conversation)
+            state.conversation = { ...state.conversation, team };
           return line;
         },
       };
