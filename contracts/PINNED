@@ -638,14 +638,25 @@ repo=yuvoy-in/yuvoy-api
 # still gets its link.
 #
 # Named, not consumed: `RateLimitedForTheDay` (with `Retry-After`) on the
-# organiser and club writes' 429s; `liveReservation` (`TrigoLiveReservation`)
-# on Trigo book cards; `asText` words up to 40 characters, not 30 (the web
-# still keeps 30, `AS_TEXT_MAX_CHARS`); `contact.whatsapp` required on a
-# reservation from an email session with no number proved (yuvoy-api#304);
-# new 400 and 429 notes; the yuvoy-api#685, #686 and #224/#225 prose.
+# organiser and club writes' 429s; `asText` words up to 40 characters, not 30
+# (the web still keeps 30, `AS_TEXT_MAX_CHARS`); `contact.whatsapp` required
+# on a reservation from an email session with no number proved
+# (yuvoy-api#304); new 400 and 429 notes; the yuvoy-api#685, #686 and
+# #224/#225 prose.
 #
 # Master had moved on to 63d7f1ef53b0 by `git ls-remote` on pinning; this pin
 # stays on the commit yuvoy-app#278 was given.
+#
+# Consumed on this same pin (yuvoy-app#223): `TrigoActionCard.liveReservation`
+# and `TrigoLiveReservation.kind`, from the squash of yuvoy-api#604
+# (30478d6a2fba, merged 3 Nov 04:44 IST), which 84988635 contains. A
+# confirmed book card with a live hold or request under its key offers no Go
+# to checkout, and says which one is live with the booking screen's own title
+# for it.
+#
+# Named, not consumed: `TrigoLiveReservation.expiresAt`. The card does not
+# show when the hold or request ends yet; that line waits on the copy in
+# yuvoy-app#223.
 
 ref=84988635dfc0b3db6b9569113f6ba2374ccd9691
 branch=master
