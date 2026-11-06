@@ -201,15 +201,15 @@ export function SignInSteps({
 
   return (
     <>
+      {/*
+        `noValidate`: the steps check their own fields and say why on the
+        field, so the browser's bubble never stops "asha@" before our
+        sentence can show (`emailProblem`, the year and the button's block).
+      */}
       <OwnForm
         key={stage}
         ref={steps}
         className="mt-8 space-y-5"
-        /*
-          Our own checks, not the browser's: a browser stops "asha@" in a
-          type="email" field with its own bubble, so the sentence on the field
-          (emailProblem) never showed.
-        */
         noValidate
         onSubmit={(e) => {
           e.preventDefault();

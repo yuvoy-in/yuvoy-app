@@ -11,6 +11,7 @@ import { creatorLinkHandlers } from "./creator-link-handlers";
 import { peopleHandlers } from "./people-handlers";
 import { crewHandlers } from "./crew-handlers";
 import { trigoHandlers } from "./trigo-handlers";
+import { trigoListHandlers } from "./trigo-list-handlers";
 import { organiserHandlers } from "./organiser-handlers";
 import { doorHandlers } from "./organiser-door";
 import { clubHandlers } from "./club-handlers";
@@ -45,6 +46,8 @@ const routes = [
 
   // Trigo, the chat (yuvoy-app#223). Before the organisers: see `PUT /me/age` there.
   ...trigoHandlers,
+  /* Date alerts and trip drafts (yuvoy-app#220). */
+  ...trigoListHandlers,
   /* Organiser pages and `PUT /me/age` (yuvoy-app#224). */
   ...organiserHandlers,
   /* The door, `POST /organiser-check-ins` (yuvoy-app#226). */

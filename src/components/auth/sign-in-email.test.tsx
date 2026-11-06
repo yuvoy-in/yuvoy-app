@@ -127,20 +127,24 @@ describe("the doors", () => {
     expect(screen.queryByLabelText("Your WhatsApp number")).toBeNull();
   });
 
-  it("offers both doors at the invite gate: an invitation admits the traveller, not only a number", async () => {
-    // yuvoy-api#351: one signed in by email redeems an invitation too.
+  it("offers the same doors at the invite gate: an email traveller redeems too", async () => {
+    // An invitation admits the traveller, not only a number (yuvoy-api#351).
     emailSwitch(true);
     const user = userEvent.setup();
     renderWithQuery(
       <InviteGate view="signed-out" variant="page" purpose="browse" />,
     );
     await user.click(screen.getByRole("button", { name: "Sign in" }));
+    const door = await screen.findByRole("button", {
+      name: EMAIL_SIGN_IN.door,
+    });
+    const number = screen.getByRole("button", {
+      name: EMAIL_SIGN_IN.phoneDoor,
+    });
     expect(
-      await screen.findByRole("button", { name: EMAIL_SIGN_IN.door }),
-    ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: EMAIL_SIGN_IN.phoneDoor }),
-    );
+      door.compareDocumentPosition(number) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await user.click(number);
     expect(
       await screen.findByLabelText("Your WhatsApp number"),
     ).toBeInTheDocument();
