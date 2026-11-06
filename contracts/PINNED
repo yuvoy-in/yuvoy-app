@@ -599,7 +599,18 @@ repo=yuvoy-in/yuvoy-api
 #
 # Checked with `git ls-remote` immediately before pinning.
 
-# 3 Nov 2026. Forward from d879826904b1 to 5f4bb498f6a5, the commit
+# 2 Nov 2026. Forward from d879826904b1 to 53081d5df738, API master. Read for
+# removals first: nothing is removed.
+#
+# Consumed in this change (yuvoy-mobile#386): `Club.claimable` (yuvoy-api#594).
+# A group's page shows Claim while it is true, so a group whose holder erased
+# their account (still `onYuvoy`) can be claimed again. The On Yuvoy label
+# stays on `onYuvoy`.
+#
+# Checked with `git ls-remote` against the local yuvoy-api origin/master just
+# before pinning.
+
+# 3 Nov 2026. Forward from 53081d5df738 to 5f4bb498f6a5, the commit
 # yuvoy-app#230 names (yuvoy-api#601, live since 3 Nov 03:22 IST). Read for
 # removals first: no path and no schema is removed.
 #
@@ -609,8 +620,9 @@ repo=yuvoy-in/yuvoy-api
 # still has its name, and the `placeName()` lookup is gone. `Organiser.placeName`
 # is read only: no create or edit body sends it.
 #
-# Named, not consumed: `Club.claimable` (this app reads no `Club`), and the
-# `Retry-After` on the Trigo 429s (`RateLimitedRetryAfter`).
+# Named, not consumed: the `Retry-After` on the Trigo 429s
+# (`RateLimitedRetryAfter`). `Club.claimable` is consumed since the 2 Nov pin
+# above (yuvoy-mobile#386).
 #
 # Master had moved on to 6e7c180d1633 by `git ls-remote` on pinning; this pin
 # stays on the commit the issue names.
