@@ -638,11 +638,9 @@ repo=yuvoy-in/yuvoy-api
 # still gets its link.
 #
 # Named, not consumed: `RateLimitedForTheDay` (with `Retry-After`) on the
-# organiser and club writes' 429s; `asText` words up to 40 characters, not 30
-# (the web still keeps 30, `AS_TEXT_MAX_CHARS`); `contact.whatsapp` required
-# on a reservation from an email session with no number proved
-# (yuvoy-api#304); new 400 and 429 notes; the yuvoy-api#685, #686 and
-# #224/#225 prose.
+# organiser and club writes' 429s; `contact.whatsapp` required on a
+# reservation from an email session with no number proved (yuvoy-api#304);
+# new 400 and 429 notes; the yuvoy-api#685, #686 and #224/#225 prose.
 #
 # Master had moved on to 63d7f1ef53b0 by `git ls-remote` on pinning; this pin
 # stays on the commit yuvoy-app#278 was given.
@@ -657,6 +655,11 @@ repo=yuvoy-in/yuvoy-api
 # Named, not consumed: `TrigoLiveReservation.expiresAt`. The card does not
 # show when the hold or request ends yet; that line waits on the copy in
 # yuvoy-app#223.
+#
+# Consumed on this same pin (yuvoy-app#279): `asText` words up to 40
+# characters, not 30 (yuvoy-api#649, 831e7151). `AS_TEXT_MAX_CHARS` is 40,
+# so removing a chip whose word is 31 to 40 characters long sends that word
+# back in `asText`.
 
 ref=84988635dfc0b3db6b9569113f6ba2374ccd9691
 branch=master

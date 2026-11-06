@@ -118,11 +118,11 @@ export function readR3(params: URLSearchParams): R3Ask | R3Refusal {
     };
   }
   const asText = params.getAll("asText");
-  if (asText.length > 8 || asText.some((w) => [...w].length > 30)) {
+  if (asText.length > 8 || asText.some((w) => [...w].length > 40)) {
     return {
-      message: "asText takes at most 8 words of at most 30 characters each",
+      message: "asText takes at most 8 words of at most 40 characters each",
       details: {
-        asText: "more than 8 words, or a word longer than 30 characters",
+        asText: "more than 8 words, or a word longer than 40 characters",
       },
     };
   }
