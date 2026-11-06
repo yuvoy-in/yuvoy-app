@@ -581,6 +581,7 @@ paths:
                   entries:
                     type: array
                     items: { $ref: "#/components/schemas/CatalogIndexEntry" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "503": { $ref: "#/components/responses/CatalogUnavailable" }
 
   /catalog/vocabulary:
@@ -743,10 +744,10 @@ paths:
           schema: { type: string, maxLength: 120 }
         - name: asText
           in: query
-          description: Words of `q` to match as plain text and never as chips. At most 8, each at most 30 characters; a word not in `q` is ignored.
+          description: Words of `q` to match as plain text and never as chips. At most 8, each at most 40 characters, the most an understood chip's `from` can be; a word not in `q` is ignored. A place's name in `q` with any of its words here is plain text as a whole, so sending back a place chip's `from`, clipped to 40 characters, removes the whole name and no word of it becomes another chip.
           style: form
           explode: true
-          schema: { type: array, maxItems: 8, items: { type: string, maxLength: 30 } }
+          schema: { type: array, maxItems: 8, items: { type: string, maxLength: 40 } }
         - name: budget
           in: query
           description: >-
@@ -1149,6 +1150,7 @@ paths:
       responses:
         "200": { description: Mine., content: { application/json: { schema: { $ref: "#/components/schemas/MyTables" } } } }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "503": { $ref: "#/components/responses/TablesUnavailable" }
 
   /suppliers:
@@ -1814,6 +1816,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExperiencePage" }
+        "400":
+          description: >-
+            `invalid_input`: `limit` is not a whole number from 1 to 50,
+            `bookableOn` is not a date like 2026-10-17, or `cursor` is not one
+            this endpoint gave out.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /experiences/{slug}:
     get:
@@ -1945,10 +1955,15 @@ paths:
         <travellerSession>` (a recovery token also counts in its first 72 hours;
         a `statusToken` does not) and the checkout is the traveller's own:
 
-          - `contact.whatsapp` may be left out, and is **ignored if sent**. The
-            booking goes on the number the session proved. A typed number would
-            put the booking on a number nobody proved, and it would appear in
-            that number's account.
+          - When the session proved a number, `contact.whatsapp` may be left
+            out, and is **ignored if sent**. The booking goes on the number the
+            session proved. A typed number would put the booking on a number
+            nobody proved, and it would appear in that number's account.
+          - Signed in by email with no number proved (yuvoy-api#304),
+            `contact.whatsapp` is required as for a guest, else `400` with
+            `details["contact.whatsapp"]`. The operator reaches the traveller
+            on it, the booking is still the traveller's, and the number opens
+            nothing for anybody.
           - `contact.name` may be left out. The profile name is used, else the
             name on the newest booking made with the number. With neither, `400`
             with `details["contact.name"]`.
@@ -1963,7 +1978,7 @@ paths:
 
 
         **By invitation (yuvoy-api#195).** While the server's invite gate is
-        on, creating a reservation needs a signed-in traveller whose number is
+        on, creating a reservation needs a signed-in traveller who is
         admitted (`GET /me` says `admitted: true`; see `redeemInviteCode`).
         Anybody else, including a guest checkout with no `Authorization`
         header and a request to book, is `403 invite_required`, before
@@ -1989,7 +2004,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Reservation" }
-        "400": { $ref: "#/components/responses/BadRequest" }
+        "400":
+          description: >-
+            `invalid_input`; `screening_required` when the listing asks a
+            health declaration and none was sent; or `idempotency_key_malformed`:
+            the `Idempotency-Key` sent is not 16-128 characters of `A-Za-z0-9_.:-`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "401":
           description: >
             A Bearer credential was sent and is not a live sign-in. Only ever
@@ -2003,6 +2025,11 @@ paths:
           description: >
             Could not proceed, and the code says why: `capacity_unavailable`,
             `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`.
+            `price_moved`: `expectTotalPaise` was sent and the listing no longer
+            costs that. `screening_needs_a_doctor`: the health declaration
+            names a condition that needs a doctor's sign-off first.
+            `under_minimum_age`: somebody in the party is under the trip's
+            minimum age. Nothing was held.
             `request_quota_exhausted` and `request_window_closed` are no longer
             returned (since 2026-09-13): every request is taken.
 
@@ -2035,6 +2062,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "503":
           description: >
             Deliberately stopped, not broken — `booking_disabled` or
@@ -2139,6 +2167,14 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: The hold has ended; this reservation can no longer be paid for.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          description: >-
+            `operator_not_bookable`: we have stopped selling this operator's
+            departures. Only once a card provider is live; until then this
+            endpoint answers 200 `coming_soon`.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -2355,13 +2391,17 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: >-
-            The seats are no longer held, or a card payment is already open for
-            them. Either way the traveller starts again.
+            `conflict`: the seats are no longer held, or a card payment is
+            already open for them. Either way the traveller starts again.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "503":
-          description: We have stopped selling this operator's departures.
+          description: >-
+            `operator_not_bookable`: we have stopped selling this operator's
+            departures. `unavailable`: bookings cannot be confirmed right now
+            and the seats are still held, so try again.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -2593,7 +2633,13 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/BookingChange" }
-        "400": { $ref: "#/components/responses/BadRequest" }
+        "400":
+          description: >-
+            `invalid_input`, or `idempotency_key_malformed`: the `Idempotency-Key`
+            sent is not 16-128 characters of `A-Za-z0-9_.:-`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
@@ -2639,8 +2685,9 @@ paths:
               schema: { $ref: "#/components/schemas/BookingChange" }
         "400":
           description: >-
-            `invalid_input`, or `screening_required` when the listing asks a
-            health declaration and none was sent.
+            `invalid_input`, `screening_required` when the listing asks a
+            health declaration and none was sent, or `idempotency_key_malformed`:
+            the `Idempotency-Key` sent is not 16-128 characters of `A-Za-z0-9_.:-`.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -3718,7 +3765,7 @@ paths:
         expiry in step with it rather than with the value sign-in returned.
 
 
-        `admitted` is whether the number may book when booking is by
+        `admitted` is whether this traveller may book when booking is by
         invitation. False means show the invite code screen
         (`redeemInviteCode`).
       security: [{ travellerSession: [] }, { statusToken: [] }]
@@ -5283,7 +5330,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TrigoTurnResult" }
-        "400": { $ref: "#/components/responses/BadRequest" }
+        "400":
+          description: >-
+            `invalid_input`, or `idempotency_key_malformed`: the `Idempotency-Key`
+            sent is not 16-128 characters of `A-Za-z0-9_.:-`. The key is required,
+            so a missing one answers this too.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403":
           description: >-
@@ -5877,11 +5931,12 @@ paths:
       summary: Redeem an invite code
       operationId: redeemInviteCode
       description: >-
-        Admits the signed-in traveller's number to booking with a code Yuvoy
-        gave them. Sign in first (`verifyTravellerSignIn`), then redeem.
-        **Redeeming never creates a session**: the number admitted is the one
-        the session already proved, so a traveller who signs in again on a new
-        phone with the same number keeps their access.
+        Admits the signed-in traveller to booking with a code Yuvoy gave them.
+        Sign in first (`verifyTravellerSignIn`), by number or by email, then
+        redeem. **Redeeming never creates a session**: the admission belongs
+        to the traveller the session already proved (yuvoy-api#351), so a
+        traveller who signs in again on a new phone, with the same number or
+        address, keeps their access.
 
 
         Codes are 8 characters from an alphabet with no 0, O, 1, I or L, shown
@@ -5890,22 +5945,24 @@ paths:
         person, once.
 
 
-        A number that is already admitted gets `200` with
-        `alreadyAdmitted: true` whatever code it sends, and the code is **not**
+        A traveller who is already admitted gets `200` with
+        `alreadyAdmitted: true` whatever code they send, and the code is **not**
         used up, so it can go to somebody else.
 
 
-        A code staff issued for a named number is redeemable by that number
-        only (yuvoy-api#195). From any other number it is
+        A code staff issued for a named person is redeemable only by a
+        traveller who has proved that number, or the email staff entered
+        with it (yuvoy-api#195). From anybody else it is
         `404 invite_code_unknown`, whatever state it is in, so a code says
         nothing about itself to somebody it was not meant for.
 
 
         Refusals: `404 invite_code_unknown` (no such code, one that was
-        withdrawn, or one issued for another number, which read alike on
+        withdrawn, or one issued for somebody else, which read alike on
         purpose), `409 invite_code_used`, `410 invite_code_expired`. Throttled
-        per IP and per number, `429`; through the app's own server, per IP
-        means the person's address it names (see the API description).
+        per IP and per traveller (by their number when they have one),
+        `429`; through the app's own server, per IP means the person's
+        address it names (see the API description).
 
 
         `GET /me` reports the result as `admitted`. Whether booking actually
@@ -5925,7 +5982,7 @@ paths:
                   description: As typed. Case, spaces and hyphens are ignored.
       responses:
         "200":
-          description: The number is admitted.
+          description: The traveller is admitted.
           content:
             application/json:
               schema:
@@ -5937,12 +5994,12 @@ paths:
                     type: boolean
                     enum: [true]
                     description: >-
-                      Present only when the number was admitted before this
-                      request. The code sent was left unused.
+                      Present only when the traveller was admitted before
+                      this request. The code sent was left unused.
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404":
-          description: "`invite_code_unknown`: no such code, one that was withdrawn, or one issued for another number."
+          description: "`invite_code_unknown`: no such code, one that was withdrawn, or one issued for somebody else."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -6539,12 +6596,10 @@ paths:
               schema: { $ref: "#/components/schemas/InvitedTrip" }
         "401":
           description: >-
-            `unauthorized`. With no `Authorization` header the message is "Sign
-            in with your WhatsApp number to see your trips.", the sentence every
-            route behind the traveller sign-in check answers, however the
-            traveller signed in; an unknown or expired token reads "Sign in
-            again to see your trips." A credential that names no traveller,
-            which a live one never does, reads "Sign in to accept."
+            `unauthorized`. With no `Authorization` header, and with an unknown
+            or expired token, the message is "Sign in to see the trips you are
+            invited on." A credential that names no traveller, which a live one
+            never does, reads "Sign in to accept."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -7642,9 +7697,15 @@ paths:
         404 while the `supply` release does not admit the caller. Writes
         answer 503 `organisers_paused` while organiser pages are paused, except
         `cancelOrganiserEvent`. A field the server refuses is a 400 with
-        `details` keyed by that field (a link's is `links.<index>`). Three a
-        day per person, then 429 with `Retry-After` in seconds; requests sent
-        too fast answer 429 with no `Retry-After`. Never cached.
+        `details` keyed by that field (a link's is `links.<index>`). Every
+        route answers 429 `rate_limited` with no `Retry-After` to requests
+        sent too fast. Six writes also have a day limit and answer 429
+        `rate_limited` over it, with `Retry-After` in seconds until the count
+        lets one more through: setting up an organiser and linking a group
+        (three a day per person each), adding helpers (ten a day per
+        organiser), posting and editing events (twenty a day per organiser,
+        counted together) and claiming cards (five a day per organiser).
+        Never cached.
 
         With `clubId` (OrganiserFromClubInput), the holder of an approved
         claim on an R9 group sets up that group's organiser: it takes the
@@ -7664,8 +7725,8 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { description: "`adult_confirmation_required`, `not_club_holder`, or `people_paused` with details.standing and details.until.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "404": { $ref: "#/components/responses/NotFound" }
-        "409": { description: "`club_already_linked`, with details.organiserId: only the group's holder gets this far.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "409": { description: "`club_already_linked`, with details.organiserId naming the group's organiser: only the group's holder gets this far. In one rare race (another set-up of the group commits first and its organiser cannot then be found) details is left out.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { $ref: "#/components/responses/RateLimitedForTheDay" }
         "503": { $ref: "#/components/responses/OrganisersPaused" }
   /me/organisers:
     get:
@@ -7768,8 +7829,9 @@ paths:
         `details.until`); the group already has another organiser, or this
         organiser already has another group (409 `club_already_linked` with
         `details.organiserId`, and `details.clubId` naming the other group
-        for the second). Linking again to the same group answers 200 and
-        changes nothing. Never cached.
+        for the second; in one rare race, when the group's organiser cannot
+        be found, the first comes with no details). Linking again to the same
+        group answers 200 and changes nothing. Never cached.
       security: [{ travellerSession: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/OrganiserClubLink" } } } }
       responses:
@@ -7778,8 +7840,8 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { description: "`not_a_member`, `not_owner`, `adult_confirmation_required`, `not_club_holder`, or `people_paused` with details.standing and details.until.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "404": { $ref: "#/components/responses/NotFound" }
-        "409": { description: "`conflict` with details.state for a suspended or closed organiser; `club_already_linked` with details.organiserId, and details.clubId when this organiser already has another group.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "409": { description: "`conflict` with details.state for a suspended or closed organiser; `club_already_linked` with details.organiserId, and details.clubId when this organiser already has another group; with no details in the rare race where the group's organiser cannot be found.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { $ref: "#/components/responses/RateLimitedForTheDay" }
         "503": { $ref: "#/components/responses/OrganisersPaused" }
   /organisers/{id}/helpers:
     parameters:
@@ -7835,7 +7897,7 @@ paths:
         "403": { description: "`not_a_member`, `not_owner` or `adult_confirmation_required`.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: "`conflict`; `details.state` is the organiser's state.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429": { $ref: "#/components/responses/RateLimitedForTheDay" }
         "503": { $ref: "#/components/responses/OrganisersPaused" }
   /organisers/{id}/helpers/{travellerId}:
     parameters:
@@ -7902,7 +7964,7 @@ paths:
         "403": { description: "`not_a_member` or `adult_confirmation_required`.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: "`organiser_email_required`: Add an email to your account to post events. Or `conflict` with `details.state`.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429": { $ref: "#/components/responses/RateLimitedForTheDay" }
         "503": { $ref: "#/components/responses/OrganisersPaused" }
   /organisers/{id}/events/{eventPostId}:
     parameters:
@@ -7929,7 +7991,7 @@ paths:
         "403": { description: "`not_a_member` or `adult_confirmation_required`.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: "`event_has_ended`, `organiser_email_required`, or `conflict` with `details.state`.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429": { $ref: "#/components/responses/RateLimitedForTheDay" }
         "503": { $ref: "#/components/responses/OrganisersPaused" }
   /organisers/{id}/events/{eventPostId}/cancel:
     parameters:
@@ -8044,7 +8106,7 @@ paths:
             page instead), or with `details.state` when the organiser is not
             verified. `organiser_email_required`: the owner has no proven email.
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429": { $ref: "#/components/responses/RateLimitedForTheDay" }
         "503": { $ref: "#/components/responses/OrganisersPaused" }
 
 components:
@@ -8100,6 +8162,18 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     RateLimited:
       description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimitedForTheDay:
+      description: >-
+        `rate_limited`: over the route's day limit, or sent too fast. Over the
+        day limit `Retry-After` is the seconds until the count lets one more
+        through; sent too fast, there is no `Retry-After`.
+      headers:
+        Retry-After:
+          required: false
+          schema: { type: integer, minimum: 1 }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -8319,7 +8393,7 @@ components:
                 says online payment is on its way instead of offering it.
             inviteOnly:
               type: boolean
-              description: Whether creating a reservation needs an admitted number.
+              description: Whether creating a reservation needs an admitted traveller.
             signIn:
               type: object
               additionalProperties: false
@@ -8439,7 +8513,7 @@ components:
             analytics choice is `denied`; none of it is stored.
     MyBookingListItem:
       type: object
-      required: [reference, reservationId, experience, operator, localDate, localTime, state, guests, statusToken, experienceSlug, operatorSlug, heroImageUrl, destination, startsAt, timezone, createdAt, price, reviewed, canReview, unreadCount]
+      required: [reference, reservationId, experience, operator, localDate, localTime, state, guests, statusToken, experienceId, experienceSlug, operatorSlug, heroImageUrl, destination, startsAt, timezone, createdAt, price, reviewed, canReview, unreadCount]
       properties:
         reference:
           type: string
@@ -8532,6 +8606,15 @@ components:
             When an accepted request's seats stop being held: the
             same instant as `holdExpiresAt` on the booking page.
             Present only when `state` is `holding` (yuvoy-api#270).
+        experienceId:
+          type: string
+          format: uuid
+          description: >-
+            The listing this trip was booked from, as `experienceId` in
+            `POST /me/creator-links` takes it, so asking for a creator link
+            needs no read of the listing first. Sent on every row, also when
+            the listing has since been withdrawn or taken back to draft
+            (yuvoy-api#669).
         experienceSlug:
           type: string
           description: The listing this trip was booked from, for linking back to it.
@@ -8839,9 +8922,9 @@ components:
         admitted:
           type: boolean
           description: >-
-            Whether this number may book when booking is by invitation: it
-            redeemed a code, or it already held a booking when invitations
-            began. Reported whether or not the gate is on. Show the code screen
+            Whether this traveller may book when booking is by invitation:
+            they redeemed a code, or their number already held a booking when
+            invitations began. Reported whether or not the gate is on. Show the code screen
             while it is false.
         cohort:
           type: [string, "null"]
@@ -9142,7 +9225,7 @@ components:
       properties:
         roleText: { type: string, minLength: 2, maxLength: 80, description: "What the person does in the group, in their words." }
         contactEmail: { type: string, format: email, maxLength: 254, description: Where the team writes back. Shown to staff only. }
-        proofUrl: { type: string, format: uri, pattern: "^https://", maxLength: 500, description: "A page of the group's own that names them, if there is one." }
+        proofUrl: { type: string, format: uri, pattern: "^https://", maxLength: 500, description: "A page of the group's own that names them, if there is one. Its host has a dot in it and the link has no space; the scheme is kept in lower case and the rest as sent." }
         note: { type: string, maxLength: 500 }
     ClubClaimReceipt:
       type: object
@@ -9609,7 +9692,8 @@ components:
         # The club link (R11-T2). `not_club_holder` is a 403 from
         # createOrganiser with clubId: the group is shown but the caller does
         # not hold it. `club_already_linked` is a 409: the group has an
-        # organiser already (details.organiserId names it, G4).
+        # organiser already (details.organiserId names it, G4, except in a
+        # rare race when that organiser cannot be found).
         - not_club_holder
         - club_already_linked
         # The door (R11-T2 PR 3a). `organisers_paused` (above) is a 503 while organiser
@@ -10795,7 +10879,9 @@ components:
       # send both, and is refused with a 400 naming the field when it does not.
       description: >-
         `name` and `whatsapp` are required for a guest checkout. Signed in with a
-        travellerSession, both may be omitted and `whatsapp` is ignored.
+        travellerSession that proved a number, both may be omitted and `whatsapp`
+        is ignored. Signed in by email with no number proved, `whatsapp` is
+        required as for a guest.
       properties:
         name:
           type: string
@@ -10803,7 +10889,7 @@ components:
           description: Required for a guest. Signed in, defaults to the profile name, then the newest booking's name.
         whatsapp:
           type: string
-          description: "E.164, e.g. +919000000000. Required for a guest. Ignored when signed in: the session's number is used."
+          description: "E.164, e.g. +919000000000. Required for a guest, and for a session signed in by email that proved no number (yuvoy-api#304): the operator reaches the traveller on it and it opens nothing. Ignored when the session proved a number: that number is used."
         email: { type: string, description: "Optional. Signed in and left out, the profile email is used when there is one." }
         marketingConsent:
           type: boolean
@@ -12298,13 +12384,31 @@ components:
       properties:
         actionId: { type: string, format: uuid }
         kind: { type: string, enum: [book, move_booking, add_people, date_alert, trip_draft] }
-        state: { type: string, enum: [proposed, confirmed, declined, expired, used, superseded], description: "expired once a proposed card is past expiresAt. A confirmed book card stays confirmed while a reservation made under its key is live (a hold not past its expiry, or a request waiting for the business), past expiresAt too, and confirm answers the same checkout; it reads expired past expiresAt when no reservation was made, or once the reservation ended with no booking. used once a booking carries a book card, and once a date-alert or trip-draft card is confirmed." }
+        state: { type: string, enum: [proposed, confirmed, declined, expired, used, superseded], description: "expired once a proposed card is past expiresAt. A confirmed book card stays confirmed while a reservation of the card's own traveller made under its key is live (a hold not past its expiry, or a request waiting for the business; liveReservation says which), past expiresAt too, and confirm answers the same checkout; it reads expired past expiresAt when no reservation was made, or once the reservation ended with no booking. used once a booking carries a book card, and once a date-alert or trip-draft card is confirmed." }
         expiresAt: { type: string, format: date-time }
         heading: { type: string, description: "Server words: Check before I book, Check before I send, Confirm the change, One tap, Your trip draft." }
         lines: { type: array, maxItems: 8, items: { type: string }, description: "Server-written facts, such as 'Sat, 18 Oct · 08:00', '₹7,000 for 2 people', the payment line and the cancellation summary." }
         confirmLabel: { type: string, description: "Confirm, Send, Move it, Add 2, Tell me, Save draft." }
         declineLabel: { type: string, enum: ["Not now"] }
         bookingReference: { type: [string, "null"], description: "Set once a reservation carries this card, or for a change." }
+        liveReservation:
+          description: >-
+            Set only on a book card in state confirmed while a reservation of the card's own traveller made under
+            its key is live: a hold not past its expiry, or a request waiting for the business. Another traveller's
+            checkout under the same key is never shown here. That card is not one whose checkout was never
+            finished, so show the waiting reservation (the hold and when it ends, or the request and when it
+            closes), not Go to checkout: a checkout with a changed party is refused under this card's key (409
+            idempotency_key_reuse), and under a new key would make a second request. Null on every other card: a
+            book card with no reservation yet, or whose reservation ended or became a booking (bookingReference),
+            and every card of another kind or state. Not in required, so a client that does not read it keeps
+            working.
+          oneOf: [ { $ref: "#/components/schemas/TrigoLiveReservation" }, { type: "null" } ]
+    TrigoLiveReservation:
+      type: object
+      required: [kind, expiresAt]
+      properties:
+        kind: { type: string, enum: [hold, request], description: "hold: seats held for the traveller to pay, also a request the business accepted. request: sent to the business, not answered yet." }
+        expiresAt: { type: [string, "null"], format: date-time, description: "For a hold, when it ends and its seats go back on sale. For a request, when it closes if the business has not answered, which can be just past until the request is closed. Null only for a request with no such time." }
     TrigoLinkNotChecked:
       type: object
       required: [domain]
