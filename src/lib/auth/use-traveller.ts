@@ -331,7 +331,7 @@ export function useVerifySignInCode() {
 }
 
 /** The envelope the route passed through, back into the typed error. */
-async function asYuvoyError(response: Response): Promise<YuvoyError> {
+export async function asYuvoyError(response: Response): Promise<YuvoyError> {
   let body: unknown;
   try {
     body = await response.json();

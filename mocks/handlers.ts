@@ -1,4 +1,5 @@
 import { bookingHandlers } from "./booking-handlers";
+import { waysInHandlers } from "./ways-in-handlers";
 import { savedHandlers } from "./saved-handlers";
 import { foundHandlers } from "./found-handlers";
 import { checkedClock } from "./checked-clock";
@@ -59,6 +60,8 @@ const routes = [
 
   ...placeRoutes,
 
+  // Adding a way in (yuvoy-app#229): verify with a bearer, ahead of the sign-in.
+  ...waysInHandlers,
   ...bookingHandlers,
   ...savedHandlers,
   ...foundHandlers,

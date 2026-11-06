@@ -167,6 +167,18 @@ export type Scenario =
   | "people-down"
   | "people-outside"
   /*
+    The email door (yuvoy-app#229): `features.signIn.email` is off unless one
+    of these opens it. `email-sign-in-closed` opens it on the config and then
+    answers `503 sign_in_unavailable` on the send; `email-sign-in-limited`
+    answers `429`. `booking-handlers-auth.ts` says what a new address
+    does.
+  */
+  | "email-sign-in"
+  | "email-sign-in-closed"
+  | "email-sign-in-limited"
+  /* An email account (`email-door`'s `GET /me`) with the door open. */
+  | "email-sign-in-email-door"
+  /*
     Crews, a traveller's own named lists of friends (yuvoy-app#227). Each
     opens `people` at `staff`; `crew-handlers.ts` says what each starts with.
   */

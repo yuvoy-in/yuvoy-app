@@ -27,7 +27,7 @@ import {
 
 /* The API's own sentences, shown as sent (`mocks/people-handlers.ts`). */
 const UNDER_AGE =
-  "Yuvoy is for people 18 and over, so we have closed your account. We have sent you an email about it.";
+  "Yuvoy accounts are for people 18 and over, so we have closed this one. If you think this is wrong, contact us.";
 const AGE_LOCKED =
   "Your age can only be changed by the Yuvoy team. Write to us from Help.";
 const ASK_PAUSED = "You can't ask anyone to be your friend for now.";
