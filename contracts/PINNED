@@ -627,6 +627,26 @@ repo=yuvoy-in/yuvoy-api
 # Master had moved on to 6e7c180d1633 by `git ls-remote` on pinning; this pin
 # stays on the commit the issue names.
 
-ref=5f4bb498f6a5beb5326c4eb9818779154f3ceb32
+# 6 Nov 2026. Forward from 5f4bb498f6a5 to 84988635dfc0, API master. Read for
+# removals first: no path and no schema is removed; the lines that go are
+# prose rewritten in place and `429`s that now name `RateLimitedForTheDay`.
+#
+# Consumed in this change (yuvoy-app#278): `experienceId` on each
+# `MyBookingListItem` (yuvoy-api#669, #681, live as cdb1c556). Get my link
+# sends the trip's own id to `POST /me/creator-links` and no longer reads
+# `GET /experiences/{slug}` first, so a trip whose listing is unpublished
+# still gets its link.
+#
+# Named, not consumed: `RateLimitedForTheDay` (with `Retry-After`) on the
+# organiser and club writes' 429s; `liveReservation` (`TrigoLiveReservation`)
+# on Trigo book cards; `asText` words up to 40 characters, not 30 (the web
+# still keeps 30, `AS_TEXT_MAX_CHARS`); `contact.whatsapp` required on a
+# reservation from an email session with no number proved (yuvoy-api#304);
+# new 400 and 429 notes; the yuvoy-api#685, #686 and #224/#225 prose.
+#
+# Master had moved on to 63d7f1ef53b0 by `git ls-remote` on pinning; this pin
+# stays on the commit yuvoy-app#278 was given.
+
+ref=84988635dfc0b3db6b9569113f6ba2374ccd9691
 branch=master
-pinned_on=2026-11-03
+pinned_on=2026-11-06

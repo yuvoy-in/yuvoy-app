@@ -263,6 +263,7 @@ export const bookingHandlers = [
         reference: r.state === "pending_request" ? "" : r.reference,
         reservationId: r.reservationId,
         experience: "Try-dive at Nemo Reef",
+        experienceId: "exp_try_dive",
         experienceSlug: "try-dive-nemo-reef",
         operator: "Sample Dive Operator",
         localDate: "2026-08-22",
