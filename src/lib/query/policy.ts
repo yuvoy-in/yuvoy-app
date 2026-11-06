@@ -151,6 +151,20 @@ export const CACHE = {
    * crew changed in the app on a phone is not shown as it was.
    */
   listMyCrews: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
+  /**
+   * Date alerts and trip drafts (yuvoy-app#220). Read again whenever the
+   * screen opens: an alert stopped or a draft deleted on the phone is gone.
+   */
+  listMyDateAlerts: {
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchOnMount: "always",
+  },
+  listMyTripDrafts: {
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchOnMount: "always",
+  },
 
   /**
    * The groups a traveller follows (yuvoy-mobile#392). Read again on every

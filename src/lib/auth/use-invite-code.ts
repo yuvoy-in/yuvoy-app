@@ -10,9 +10,9 @@ import type { TravellerAccount } from "./use-my-account";
  * Redeeming an invite code, `POST /me/invite-codes/redeem`, through the proxy
  * (yuvoy-api#195).
  *
- * Signed in only: the code admits the number the session proved, and
+ * Signed in only: the code admits the account the session proved, and
  * redeeming never creates a session. Both 200 shapes mean the same thing to a
- * screen, that this number is in; `alreadyAdmitted` adds that the code was
+ * screen, that this traveller is in; `alreadyAdmitted` adds that the code was
  * NOT used up and can go to somebody else, which is worth saying.
  *
  * ## Never retried

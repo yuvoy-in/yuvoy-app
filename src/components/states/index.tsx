@@ -445,7 +445,7 @@ export function describeError(
         return {
           ...base,
           title: "Yuvoy is by invitation",
-          body: "Booking needs an invite code. Sign in with your number, then enter the code you were given. Nothing was held and nothing was charged.",
+          body: "Booking needs an invite code. Sign in, then enter the code you were given. Nothing was held and nothing was charged.",
           canRetry: false,
         };
       /*

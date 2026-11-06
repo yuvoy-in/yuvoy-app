@@ -75,3 +75,13 @@ export function useRelease(key: ReleaseKey): Release {
   const cohort = signedIn ? (account.data?.cohort ?? null) : null;
   return { stage, open: releaseOpen(stage, cohort), pending: false };
 }
+
+/**
+ * Whether the email sign-in door is open (`features.signIn.email`,
+ * yuvoy-app#229). Shut while the config is out and when it cannot be read:
+ * the number has no switch, so the steps start on it until this says yes.
+ */
+export function useEmailSignInOpen(): boolean {
+  const config = useQuery({ ...appConfigQuery, retry: false });
+  return config.data?.features?.signIn?.email === true;
+}

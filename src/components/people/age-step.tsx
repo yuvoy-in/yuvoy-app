@@ -9,7 +9,7 @@ import {
   needsBirthday,
 } from "@/lib/people/people-words";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { YearFields } from "@/components/auth/year-fields";
 import { Refusal } from "./people-parts";
 
 const W = PEOPLE_WORDS.age;
@@ -17,7 +17,8 @@ const W = PEOPLE_WORDS.age;
 /**
  * The age step before People opens (yuvoy-app#222): the year of birth, and
  * whether this year's birthday has passed only for the one year that
- * straddles 18 (`needsBirthday`), as the API asks.
+ * straddles 18 (`needsBirthday`), as the API asks. The fields are the
+ * sign-in year step's (`YearFields`, yuvoy-app#229).
  *
  * `under_age_sign_up` is handed up with the API's sentence: the account is
  * closed and the screen above keeps the sentence while it signs out.
@@ -84,51 +85,28 @@ export function AgeStep({
       </h1>
       <p className="text-forest/70 text-body mt-3 text-pretty">{W.body}</p>
 
-      <Field
+      <YearFields
         className="mt-6"
-        label={W.year}
-        hint={W.yearHint}
-        error={problem === W.yearBad ? problem : undefined}
-        inputMode="numeric"
-        autoComplete="bday-year"
-        maxLength={4}
-        value={typed}
-        onChange={(e) => {
-          setTyped(e.target.value);
+        typed={typed}
+        onTyped={(next) => {
+          setTyped(next);
           setBirthday(undefined);
           if (problem) setProblem(null);
         }}
+        birthday={birthday}
+        onBirthday={(answer) => {
+          setBirthday(answer);
+          if (problem) setProblem(null);
+        }}
+        askBirthday={askBirthday}
+        problem={
+          problem === W.yearBad
+            ? { field: "year", sentence: problem }
+            : problem === W.birthdayMissing
+              ? { field: "birthday", sentence: problem }
+              : null
+        }
       />
-
-      {askBirthday ? (
-        <fieldset className="mt-6">
-          <legend id={legendId} className="label text-forest/75">
-            {W.birthday}
-          </legend>
-          <div className="mt-3 flex gap-6">
-            {([true, false] as const).map((answer) => (
-              <label key={String(answer)} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="birthday-passed"
-                  checked={birthday === answer}
-                  onChange={() => {
-                    setBirthday(answer);
-                    if (problem) setProblem(null);
-                  }}
-                  className="accent-terra-deep size-6 shrink-0"
-                />
-                <span>{answer ? W.yes : W.no}</span>
-              </label>
-            ))}
-          </div>
-          {problem === W.birthdayMissing ? (
-            <p role="alert" className="text-terra-deep mt-1.5 text-xs">
-              {problem}
-            </p>
-          ) : null}
-        </fieldset>
-      ) : null}
 
       {refused ? <Refusal error={refused} className="mt-4" /> : null}
 

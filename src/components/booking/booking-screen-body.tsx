@@ -10,6 +10,7 @@ import { MessageThread } from "./message-thread";
 import { HelpSection } from "@/components/support/help-section";
 import { cashToGetBack } from "@/lib/booking/cash-booking";
 import { ReviewForm } from "./review-form";
+import { checkInView } from "@/lib/booking/check-in";
 import { ButtonLink } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/cn";
@@ -126,6 +127,7 @@ export function StatusBody({
   */
   const [opened] = useState(() => Date.now() + clockOffsetMs());
   const now = useServerClock(opened);
+  const checkIn = checkInView(status, now);
 
   // Confirmed and still ahead of us: sharing and cancelling both make sense.
   // A trip that has already left can do neither.
@@ -290,6 +292,7 @@ export function StatusBody({
         token={token}
         onChanged={onChanged}
         cashBack={cashBack}
+        checkIn={checkIn}
       />
 
       <BookingFacts

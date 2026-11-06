@@ -281,6 +281,19 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   // Not now on a card: Trigo's line "Nothing has been booked or changed."
   { method: "POST", pattern: "/trigo/actions/{id}/decline" },
   /*
+    What Trigo keeps once the traveller says yes on a card (yuvoy-app#220):
+    the date alerts on Account and the trip drafts on Trips. Session only.
+    `src/lib/trigo/use-lists.ts` calls them.
+  */
+  // Every waiting alert and the 50 that most recently told them, newest first.
+  { method: "GET", pattern: "/me/date-alerts" },
+  // "Stop telling me" on a waiting alert.
+  { method: "DELETE", pattern: "/me/date-alerts/{id}" },
+  // The trip drafts, newest first, at most 20.
+  { method: "GET", pattern: "/me/trip-drafts" },
+  // "Delete draft".
+  { method: "DELETE", pattern: "/me/trip-drafts/{id}" },
+  /*
     Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
     signed-in traveller's own pages, their helpers, their events and the
     numbers. Session only in the contract. The club routes

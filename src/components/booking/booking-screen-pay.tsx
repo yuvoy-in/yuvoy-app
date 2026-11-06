@@ -6,24 +6,30 @@ import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
 import { PayButton, ReleaseButton } from "./pay-actions";
 import { AnswerBy, HoldCountdown } from "./trip-progress";
+import { CheckInBlock } from "./check-in-block";
+import type { CheckInView } from "@/lib/booking/check-in";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
 
 /**
  * The hold and money run of the booking page, lifted word for word out of
  * StatusBody (booking-screen-body.tsx): the hold countdown, the answer-by
- * line, the two cash panels, and the pay and release buttons.
+ * line, the two cash panels, the check-in block (yuvoy-app#218), and the pay
+ * and release buttons.
  */
 export function HoldAndPay({
   status,
   token,
   onChanged,
   cashBack,
+  checkIn,
 }: {
   status: BookingStatus;
   token?: string | null;
   onChanged?: () => void;
   cashBack: number | null;
+  /** From `checkInView` in StatusBody, which holds the server clock. */
+  checkIn: CheckInView | null;
 }) {
   return (
     <>
@@ -135,6 +141,15 @@ export function HoldAndPay({
           </p>
         </Panel>
       ) : null}
+
+      {/*
+        SHOW AT CHECK-IN (yuvoy-app#218). Under what to bring and above the
+        details, where the app has it: the thing to hold up at the jetty. The
+        API decides whether there is one; `checkInView` only hides it once the
+        trip's day is over. On the offline copy too, since a jetty is where
+        the signal goes.
+      */}
+      {checkIn ? <CheckInBlock view={checkIn} /> : null}
 
       {token && status.state === "holding" ? (
         /*
