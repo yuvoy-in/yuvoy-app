@@ -93,18 +93,15 @@ function CrewView({
         </p>
       ) : null}
 
-      <section aria-labelledby={membersId} className="mt-8">
-        <h2
-          id={membersId}
-          className="label text-forest/75 border-paper-line border-b pb-2"
-        >
-          {W.pickHead}
-        </h2>
-        {crew.members.length === 0 ? (
-          <p className="text-forest/70 text-body mt-3 text-pretty">
-            {W.nobody}
-          </p>
-        ) : (
+      {/* The count line above already says an empty crew has nobody in it. */}
+      {crew.members.length > 0 ? (
+        <section aria-labelledby={membersId} className="mt-8">
+          <h2
+            id={membersId}
+            className="label text-forest/75 border-paper-line border-b pb-2"
+          >
+            {W.pickHead}
+          </h2>
           <ul className="divide-paper-line divide-y">
             {crew.members.map((m) => (
               <li
@@ -117,8 +114,8 @@ function CrewView({
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       <div className="mt-8 flex flex-wrap gap-3">
         <ButtonLink href={`/people/crews/${crew.crewId}/edit`} size="lg">

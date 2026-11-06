@@ -69,6 +69,17 @@ describe("/people/crews/{crewId}", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  it("says once that a crew with nobody in it is empty", async () => {
+    signedIn();
+    crews(crew(1, "College gang"));
+    show();
+    await heading("College gang");
+    expect(screen.getAllByText(W.nobody)).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: W.pickHead })).toBeNull();
+    expect(screen.queryAllByTestId("crew-member")).toHaveLength(0);
+    expect(screen.getByRole("link", { name: W.edit })).toBeInTheDocument();
+  });
+
   it("finds the crew whatever the case of its id", async () => {
     signedIn();
     crews({ ...GANG, crewId: GANG.crewId.toUpperCase() });
