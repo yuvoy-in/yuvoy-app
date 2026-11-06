@@ -57,6 +57,13 @@ export function tripTitleId(trip: Pick<ServerTrip, "reservationId">): string {
 export const TRIP_TABS = ["upcoming", "past", "cancelled"] as const;
 export type TripTab = (typeof TRIP_TABS)[number];
 
+/**
+ * What the Trips screen can show: a tab of trips, or the Trigo trip drafts
+ * (yuvoy-app#220), the fourth tab while the `trigo` release is open. Drafts
+ * are not trips and are never sent as `?tab=`.
+ */
+export type TripsView = TripTab | "drafts";
+
 export const TAB_LABEL: Record<TripTab, string> = {
   upcoming: "Upcoming",
   past: "Past",

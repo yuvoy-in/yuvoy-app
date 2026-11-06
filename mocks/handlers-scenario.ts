@@ -205,6 +205,9 @@ export type Scenario =
   | "trigo-reply-link-ended"
   /* Trigo's confirm cards (yuvoy-app#223 part 2): `trigo-card-handlers.ts`. */
   | `trigo-card-${string}`
+  /* Date alerts and trip drafts (yuvoy-app#220): `trigo-list-handlers.ts`. */
+  | "trigo-lists"
+  | `trigo-lists-${string}`
   /*
     Organiser pages (yuvoy-app#224). With no scenario the caller is an adult
     with one organiser in each state; `organiser-handlers.ts` says what each
