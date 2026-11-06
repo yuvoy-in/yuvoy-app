@@ -31,6 +31,12 @@ import { availabilityFor } from "./fixtures";
  * first answer again, 200 with the card's own state, as the API replays it:
  * a used book card answers its checkout with `state: used`.
  *
+ * A confirmed book card with a live reservation under its key
+ * (`liveReservation`, yuvoy-api#604): `trigo-card-held`, a hold for 15
+ * minutes more, and `trigo-card-requested`, a request on the request listing
+ * that closes in a day. Every other card carries `liveReservation: null`, as
+ * the API writes it.
+ *
  * One per refusal of confirm, all on a book card but the date alerts one:
  *   - `trigo-card-sold-out`, `trigo-card-price-moved`, `trigo-card-time-moved`,
  *     `trigo-card-not-bookable`: `409 action_changed` with `details.reason`.
@@ -93,6 +99,8 @@ const KIND: Record<string, TrigoActionCard["kind"]> = {
 
 const STATE: Record<string, TrigoActionCard["state"]> = {
   "trigo-card-confirmed": "confirmed",
+  "trigo-card-held": "confirmed",
+  "trigo-card-requested": "confirmed",
   "trigo-card-used": "used",
   "trigo-card-expired": "expired",
   "trigo-card-declined": "declined",
@@ -124,9 +132,34 @@ function rupees(paise: number): string {
   return `₹${new Intl.NumberFormat("en-IN").format(paise / 100)}`;
 }
 
+/** The book cards on the request listing. */
+const ON_REQUEST: ReadonlySet<string> = new Set([
+  "trigo-card-book-request",
+  "trigo-card-requested",
+]);
+
+/** The live reservation a confirmed book card carries, or null. */
+function liveOf(
+  scenario: string,
+  now: number,
+): TrigoActionCard["liveReservation"] {
+  if (scenario === "trigo-card-held") {
+    return {
+      kind: "hold",
+      expiresAt: new Date(now + 15 * 60_000).toISOString(),
+    };
+  }
+  if (scenario === "trigo-card-requested") {
+    return {
+      kind: "request",
+      expiresAt: new Date(now + 24 * 3_600_000).toISOString(),
+    };
+  }
+  return null;
+}
+
 function slotOf(scenario: string) {
-  const slug =
-    scenario === "trigo-card-book-request" ? CARD_REQUEST_SLUG : CARD_BOOK_SLUG;
+  const slug = ON_REQUEST.has(scenario) ? CARD_REQUEST_SLUG : CARD_BOOK_SLUG;
   const slot = availabilityFor(slug)[0];
   return { slug, slot, total: (slot.price?.amountMinor ?? 0) * CARD_GUESTS };
 }
@@ -145,6 +178,7 @@ export function trigoCardFor(
     state,
     expiresAt: new Date(now + 30 * 60_000).toISOString(),
     declineLabel: "Not now" as const,
+    liveReservation: liveOf(scenario, now),
   };
   if (kind === "date_alert") {
     return {
@@ -191,12 +225,11 @@ export function trigoCardFor(
   }
   return {
     ...base,
-    heading:
-      scenario === "trigo-card-book-request"
-        ? "Ask for Snorkel trip to Elephant Beach"
-        : "Book Try-dive at Nemo Reef",
+    heading: ON_REQUEST.has(scenario)
+      ? "Ask for Snorkel trip to Elephant Beach"
+      : "Book Try-dive at Nemo Reef",
     lines,
-    confirmLabel: scenario === "trigo-card-book-request" ? "Ask" : "Book",
+    confirmLabel: ON_REQUEST.has(scenario) ? "Ask" : "Book",
     ...(state === "used" ? { bookingReference: CARD_REFERENCE } : {}),
   };
 }

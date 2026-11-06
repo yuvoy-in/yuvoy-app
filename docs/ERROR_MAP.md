@@ -9,7 +9,7 @@ message breaks silently the first time somebody improves the wording.
 **Always show `requestId`.** Small and grey is fine. It is the difference between finding
 somebody's exact request in the logs and guessing.
 
-Implemented in `src/lib/api/errors.ts` and `src/components/states/index.tsx`.
+Implemented in `src/lib/api/errors.ts` and `src/components/states/describe-error.ts`.
 
 **This table is not the enforcement point.** `scripts/qa.mjs` check 17 fails the build when a code
 in the contract's `ErrorCode` enum is missing from `ERROR_CODES`, because that is the drift the

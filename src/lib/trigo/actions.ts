@@ -35,6 +35,8 @@ import { saveTrigoCheckout } from "./checkout-prefill";
  */
 
 export type TrigoActionCard = components["schemas"]["TrigoActionCard"];
+export type TrigoLiveReservation =
+  components["schemas"]["TrigoLiveReservation"];
 export type TrigoActionConfirmation =
   components["schemas"]["TrigoActionConfirmation"];
 type CardState = TrigoActionCard["state"];
