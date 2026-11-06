@@ -77,6 +77,13 @@ function watch(context: BrowserContext) {
     configReads: 0,
   };
   context.on("request", (request) => {
+    /*
+      Each call is seen twice, by the page and by the mock worker that
+      passes it on (`creator-links.spec.ts` says the same of answers), and
+      the worker's copy of the link came with no body. The page's copy is
+      what the page sent, so only it is counted.
+    */
+    if (request.serviceWorker()) return;
     const path = new URL(request.url()).pathname;
     if (path.endsWith("/me/sign-in/request")) {
       seen.codeRequests.push(request.url());
@@ -104,6 +111,19 @@ async function sendEmailCode(page: Page, address: string) {
 async function addWithCode(page: Page, submit: string, code = CODE) {
   await page.getByLabel("Code", { exact: true }).fill(code);
   await page.getByRole("button", { name: submit }).click();
+}
+
+/**
+ * Signed out, on the sign-in form. This page's scenario opens the email
+ * door, so the form starts on its two doors, and the number's door leads
+ * to the number field.
+ */
+async function expectSignInForm(page: Page) {
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true, level: 1 }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Sign in with your number" }).click();
+  await expect(page.getByLabel("Your WhatsApp number")).toBeVisible();
 }
 
 const added = (page: Page) =>
@@ -252,7 +272,7 @@ test("a session too old to add to offers signing out, and signs out", async ({
   await alert
     .getByRole("button", { name: "Sign out and sign in again" })
     .click();
-  await expect(page.getByLabel("Your WhatsApp number")).toBeVisible();
+  await expectSignInForm(page);
 });
 
 test("a wrong code stays on the code, still signed in", async ({
@@ -281,7 +301,7 @@ test("a session gone by the time of the code ends on the sign-in form", async ({
   await context.clearCookies();
   await addWithCode(page, "Add this email");
 
-  await expect(page.getByLabel("Your WhatsApp number")).toBeVisible();
+  await expectSignInForm(page);
 });
 
 test("the door shut on the add: said, the config read again, and nothing offered", async ({
@@ -411,11 +431,16 @@ test("no answer, but the account holds it: Trips is read again", async ({
     await route.fetch();
     await route.abort("internetdisconnected");
   });
+  /*
+    Counted from before the add: the Trips dot in the bar keeps the upcoming
+    trips on every page (`useUnreadTrips`), so the add reads them again
+    while still on Account. The invited trips are read when Trips opens.
+  */
+  const before = { ...trips };
   await addWithCode(page, "Add this email");
   await expect(added(page)).toBeVisible();
 
   // The accounts are one now, so their trips are read again.
-  const before = { ...trips };
   /*
     Still well inside the 30 s Trips is kept for, so a read here is the
     add's doing and not the time running out.
