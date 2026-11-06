@@ -17,7 +17,7 @@ import type { PlaceList } from "@/lib/site/places";
  * The page form's pieces that are more than one field (yuvoy-app#224, the
  * phone's `organiser-form-parts.tsx`): a field's sentence under a group, the
  * place picker, the departments and the links, and for a group's page
- * (yuvoy-app#225) its name and place as fixed text, the place's name, and the
+ * (yuvoy-app#225) its name and place as fixed text, and the
  * line a `409 club_already_linked` hands to the page it opens. Split out of
  * `organiser-form.tsx` to keep it short.
  */
@@ -60,8 +60,12 @@ export function FieldLine({
   );
 }
 
-/** A group's name and place: shown as text, never typed. */
-export type FixedFields = { name: string; destinationKey: string };
+/** A group's name and place: shown as text, never typed. `placeName` is the API's (yuvoy-api#596). */
+export type FixedFields = {
+  name: string;
+  destinationKey: string;
+  placeName: string;
+};
 
 /** What the form checks before sending: only what is plainly missing, in the API's own words. */
 export function missing(
@@ -78,24 +82,10 @@ export function missing(
 }
 
 /**
- * A place's name from the list the person can pick, as #224 shows a place;
- * empty when it is not there. A group's place can be outside every list the
- * app can read, so its line stays hidden rather than guess a name from the key,
- * until the API sends the name itself (yuvoy-in/yuvoy-api#596).
- */
-export function placeName(places: PlaceList | undefined, key: string): string {
-  return (
-    places?.markets
-      .flatMap((market) => market.destinations)
-      .find((destination) => destination.key === key)?.name ?? ""
-  );
-}
-
-/**
  * A group's name and place on its setup and edit forms (yuvoy-app#225): text,
- * never a field, with the API's sentence for each under its own line. A place
- * the list does not name shows no line of its own, and its sentence goes
- * under the name.
+ * never a field, with the API's sentence for each under its own line. The
+ * place is the API's `placeName`, so it shows even for a place no list names
+ * (yuvoy-app#230).
  */
 export function FixedPage({
   name,
@@ -106,7 +96,6 @@ export function FixedPage({
   place: string;
   errors: Record<string, string>;
 }) {
-  const placeError = errors.destinationKey;
   return (
     <div
       className="rounded-card border-paper-line bg-paper-deep border px-4 py-4"
@@ -120,24 +109,17 @@ export function FixedPage({
         {name}
       </p>
       <FieldLine
-        text={errors.name ?? errors.clubId ?? (place ? undefined : placeError)}
+        text={errors.name ?? errors.clubId}
         testId="organiser-form-fixed-name-error"
       />
-      {place ? (
-        <>
-          <span className="label text-forest/75 mt-4 block">{W.place}</span>
-          <p
-            className="mt-1 break-words"
-            data-testid="organiser-form-fixed-place"
-          >
-            {place}
-          </p>
-          <FieldLine
-            text={placeError}
-            testId="organiser-form-fixed-place-error"
-          />
-        </>
-      ) : null}
+      <span className="label text-forest/75 mt-4 block">{W.place}</span>
+      <p className="mt-1 break-words" data-testid="organiser-form-fixed-place">
+        {place}
+      </p>
+      <FieldLine
+        text={errors.destinationKey}
+        testId="organiser-form-fixed-place-error"
+      />
       <p className="text-forest/75 mt-3 text-sm text-pretty">{W.clubFixed}</p>
     </div>
   );

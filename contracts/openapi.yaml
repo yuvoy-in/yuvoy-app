@@ -5305,7 +5305,11 @@ paths:
         "429":
           description: >-
             `daily_limit_reached`: 20 answers today; details.resetsAt is the
-            next midnight in India and nothing was stored. Or `rate_limited`.
+            next midnight in India and nothing was stored, and no
+            `Retry-After`. Or `rate_limited`: turns sent too fast, with
+            `Retry-After` set to the seconds until one more is let through.
+          headers:
+            Retry-After: { schema: { type: integer, minimum: 1 } }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -5425,7 +5429,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429": { $ref: "#/components/responses/RateLimitedRetryAfter" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
   /trigo/messages/{id}/report:
@@ -5564,7 +5568,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429": { $ref: "#/components/responses/RateLimitedRetryAfter" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
   /trigo/actions/{id}/decline:
@@ -5600,7 +5604,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-        "429": { $ref: "#/components/responses/RateLimited" }
+        "429": { $ref: "#/components/responses/RateLimitedRetryAfter" }
         "503": { $ref: "#/components/responses/ServiceUnavailable" }
 
   /me/date-alerts:
@@ -7693,11 +7697,12 @@ paths:
                     items:
                       type: object
                       additionalProperties: false
-                      required: [clubId, name, destinationKey, category]
+                      required: [clubId, name, destinationKey, placeName, category]
                       properties:
                         clubId: { type: string, format: uuid }
                         name: { type: string }
                         destinationKey: { $ref: "#/components/schemas/DestinationKey" }
+                        placeName: { type: string, description: "The name of destinationKey as listPlaces names it, also for a place that is not open to travellers yet (yuvoy-api#596)." }
                         category: { type: [string, "null"], description: "The group's category key, for the form to pre-tick." }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { description: "`adult_confirmation_required`.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -8095,6 +8100,15 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     RateLimited:
       description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimitedRetryAfter:
+      description: >-
+        `rate_limited`: sent too fast. `Retry-After` is the seconds until one
+        more is let through.
+      headers:
+        Retry-After: { schema: { type: integer, minimum: 1 } }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -13001,12 +13015,13 @@ components:
       description: >-
         An organiser page as its members see it (R11-T2). How staff checked
         it is never in it, and only an owner is shown its contact email.
-      required: [id, slug, name, destinationKey, departments, links, state, selfPublish, role, clubId]
+      required: [id, slug, name, destinationKey, placeName, departments, links, state, selfPublish, role, clubId]
       properties:
         id: { type: string, format: uuid }
         slug: { type: string }
         name: { type: string }
         destinationKey: { $ref: "#/components/schemas/DestinationKey" }
+        placeName: { type: string, readOnly: true, description: "The name of destinationKey as listPlaces names it, also for a place that is not open to travellers yet (yuvoy-api#596). Read only: OrganiserInput and OrganiserFromClubInput do not take it, and a body that sends it is refused with invalid_input like any field they lack." }
         departments: { type: array, minItems: 1, maxItems: 3, items: { type: string } }
         about: { type: string, maxLength: 600, description: Absent when there is none. }
         links: { type: array, maxItems: 3, items: { $ref: "#/components/schemas/OrganiserLink" } }
