@@ -86,9 +86,10 @@ export function creatorToolsOnFor(scenario: string): boolean {
 }
 
 /**
- * The two listings past trips name that the catalog fixtures do not have, so
- * Get my link can read each one's id by its slug as the trip carries it
- * (`getExperience`). Not in any feed: only the trips link to them.
+ * The two listings past trips name that the catalog fixtures do not have:
+ * what the write answers with as the link's target. Not served by
+ * `GET /experiences/{slug}`, so each reads as unpublished, and Get my link
+ * still works from the `experienceId` the trip carries (yuvoy-app#278).
  */
 const TRIP_ONLY_EXPERIENCES: Record<string, Experience> = {
   "sunset-cruise-off-radhanagar": {
@@ -167,19 +168,6 @@ function refused(request: Request, scenario: string): Response | null {
 const UNAVAILABLE = "Links cannot be made on this service right now.";
 
 export const creatorLinkHandlers = [
-  /*
-    Answers only the trip-only listings above and falls through for every
-    other slug, so the catalog's own handler is untouched.
-  */
-  http.get(url("/experiences/:slug"), ({ params }) => {
-    const detail = TRIP_ONLY_EXPERIENCES[String(params.slug)];
-    if (!detail) return undefined;
-    return HttpResponse.json(
-      { ...detail, bookable: true },
-      { headers: mockHeaders(rid()) },
-    );
-  }),
-
   // "Never cached": the counts move with every open.
   http.get(url("/me/creator-links"), ({ request }) => {
     const scenario = scenarioOf(request);

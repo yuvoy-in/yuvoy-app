@@ -210,7 +210,7 @@ export const FOUND_Q_MAX = 120;
 export const FOUND_Q_MIN = 2;
 /** `asText` takes at most this many words, each at most this many characters. */
 export const AS_TEXT_MAX_WORDS = 8;
-export const AS_TEXT_MAX_CHARS = 30;
+export const AS_TEXT_MAX_CHARS = 40;
 
 /** Characters as a person counts them (code points), so a cut never splits one. */
 const chars = (text: string) => [...text];
@@ -248,7 +248,8 @@ export function foundSearchWords(text: string): string[] {
 /**
  * The words kept as plain text, as `asText` takes them: only words still in
  * `q` (the API ignores the others, and they would take a place among the
- * eight), each once, at most 30 characters, at most eight.
+ * eight), each once, at most 40 characters (a chip's `from` can be 40), at
+ * most eight.
  */
 export function keptAsText(asText: readonly string[], q: string): string[] {
   const inQ = new Set(foundSearchWords(q));
