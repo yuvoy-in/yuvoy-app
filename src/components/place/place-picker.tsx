@@ -296,7 +296,7 @@ function Row({
           ) : null}
         </span>
         {line ? (
-          <span className="text-label text-forest/70 mt-0.5 block">{line}</span>
+          <span className="text-label text-forest/75 mt-0.5 block">{line}</span>
         ) : null}
       </span>
       {opens ? (

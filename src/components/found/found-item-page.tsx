@@ -332,7 +332,7 @@ function Fact({
     // the values are indented past it: `pl-8` is the icon's 20px and the
     // 12px gap.
     <div className="min-w-0 py-3.5" data-testid={testId}>
-      <dt className="label text-forest/70 flex items-center gap-3">
+      <dt className="label text-forest/75 flex items-center gap-3">
         {icon}
         {label}
       </dt>

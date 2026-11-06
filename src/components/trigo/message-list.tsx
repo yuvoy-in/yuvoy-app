@@ -6,6 +6,8 @@ import { cn } from "@/lib/cn";
 import type { TrigoMessage } from "@/lib/trigo/api";
 import { ASK_THE_TEAM, GREETING, TRY_AGAIN, TYPING } from "@/lib/trigo/words";
 import { ActionCard } from "./action-card";
+import { LinkNote } from "./link-note";
+import { ReplyCards } from "./reply-cards";
 import {
   REMOVED_MESSAGE,
   SPEAKER_TEAM,
@@ -28,7 +30,10 @@ export const HELP_PATH = "/help";
  * and is ours, not a message.
  *
  * A message with an `actionCard` has the card under its bubble
- * (yuvoy-app#223 part 2), drawn as the server sent it.
+ * (yuvoy-app#223 part 2), drawn as the server sent it. A reply's `cards`
+ * (listings and found events) sit under it too, and a reply to a message
+ * with a link carries the note that Trigo did not open it (yuvoy-app#223 (b)
+ * and (c)).
  */
 export function MessageList({
   messages,
@@ -163,6 +168,10 @@ function MessageItem({
             </ButtonLink>
           ) : null}
         </div>
+      ) : null}
+      {message.removed ? null : <ReplyCards cards={message.cards ?? []} />}
+      {message.linkNotChecked && !message.removed ? (
+        <LinkNote message={message} conversationId={conversationId} />
       ) : null}
       {message.actionCard ? (
         <ActionCard card={message.actionCard} conversationId={conversationId} />
