@@ -628,7 +628,7 @@ repo=yuvoy-in/yuvoy-api
 # stays on the commit the issue names.
 
 # 6 Nov 2026. Forward from 5f4bb498f6a5 to 30478d6a2fba, the squash of
-# yuvoy-api#604 (live since 3 Nov 04:55 IST). Read for removals first: no
+# yuvoy-api#604 (merged 3 Nov 04:44 IST). Read for removals first: no
 # path and no schema is removed. The only other change is the description of
 # `TrigoActionCard.state`, which now points at the new field.
 #
