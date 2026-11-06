@@ -103,7 +103,7 @@ export function clubCreate(
       status: 403,
       code: "people_paused",
       message: SAID.peoplePaused,
-      details: { standing: "paused" },
+      details: { standing: "restricted" },
     };
   }
   const first = store.linked.get(club.clubId);

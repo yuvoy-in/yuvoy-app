@@ -170,7 +170,7 @@ export function organiserRefusal(error: unknown): OrganiserRefusal {
       if (code === "not_club_holder")
         return { kind: "other", message: said || W.notClubHolder };
       if (code === "people_paused") {
-        const ended = text(details.standing) === "ended";
+        const ended = text(details.standing) === "removed";
         return {
           kind: "other",
           message: said || (ended ? W.peopleEnded : W.peoplePaused),

@@ -81,6 +81,13 @@ describe("the address", () => {
     expect(keptAsText(many.split(" "), many)).toHaveLength(8);
   });
 
+  it("keeps a word of 40 characters, as a chip's from can be, and drops one of 41", () => {
+    const forty = "a".repeat(40);
+    const fortyOne = "b".repeat(41);
+    const q = `${forty} ${fortyOne}`;
+    expect(keptAsText([forty, fortyOne], q)).toEqual([forty]);
+  });
+
   it("reads a Server Component's searchParams the way the browser reads its own", () => {
     const params = paramsOf({
       when: "today",
