@@ -1982,6 +1982,11 @@ for (const f of files) {
       "src/components/found/see-details.tsx",
       "the leaving sheet, opened by See details",
     ],
+    ["src/components/groups/claim-sheet.tsx", "a sheet, opened by Claim"],
+    [
+      "src/components/groups/club-report-sheet.tsx",
+      "a sheet, opened by Report",
+    ],
     [
       "src/components/me/life-entry-card.tsx",
       "drawn once the life list has loaded in the browser (MeSection)",

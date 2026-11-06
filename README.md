@@ -142,18 +142,19 @@ date until hydration rewrote them. The one exception is a route whose pages are 
 off as a route, and each of its pages must revalidate within five minutes. Publishing a listing
 never fails a push.
 
-**`e2e/audit.spec.ts` is the only suite that runs against production.** It reads
-`/sitemap.xml` from whatever origin it is pointed at and audits every URL in it — status,
+**`e2e/audit.spec.ts` and `e2e/audit-pages.spec.ts` are the only suites that run against
+production.** Between them they read `/sitemap.xml` from whatever origin they are pointed at and
+audit every URL in it: status,
 one `<h1>`, heading order, unique title/description, self-canonical, complete route-specific
 OG/Twitter, allowed JSON-LD only, the share image serving, no broken internal link, and no
-orphaned guide. It also asserts `robots.txt` and the `<meta name="robots">` tag agree, which
+orphaned guide. They also assert `robots.txt` and the `<meta name="robots">` tag agree, which
 is the one thing only a deployed origin can answer.
 
-It is **GET-only by construction**, because it is pointed at production. `money-loop.spec.ts`
+They are **GET-only by construction**, because they are pointed at production. `money-loop.spec.ts`
 never is.
 
 ```bash
-PLAYWRIGHT_BASE_URL=https://app.yuvoy.in pnpm exec playwright test e2e/audit.spec.ts --project=mobile
+PLAYWRIGHT_BASE_URL=https://app.yuvoy.in pnpm exec playwright test e2e/audit.spec.ts e2e/audit-pages.spec.ts --project=mobile
 ```
 
 It runs automatically after every production deploy and weekly — the one exception to

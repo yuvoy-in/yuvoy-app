@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
  * Adding a way in (yuvoy-app#229, yuvoy-api#304, MD-110): `POST
  * /me/sign-in/verify` WITH a session as the bearer, which links the number or
  * address to that account instead of signing in. Without a bearer this
- * handler steps aside and the sign-in's own (in `booking-handlers.ts`)
+ * handler steps aside and the sign-in's own (in `booking-handlers-auth.ts`)
  * answers.
  *
  * The words are the API's, byte for byte (`linkIdentity` and the door's

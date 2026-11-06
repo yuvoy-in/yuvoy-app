@@ -8,7 +8,7 @@ import AxeBuilder from "@axe-core/playwright";
  * With no scenario the door's switch is off, as on dev and production today.
  * `email-sign-in` opens it; `email-sign-in-closed` opens it on the config and
  * shuts it on the send. An address starting with "new" is a person no account
- * holds yet, so the mock asks the year (`mocks/booking-handlers.ts`).
+ * holds yet, so the mock asks the year (`mocks/booking-handlers-auth.ts`).
  */
 
 const CODE = "123456";

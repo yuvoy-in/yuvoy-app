@@ -20,7 +20,8 @@ import AxeBuilder from "@axe-core/playwright";
  *
  * The door shuts part way through with `shutTheDoor`: the page's own mock
  * worker answers `/app-config`, so a Playwright route never sees it, and
- * the switch is a key in the page's storage that `mocks/handlers.ts` reads.
+ * the switch is a key in the page's storage that
+ * `mocks/handlers-places.ts` reads.
  */
 
 const CODE = "123456";
