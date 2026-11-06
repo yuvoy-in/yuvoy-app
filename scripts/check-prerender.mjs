@@ -39,6 +39,9 @@ const ALLOWED = {
   "/_global-error": "Static error shell.",
   "/_not-found": "Static 404.",
   "/account": "Settings and consent. All state is client-side and per-device.",
+  "/account/date-alerts":
+    "Date alerts (yuvoy-app#220). A client screen read with the session " +
+    "through the proxy. The shell carries no data and no clock.",
   "/apple-icon.png": "Build asset.",
   "/favicon.ico": "Build asset.",
   "/door":

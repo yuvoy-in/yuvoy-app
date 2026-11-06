@@ -27,6 +27,7 @@ import { Panel } from "@/components/ui/panel";
 import { INVITE_ONLY, standingOfAccount } from "@/lib/site/access";
 import { YourLinks } from "@/components/creator/your-links";
 import { OrganiserAccountLink } from "@/components/organisers/organiser-parts";
+import { DateAlertsLink } from "./date-alerts-link";
 import { MeCounts, MeSection } from "@/components/me/me-section";
 import { MeSettings } from "@/components/me/me-settings";
 import { PeopleRow } from "@/components/people/people-row";
@@ -398,6 +399,7 @@ function SignedIn({
         Guides
       </ButtonLink>
       <OrganiserAccountLink />
+      <DateAlertsLink />
 
       {me ? (
         <Button
