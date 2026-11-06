@@ -17,7 +17,7 @@ test("the conversation refuses a phone number and takes a date", async ({
   page,
 }) => {
   /*
-    THE CONVERSATION WITH THE BUSINESS — yuvoy-app#47.
+    THE CONVERSATION WITH THE BUSINESS: yuvoy-app#47.
 
     Two of the issue's own checks, and they are the pair that matters: the
     contact-detail rule has to bite, and it has to bite ONLY on contact
