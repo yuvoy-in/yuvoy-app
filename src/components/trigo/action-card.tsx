@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { STATE_COPY } from "@/components/booking/trip-copy";
 import { Button } from "@/components/ui/button";
 import Link from "@/components/ui/link";
 import { YuvoyError } from "@/lib/api/errors";
@@ -16,6 +17,7 @@ import {
   useDeclineTrigoAction,
   type CardFailure,
   type TrigoActionCard,
+  type TrigoLiveReservation,
 } from "@/lib/trigo/actions";
 import { trigoCheckoutHref } from "@/lib/trigo/checkout-prefill";
 import {
@@ -103,6 +105,28 @@ async function actionsOpenNow(qc: QueryClient): Promise<boolean> {
   return releaseOpen(stage, account.cohort ?? null);
 }
 
+/**
+ * The live hold or request under a confirmed book card's key
+ * (`liveReservation`, yuvoy-api#604), or null. The API sets it only there; an
+ * older API leaves it out, which reads as none.
+ */
+function liveOf(card: TrigoActionCard): TrigoLiveReservation | null {
+  if (card.kind !== "book" || card.state !== "confirmed") return null;
+  return card.liveReservation ?? null;
+}
+
+/**
+ * What a live reservation says on the card: the booking screen's own title
+ * for a hold and for a request, so no new words. When it ends
+ * (`expiresAt`) is not shown: that line waits on the copy in yuvoy-app#223.
+ * Partial, as the enum can grow on the server: a kind not here draws no line,
+ * and still no Go to checkout.
+ */
+const LIVE_LINE: Partial<Record<TrigoLiveReservation["kind"], string>> = {
+  hold: STATE_COPY.holding.title,
+  request: STATE_COPY.awaiting_operator.title,
+};
+
 /** The card's own line for its state, when it has one. */
 function stateLine(card: TrigoActionCard): string | null {
   switch (card.state) {
@@ -130,7 +154,11 @@ function stateLine(card: TrigoActionCard): string | null {
  *   - proposed: both buttons. While a confirm is out both are off and the
  *     card says it is checking.
  *   - confirmed (a book card): Go to checkout, which confirms again and
- *     opens the same checkout.
+ *     opens the same checkout. While a hold or request under the card's key
+ *     is live (`liveReservation`) there is no Go to checkout: a checkout
+ *     with a changed party is refused under the key, and under a new key
+ *     would be a second request. The card says which is live instead, and
+ *     the line opens Trips.
  *   - used: the booking's reference (opening Trips), or the done line of a
  *     date alert or trip draft.
  *   - declined, expired, superseded: no buttons, and a superseded card is
@@ -240,7 +268,9 @@ export function ActionCard({
   }
 
   const proposed = card.state === "proposed" && !over;
-  const reopen = card.state === "confirmed" && book && !over;
+  const live = liveOf(card);
+  const liveLine = live ? (LIVE_LINE[live.kind] ?? null) : null;
+  const reopen = card.state === "confirmed" && book && !over && !live;
   // Closed when the release says so, or when a confirm's 404 found it closed.
   const open = actions.open && recheck !== "closed";
   // No confirm while the release is still being read, and no line until known.
@@ -278,6 +308,13 @@ export function ActionCard({
         <p className="text-body text-pretty">
           <Link href={TRIPS_PATH} className="underline">
             {bookedLine(reference)}
+          </Link>
+        </p>
+      ) : null}
+      {liveLine ? (
+        <p className="text-body text-pretty">
+          <Link href={TRIPS_PATH} className="underline">
+            {liveLine}
           </Link>
         </p>
       ) : null}

@@ -381,8 +381,23 @@ test("case 1: Get my link on a past trip makes the link (201), Your links lists 
   await signIn(page, testInfo);
   await openPast(page, "creator-links");
 
+  /*
+    The trip carries its listing's id (yuvoy-app#278), so the tap reads no
+    listing. This one is not served at all, as an unpublished listing is not.
+  */
+  const listingReads: string[] = [];
+  page.context().on("request", (request) => {
+    const kind = request.resourceType();
+    if (kind !== "fetch" && kind !== "xhr") return;
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/experiences/sunset-cruise-off-radhanagar")) {
+      listingReads.push(path);
+    }
+  });
+
   const first = await getMyLink(page, WENT);
   expect(first.status).toBe(201);
+  expect(listingReads).toEqual([]);
   expect(first.body.target?.title).toBe(WENT);
   const link = first.body.link!;
   expect(link).toMatch(/\/go\/C-[A-Z0-9]{8}$/);
