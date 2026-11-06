@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, createProxyClient } from "@/lib/api/client";
+import { createProxyClient } from "@/lib/api/client";
 import { YuvoyError } from "@/lib/api/errors";
 import { CACHE, qk } from "@/lib/query/policy";
 import { withLink, type CreatorLink } from "./creator-words";
@@ -54,13 +54,12 @@ export interface GotLink {
 }
 
 /**
- * Get my link, for an experience a trip names by its slug.
+ * Get my link, for the experience a trip names by its id.
  *
- * A row of `GET /me/bookings` carries `experienceSlug` and not the
- * experience's id, and the write takes the id. So the listing is read first,
- * by the same key and freshness as the card page (`qk.experience`), and a
- * listing already in the cache costs nothing. Then `POST /me/creator-links`
- * with `{ experienceId }`.
+ * A row of `GET /me/bookings` carries `experienceId` (yuvoy-app#278), so the
+ * write goes straight to `POST /me/creator-links` with `{ experienceId }`.
+ * The listing is not read first, so a trip whose listing has since been
+ * unpublished still gets its link.
  *
  * The answer goes straight into Your links: replaced where that code is
  * already listed, at the top where it is new. Only where the list is in the
@@ -70,24 +69,10 @@ export function useGetMyCreatorLink() {
   const qc = useQueryClient();
   return useMutation({
     retry: false,
-    mutationFn: async (experienceSlug: string): Promise<GotLink> => {
-      const experience = await qc.fetchQuery({
-        queryKey: qk.experience(experienceSlug),
-        queryFn: async ({ signal }) => {
-          const { data, error } = await api.GET("/experiences/{slug}", {
-            params: { path: { slug: experienceSlug } },
-            signal,
-          });
-          if (error || !data) {
-            throw error ?? new Error("GET /experiences/{slug} had no body.");
-          }
-          return data;
-        },
-        ...CACHE.getExperience,
-      });
+    mutationFn: async (experienceId: string): Promise<GotLink> => {
       const client = createProxyClient();
       const { data, error, response } = await client.POST("/me/creator-links", {
-        body: { experienceId: experience.id },
+        body: { experienceId },
       });
       if (error || !data) {
         throw error ?? new Error("POST /me/creator-links had no body.");
