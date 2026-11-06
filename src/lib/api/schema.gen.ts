@@ -857,10 +857,15 @@ export interface paths {
          *
          *     **Signed in (optional, since 2026-09-13).** Send `Authorization: Bearer <travellerSession>` (a recovery token also counts in its first 72 hours; a `statusToken` does not) and the checkout is the traveller's own:
          *
-         *       - `contact.whatsapp` may be left out, and is **ignored if sent**. The
-         *         booking goes on the number the session proved. A typed number would
-         *         put the booking on a number nobody proved, and it would appear in
-         *         that number's account.
+         *       - When the session proved a number, `contact.whatsapp` may be left
+         *         out, and is **ignored if sent**. The booking goes on the number the
+         *         session proved. A typed number would put the booking on a number
+         *         nobody proved, and it would appear in that number's account.
+         *       - Signed in by email with no number proved (yuvoy-api#304),
+         *         `contact.whatsapp` is required as for a guest, else `400` with
+         *         `details["contact.whatsapp"]`. The operator reaches the traveller
+         *         on it, the booking is still the traveller's, and the number opens
+         *         nothing for anybody.
          *       - `contact.name` may be left out. The profile name is used, else the
          *         name on the newest booking made with the number. With neither, `400`
          *         with `details["contact.name"]`.
@@ -870,7 +875,7 @@ export interface paths {
          *
          *     A Bearer credential that is not a live sign-in (expired, signed out, unknown, or a booking's status token) is `401 unauthorized`, never a guest checkout: sign in again, or retry without the header. With no `Authorization` header, checkout is exactly the guest checkout above.
          *
-         *     **By invitation (yuvoy-api#195).** While the server's invite gate is on, creating a reservation needs a signed-in traveller whose number is admitted (`GET /me` says `admitted: true`; see `redeemInviteCode`). Anybody else, including a guest checkout with no `Authorization` header and a request to book, is `403 invite_required`, before anything is checked or held. While the gate is off, nothing here changes. Browsing, booking links, shared trips and everything about a booking that already exists are never gated.
+         *     **By invitation (yuvoy-api#195).** While the server's invite gate is on, creating a reservation needs a signed-in traveller who is admitted (`GET /me` says `admitted: true`; see `redeemInviteCode`). Anybody else, including a guest checkout with no `Authorization` header and a request to book, is `403 invite_required`, before anything is checked or held. While the gate is off, nothing here changes. Browsing, booking links, shared trips and everything about a booking that already exists are never gated.
          */
         post: operations["createReservation"];
         delete?: never;
@@ -1627,7 +1632,7 @@ export interface paths {
          *
          *     `session` is present only when a traveller session signed the request in, and absent for a recovery token. `session.expiresAt` is when that session now ends, 14 days since this use. Keep a cookie or any stored expiry in step with it rather than with the value sign-in returned.
          *
-         *     `admitted` is whether the number may book when booking is by invitation. False means show the invite code screen (`redeemInviteCode`).
+         *     `admitted` is whether this traveller may book when booking is by invitation. False means show the invite code screen (`redeemInviteCode`).
          */
         get: operations["getMyAccount"];
         put?: never;
@@ -2933,15 +2938,15 @@ export interface paths {
         put?: never;
         /**
          * Redeem an invite code
-         * @description Admits the signed-in traveller's number to booking with a code Yuvoy gave them. Sign in first (`verifyTravellerSignIn`), then redeem. **Redeeming never creates a session**: the number admitted is the one the session already proved, so a traveller who signs in again on a new phone with the same number keeps their access.
+         * @description Admits the signed-in traveller to booking with a code Yuvoy gave them. Sign in first (`verifyTravellerSignIn`), by number or by email, then redeem. **Redeeming never creates a session**: the admission belongs to the traveller the session already proved (yuvoy-api#351), so a traveller who signs in again on a new phone, with the same number or address, keeps their access.
          *
          *     Codes are 8 characters from an alphabet with no 0, O, 1, I or L, shown as `XXXX-XXXX`. Case, spaces and hyphens do not matter on input, so `k7qm 4xrd` is the same code as `K7QM-4XRD`. One code admits one person, once.
          *
-         *     A number that is already admitted gets `200` with `alreadyAdmitted: true` whatever code it sends, and the code is **not** used up, so it can go to somebody else.
+         *     A traveller who is already admitted gets `200` with `alreadyAdmitted: true` whatever code they send, and the code is **not** used up, so it can go to somebody else.
          *
-         *     A code staff issued for a named number is redeemable by that number only (yuvoy-api#195). From any other number it is `404 invite_code_unknown`, whatever state it is in, so a code says nothing about itself to somebody it was not meant for.
+         *     A code staff issued for a named person is redeemable only by a traveller who has proved that number, or the email staff entered with it (yuvoy-api#195). From anybody else it is `404 invite_code_unknown`, whatever state it is in, so a code says nothing about itself to somebody it was not meant for.
          *
-         *     Refusals: `404 invite_code_unknown` (no such code, one that was withdrawn, or one issued for another number, which read alike on purpose), `409 invite_code_used`, `410 invite_code_expired`. Throttled per IP and per number, `429`; through the app's own server, per IP means the person's address it names (see the API description).
+         *     Refusals: `404 invite_code_unknown` (no such code, one that was withdrawn, or one issued for somebody else, which read alike on purpose), `409 invite_code_used`, `410 invite_code_expired`. Throttled per IP and per traveller (by their number when they have one), `429`; through the app's own server, per IP means the person's address it names (see the API description).
          *
          *     `GET /me` reports the result as `admitted`. Whether booking actually needs it is a server switch; see `createReservation`.
          */
@@ -4012,7 +4017,7 @@ export interface paths {
         put?: never;
         /**
          * Set up an organiser page
-         * @description A signed-in adult sets up an organiser for a group or a series of events (R11-T2) and becomes its owner. It starts `pending`: a person at Yuvoy checks it, and every event it posts is checked before it shows. Every organiser route needs a sign-in session (a recovery link is 401) and the 18+ answer (403 `adult_confirmation_required`), and is 404 while the `supply` release does not admit the caller. Writes answer 503 `organisers_paused` while organiser pages are paused, except `cancelOrganiserEvent`. A field the server refuses is a 400 with `details` keyed by that field (a link's is `links.<index>`). Three a day per person, then 429 with `Retry-After` in seconds; requests sent too fast answer 429 with no `Retry-After`. Never cached.
+         * @description A signed-in adult sets up an organiser for a group or a series of events (R11-T2) and becomes its owner. It starts `pending`: a person at Yuvoy checks it, and every event it posts is checked before it shows. Every organiser route needs a sign-in session (a recovery link is 401) and the 18+ answer (403 `adult_confirmation_required`), and is 404 while the `supply` release does not admit the caller. Writes answer 503 `organisers_paused` while organiser pages are paused, except `cancelOrganiserEvent`. A field the server refuses is a 400 with `details` keyed by that field (a link's is `links.<index>`). Every route answers 429 `rate_limited` with no `Retry-After` to requests sent too fast. Six writes also have a day limit and answer 429 `rate_limited` over it, with `Retry-After` in seconds until the count lets one more through: setting up an organiser and linking a group (three a day per person each), adding helpers (ten a day per organiser), posting and editing events (twenty a day per organiser, counted together) and claiming cards (five a day per organiser). Never cached.
          *     With `clubId` (OrganiserFromClubInput), the holder of an approved claim on an R9 group sets up that group's organiser: it takes the group's name and place (a body that also sends `name` or `destinationKey` is 400 with `details.name` or `details.destinationKey`) and is `verified` at once, with no verification code. Checks run in this order after the organiser gates: the body (400), the day count (429), a group that is not shown (404), not the holder (403 `not_club_holder`), People not open to the caller (403 `people_paused`), a group that already has an organiser (409 `club_already_linked`).
          */
         post: operations["createOrganiser"];
@@ -4078,7 +4083,7 @@ export interface paths {
         put?: never;
         /**
          * Link an organiser to a group you hold
-         * @description The owner of an organiser links it to an R9 group whose approved claim they hold. The organiser takes the group's name and place and keeps its slug. Every organiser linked becomes verified by the claim, method club_claim, whatever its state was (pending, not_verified or verified); its earlier method stays in the audit trail. Checks run in this order: the organiser gates; not a member (403 `not_a_member`), a helper (403 `not_owner`); the pause (503 `organisers_paused`); the body (400; a body that sends `name` or `destinationKey` is 400 with `details.name` or `details.destinationKey`, and a missing or bad `clubId` is 400 with `details.clubId`); a suspended or closed organiser (409 `conflict` with `details.state`); the day count, three a day per person (429 with `Retry-After` in seconds); a group that is not shown (404); not the holder (403 `not_club_holder`); People not open to the caller (403 `people_paused` with `details.standing` and `details.until`); the group already has another organiser, or this organiser already has another group (409 `club_already_linked` with `details.organiserId`, and `details.clubId` naming the other group for the second). Linking again to the same group answers 200 and changes nothing. Never cached.
+         * @description The owner of an organiser links it to an R9 group whose approved claim they hold. The organiser takes the group's name and place and keeps its slug. Every organiser linked becomes verified by the claim, method club_claim, whatever its state was (pending, not_verified or verified); its earlier method stays in the audit trail. Checks run in this order: the organiser gates; not a member (403 `not_a_member`), a helper (403 `not_owner`); the pause (503 `organisers_paused`); the body (400; a body that sends `name` or `destinationKey` is 400 with `details.name` or `details.destinationKey`, and a missing or bad `clubId` is 400 with `details.clubId`); a suspended or closed organiser (409 `conflict` with `details.state`); the day count, three a day per person (429 with `Retry-After` in seconds); a group that is not shown (404); not the holder (403 `not_club_holder`); People not open to the caller (403 `people_paused` with `details.standing` and `details.until`); the group already has another organiser, or this organiser already has another group (409 `club_already_linked` with `details.organiserId`, and `details.clubId` naming the other group for the second; in one rare race, when the group's organiser cannot be found, the first comes with no details). Linking again to the same group answers 200 and changes nothing. Never cached.
          */
         post: operations["linkOrganiserToClub"];
         delete?: never;
@@ -4331,7 +4336,7 @@ export interface components {
                  * @enum {string}
                  */
                 payments: "coming_soon" | "available";
-                /** @description Whether creating a reservation needs an admitted number. */
+                /** @description Whether creating a reservation needs an admitted traveller. */
                 inviteOnly: boolean;
                 /** @description Which sign-in doors are open (yuvoy-api#304), so each one appears the day its endpoint is live, with no app release. Signing in with a number has no switch and is always open. An API older than this sends no `signIn`: read that as all three false. */
                 signIn?: {
@@ -4442,6 +4447,11 @@ export interface components {
              * @description When an accepted request's seats stop being held: the same instant as `holdExpiresAt` on the booking page. Present only when `state` is `holding` (yuvoy-api#270).
              */
             holdExpiresAt?: string;
+            /**
+             * Format: uuid
+             * @description The listing this trip was booked from, as `experienceId` in `POST /me/creator-links` takes it, so asking for a creator link needs no read of the listing first. Sent on every row, also when the listing has since been withdrawn or taken back to draft (yuvoy-api#669).
+             */
+            experienceId: string;
             /** @description The listing this trip was booked from, for linking back to it. */
             experienceSlug: string;
             /**
@@ -4645,7 +4655,7 @@ export interface components {
                 count: number;
             };
             support: components["schemas"]["SupportContact"];
-            /** @description Whether this number may book when booking is by invitation: it redeemed a code, or it already held a booking when invitations began. Reported whether or not the gate is on. Show the code screen while it is false. */
+            /** @description Whether this traveller may book when booking is by invitation: they redeemed a code, or their number already held a booking when invitations began. Reported whether or not the gate is on. Show the code screen while it is false. */
             admitted: boolean;
             /**
              * @description Who this traveller is among the people who see releases early: staff, early, or null. See getAppConfig releases.
@@ -4929,7 +4939,7 @@ export interface components {
             contactEmail: string;
             /**
              * Format: uri
-             * @description A page of the group's own that names them, if there is one.
+             * @description A page of the group's own that names them, if there is one. Its host has a dot in it and the link has no space; the scheme is kept in lower case and the rest as sent.
              */
             proofUrl?: string;
             note?: string;
@@ -5784,11 +5794,11 @@ export interface components {
             /** @description First page of the visit. The checkout path is not accepted here — we already know it for certain, and asking for a fact we hold is how the two come to disagree. */
             landingPath?: string;
         };
-        /** @description `name` and `whatsapp` are required for a guest checkout. Signed in with a travellerSession, both may be omitted and `whatsapp` is ignored. */
+        /** @description `name` and `whatsapp` are required for a guest checkout. Signed in with a travellerSession that proved a number, both may be omitted and `whatsapp` is ignored. Signed in by email with no number proved, `whatsapp` is required as for a guest. */
         ReservationContact: {
             /** @description Required for a guest. Signed in, defaults to the profile name, then the newest booking's name. */
             name?: string;
-            /** @description E.164, e.g. +919000000000. Required for a guest. Ignored when signed in: the session's number is used. */
+            /** @description E.164, e.g. +919000000000. Required for a guest, and for a session signed in by email that proved no number (yuvoy-api#304): the operator reaches the traveller on it and it opens nothing. Ignored when the session proved a number: that number is used. */
             whatsapp?: string;
             /** @description Optional. Signed in and left out, the profile email is used when there is one. */
             email?: string;
@@ -7814,6 +7824,16 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description `rate_limited`: over the route's day limit, or sent too fast. Over the day limit `Retry-After` is the seconds until the count lets one more through; sent too fast, there is no `Retry-After`. */
+        RateLimitedForTheDay: {
+            headers: {
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description `rate_limited`: sent too fast. `Retry-After` is the seconds until one more is let through. */
         RateLimitedRetryAfter: {
             headers: {
@@ -8207,6 +8227,7 @@ export interface operations {
                     };
                 };
             };
+            429: components["responses"]["RateLimited"];
             503: components["responses"]["CatalogUnavailable"];
         };
     };
@@ -8281,7 +8302,7 @@ export interface operations {
                 free?: boolean;
                 /** @description Words, matched as prefixes and by spelling. Words the parse understands (a department, a day, free) become chips in `understood` and narrow as chips do. Narrows; does not reorder. Words with nothing searchable in them answer an empty, complete page. */
                 q?: string;
-                /** @description Words of `q` to match as plain text and never as chips. At most 8, each at most 30 characters; a word not in `q` is ignored. */
+                /** @description Words of `q` to match as plain text and never as chips. At most 8, each at most 40 characters, the most an understood chip's `from` can be; a word not in `q` is ignored. A place's name in `q` with any of its words here is plain text as a whole, so sending back a place chip's `from`, clipped to 40 characters, removes the whole name and no word of it becomes another chip. */
                 asText?: string[];
                 /** @description Only items whose source states a price that fits, or says they are free. An item with no stated price never matches, except for `any`. `free=true` is the same as `budget=free`; `free=true` with `under_500` or `under_1500` is a `400`. */
                 budget?: "free" | "under_500" | "under_1500" | "any";
@@ -8761,6 +8782,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
             503: components["responses"]["TablesUnavailable"];
         };
     };
@@ -9188,6 +9210,15 @@ export interface operations {
                     "application/json": components["schemas"]["ExperiencePage"];
                 };
             };
+            /** @description `invalid_input`: `limit` is not a whole number from 1 to 50, `bookableOn` is not a date like 2026-10-17, or `cursor` is not one this endpoint gave out. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     getExperience: {
@@ -9293,7 +9324,15 @@ export interface operations {
                     "application/json": components["schemas"]["Reservation"];
                 };
             };
-            400: components["responses"]["BadRequest"];
+            /** @description `invalid_input`; `screening_required` when the listing asks a health declaration and none was sent; or `idempotency_key_malformed`: the `Idempotency-Key` sent is not 16-128 characters of `A-Za-z0-9_.:-`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description A Bearer credential was sent and is not a live sign-in. Only ever answered to a request that sent `Authorization`; a guest checkout never sees it. */
             401: {
                 headers: {
@@ -9314,7 +9353,7 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             /**
-             * @description Could not proceed, and the code says why: `capacity_unavailable`, `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`. `request_quota_exhausted` and `request_window_closed` are no longer returned (since 2026-09-13): every request is taken.
+             * @description Could not proceed, and the code says why: `capacity_unavailable`, `cutoff_passed`, `idempotency_key_reuse`, `idempotency_in_progress`. `price_moved`: `expectTotalPaise` was sent and the listing no longer costs that. `screening_needs_a_doctor`: the health declaration names a condition that needs a doctor's sign-off first. `under_minimum_age`: somebody in the party is under the trip's minimum age. Nothing was held. `request_quota_exhausted` and `request_window_closed` are no longer returned (since 2026-09-13): every request is taken.
              *
              *     `answers_required`: the body sent `answers`, even an empty list, and a question the listing asks now with `required: true` has no answer in it that fits. `details.questions` names each such question as an object with `questionId` and `text`, in the listing's order, and `reason` when an answer was sent for it that did not fit (for a choice, "that choice is no longer offered, pick again"). Nothing was held, and the same `Idempotency-Key` can be sent again with the answers. A body without `answers` is never refused this way.
              *
@@ -9328,6 +9367,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["RateLimited"];
             /** @description Deliberately stopped, not broken — `booking_disabled` or `operator_not_bookable`. Distinct from an outage so the client can say something true. */
             503: {
                 headers: {
@@ -9403,6 +9443,15 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /** @description The hold has ended; this reservation can no longer be paid for. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description `operator_not_bookable`: we have stopped selling this operator's departures. Only once a card provider is live; until then this endpoint answers 200 `coming_soon`. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9542,7 +9591,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            /** @description The seats are no longer held, or a card payment is already open for them. Either way the traveller starts again. */
+            /** @description `conflict`: the seats are no longer held, or a card payment is already open for them. Either way the traveller starts again. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9551,7 +9600,8 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description We have stopped selling this operator's departures. */
+            429: components["responses"]["RateLimited"];
+            /** @description `operator_not_bookable`: we have stopped selling this operator's departures. `unavailable`: bookings cannot be confirmed right now and the seats are still held, so try again. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -9705,7 +9755,15 @@ export interface operations {
                     "application/json": components["schemas"]["BookingChange"];
                 };
             };
-            400: components["responses"]["BadRequest"];
+            /** @description `invalid_input`, or `idempotency_key_malformed`: the `Idempotency-Key` sent is not 16-128 characters of `A-Za-z0-9_.:-`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             /** @description `booking_not_changeable`, `booking_departed`, `change_needs_a_person` (`details.reason`), `capacity_unavailable`, `cutoff_passed`, `stale_availability`, `action_changed`, `idempotency_key_reuse`, `idempotency_in_progress`. */
@@ -9746,7 +9804,7 @@ export interface operations {
                     "application/json": components["schemas"]["BookingChange"];
                 };
             };
-            /** @description `invalid_input`, or `screening_required` when the listing asks a health declaration and none was sent. */
+            /** @description `invalid_input`, `screening_required` when the listing asks a health declaration and none was sent, or `idempotency_key_malformed`: the `Idempotency-Key` sent is not 16-128 characters of `A-Za-z0-9_.:-`. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -12618,7 +12676,15 @@ export interface operations {
                     "application/json": components["schemas"]["TrigoTurnResult"];
                 };
             };
-            400: components["responses"]["BadRequest"];
+            /** @description `invalid_input`, or `idempotency_key_malformed`: the `Idempotency-Key` sent is not 16-128 characters of `A-Za-z0-9_.:-`. The key is required, so a missing one answers this too. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             /** @description `adult_confirmation_required`: show "Add your birth year to use Trigo." with a button to confirmMyAge, and send the turn again after its 200. */
             403: {
@@ -13224,7 +13290,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The number is admitted. */
+            /** @description The traveller is admitted. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -13234,7 +13300,7 @@ export interface operations {
                         /** @enum {boolean} */
                         admitted: true;
                         /**
-                         * @description Present only when the number was admitted before this request. The code sent was left unused.
+                         * @description Present only when the traveller was admitted before this request. The code sent was left unused.
                          * @enum {boolean}
                          */
                         alreadyAdmitted?: true;
@@ -13243,7 +13309,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            /** @description `invite_code_unknown`: no such code, one that was withdrawn, or one issued for another number. */
+            /** @description `invite_code_unknown`: no such code, one that was withdrawn, or one issued for somebody else. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -13726,7 +13792,7 @@ export interface operations {
                     "application/json": components["schemas"]["InvitedTrip"];
                 };
             };
-            /** @description `unauthorized`. With no `Authorization` header the message is "Sign in with your WhatsApp number to see your trips.", the sentence every route behind the traveller sign-in check answers, however the traveller signed in; an unknown or expired token reads "Sign in again to see your trips." A credential that names no traveller, which a live one never does, reads "Sign in to accept." */
+            /** @description `unauthorized`. With no `Authorization` header, and with an unknown or expired token, the message is "Sign in to see the trips you are invited on." A credential that names no traveller, which a live one never does, reads "Sign in to accept." */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -15136,7 +15202,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            /** @description `club_already_linked`, with details.organiserId: only the group's holder gets this far. */
+            /** @description `club_already_linked`, with details.organiserId naming the group's organiser: only the group's holder gets this far. In one rare race (another set-up of the group commits first and its organiser cannot then be found) details is left out. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15145,7 +15211,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedForTheDay"];
             503: components["responses"]["OrganisersPaused"];
         };
     };
@@ -15313,7 +15379,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            /** @description `conflict` with details.state for a suspended or closed organiser; `club_already_linked` with details.organiserId, and details.clubId when this organiser already has another group. */
+            /** @description `conflict` with details.state for a suspended or closed organiser; `club_already_linked` with details.organiserId, and details.clubId when this organiser already has another group; with no details in the rare race where the group's organiser cannot be found. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15322,7 +15388,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedForTheDay"];
             503: components["responses"]["OrganisersPaused"];
         };
     };
@@ -15418,7 +15484,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedForTheDay"];
             503: components["responses"]["OrganisersPaused"];
         };
     };
@@ -15537,7 +15603,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedForTheDay"];
             503: components["responses"]["OrganisersPaused"];
         };
     };
@@ -15587,7 +15653,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedForTheDay"];
             503: components["responses"]["OrganisersPaused"];
         };
     };
@@ -15744,7 +15810,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedForTheDay"];
             503: components["responses"]["OrganisersPaused"];
         };
     };
