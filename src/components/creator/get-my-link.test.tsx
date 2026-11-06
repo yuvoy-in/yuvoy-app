@@ -34,6 +34,7 @@ function trip(over: Partial<ServerTrip> = {}): ServerTrip {
     state: "completed",
     guests: 2,
     statusToken: "tok_past",
+    experienceId: EXPERIENCE_ID,
     experienceSlug: "snorkel-elephant-beach",
     operatorSlug: "sample-boat-operator",
     heroImageUrl: null,
@@ -79,17 +80,19 @@ function release(stage: "off" | "all") {
   );
 }
 
-/** The listing the trip names, read for its id. */
-function serveListing() {
+/**
+ * Records every read of a listing. Each answers `404`, as an unpublished
+ * listing does: the tap must not need one (yuvoy-app#278).
+ */
+function watchListings() {
   const asked: string[] = [];
   server.use(
     http.get(`${BASE}/experiences/:slug`, ({ params }) => {
       asked.push(String(params.slug));
-      return HttpResponse.json({
-        id: EXPERIENCE_ID,
-        slug: params.slug,
-        title: "Snorkel trip to Elephant Beach",
-      });
+      return HttpResponse.json(
+        { error: { code: "not_found", message: "Not found." } },
+        { status: 404 },
+      );
     }),
   );
   return asked;
@@ -143,10 +146,10 @@ const NOT_COMPLETED = [
  * "Get my link" on a past trip (yuvoy-app#207; cases from yuvoy-mobile#389).
  */
 describe("get my link", () => {
-  it("reads the listing for its id, sends it, and shows the new link", async () => {
+  it("sends the trip's own id, reads no listing, and shows the new link", async () => {
     // Case 1, first half: 201.
     release("all");
-    const listings = serveListing();
+    const listings = watchListings();
     const bodies = serveWrite(() => HttpResponse.json(LINK, { status: 201 }));
     const user = userEvent.setup();
     show();
@@ -157,7 +160,7 @@ describe("get my link", () => {
         "Your link is ready. It is in Your links on Account too.",
       ),
     ).toBeInTheDocument();
-    expect(listings).toEqual(["snorkel-elephant-beach"]);
+    expect(listings).toEqual([]);
     expect(bodies).toEqual([{ experienceId: EXPERIENCE_ID }]);
     expect(
       screen.getByRole("button", { name: "Copy link" }),
@@ -174,7 +177,6 @@ describe("get my link", () => {
       holding its words may never be read out.
     */
     release("all");
-    serveListing();
     serveWrite(() => HttpResponse.json(LINK, { status: 201 }));
     const user = userEvent.setup();
     show();
@@ -196,7 +198,6 @@ describe("get my link", () => {
   it("describes every button by the trip it is for", async () => {
     // The names stay as they are; the trip's title is the description.
     release("all");
-    serveListing();
     serveWrite(() => HttpResponse.json(LINK, { status: 201 }));
     const user = userEvent.setup();
     __signInAppRouteMock("sess_test");
@@ -221,7 +222,6 @@ describe("get my link", () => {
   it("says it is the one they already had on a 200", async () => {
     // Case 1, second half.
     release("all");
-    serveListing();
     serveWrite(() => HttpResponse.json(LINK, { status: 200 }));
     const user = userEvent.setup();
     show();
@@ -236,7 +236,6 @@ describe("get my link", () => {
 
   it("puts the link into Your links when both are on screen", async () => {
     release("all");
-    serveListing();
     serveWrite(() => HttpResponse.json(LINK, { status: 201 }));
     server.use(
       http.get(`${BASE}/me/creator-links`, () =>
@@ -264,6 +263,51 @@ describe("get my link", () => {
     );
   });
 
+  it("sends the id the row carries, whatever the listing", async () => {
+    // A trip booked from another listing sends that listing's id.
+    const other = "1b2c3d4e-5f60-4718-9a2b-3c4d5e6f7081";
+    release("all");
+    const bodies = serveWrite(() =>
+      HttpResponse.json(
+        { ...LINK, target: { ...LINK.target, id: other } },
+        { status: 201 },
+      ),
+    );
+    const user = userEvent.setup();
+    show({ experienceId: other });
+
+    await user.click(await button());
+    await screen.findByRole("button", { name: "Copy link" });
+    expect(bodies).toEqual([{ experienceId: other }]);
+  });
+
+  it("keeps one row in Your links for the link they already had", async () => {
+    // A 200 is the link already listed: it replaces that row, not adds one.
+    release("all");
+    serveWrite(() => HttpResponse.json(LINK, { status: 200 }));
+    server.use(
+      http.get(`${BASE}/me/creator-links`, () =>
+        HttpResponse.json({ items: [LINK] }),
+      ),
+    );
+    const user = userEvent.setup();
+    __signInAppRouteMock("sess_test");
+    renderWithQuery(
+      <>
+        <YourLinks toolsOn />
+        <GetMyLink trip={trip()} />
+      </>,
+    );
+
+    const region = await screen.findByRole("region", { name: "Your links" });
+    await within(region).findByTestId("creator-link");
+    await user.click(await button());
+    await screen.findByText(
+      "You already have this link. It is in Your links on Account.",
+    );
+    expect(within(region).getAllByTestId("creator-link")).toHaveLength(1);
+  });
+
   it.each([
     // Case 6.
     [
@@ -284,7 +328,6 @@ describe("get my link", () => {
     "shows the API's own sentence for a %i %s",
     async (status, code, message) => {
       release("all");
-      serveListing();
       serveWrite(refused(status, code, message));
       const user = userEvent.setup();
       show();
@@ -298,7 +341,6 @@ describe("get my link", () => {
 
   it("gives the sign-in answer for a 401, and a way back in", async () => {
     release("all");
-    serveListing();
     serveWrite(
       refused(
         401,
@@ -319,7 +361,6 @@ describe("get my link", () => {
 
   it("tries again after a refusal and shows the link", async () => {
     release("all");
-    serveListing();
     serveWrite(
       refused(
         503,
