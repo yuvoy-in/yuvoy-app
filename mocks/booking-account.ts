@@ -10,6 +10,7 @@ import {
 import { trigoStaffCohort } from "./trigo-handlers";
 import { organiserAgeConfirmed } from "./organiser-handlers";
 import { meStaffCohort } from "./me-handlers";
+import { clubStaffCohort } from "./club-handlers";
 import { envelope, rid, scenarioOf } from "./booking-support";
 
 /*
@@ -57,7 +58,9 @@ export function answerMe(request: Request): Response {
         there (all but `creator-outside`), or one of yuvoy-app#222's opens
         `people` there (all but `people-outside` and `people-all`), or one of
         yuvoy-app#223's opens `trigo` there (all but `trigo-not-released`), or
-        one of yuvoy-mobile#444's opens `me` there.
+        one of yuvoy-mobile#444's opens `me` there, or one of
+        yuvoy-mobile#386's opens `people` there (all but `clubs-all` and
+        `clubs-outside`).
       */
       cohort:
         scenarioOf(request) === "cohort-staff" ||
@@ -65,7 +68,8 @@ export function answerMe(request: Request): Response {
         creatorStaffCohort(scenarioOf(request)) ||
         peopleStaffCohort(scenarioOf(request)) ||
         trigoStaffCohort(scenarioOf(request)) ||
-        meStaffCohort(scenarioOf(request))
+        meStaffCohort(scenarioOf(request)) ||
+        clubStaffCohort(scenarioOf(request))
           ? "staff"
           : scenarioOf(request) === "cohort-early"
             ? "early"

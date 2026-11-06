@@ -76,6 +76,8 @@ export const PRIVATE_ROUTES = [
   "/organiser",
   // The door (yuvoy-app#226): signed in only, and the code it takes is in the fragment.
   "/door",
+  // Groups (yuvoy-mobile#386): behind the people release, not for crawlers yet.
+  "/groups",
   // Checkout. A URL with a `?slot=` on it, holding an idempotency key.
   // Wildcards are matched by every crawler that matters, and the page carries
   // `privateRobotsMeta` for the ones that ignore robots.txt entirely.
