@@ -16,6 +16,7 @@ import { Panel } from "@/components/ui/panel";
 import { LoadingState, Skeleton } from "@/components/states";
 import { AgeStep } from "./age-step";
 import { NameStep } from "./name-step";
+import { CrewsSection } from "./crews-section";
 import { FriendLinkCard } from "./friend-link-card";
 import { FriendsList, RequestsIn, RequestsOut } from "./people-lists";
 import { EmailsSwitch, SharingFirst, SharingSetting } from "./people-settings";
@@ -30,8 +31,8 @@ import { UnderAgeClosed, refusalText } from "./people-parts";
  * also when a later read answers them over a home already shown;
  * a standing of `restricted` or `removed` says so and shows nothing else;
  * then the age step, the name step and the first sharing choice, each until
- * it is answered; then requests in, requests sent, friends, the friend link
- * and the two settings.
+ * it is answered; then requests in, requests sent, friends, crews
+ * (yuvoy-app#227), the friend link and the two settings.
  *
  * A refusal anywhere below that asks for the age or the name
  * (`adult_confirmation_required`, `name_required`) opens that step here.
@@ -215,6 +216,7 @@ function PeopleHomeView({
       <RequestsIn requests={home.requestsIn} onStep={onStep} />
       <RequestsOut requests={home.requestsOut} />
       <FriendsList count={home.friendCount} />
+      <CrewsSection friendCount={home.friendCount} />
       <FriendLinkCard link={home.friendLink} onStep={onStep} />
       <SharingSetting home={home} onStep={onStep} />
       <EmailsSwitch home={home} />

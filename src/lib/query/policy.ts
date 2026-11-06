@@ -146,6 +146,11 @@ export const CACHE = {
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
   },
+  /**
+   * Crews (yuvoy-app#227). Read again whenever People or a crew opens, so a
+   * crew changed in the app on a phone is not shown as it was.
+   */
+  listMyCrews: { staleTime: 0, gcTime: 5 * 60_000, refetchOnMount: "always" },
 
   /**
    * The groups a traveller follows (yuvoy-mobile#392). Read again on every
@@ -168,6 +173,18 @@ export const CACHE = {
   listMyPlans: {
     staleTime: 0,
     gcTime: 5 * 60_000,
+    refetchOnMount: "always",
+  },
+
+  /**
+   * The groups directory and a group's page (yuvoy-mobile#386). The API
+   * answers `Cache-Control: no-store`: a group can be hidden by a removal
+   * request at any moment, and one shown after that is a listing somebody
+   * asked us to take down. So every mount reads again and nothing is kept.
+   */
+  listClubs: {
+    staleTime: 0,
+    gcTime: 0,
     refetchOnMount: "always",
   },
 } as const;
@@ -416,6 +433,8 @@ export const qk = {
   myPeople: () => ["getMyPeople"] as const,
   myFriends: () => ["listMyFriends"] as const,
   friendLink: (code: string) => ["lookupFriendLink", code] as const,
+  /** Crews (yuvoy-app#227): one list, forgotten with People. */
+  myCrews: () => ["listMyCrews"] as const,
   /**
    * The groups the signed-in traveller follows (yuvoy-mobile#392). Not keyed
    * by anything, for the reason `myBookings` gives; removed on sign in and
@@ -427,6 +446,16 @@ export const qk = {
    * invite picker reads `upcoming`). Removed on sign in and sign out.
    */
   myPlans: (when: "upcoming" | "past") => ["listMyPlans", when] as const,
+  /**
+   * One place's groups (yuvoy-mobile#386): `GET /me/clubs` signed in,
+   * `GET /clubs` signed out. Keyed by which, as `places` is: a staff number
+   * sees groups while the release is open to staff only.
+   */
+  clubs: (signedIn: boolean, destinationKey: string) =>
+    ["listClubs", signedIn ? "me" : "public", destinationKey] as const,
+  /** One group by its slug, by the same rule (`/me/clubs/{slug}` or `/clubs/{slug}`). */
+  club: (signedIn: boolean, slug: string) =>
+    ["getClub", signedIn ? "me" : "public", slug] as const,
   /**
    * One help request, by its reference, and by WHICH credential asked.
    *

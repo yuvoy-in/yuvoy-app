@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
+import { DOOR_WORDS } from "@/lib/organisers/door-words";
 import {
   clubOrganiserInput,
   clubPageForm,
@@ -16,6 +17,7 @@ import {
   CLUBS_HELD,
   MY_ORGANISERS,
   ORG_IDS,
+  ORG_PENDING,
 } from "../../../mocks/organiser-fixtures";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
@@ -143,6 +145,35 @@ describe("OrganiserHub", () => {
     expect(await screen.findByText(W.notNow)).toBeTruthy();
     expect(screen.getByRole("button", { name: W.tryAgain })).toBeTruthy();
     expect(screen.queryByText(W.empty)).toBeNull();
+  });
+
+  it("leads with Check people in for a member of a verified organiser", async () => {
+    hub();
+    await screen.findByTestId("organiser-hub-list");
+    const door = screen.getByRole("link", { name: DOOR_WORDS.entry });
+    expect(door.getAttribute("href")).toBe("/door");
+  });
+
+  it("leaves out Check people in while no organiser is verified", async () => {
+    server.use(
+      http.get(`${BASE}/me/organisers`, () =>
+        HttpResponse.json({ items: [ORG_PENDING], clubsToLink: [] }),
+      ),
+    );
+    hub();
+    await screen.findByTestId("organiser-hub-list");
+    expect(screen.queryByRole("link", { name: DOOR_WORDS.entry })).toBeNull();
+  });
+
+  it("leaves out Check people in for someone with no organiser", async () => {
+    server.use(
+      http.get(`${BASE}/me/organisers`, () =>
+        HttpResponse.json({ items: [], clubsToLink: [] }),
+      ),
+    );
+    hub();
+    expect(await screen.findByText(W.empty)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: DOOR_WORDS.entry })).toBeNull();
   });
 
   it("reads nothing while supply is off", async () => {

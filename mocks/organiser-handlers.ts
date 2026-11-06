@@ -16,6 +16,7 @@ import {
 } from "./organiser-fields";
 import {
   adults,
+  asksAge,
   nextId,
   scenarioOf,
   storeOf,
@@ -32,8 +33,7 @@ export {
 /**
  * Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
  * caller's own organisers, their helpers, their events and the numbers, and
- * `PUT /me/age`, the 18+ answer every organiser route needs.
- *
+ * `PUT /me/age`, the 18+ answer every organiser route needs. No claims routes.
  * With no scenario the caller is an adult, `supply` is open and
  * `GET /me/organisers` holds `MY_ORGANISERS`: one in each state, and one the
  * caller helps on. Writes are kept per scenario and session (the
@@ -42,16 +42,14 @@ export {
  *   - `organisers-empty`: no organisers yet; setting one up works.
  *   - `organisers-paused`: every write but cancelling an event is
  *     `503 organisers_paused`. Reads answer.
- *   - `organisers-age`: every organiser route is
- *     `403 adult_confirmation_required`, and `GET /me` says
- *     `ageConfirmed: false`, until `PUT /me/age` takes an adult answer for
- *     the session.
- *   - `organisers-closed-release`: `supply` is `off` and every organiser
- *     route is `404`, as the API answers outside the release.
+ *   - `organisers-age`: `403 adult_confirmation_required` on every
+ *     organiser route and `ageConfirmed: false` on `GET /me`, until
+ *     `PUT /me/age` takes an adult answer for the session.
+ *   - `organisers-closed-release`: `supply` is `off`, every route `404`.
  *   - `organisers-club`, `organisers-club-paused`: the caller holds groups
  *     (yuvoy-app#225); `organiser-club.ts` says what each does.
- *
- * Claims routes and the door check-in are not mocked.
+ *   - `organisers-door`, `-door-paused`, `-door-age` (yuvoy-app#226): one
+ *     verified organiser; `organiser-door.ts` says what each does.
  */
 
 type Organiser = components["schemas"]["Organiser"];
@@ -105,7 +103,7 @@ function refused(request: Request): Response | null {
     // The API's own sentence outside the release (`organiserNotFound`).
     return envelope("not_found", NO_ORGANISER, 404);
   }
-  if (scenario === "organisers-age" && !adults.has(auth)) {
+  if (asksAge(scenario) && !adults.has(auth)) {
     return envelope(
       "adult_confirmation_required",
       "Organiser pages are for people 18 and over. Confirm your age first.",

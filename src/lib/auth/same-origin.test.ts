@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { foreignRequest, sameOriginOnly, declaresJson } from "./same-origin";
+import {
+  foreignRequest,
+  fromThisOrigin,
+  sameOriginOnly,
+  declaresJson,
+} from "./same-origin";
 
 const APP = "https://app.yuvoy.in";
 
@@ -200,5 +205,28 @@ describe("sameOriginOnly", () => {
       request("GET", { "sec-fetch-mode": "navigate" }),
     );
     expect(refused.headers.get("cache-control")).toBe("private, no-store");
+  });
+});
+
+describe("fromThisOrigin", () => {
+  it("takes this site's own page and refuses a sibling on the same site", () => {
+    expect(
+      fromThisOrigin(request("GET", { "sec-fetch-site": "same-origin" })),
+    ).toBe(true);
+    // Another *.yuvoy.in page: same-site, so the Lax cookie rides along.
+    expect(
+      fromThisOrigin(request("GET", { "sec-fetch-site": "same-site" })),
+    ).toBe(false);
+    expect(
+      fromThisOrigin(request("GET", { "sec-fetch-site": "cross-site" })),
+    ).toBe(false);
+  });
+
+  it("falls back to Origin where there is no Fetch Metadata", () => {
+    expect(fromThisOrigin(request("GET", { origin: APP }))).toBe(true);
+    expect(
+      fromThisOrigin(request("GET", { origin: "https://ops.yuvoy.in" })),
+    ).toBe(false);
+    expect(fromThisOrigin(request("GET", {}))).toBe(true);
   });
 });

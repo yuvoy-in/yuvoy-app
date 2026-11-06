@@ -225,6 +225,11 @@ export const appRouteHandlers = [
       method: request.method,
       headers: {
         Authorization: `Bearer ${sessionToken}`,
+        // The real route passes the scenario on (lib/auth/upstream.ts), so the
+        // mock does too, or a signed-in call always gets the default scenario.
+        ...(request.headers.get("x-yuvoy-scenario")
+          ? { "x-yuvoy-scenario": request.headers.get("x-yuvoy-scenario")! }
+          : {}),
         ...(request.headers.get("content-type")
           ? { "Content-Type": request.headers.get("content-type")! }
           : {}),
@@ -240,7 +245,7 @@ export const appRouteHandlers = [
     const text = await forwarded.text();
     // The headers the real route passes on, and no others.
     const headers = new Headers();
-    for (const name of ["Content-Type", "Retry-After"]) {
+    for (const name of ["Content-Type", "Retry-After", "Content-Disposition"]) {
       const value = forwarded.headers.get(name);
       if (value) headers.set(name, value);
     }

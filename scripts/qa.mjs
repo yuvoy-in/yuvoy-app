@@ -1978,12 +1978,21 @@ for (const f of files) {
       "src/components/found/see-details.tsx",
       "the leaving sheet, opened by See details",
     ],
+    ["src/components/groups/claim-sheet.tsx", "a sheet, opened by Claim"],
+    [
+      "src/components/groups/club-report-sheet.tsx",
+      "a sheet, opened by Report",
+    ],
     [
       "src/components/me/life-entry-card.tsx",
       "drawn once the life list has loaded in the browser (MeSection)",
     ],
     [
       "src/components/organisers/age-step.tsx",
+      "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
+    ],
+    [
+      "src/components/organisers/door-screen.tsx",
       "drawn only once the session and the supply release have loaded in the browser (OrganiserGate)",
     ],
     [
@@ -2017,6 +2026,10 @@ for (const f of files) {
     [
       "src/components/people/name-step.tsx",
       "the name step, drawn after the API asks for it in the browser",
+    ],
+    [
+      "src/components/people/crew-editor.tsx",
+      "drawn once the crews list has loaded in the browser",
     ],
     [
       "src/components/people/people-settings.tsx",

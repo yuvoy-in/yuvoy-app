@@ -62,7 +62,8 @@ js/data.js            twelve rows shaped exactly like GET /reels, and the
 js/posters.js         procedural frames, and the luminance read
 js/frame-read.js      where a frame is quiet, and what writing there costs
 js/strip.js           the shared scroller
-js/column.js          the Column family: foot, rail, saved set, sheet chassis
+js/column.js          the Column family: foot, rail, saved set
+js/column-sheet.js    the Column family's sheet: body, action, handle, chassis, drag
 js/lab.js             registry, viewport presets, instruments
 js/concepts/*.js      one file per concept
 ```
@@ -102,6 +103,10 @@ number ever appears beside it. Plus Concept 07's three fetch states and the fact
 that Concept 09's panel survives a swipe and updates.
 
 It exits non-zero on any of them.
+
+`audit.mjs` is still the one to run. It holds the setup, the axe pass and the
+summary, and runs its sections from `audit-concepts.mjs`, `audit-column.mjs`
+and `audit-column-states.mjs`, in that order.
 
 It is served rather than opened because axe fetches every stylesheet to run
 colour contrast, and a `file://` stylesheet is cross-origin to it: over `file://`

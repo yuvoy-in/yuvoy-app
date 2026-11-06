@@ -4913,6 +4913,8 @@ export interface components {
             sourceUrl: string;
             /** @description True once somebody who runs the group has claimed it. False reads "Not on Yuvoy yet". */
             onYuvoy: boolean;
+            /** @description True when a claim would be taken: the group has not been claimed, or it stays `onYuvoy` but the person who held it has erased their account. False when somebody holds it, which `claimClub` answers 409. Says nothing about who. */
+            claimable: boolean;
         };
         ClubList: {
             clubs: components["schemas"]["Club"][];

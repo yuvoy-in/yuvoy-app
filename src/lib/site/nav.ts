@@ -140,11 +140,22 @@ export const FOCUSED_ROUTE_PREFIXES = [
   */
   "/plans/",
   /*
+    A crew and its editor (yuvoy-app#227). Each has a Back to People, and the
+    editor's Save sits at the foot of a list of up to fifty friends, where
+    the bar would float over it.
+  */
+  "/people/crews/",
+  /*
     Organiser pages (yuvoy-app#224): the hub, the page form, one organiser,
     its helpers and its events. A place a person goes INTO from Account, with
     a Back on every screen, and the save buttons sit at the foot of long forms.
   */
   "/organiser",
+  /*
+    The door (yuvoy-app#226): checking people in, from the organiser pages,
+    with a Back to them. The field and its button would sit under the bar.
+  */
+  "/door",
 ] as const;
 
 /**
