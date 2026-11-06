@@ -259,7 +259,7 @@ export function ClipBadge() {
 /**
  * The full-screen view.
  *
- * A `<dialog>` for the same four reasons the sheet is one — the focus trap,
+ * A `<dialog>` for the same four reasons the sheet is one: the focus trap,
  * Escape, inertness and the top layer are the browser's and are laborious to
  * reproduce. `object-contain` on `abyss`, so a portrait frame is letterboxed
  * rather than cropped: the point of opening a photograph full screen is to see
