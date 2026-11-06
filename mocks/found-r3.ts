@@ -172,7 +172,7 @@ export function askKey(category: string, ask: R3Ask): string {
 
 /* ------------------------------------------------------------ windows */
 
-/** India keeps one offset all year, as `found-fixtures.ts` counts it. */
+/** India keeps one offset all year, as `found-fixture-words.ts` counts it. */
 const IST = "+05:30";
 
 /** The place's ISO weekday today, 1 Monday to 7 Sunday. */
