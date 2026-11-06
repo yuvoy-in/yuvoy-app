@@ -13,6 +13,7 @@ import {
 } from "./booking-support";
 import { partyQuestions } from "./booking-answers";
 import { declineSentence, marketDayFromNow } from "./booking-trips";
+import { mockCheckIn } from "./check-in";
 
 /*
   The booking status and recovery handlers, moved word for word from
@@ -264,6 +265,11 @@ export const statusHandlers = [
               ] satisfies OperatorUpdates,
             }
           : {}),
+        ...mockCheckIn(
+          scenario,
+          state,
+          record.cashBookingReference ?? record.reference,
+        ),
         ...(state === "declined"
           ? {
               refund: {
