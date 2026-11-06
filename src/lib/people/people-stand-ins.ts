@@ -99,9 +99,3 @@ export function readDirectoryAgain(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: ["getClub"] }),
   ]).then(() => undefined);
 }
-
-/** The traveller's crews, read again (a crew page after an invite). */
-// Swap for qk.myCrews from #227 once it merges.
-export function readCrewsAgain(qc: QueryClient): Promise<void> {
-  return qc.invalidateQueries({ queryKey: ["listMyCrews"] });
-}

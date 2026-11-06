@@ -25,8 +25,8 @@ import { useRelease } from "@/lib/site/use-release";
  * none. A page that fails stops there and shows its line with Try again,
  * never a wait that does not end.
  *
- * Waits for yuvoy-app#227 (the crew page renders it) and #222 (the age and
- * name steps; until then those refusals show their line).
+ * The crew page (yuvoy-app#227) renders it under the members. Waits for
+ * #222 (the age and name steps; until then those refusals show their line).
  */
 export function CrewInvite({
   crewId,
