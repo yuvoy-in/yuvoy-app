@@ -156,6 +156,11 @@ export const FOCUSED_ROUTE_PREFIXES = [
     with a Back to them. The field and its button would sit under the bar.
   */
   "/door",
+  /*
+    Date alerts (yuvoy-app#220): a place a traveller goes INTO from Account,
+    with a Back to it. `/account` itself is a tab root and keeps the bar.
+  */
+  "/account/date-alerts",
 ] as const;
 
 /**

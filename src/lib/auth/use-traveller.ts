@@ -246,6 +246,19 @@ export function useTravellerSession() {
   return { signedIn, signIn, signOut, refresh, isLoading: query.isPending };
 }
 
+/** The way in a code is asked for and checked with: a number or an address. */
+export type SignInWayIn = { phone: string } | { email: string };
+
+/**
+ * What a sign-in code is checked with: the way in, the code and, once the API
+ * has asked a person no account holds yet, the year (yuvoy-app#229).
+ */
+export type SignInVerifyInput = SignInWayIn & {
+  code: string;
+  birthYear?: number;
+  birthdayPassed?: boolean;
+};
+
 /**
  * Asking for a sign-in code.
  *
@@ -256,10 +269,17 @@ export function useTravellerSession() {
 export function useRequestSignInCode() {
   return useMutation({
     retry: false,
-    mutationFn: async (phone: string) => {
-      const { data, error } = await api.POST("/me/sign-in/request", {
-        body: { phone: phone.trim() },
-      });
+    /*
+      A number or an address, never both (yuvoy-app#229). A plain string is
+      a number, as every caller before the email door sent.
+    */
+    mutationFn: async (to: string | SignInWayIn) => {
+      const way = typeof to === "string" ? { phone: to } : to;
+      const body =
+        "email" in way
+          ? { email: way.email.trim() }
+          : { phone: way.phone.trim() };
+      const { data, error } = await api.POST("/me/sign-in/request", { body });
       if (error) throw error;
       return data;
     },
@@ -282,15 +302,23 @@ export function useRequestSignInCode() {
 export function useVerifySignInCode() {
   return useMutation({
     retry: false,
-    mutationFn: async (input: { phone: string; code: string }) => {
+    mutationFn: async (input: SignInVerifyInput) => {
       const response = await fetchWithin(
         "/api/session",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            phone: input.phone.trim(),
+            ...("email" in input
+              ? { email: input.email.trim() }
+              : { phone: input.phone.trim() }),
             code: input.code.trim(),
+            ...(input.birthYear !== undefined
+              ? { birthYear: input.birthYear }
+              : {}),
+            ...(input.birthdayPassed !== undefined
+              ? { birthdayPassed: input.birthdayPassed }
+              : {}),
           }),
         },
         WRITE_STALL_MS,
@@ -303,7 +331,7 @@ export function useVerifySignInCode() {
 }
 
 /** The envelope the route passed through, back into the typed error. */
-async function asYuvoyError(response: Response): Promise<YuvoyError> {
+export async function asYuvoyError(response: Response): Promise<YuvoyError> {
   let body: unknown;
   try {
     body = await response.json();

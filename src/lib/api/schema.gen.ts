@@ -4913,6 +4913,8 @@ export interface components {
             sourceUrl: string;
             /** @description True once somebody who runs the group has claimed it. False reads "Not on Yuvoy yet". */
             onYuvoy: boolean;
+            /** @description True when a claim would be taken: the group has not been claimed, or it stays `onYuvoy` but the person who held it has erased their account. False when somebody holds it, which `claimClub` answers 409. Says nothing about who. */
+            claimable: boolean;
         };
         ClubList: {
             clubs: components["schemas"]["Club"][];
@@ -7550,6 +7552,8 @@ export interface components {
             slug: string;
             name: string;
             destinationKey: components["schemas"]["DestinationKey"];
+            /** @description The name of destinationKey as listPlaces names it, also for a place that is not open to travellers yet (yuvoy-api#596). Read only: OrganiserInput and OrganiserFromClubInput do not take it, and a body that sends it is refused with invalid_input like any field they lack. */
+            readonly placeName: string;
             departments: string[];
             /** @description Absent when there is none. */
             about?: string;
@@ -7790,6 +7794,16 @@ export interface components {
         /** @description Too many requests */
         RateLimited: {
             headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description `rate_limited`: sent too fast. `Retry-After` is the seconds until one more is let through. */
+        RateLimitedRetryAfter: {
+            headers: {
+                "Retry-After"?: number;
                 [name: string]: unknown;
             };
             content: {
@@ -12611,9 +12625,10 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description `daily_limit_reached`: 20 answers today; details.resetsAt is the next midnight in India and nothing was stored. Or `rate_limited`. */
+            /** @description `daily_limit_reached`: 20 answers today; details.resetsAt is the next midnight in India and nothing was stored, and no `Retry-After`. Or `rate_limited`: turns sent too fast, with `Retry-After` set to the seconds until one more is let through. */
             429: {
                 headers: {
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -12747,7 +12762,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedRetryAfter"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -12887,7 +12902,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedRetryAfter"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -12924,7 +12939,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            429: components["responses"]["RateLimited"];
+            429: components["responses"]["RateLimitedRetryAfter"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };
@@ -15143,6 +15158,8 @@ export interface operations {
                             clubId: string;
                             name: string;
                             destinationKey: components["schemas"]["DestinationKey"];
+                            /** @description The name of destinationKey as listPlaces names it, also for a place that is not open to travellers yet (yuvoy-api#596). */
+                            placeName: string;
                             /** @description The group's category key, for the form to pre-tick. */
                             category: string | null;
                         }[];

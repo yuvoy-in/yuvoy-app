@@ -1,6 +1,7 @@
 import { HttpResponse } from "msw";
 import { mockHeaders, mockNow } from "./fixtures";
 import { exploreStageOf } from "./found-handlers";
+import { linkedWaysFor } from "./ways-in-handlers";
 import { creatorStaffCohort, creatorToolsOnFor } from "./creator-link-handlers";
 import {
   peopleAccountFor,
@@ -10,6 +11,7 @@ import {
 import { trigoStaffCohort } from "./trigo-handlers";
 import { organiserAgeConfirmed } from "./organiser-handlers";
 import { meStaffCohort } from "./me-handlers";
+import { clubStaffCohort } from "./club-handlers";
 import { envelope, rid, scenarioOf } from "./booking-support";
 
 /*
@@ -31,9 +33,12 @@ export function answerMe(request: Request): Response {
   /*
     Signed in through the email door with no number proved
     (`?__scenario=email-door`, yuvoy-api#304): `phone` is null and the
-    proven email is the way in.
+    proven email is the way in. `email-sign-in-email-door` is the same
+    account with the door open, so Ways in offers a number (yuvoy-app#229).
   */
-  const emailDoor = scenarioOf(request) === "email-door";
+  const emailDoor =
+    scenarioOf(request) === "email-door" ||
+    scenarioOf(request) === "email-sign-in-email-door";
   /*
     People (yuvoy-app#222): under its scenarios the name and the age answer
     are the session's, so the name and age steps change what this says, and
@@ -42,13 +47,16 @@ export function answerMe(request: Request): Response {
   const auth = request.headers.get("authorization")!;
   const peopleAccount = peopleAccountFor(auth, scenarioOf(request));
   const peopleSummary = peopleSummaryFor(auth, scenarioOf(request));
+  // A way in this session added (`ways-in-handlers.ts`, yuvoy-app#229).
+  const added = linkedWaysFor(auth);
+  const provenEmail = emailDoor ? "asha@example.com" : (added.email ?? null);
   return HttpResponse.json(
     {
-      phone: emailDoor ? null : "+919000000000",
+      phone: emailDoor ? (added.phone ?? null) : "+919000000000",
       name: peopleAccount ? peopleAccount.name : fresh ? null : "Asha Menon",
       email: fresh ? null : "asha@example.com",
-      emailProven: emailDoor,
-      provenEmail: emailDoor ? "asha@example.com" : null,
+      emailProven: provenEmail !== null,
+      provenEmail,
       /*
         Who sees releases early (R0-T2): nobody, unless
         `?__scenario=cohort-staff` or `cohort-early` says so, or one of
@@ -57,7 +65,9 @@ export function answerMe(request: Request): Response {
         there (all but `creator-outside`), or one of yuvoy-app#222's opens
         `people` there (all but `people-outside` and `people-all`), or one of
         yuvoy-app#223's opens `trigo` there (all but `trigo-not-released`), or
-        one of yuvoy-mobile#444's opens `me` there.
+        one of yuvoy-mobile#444's opens `me` there, or one of
+        yuvoy-mobile#386's opens `people` there (all but `clubs-all` and
+        `clubs-outside`).
       */
       cohort:
         scenarioOf(request) === "cohort-staff" ||
@@ -65,7 +75,8 @@ export function answerMe(request: Request): Response {
         creatorStaffCohort(scenarioOf(request)) ||
         peopleStaffCohort(scenarioOf(request)) ||
         trigoStaffCohort(scenarioOf(request)) ||
-        meStaffCohort(scenarioOf(request))
+        meStaffCohort(scenarioOf(request)) ||
+        clubStaffCohort(scenarioOf(request))
           ? "staff"
           : scenarioOf(request) === "cohort-early"
             ? "early"
@@ -148,6 +159,68 @@ export function answerMe(request: Request): Response {
  * as `devCode` in development, which is exactly what this mock does.
  */
 export const DEV_SIGN_IN_CODE = "123456";
+
+/** The number the mock treats as a person no account holds yet (yuvoy-app#229). */
+export const NEW_SIGN_IN_PHONE = "+919000000018";
+
+/** The email door shut: its switch is off (yuvoy-app#229). The API's words. */
+export const EMAIL_DOOR_SHUT = () =>
+  envelope(
+    "sign_in_unavailable",
+    "Signing in this way is not open yet. Sign in with your WhatsApp number.",
+    503,
+  );
+
+/**
+ * The year asked of a new person, as the API rules on it (yuvoy-app#229):
+ * none is a 400 naming `birthYear`; this year minus 18 without
+ * `birthdayPassed` is a 400 naming that; under 18 is
+ * `403 under_age_sign_up`, nothing made. Null for an adult. "This year" is
+ * India's, from the mock's clock.
+ */
+export function yearRefusal(birthYear: unknown, birthdayPassed: unknown) {
+  if (birthYear === undefined || birthYear === null) {
+    return envelope("invalid_input", "Tell us the year you were born.", 400, {
+      birthYear: "Tell us the year you were born.",
+    });
+  }
+  if (!Number.isInteger(birthYear) || (birthYear as number) < 1900) {
+    return envelope(
+      "invalid_input",
+      "Enter the year you were born, like 1995.",
+      400,
+      { birthYear: "Enter the year you were born, like 1995." },
+    );
+  }
+  const thisYear = Number(
+    new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+    }).format(new Date(mockNow())),
+  );
+  const edge = thisYear - 18;
+  const year = birthYear as number;
+  const passed =
+    typeof birthdayPassed === "boolean" ? birthdayPassed : undefined;
+  if (year === edge && passed === undefined) {
+    return envelope(
+      "invalid_input",
+      "Tell us whether you have had your birthday this year.",
+      400,
+      {
+        birthdayPassed: "Tell us whether you have had your birthday this year.",
+      },
+    );
+  }
+  if (year > edge || (year === edge && passed === false)) {
+    return envelope(
+      "under_age_sign_up",
+      "Yuvoy accounts are for people 18 and over. You can still look around without an account.",
+      403,
+    );
+  }
+  return null;
+}
 
 /**
  * The invite codes the mock knows (yuvoy-api#195), normalised: no hyphen,
