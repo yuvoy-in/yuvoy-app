@@ -17,6 +17,7 @@ import {
   TRIP_DRAFT_DONE,
   bookedLine,
 } from "@/lib/trigo/words";
+import { STATE_COPY } from "@/components/booking/trip-copy";
 import { ActionCard, TRIPS_PATH } from "./action-card";
 import {
   CARD_ACTIONS_CLOSED,
@@ -233,6 +234,69 @@ describe("ActionCard, a line for each state", () => {
     expect(s.push).toHaveBeenCalledWith(
       `/e/try-dive/book?date=2026-11-07&slot=slot_a&guests=2&card=${ACTION}`,
     );
+  });
+});
+
+/**
+ * A confirmed book card with a live hold or request under its key
+ * (`liveReservation`, yuvoy-api#604): no Go to checkout, and the booking
+ * screen's own title for it, opening Trips. Null, or left out by an older
+ * API, is a card whose checkout was never finished: Go to checkout stays.
+ */
+describe("ActionCard, a live reservation under a confirmed book card", () => {
+  const HOLD = STATE_COPY.holding.title;
+  const REQUEST = STATE_COPY.awaiting_operator.title;
+
+  it.each([
+    ["hold", HOLD, "2026-11-02T05:15:00Z"],
+    ["request", REQUEST, "2026-11-03T05:00:00Z"],
+    ["request", REQUEST, null],
+  ] as const)("a live %s: %s, no Go to checkout", (kind, line, expiresAt) => {
+    draw(card({ state: "confirmed", liveReservation: { kind, expiresAt } }));
+    const link = screen.getByRole("link", { name: line });
+    expect(link).toHaveAttribute("href", TRIPS_PATH);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(s.confirmed).toHaveLength(0);
+  });
+
+  it("says what is live while actions are closed, with no closed line", () => {
+    s.release = { open: false, pending: false, stage: "off" };
+    draw(
+      card({
+        state: "confirmed",
+        liveReservation: { kind: "hold", expiresAt: "2026-11-02T05:15:00Z" },
+      }),
+    );
+    expect(screen.getByRole("link", { name: HOLD })).toBeInTheDocument();
+    expect(screen.queryByText(CARD_ACTIONS_CLOSED)).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("null: Go to checkout, and no live line", () => {
+    draw(card({ state: "confirmed", liveReservation: null }));
+    expect(screen.getByRole("button", { name: GO_TO_CHECKOUT })).toBeEnabled();
+    expect(screen.queryByText(HOLD)).toBeNull();
+    expect(screen.queryByText(REQUEST)).toBeNull();
+  });
+
+  it("left out by an older API: Go to checkout, and no live line", () => {
+    const older = card({ state: "confirmed" });
+    expect("liveReservation" in older).toBe(false);
+    draw(older);
+    expect(screen.getByRole("button", { name: GO_TO_CHECKOUT })).toBeEnabled();
+    expect(screen.queryByText(HOLD)).toBeNull();
+    expect(screen.queryByText(REQUEST)).toBeNull();
+  });
+
+  it("is read only on a confirmed book card", () => {
+    draw(
+      card({
+        state: "proposed",
+        liveReservation: { kind: "hold", expiresAt: "2026-11-02T05:15:00Z" },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Book" })).toBeEnabled();
+    expect(screen.queryByText(HOLD)).toBeNull();
   });
 });
 
