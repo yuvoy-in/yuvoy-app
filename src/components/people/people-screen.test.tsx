@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
 import { PEOPLE_WORDS as W, indiaYear } from "@/lib/people/people-words";
 import { PeopleScreen } from "./people-screen";
@@ -136,11 +137,70 @@ describe("People: the age step", () => {
     expect(put[0].body).toEqual({ birthYear: boundary, birthdayPassed: true });
   });
 
+  it("asks the birthday when the API wants it for a year the browser thinks is clear (#228)", async () => {
+    signedIn();
+    noFriends();
+    answer(
+      "get",
+      "/me/people",
+      json(home({ ageConfirmed: false })),
+      json(home()),
+    );
+    // Near 1 January the API's India year is one ahead of the browser's.
+    const put = answer(
+      "put",
+      "/me/age",
+      () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: "invalid_input",
+              message: "Tell us whether you have had your birthday this year.",
+              details: {
+                birthdayPassed:
+                  "Tell us whether you have had your birthday this year.",
+              },
+            },
+          },
+          { status: 400 },
+        ),
+      noContent(),
+    );
+    const user = userEvent.setup();
+    show();
+    await heading(W.age.title);
+
+    const typed = indiaYear() - 17;
+    await user.type(screen.getByLabelText(W.age.year), String(typed));
+    expect(screen.queryByRole("group", { name: W.age.birthday })).toBeNull();
+    await user.click(screen.getByRole("button", { name: W.age.action }));
+
+    expect(
+      await screen.findByRole("group", { name: W.age.birthday }),
+    ).toBeInTheDocument();
+    expect(put[0].body).toEqual({ birthYear: typed });
+    // The opened question answers the 400, so its sentence is not repeated.
+    expect(
+      screen
+        .queryAllByRole("alert")
+        .filter((a) => a.textContent?.includes("birthday this year")),
+    ).toEqual([]);
+
+    await user.click(screen.getByRole("radio", { name: W.age.no }));
+    await user.click(screen.getByRole("button", { name: W.age.action }));
+    await heading(W.title);
+    expect(put[1].body).toEqual({ birthYear: typed, birthdayPassed: false });
+  });
+
   it("keeps the under-18 sentence on screen after it signs out", async () => {
     signedIn();
     answer("get", "/me/people", json(home({ ageConfirmed: false })));
     answer("put", "/me/age", () =>
-      refuse(403, "under_age_sign_up", "Yuvoy is for people 18 and over."),
+      refuse(
+        403,
+        "under_age_sign_up",
+        "Yuvoy accounts are for people 18 and over, so we have closed this one. If you think this is wrong, contact us.",
+      ),
     );
     const user = userEvent.setup();
     show();
@@ -152,7 +212,7 @@ describe("People: the age step", () => {
     await user.click(screen.getByRole("button", { name: W.age.action }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Yuvoy is for people 18 and over.",
+      "Yuvoy accounts are for people 18 and over, so we have closed this one. If you think this is wrong, contact us.",
     );
     // The sign-out has run, and the sentence is still what is shown.
     await waitFor(() =>

@@ -36,7 +36,14 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * Sign in. `{ phone, code }` in, `{ signedIn: true }` and a cookie out.
+ * Sign in. `{ phone, code }` or `{ email, code }` in, `{ signedIn: true }` and
+ * a cookie out.
+ *
+ * A person no account holds yet is asked the year first (yuvoy-app#229): the
+ * API answers `400` with `details.birthYear`, the form asks, and the same code
+ * comes back here with `birthYear` and, for the one year that needs it,
+ * `birthdayPassed`. Both go to the API as they came; the API rules on them,
+ * and the year is never logged.
  *
  * The API's status and error body are passed through UNCHANGED. The sign-in
  * form branches on `error.code` and renders a different sentence and a
@@ -44,7 +51,13 @@ export const dynamic = "force-dynamic";
  * form's copy is only as good as this route's translation of it.
  */
 async function signIn(request: Request) {
-  let input: { phone?: unknown; code?: unknown };
+  let input: {
+    phone?: unknown;
+    email?: unknown;
+    code?: unknown;
+    birthYear?: unknown;
+    birthdayPassed?: unknown;
+  };
   try {
     input = await request.json();
   } catch {
@@ -55,25 +68,51 @@ async function signIn(request: Request) {
   }
 
   const phone = typeof input.phone === "string" ? input.phone.trim() : "";
+  const email = typeof input.email === "string" ? input.email.trim() : "";
   const code = typeof input.code === "string" ? input.code.trim() : "";
-  if (!phone || !code) {
+  // One way in, never both: the API keys the code on the one it was sent to.
+  if ((!phone && !email) || (phone && email) || !code) {
     return NextResponse.json(
       {
         error: {
           code: "invalid_input",
-          message: "A number and a code are both needed.",
+          message: email
+            ? "An email and a code are both needed."
+            : "A number and a code are both needed.",
         },
       },
       { status: 400 },
     );
   }
 
+  /*
+    The year is a whole number and the birthday a boolean, as the contract
+    types them; anything else is left out rather than passed on, and the API
+    then asks for it again in its own words.
+  */
+  const birthYear = Number.isInteger(input.birthYear)
+    ? (input.birthYear as number)
+    : undefined;
+  const birthdayPassed =
+    typeof input.birthdayPassed === "boolean"
+      ? input.birthdayPassed
+      : undefined;
+
+  const body = {
+    ...(email ? { email } : { phone }),
+    code,
+    ...(birthYear !== undefined ? { birthYear } : {}),
+    ...(birthYear !== undefined && birthdayPassed !== undefined
+      ? { birthdayPassed }
+      : {}),
+  };
+
   let answer: UpstreamResult;
   try {
     answer = await callUpstream({
       method: "POST",
       path: "/me/sign-in/verify",
-      body: { phone, code },
+      body,
       from: request,
     });
   } catch (cause) {

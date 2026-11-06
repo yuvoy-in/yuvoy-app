@@ -21,6 +21,7 @@ import { trigoActionsStageOf } from "./trigo-card-handlers";
 import { organiserSupplyOf } from "./organiser-handlers";
 import { meStageOf, meTablesStageOf } from "./me-handlers";
 import { followPeopleStageOf } from "./follow-state";
+import { clubPeopleStageOf } from "./club-handlers";
 import { plansStageOf } from "./my-plans-handlers";
 import {
   commonFailure,
@@ -30,6 +31,21 @@ import {
   scenarioOf,
   url,
 } from "./handlers-support";
+
+/**
+ * The email door shut part way through a test (yuvoy-app#229): an e2e spec
+ * sets `localStorage["yuvoy-mock-email-door"] = "shut"` in the page, and
+ * the page's own mock worker reads it here. A Playwright route cannot do
+ * this, since it never sees a request the worker answers. Nothing outside
+ * a test sets the key; storage that cannot be read leaves the door alone.
+ */
+function emailDoorShut(): boolean {
+  try {
+    return globalThis.localStorage?.getItem("yuvoy-mock-email-door") === "shut";
+  } catch {
+    return false;
+  }
+}
 
 /* The places, app config, outcomes and scans handlers, moved word for word out of handlers.ts (yuvoy-app#243). */
 export const placeRoutes = [
@@ -121,7 +137,12 @@ export const placeRoutes = [
         features: {
           payments: "coming_soon",
           inviteOnly: false,
-          signIn: { email: true, google: false, apple: false },
+          // Off as on dev and production today, unless a scenario opens it.
+          signIn: {
+            email: scenario.startsWith("email-sign-in") && !emailDoorShut(),
+            google: false,
+            apple: false,
+          },
         },
         support: {
           whatsappE164: "+919000000001",
@@ -140,7 +161,10 @@ export const placeRoutes = [
           going: meStageOf(scenario) ?? "off",
           tables: meTablesStageOf(scenario) ?? "off",
           people:
-            peopleStageOf(scenario) ?? followPeopleStageOf(scenario) ?? "off",
+            peopleStageOf(scenario) ??
+            clubPeopleStageOf(scenario) ??
+            followPeopleStageOf(scenario) ??
+            "off",
           plans: plansStageOf(scenario) ?? "off",
         },
       },

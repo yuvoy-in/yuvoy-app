@@ -15,6 +15,7 @@ import { TripsScreen } from "./trips-screen";
 import { useRelease } from "@/lib/site/use-release";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
+import { appConfig } from "@/components/trigo/lists-test-kit";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8099/v1";
 
@@ -55,6 +56,13 @@ beforeEach(() => {
   idb.reads.length = 0;
   idb.hang.clear();
   sent.length = 0;
+  /*
+    Trips reads the config for its Drafts tab (yuvoy-app#220), and the shared
+    mock's answer is dated by the fixture's clock, which would put the
+    server's today in August. These lay out days and passes by this device's
+    today, so the config answers undated, as a server on the same clock would.
+  */
+  appConfig("off");
 });
 afterEach(cleanup);
 

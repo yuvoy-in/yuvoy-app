@@ -36,7 +36,7 @@ export const INVITE_ONLY = process.env.NEXT_PUBLIC_INVITE_ONLY === "true";
  * What a page shows a visitor.
  *
  *   - `open`: everything. The switch is off, or the answer did not say whether
- *     this number is admitted (an API that predates `admitted`, or a `GET /me`
+ *     this traveller is admitted (an API that predates `admitted`, or a `GET /me`
  *     that failed). Failing open is deliberate: browsing is a posture, and the
  *     one thing that must be refused, a booking, is refused by the API itself.
  *   - `signed-out`: the invite landing, which says what Yuvoy is and how in.
