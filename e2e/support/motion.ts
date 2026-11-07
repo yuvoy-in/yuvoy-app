@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import sharp from "sharp";
+import { holdNextChange, mayTryAgain, notHeld } from "./hold-change";
 
 /**
  * The motion system's checks, defined once and run by two specs: `motion.spec`
@@ -64,53 +65,6 @@ async function luminanceAt(
     0.7152 * lin(data[i + 1]) +
     0.0722 * lin(data[i + 2])
   );
-}
-
-declare global {
-  interface Window {
-    __holdAt?: number | null;
-    __held?: boolean;
-  }
-}
-
-/**
- * Holds the next typed screen change still, every one of its animations
- * paused at `window.__holdAt` ms, until another change replaces it. Lets a
- * check look at a change from the inside, which a 150ms fade never gives it
- * time to do. An untyped transition (a boundary revealing) is let through.
- */
-async function holdNextChange(page: Page) {
-  await page.addInitScript(() => {
-    window.__holdAt = null;
-    window.__held = false;
-    const start = document.startViewTransition?.bind(document);
-    if (!start) return;
-    document.startViewTransition = ((arg: unknown) => {
-      const transition = start(arg as Parameters<typeof start>[0]);
-      const at = window.__holdAt;
-      const typed =
-        arg !== null &&
-        typeof arg === "object" &&
-        [...((arg as { types?: Iterable<string> }).types ?? [])].length > 0;
-      if (at === null || at === undefined || !typed) return transition;
-      window.__holdAt = null;
-      transition.ready.then(
-        () => {
-          for (const a of document.documentElement.getAnimations({
-            subtree: true,
-          })) {
-            const pseudo = (a.effect as KeyframeEffect | null)?.pseudoElement;
-            if (!pseudo?.startsWith("::view-transition")) continue;
-            a.pause();
-            a.currentTime = at;
-          }
-          window.__held = true;
-        },
-        () => {},
-      );
-      return transition;
-    }) as typeof document.startViewTransition;
-  });
 }
 
 /** Share of dark pixels (luma under 0.35) in a PNG. */
@@ -201,13 +155,44 @@ export function defineTabBarGlide() {
       await holdNextChange(page);
     });
 
-    /** Tap `to` on the bar and hold the change it starts at `at` ms. */
+    /**
+     * Tap `to` on the bar and hold the change it starts at `at` ms. A change
+     * React let go unheld (see `mayTryAgain`) is stepped back from with the
+     * browser's back, which keeps the router's copy of both screens, and
+     * tapped again, at most twice. Each try is noted on the test.
+     */
     async function holdTap(page: Page, to: string, at = 60) {
-      await page.evaluate((t) => {
-        window.__holdAt = t;
-      }, at);
-      await page.locator(BAR).getByRole("link", { name: to }).tap();
-      await page.waitForFunction(() => window.__held === true);
+      const from = new URL(page.url()).pathname;
+      for (let attempt = 1; ; attempt++) {
+        await page.evaluate((t) => {
+          window.__holdAt = t;
+          window.__changes = [];
+        }, at);
+        await page.locator(BAR).getByRole("link", { name: to }).tap();
+        const held = await page
+          .waitForFunction(() => window.__held === true, null, {
+            timeout: 5_000,
+          })
+          .then(
+            () => true,
+            () => false,
+          );
+        if (held) return;
+        const changes = await page.evaluate(() => {
+          window.__holdAt = null;
+          return window.__changes ?? [];
+        });
+        const why = notHeld(to, changes);
+        if (attempt === 3 || !mayTryAgain(changes)) throw new Error(why);
+        test.info().annotations.push({
+          type: "tap tried again",
+          description: why,
+        });
+        await page.waitForURL((url) => url.pathname !== from);
+        await page.goBack();
+        await page.waitForURL((url) => url.pathname === from);
+        await page.waitForLoadState("networkidle");
+      }
     }
 
     /** From `from`, tap `to` and hold the change it starts at `at` ms. */
