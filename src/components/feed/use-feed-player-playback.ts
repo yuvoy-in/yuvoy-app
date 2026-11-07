@@ -38,8 +38,8 @@ export function useFeedPlayerPlayback({
 
     `asked` joins `autoplayAllowed` here so a tap starts playback on a card the
     connection heuristic had refused. The gesture is not needed for the play
-    itself — the feed is muted by default and muted playback needs no gesture
-    in any browser — which is why setting state and letting this effect do the
+    itself: the feed is muted by default and muted playback needs no gesture
+    in any browser, which is why setting state and letting this effect do the
     work is safe. Unmuting is the only thing that requires one, and that is
     already behind its own tap.
   */
@@ -78,7 +78,7 @@ export function useFeedPlayerPlayback({
   /*
     Whether it is actually running, read from the element rather than assumed.
 
-    `play()` resolving is not the same as playing — a stall, a policy refusal
+    `play()` resolving is not the same as playing: a stall, a policy refusal
     or a source error all leave the promise settled and the picture still. The
     play control keys off this, so it must be the truth.
   */
