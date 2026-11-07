@@ -24,6 +24,8 @@ import {
  */
 
 const NOT_WORKING = /This plan link is not working\./;
+const NO_SCRIPT =
+  "Turn on JavaScript to see this plan and reply. Your phone's own browser works too.";
 const SEND = { name: "Send my reply" } as const;
 const UPDATE = { name: "Update my reply" } as const;
 
@@ -249,8 +251,33 @@ test.describe("case 18: the page itself", () => {
           .querySelector("main noscript > p")?.textContent ?? null,
       await response.text(),
     );
-    expect(line).toBe(
-      "Turn on JavaScript to see this plan and reply. Your phone's own browser works too.",
+    expect(line).toBe(NO_SCRIPT);
+  });
+
+  test("with no JavaScript, the page passes axe", async ({ page, request }) => {
+    /*
+      What a browser with JavaScript off draws: the shell as served, no
+      script run, each `<noscript>` shown. Chromium will not draw that
+      itself (the test above), so the shell is parsed with scripting off,
+      its scripts are taken out and its `<noscript>` tags unwrapped, and it
+      is served at `/p/` so its own styles load. axe then reads the line on
+      its paper, in its ink.
+    */
+    const response = await request.get("/p/");
+    expect(response.ok()).toBe(true);
+    const drawn = await page.evaluate((html) => {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      doc.querySelectorAll("script").forEach((s) => s.remove());
+      doc
+        .querySelectorAll("noscript")
+        .forEach((n) => n.replaceWith(...Array.from(n.childNodes)));
+      return `<!doctype html>${doc.documentElement.outerHTML}`;
+    }, await response.text());
+    await page.route("**/p/", (route) =>
+      route.fulfill({ contentType: "text/html; charset=utf-8", body: drawn }),
     );
+    await page.goto("/p/");
+    await expect(page.getByText(NO_SCRIPT)).toBeVisible();
+    await expectAccessible(page);
   });
 });
