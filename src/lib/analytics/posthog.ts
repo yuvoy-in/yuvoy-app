@@ -1,5 +1,5 @@
 import type { Reporter } from "@/lib/observability/report";
-import { scrubDeep } from "@/lib/booking/scrub";
+import { isPlanLinkPath, scrubDeep } from "@/lib/booking/scrub";
 
 /**
  * PostHog, as an adapter of the reporting seam.
@@ -55,7 +55,22 @@ export async function createPostHogReporter(
       // them here would put a stack trace in a marketing tool.
     },
     captureEvent(name, properties) {
+      /*
+        Nothing from the plan link page (yuvoy-mobile#373). Its address is
+        the plan's secret, and a friend who opened it from WhatsApp was never
+        asked about analytics there. The scrub above would take the fragment
+        out anyway; this sends nothing at all, so a field the scrub does not
+        know about cannot carry it either. Read at the moment of capture,
+        since a visitor who granted elsewhere may move to `/p` and back.
+      */
+      if (onPlanLink()) return;
       posthog.capture(name, properties);
     },
   };
+}
+
+function onPlanLink(): boolean {
+  return (
+    typeof window !== "undefined" && isPlanLinkPath(window.location.pathname)
+  );
 }

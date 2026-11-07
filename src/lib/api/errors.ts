@@ -46,6 +46,12 @@ export const ERROR_CODES = [
   // Deliberately stopped. 503, but NOT an outage.
   "booking_disabled",
   "operator_not_bookable",
+  /*
+    `operator_not_bookable` under its D-049 name (the host rename). The API
+    sends the old one until the traveller cut-over (P7) and this one after, so
+    every place that knows the old code knows this one too.
+  */
+  "host_not_bookable",
   "payments_unavailable",
   "media_unavailable",
   /*
@@ -173,10 +179,20 @@ export const ERROR_CODES = [
   "identity_kind_taken",
   "fresh_sign_in_required",
   /*
+    One table at /tables/{id} (yuvoy-app#194, R8-T1). `tables_unavailable` is
+    the 503 every table route but the report answers while tables are paused:
+    "paused, not broken". The page has a state of its own for it, with Try
+    again, so it is not a deliberate stop below: one read is all a retry
+    costs. `table_closed` is withdraw's 409 once the table has started or was
+    cancelled.
+  */
+  "tables_unavailable",
+  "table_closed",
+  /*
     Refusals of routes this app does not call yet: going (R4), Trigo (R5),
     plans (R7), tables (R8) and people (R9). Named because `pnpm qa` refuses a
     declared code this list cannot name; each release that calls a route gives
-    its codes their sentences.
+    its codes their sentences. The two table codes this app meets are above.
   */
   "event_not_open",
   "adult_confirmation_required",
@@ -187,8 +203,6 @@ export const ERROR_CODES = [
   "plan_full",
   "plan_closed",
   "plan_limit_reached",
-  "tables_unavailable",
-  "table_closed",
   "table_full",
   "table_request_limit",
   "table_banned",
@@ -200,6 +214,46 @@ export const ERROR_CODES = [
   "friend_link_full",
   "crew_limit_reached",
   "not_friends",
+  /*
+    More refusals of routes this app does not call yet, declared by the
+    contract between a2aec936 and ad4fa894: a traveller's own change to a
+    booking (R6-T2), Trigo's cards (R6), a traveller's own video and photos
+    (R12), the directory (R11-T3), the age answer (R9-T2b), organiser pages,
+    the club link and the door (R11-T2), and following a group (R10-T2).
+    Named for the same reason as the block above; each release that calls a
+    route gives its codes their sentences.
+  */
+  "booking_not_changeable",
+  "booking_departed",
+  "change_needs_a_person",
+  "action_changed",
+  "action_expired",
+  "date_alerts_full",
+  "uploads_paused",
+  "photos_unavailable",
+  "caption_has_contact",
+  "not_went",
+  "not_open_yet",
+  "video_already_posted",
+  "upload_in_progress",
+  "not_arrived",
+  "media_refused",
+  "caption_locked",
+  "photo_limit_reached",
+  "already_on_yuvoy",
+  "age_locked",
+  "organisers_paused",
+  "not_a_member",
+  "not_owner",
+  "no_account_with_that_email",
+  "event_has_ended",
+  "organiser_email_required",
+  "not_club_holder",
+  "club_already_linked",
+  "own_code",
+  "check_in_not_today",
+  "claim_already_open",
+  "follow_limit_reached",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -221,6 +275,7 @@ export function isErrorCode(value: unknown): value is ErrorCode {
 export const DELIBERATE_STOPS = [
   "booking_disabled",
   "operator_not_bookable",
+  "host_not_bookable",
   "payments_unavailable",
   "media_unavailable",
   "sign_in_unavailable",
@@ -289,6 +344,7 @@ export function isClientBug(code: ErrorCode): boolean {
  */
 export const CHECKOUT_DEAD_ENDS = [
   "operator_not_bookable",
+  "host_not_bookable",
   "reservation_not_payable",
 ] as const satisfies readonly ErrorCode[];
 
@@ -317,17 +373,43 @@ export function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
 }
 
 /**
+ * `Retry-After` as whole seconds, as the API sent it, or undefined.
+ *
+ * Only the seconds form the API sends is read. A date, a fraction, a sign,
+ * an empty value, 0 (no wait at all) or a number too large to hold exactly is
+ * ignored, so a screen without one behaves as it always did. A long wait is
+ * kept as sent: a day's limit sends the seconds until the day ends, and a
+ * screen that says when to come back needs all of them. A screen that holds a
+ * button for the wait cuts it where it reads it (the Trigo chat:
+ * `TRIGO_WAIT_MAX_SECONDS`).
+ */
+export function parseRetryAfter(
+  value: string | null | undefined,
+): number | undefined {
+  const text = value?.trim() ?? "";
+  if (!/^\d+$/.test(text)) return undefined;
+  const seconds = Number(text);
+  if (!Number.isSafeInteger(seconds) || seconds <= 0) return undefined;
+  return seconds;
+}
+
+/**
  * A typed API failure.
  *
  * `requestId` is carried deliberately and shown on error screens, small and
  * grey — it is the difference between finding somebody's exact request in the
  * logs and guessing.
+ *
+ * `retryAfterSeconds` is the answer's `Retry-After`, read by
+ * `parseRetryAfter`, wherever the error was built from a response that had
+ * one: how long a Try again should wait.
  */
 export class YuvoyError extends Error {
   readonly code: ErrorCode | "unknown_error";
   readonly status: number;
   readonly details: Record<string, unknown>;
   readonly requestId?: string;
+  readonly retryAfterSeconds?: number;
 
   constructor(init: {
     code: string;
@@ -335,6 +417,7 @@ export class YuvoyError extends Error {
     status: number;
     details?: Record<string, unknown>;
     requestId?: string;
+    retryAfterSeconds?: number;
   }) {
     super(init.message);
     this.name = "YuvoyError";
@@ -342,6 +425,7 @@ export class YuvoyError extends Error {
     this.status = init.status;
     this.details = init.details ?? {};
     this.requestId = init.requestId;
+    this.retryAfterSeconds = init.retryAfterSeconds;
   }
 
   /** Seats left, when the failure was `capacity_unavailable`. */

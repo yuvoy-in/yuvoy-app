@@ -70,6 +70,14 @@ export const PRIVATE_ROUTES = [
   */
   "/i/",
   "/trips/invited/",
+  // One table (yuvoy-app#194): signed in only, keyed by the reader's session.
+  "/tables/",
+  // Organiser pages (yuvoy-app#224): signed in only, keyed by the reader's session.
+  "/organiser",
+  // The door (yuvoy-app#226): signed in only, and the code it takes is in the fragment.
+  "/door",
+  // Groups (yuvoy-mobile#386): behind the people release, not for crawlers yet.
+  "/groups",
   // Checkout. A URL with a `?slot=` on it, holding an idempotency key.
   // Wildcards are matched by every crawler that matters, and the page carries
   // `privateRobotsMeta` for the ones that ignore robots.txt entirely.
@@ -114,6 +122,27 @@ export const PRIVATE_ROUTES = [
   "/o/*/r/",
   /* A search result, playing — yuvoy-app#37. Same reasons again. */
   "/search/r/",
+  /*
+    A plan, read by the people on it (yuvoy-app#193). Keyed by the reader's
+    session like an invited trip: a crawler is signed out and is served a
+    sign-in line, and the API answers 404 to anybody not on the plan.
+  */
+  "/plans/",
+  /*
+    A plan by its link (yuvoy-mobile#373). The token is in the fragment, so
+    every plan is the same empty shell to a crawler, and the page is a
+    friend's private plan to everybody else.
+  */
+  "/p/",
+  /*
+    People, crews and a friend link (yuvoy-app#222, yuvoy-app#227). People
+    is signed in only and keyed by the reader's session, so a crawler is
+    served a sign-in line. A friend link carries its code in the path:
+    whoever opens it can ask to be a friend, and the link dies when it is
+    switched off or runs out.
+  */
+  "/people",
+  "/add/",
 ] as const;
 
 /**

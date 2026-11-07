@@ -37,7 +37,7 @@ const KEPT: Record<string, { words: RegExp; why: string }> = {
     words: /./,
     why: "describes today's product; rewritten when R2 reaches everyone",
   },
-  "src/components/booking/booking-screen.tsx": {
+  "src/components/booking/booking-screen-facts.tsx": {
     words: /\bjetty\b/,
     why: "only bookable markets sell, and the only one is Andaman (R0-T1)",
   },
@@ -48,6 +48,14 @@ const KEPT: Record<string, { words: RegExp; why: string }> = {
   "src/components/checkout/screening-fields.tsx": {
     words: /\bjetty\b/,
     why: "only bookable markets sell, and the only one is Andaman (R0-T1)",
+  },
+  "src/components/me/me-test-kit.ts": {
+    words: /^andaman\/havelock$/,
+    why: "a destination key in Me's test data; the kit is read only by tests, never shown",
+  },
+  "src/components/trigo/chat-parts.tsx": {
+    words: /^andaman$/,
+    why: "a destination key the starter chips are picked by, compared and never shown",
   },
   "src/components/trips/next-up-pass.tsx": {
     words: /\bjetty\b/,

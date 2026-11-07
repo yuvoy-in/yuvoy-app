@@ -1,5 +1,11 @@
 import { cache } from "react";
-import type { Cohort } from "@/lib/site/app-config";
+import {
+  getAppConfig,
+  releaseOpen,
+  releaseStage,
+  type Cohort,
+  type ReleaseKey,
+} from "@/lib/site/app-config";
 import { readSessionCookie } from "./session-cookie";
 import { callUpstream } from "./upstream";
 
@@ -9,7 +15,8 @@ import { callUpstream } from "./upstream";
  *
  * The server's half of `releaseOpen`, for a page that decides a release before
  * it renders, as a gated page decides access (`request-access.ts`). Nothing
- * calls it in R0, where nothing is gated; R2's screens do.
+ * called it in R0, where nothing was gated; `/` decides `checkedCities` with
+ * it (`requestReleaseOpen`, yuvoy-app#180).
  *
  * Reading the cookie makes the page that asks render per request, so only a
  * page that shows a release's screen should ask, never the root layout.
@@ -55,3 +62,19 @@ async function readCohort(scenario?: string): Promise<Cohort> {
 
 /** One `GET /me` per request, however many parts of a page ask. */
 export const getCohort = cache(readCohort);
+
+/**
+ * Whether a release is open to this request's traveller, decided on the
+ * server before the page renders, so nothing paints and then hides: the
+ * stage from `GET /app-config`, and `GET /me`'s cohort only when the stage
+ * depends on it. Off, or a config that did not load, is closed with no call
+ * to `/me` at all.
+ */
+export async function requestReleaseOpen(
+  key: ReleaseKey,
+  scenario?: string,
+): Promise<boolean> {
+  const stage = releaseStage(await getAppConfig(scenario), key);
+  if (stage === "off" || stage === "all") return releaseOpen(stage, null);
+  return releaseOpen(stage, await getCohort(scenario));
+}

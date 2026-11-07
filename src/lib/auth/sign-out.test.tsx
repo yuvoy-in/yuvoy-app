@@ -17,6 +17,10 @@ import { http, HttpResponse } from "msw";
 import { server } from "../../../mocks/server";
 import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
 import { SIGN_OUT_OWED_COOKIE } from "./sign-out-owed";
+import {
+  readTrigoCheckout,
+  saveTrigoCheckout,
+} from "@/lib/trigo/checkout-prefill";
 
 type BookingStatus = components["schemas"]["BookingStatus"];
 
@@ -117,6 +121,29 @@ describe("signing out", () => {
     ).toBeUndefined();
   });
 
+  it("forgets Me's life list, badges and settings", async () => {
+    /*
+      yuvoy-mobile#444. The life list carries the person's own photos as
+      signed links, so the next person on this browser must never see it.
+    */
+    let signOut!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <Harness onReady={(fn) => (signOut = fn)} />,
+    );
+    for (const key of [qk.myLifeList(), qk.myBadges(), qk.mySettings()]) {
+      client.setQueryDefaults(key, { gcTime: Infinity });
+      client.setQueryData(key, { kept: true });
+    }
+
+    await act(async () => {
+      await signOut();
+    });
+
+    expect(client.getQueryData(qk.myLifeList())).toBeUndefined();
+    expect(client.getQueryData(qk.myBadges())).toBeUndefined();
+    expect(client.getQueryData(qk.mySettings())).toBeUndefined();
+  });
+
   it("forgets each invitation opened, not only the list", async () => {
     /*
       The list went and each trip opened from it stayed, so Back on a shared
@@ -135,6 +162,155 @@ describe("signing out", () => {
     });
 
     expect(client.getQueryData(qk.invitedTrip("inv_1"))).toBeUndefined();
+  });
+
+  it("forgets the places found and every card opened, on sign-out and on sign-in", async () => {
+    /*
+      The feed and card keys carry no session. While explore is open to
+      staff only, a staff number's feed and cards for a staff-only place
+      stayed in the cache after sign-out, for the next person on this
+      browser to read (yuvoy-app#179 review).
+    */
+    let signOut!: () => Promise<void>;
+    let signIn!: () => Promise<void>;
+    function SignIn({
+      onReady,
+    }: {
+      onReady: (fn: () => Promise<void>) => void;
+    }) {
+      const { signIn } = useTravellerSession();
+      onReady(signIn);
+      return null;
+    }
+    const { client } = renderWithQuery(
+      <>
+        <Harness onReady={(fn) => (signOut = fn)} />
+        <SignIn onReady={(fn) => (signIn = fn)} />
+      </>,
+    );
+    const seed = () => {
+      for (const key of [["listEvents"], ["getEvent"], ["listPlaces"]]) {
+        client.setQueryDefaults(key, { gcTime: Infinity });
+      }
+      client.setQueryData(qk.foundFeed("karnataka/coorg", null), { items: [] });
+      client.setQueryData(qk.foundItem("evt_1"), { id: "evt_1" });
+      client.setQueryData(qk.places(true), { places: [] });
+    };
+    const left = () => [
+      client.getQueryData(qk.foundFeed("karnataka/coorg", null)),
+      client.getQueryData(qk.foundItem("evt_1")),
+      client.getQueryData(qk.places(true)),
+    ];
+
+    seed();
+    await act(async () => {
+      await signOut();
+    });
+    expect(left()).toEqual([undefined, undefined, undefined]);
+
+    seed();
+    await act(async () => {
+      await signIn();
+    });
+    expect(left()).toEqual([undefined, undefined, undefined]);
+  });
+
+  it("forgets each table opened", async () => {
+    /*
+      yuvoy-app#194. A table carries the reader's own request, the names and,
+      for an approved guest, the venue: the next person on a shared phone must
+      not see any of it while a refetch runs.
+    */
+    let signOut!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <Harness onReady={(fn) => (signOut = fn)} />,
+    );
+    client.setQueryDefaults(["getTable"], { gcTime: Infinity });
+    client.setQueryData(qk.table("tbl_1"), { id: "tbl_1" });
+
+    await act(async () => {
+      await signOut();
+    });
+
+    expect(client.getQueryData(qk.table("tbl_1"))).toBeUndefined();
+  });
+
+  it("forgets the date alerts and trip drafts, on sign-out and on sign-in", async () => {
+    /*
+      yuvoy-app#220. Both belong to the number, and neither key carries the
+      session, so the next person on this browser must not see them while a
+      refetch runs.
+    */
+    let signOut!: () => Promise<void>;
+    let signIn!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <>
+        <Harness onReady={(fn) => (signOut = fn)} />
+        <SignInProbe onReady={(fn) => (signIn = fn)} />
+      </>,
+    );
+    const seed = () => {
+      client.setQueryDefaults(qk.myDateAlerts(), { gcTime: Infinity });
+      client.setQueryDefaults(qk.myTripDrafts(), { gcTime: Infinity });
+      client.setQueryData(qk.myDateAlerts(), { alerts: [] });
+      client.setQueryData(qk.myTripDrafts(), { drafts: [] });
+    };
+    const left = () => [
+      client.getQueryData(qk.myDateAlerts()),
+      client.getQueryData(qk.myTripDrafts()),
+    ];
+
+    seed();
+    await act(async () => {
+      await signOut();
+    });
+    expect(left()).toEqual([undefined, undefined]);
+
+    seed();
+    await act(async () => {
+      await signIn();
+    });
+    expect(left()).toEqual([undefined, undefined]);
+  });
+
+  it("forgets a Trigo card's checkout, on sign-out and on sign-in", async () => {
+    /*
+      yuvoy-app#223. The card's key settles the card for whoever books under
+      it, so the next person on this tab must not book under the previous
+      one's key from the same checkout address.
+    */
+    const now = Date.parse("2026-11-02T05:00:00Z");
+    const seed = () =>
+      saveTrigoCheckout(
+        "2b7e4c1a-9d3f-4e5a-8b6c-7d8e9f0a1b2c",
+        {
+          experienceSlug: "try-dive",
+          slotId: "slot_a",
+          localDate: "2026-11-07",
+          guests: 2,
+          expectTotalPaise: 900000,
+          idempotencyKey: "trg_2b7e4c1a9d3f4e5a8b6c7d8e9f0a1b2c",
+          mode: "allotment",
+        },
+        now,
+      );
+    let signOut!: () => Promise<void>;
+    renderWithQuery(<Harness onReady={(fn) => (signOut = fn)} />);
+    let signIn!: () => Promise<void>;
+    renderWithQuery(<SignInProbe onReady={(fn) => (signIn = fn)} />);
+
+    seed();
+    expect(readTrigoCheckout("try-dive", now)).not.toBeNull();
+    await act(async () => {
+      await signOut();
+    });
+    expect(readTrigoCheckout("try-dive", now)).toBeNull();
+
+    seed();
+    await act(async () => {
+      await signIn();
+    });
+    expect(readTrigoCheckout("try-dive", now)).toBeNull();
   });
 
   it("clears the device even when the sign-out request fails", async () => {
@@ -163,6 +339,42 @@ describe("signing out", () => {
     expect(await listBookings()).toEqual([]);
     vi.unstubAllGlobals();
     vi.stubGlobal("indexedDB", {});
+  });
+});
+
+/** Hands the hook's `signIn` out, the refresh after `POST /api/session`. */
+function SignInProbe({
+  onReady,
+}: {
+  onReady: (fn: () => Promise<void>) => void;
+}) {
+  const { signIn } = useTravellerSession();
+  onReady(signIn);
+  return null;
+}
+
+describe("signing in", () => {
+  it("forgets each table the previous number opened", async () => {
+    /*
+      yuvoy-app#194, beside the invited trips: removed, not invalidated, so
+      the previous number's request and venue are not on screen while the
+      new number's read runs.
+    */
+    let signIn!: () => Promise<void>;
+    const { client } = renderWithQuery(
+      <SignInProbe onReady={(fn) => (signIn = fn)} />,
+    );
+    client.setQueryDefaults(["getTable"], { gcTime: Infinity });
+    client.setQueryDefaults(["getInvitedTrip"], { gcTime: Infinity });
+    client.setQueryData(qk.table("tbl_1"), { id: "tbl_1" });
+    client.setQueryData(qk.invitedTrip("inv_1"), { id: "inv_1" });
+
+    await act(async () => {
+      await signIn();
+    });
+
+    expect(client.getQueryData(qk.table("tbl_1"))).toBeUndefined();
+    expect(client.getQueryData(qk.invitedTrip("inv_1"))).toBeUndefined();
   });
 });
 

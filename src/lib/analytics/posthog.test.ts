@@ -51,4 +51,36 @@ describe("the PostHog reporter", () => {
     );
     expect(JSON.stringify(clean)).not.toMatch(/status_tok|inv_tok|shr_tok/);
   });
+
+  it("takes the plan link's whole fragment out of every property (yuvoy-mobile#373)", async () => {
+    const { sanitize_properties } = await config();
+    const token = `yp_${"T".repeat(40)}a-_`;
+    const clean = sanitize_properties(
+      {
+        $current_url: `https://app.yuvoy.in/p/#${token}`,
+        $session_entry_url: `https://app.yuvoy.in/p#${token}`,
+      },
+      "reel_viewed",
+    );
+    expect(JSON.stringify(clean)).not.toContain("yp_");
+  });
+
+  it("sends nothing at all from the plan link page", async () => {
+    sdk.capture.mockClear();
+    sdk.init.mockClear();
+    const reporter = await createPostHogReporter(
+      "phc_test",
+      "https://eu.i.posthog.com",
+    );
+    const before = window.location.href;
+    window.history.replaceState(null, "", "/p");
+    try {
+      reporter?.captureEvent("card_opened", { id: "x" });
+      expect(sdk.capture).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState(null, "", before);
+    }
+    reporter?.captureEvent("card_opened", { id: "x" });
+    expect(sdk.capture).toHaveBeenCalledTimes(1);
+  });
 });

@@ -18,6 +18,15 @@ describe("focused routes", () => {
     ["/trips/recover", true],
     // An invited trip has a Back to Trips, so no bar floating over Decline.
     ["/trips/invited/inv_123", true],
+    // One table has a Back to the feed on every branch (yuvoy-app#194).
+    ["/tables/7d3f9a2e-4c1b-4e8a-9f60-2b5d8c1e7a40", true],
+    // A plan has its own Back, and its reply button at the foot of the form.
+    ["/plans/8d2f6a10-3c4b-4e5f-8a9b-0c1d2e3f4a52", true],
+    // A crew and its editor: a Back to People, and Save at the foot of a
+    // long list (yuvoy-app#227).
+    ["/people/crews/new", true],
+    ["/people/crews/7b4d2e9f-3c5a-4d2b-8f1e-2e3d4c5b6a71", true],
+    ["/people/crews/7b4d2e9f-3c5a-4d2b-8f1e-2e3d4c5b6a71/edit", true],
     ["/guides/diving-in-havelock", true],
     ["/offline", true],
     ["/", false],
@@ -33,6 +42,14 @@ describe("focused routes", () => {
     ["/o/hc-diving-skl/r/med_dive", true],
     // The wildcard needs a segment to match: `/o` alone is no business.
     ["/o", false],
+    // Organiser pages (yuvoy-app#224): a Back on every screen, from Account.
+    ["/organiser", true],
+    ["/organiser/new", true],
+    ["/organiser/6f1c2a10-1b2c-4d3e-8f40-0a1b2c3d4e02/helpers", true],
+    // The door (yuvoy-app#226), reached from the organiser pages.
+    ["/door", true],
+    // Date alerts (yuvoy-app#220): a Back to Account, which keeps the bar.
+    ["/account/date-alerts", true],
   ])("%s → focused: %s", (pathname, focused) => {
     expect(isFocusedRoute(pathname)).toBe(focused);
   });

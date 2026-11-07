@@ -96,9 +96,13 @@ interface TabFrame {
   leaving: number;
 }
 
-/** A tab pressed: when, and how opaque the tab on screen was drawn then. */
+/**
+ * A tab pressed: when, how many frames had been read by then, and how opaque
+ * the tab on screen was drawn at most.
+ */
 interface TabPress {
   t: number;
+  frame: number;
   drawn: number;
 }
 
@@ -107,7 +111,10 @@ interface TabFrames {
   presses: TabPress[];
 }
 
-type TabFramesWindow = { __tabFrames: () => TabFrames };
+type TabFramesWindow = {
+  __tabFrames: () => TabFrames;
+  __tabAtRest: () => boolean;
+};
 
 /**
  * Starts reading every frame drawn under the Trips tabs, and every press on
@@ -132,7 +139,24 @@ async function readTabFrames(page: Page) {
           '[aria-label="Which trips"] [data-tab]',
         )
       )
-        presses.push({ t: performance.now(), drawn: op(shown()) ?? 0 });
+        presses.push({
+          t: performance.now(),
+          frame: frames.length,
+          /*
+            The higher of two readings. WebKit's computed opacity and an
+            arrival's progress can disagree by a frame or so at a press, either
+            way (0 against 0.29, 0.31 against 0, in 100 runs, yuvoy-app#210),
+            and the app fades its copy from the progress. Taking the computed
+            one alone called that copy a flash; a copy faded from 1 is still
+            far above both.
+          */
+          drawn: Math.max(
+            op(shown()) ?? 0,
+            ...(shown()?.getAnimations() ?? []).map((a) =>
+              Number(a.effect?.getComputedTiming().progress ?? 0),
+            ),
+          ),
+        });
     };
     document.addEventListener("click", press, { capture: true });
     let on = true;
@@ -158,15 +182,33 @@ async function readTabFrames(page: Page) {
       requestAnimationFrame(read);
     };
     requestAnimationFrame(read);
+    // The last few frames drawn show the new tab and its trips whole, and no
+    // copy of the old one: the change is over.
+    (window as unknown as TabFramesWindow).__tabAtRest = () => {
+      const last = frames.slice(-5);
+      return (
+        last.length === 5 &&
+        last.every((f) => f.tab === 1 && f.content === 1 && f.leaving === 0)
+      );
+    };
     (window as unknown as TabFramesWindow).__tabFrames = () => {
       on = false;
       document.removeEventListener("click", press, { capture: true });
-      const start = presses[0]?.t ?? Infinity;
+      const start = presses[0]?.t ?? 0;
+      const first = presses[0]?.frame ?? frames.length;
+      /*
+        By order, not by time. WebKit's clock moves in whole milliseconds, so a
+        frame drawn just before the press can carry the press's own time. It
+        read the old tab, whole, and looked like the new tab coming up and going
+        off (yuvoy-app#210).
+      */
       return {
-        frames: frames
-          .filter((f) => f.t >= start)
-          .map((f) => ({ ...f, t: f.t - start })),
-        presses: presses.map((p) => ({ ...p, t: p.t - start })),
+        frames: frames.slice(first).map((f) => ({ ...f, t: f.t - start })),
+        presses: presses.map((p) => ({
+          ...p,
+          t: p.t - start,
+          frame: p.frame - first,
+        })),
       };
     };
   });
@@ -174,6 +216,25 @@ async function readTabFrames(page: Page) {
 
 const tabFrames = (page: Page) =>
   page.evaluate(() => (window as unknown as TabFramesWindow).__tabFrames());
+
+/**
+ * Waits `ms`, and then until the change has come to rest, for at most 5s
+ * more. A slow runner (GitHub's hosted WebKit) can still be fading when a
+ * fixed wait ends, which read as a tab that never settled; every frame drawn
+ * on the way is still read.
+ */
+async function untilAtRest(page: Page, ms: number) {
+  await page.waitForTimeout(ms);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() =>
+          (window as unknown as TabFramesWindow).__tabAtRest(),
+        ),
+      { timeout: 5000 },
+    )
+    .toBe(true);
+}
 
 /** Presses a tab and reads every frame drawn for `ms` after it. */
 async function tabChange(
@@ -186,7 +247,7 @@ async function tabChange(
     .getByRole("tablist", { name: "Which trips" })
     .getByRole("tab", { name })
     .click();
-  await page.waitForTimeout(ms);
+  await untilAtRest(page, ms);
   return (await tabFrames(page)).frames;
 }
 
@@ -212,7 +273,7 @@ async function twoQuickTabs(
     },
     [first, second, gap] as const,
   );
-  await page.waitForTimeout(ms);
+  await untilAtRest(page, ms);
   return tabFrames(page);
 }
 
@@ -241,7 +302,9 @@ function wentDown(
  */
 function expectCalm(frames: TabFrame[], label: string) {
   expect(frames.length, `${label}: nothing was drawn`).toBeGreaterThan(10);
-  const show = (f?: TabFrame) => JSON.stringify(f);
+  // The frames up to the one at fault: it alone cannot say what came before.
+  const show = (f?: TabFrame) =>
+    f ? JSON.stringify(frames.slice(0, frames.indexOf(f) + 1).slice(-12)) : "";
   const tabDown = wentDown(frames, (f) => f.tab);
   expect(tabDown, `${label}: the tab came up, went off ${show(tabDown)}`).toBe(
     undefined,
@@ -410,12 +473,12 @@ export function defineBookingMotion() {
       expect(presses).toHaveLength(2);
       const second = presses[1];
       const after = frames
-        .filter((f) => f.t >= second.t)
+        .slice(second.frame)
         .map((f) => ({ ...f, t: f.t - second.t }));
       const flash = after.find((f) => f.leaving > second.drawn + 0.05);
       expect(
         flash,
-        `Past was drawn at ${second.drawn} and left brighter: ${JSON.stringify(flash)}`,
+        `Past was drawn at ${second.drawn} and left brighter: ${JSON.stringify(flash)}, after ${JSON.stringify(frames.filter((f) => f.t < second.t + (flash?.t ?? 0)).slice(-12))}`,
       ).toBe(undefined);
       expectCalm(after, "Cancelled, pressed as Past arrived");
     });

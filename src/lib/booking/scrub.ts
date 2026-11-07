@@ -22,6 +22,15 @@
  * shared trip (`/trip/{token}`). Those segments are redacted as well
  * (production readiness, 6 Oct 2026).
  *
+ * And a plan by link (yuvoy-mobile#373): `/p/#<token>`, where the WHOLE
+ * fragment is the token, with no `t=` to look for. Whoever holds it can read
+ * the plan and reply as a new guest, so on a `/p` address everything after
+ * the `#` goes, whatever it holds (the issue's case 17). The two plan secrets
+ * are also redacted by their shape wherever they turn up in a string, a
+ * message or a field copied out of the address: a link token (`yp_` and 43)
+ * and a guest key (`ypk_` and 43), which page script never holds but a
+ * future bug might.
+ *
  * This module is the single implementation, so a new analytics tool is one
  * call site rather than a new leak.
  */
@@ -33,6 +42,29 @@ export const TOKEN_PARAM = "t";
 const PATH_TOKEN = /(\/(?:i|trip)\/)[^/?#\s]+/g;
 
 /**
+ * The plan link's address up to its `#`, and the fragment after it: `/p`,
+ * `/p/` or either with a query, on its own, after a host, or inside a
+ * sentence. The path must be exactly `/p`, so `/plans/{id}`, `/privacy` and
+ * `/app/#x` are left as they are. The fragment runs to the first character
+ * that cannot be in a URL, so the rest of a sentence survives.
+ */
+const PLAN_LINK_FRAGMENT =
+  /((?:^|[\s"'(<=,]|[a-z][a-z0-9+.-]*:\/\/[^/\s?#"'<>]+)\/p\/?(?:\?[^#\s"'<>]*)?)#[^\s"'<>]*/gi;
+
+/** A plan link token or a guest key, by its shape, anywhere in a string. */
+const PLAN_SECRET = /ypk?_[A-Za-z0-9_-]{43}/g;
+
+/**
+ * Whether a pathname is the plan link page, `/p` or `/p/` (Next serves the
+ * second as the first). The consent banner and PostHog stay away from it: a
+ * friend opening a plan from WhatsApp is not asked about analytics there,
+ * and nothing about the visit is counted.
+ */
+export function isPlanLinkPath(pathname: string | null | undefined): boolean {
+  return pathname === "/p" || pathname === "/p/";
+}
+
+/**
  * Removes the token from any URL-ish string.
  *
  * Deliberately removes the WHOLE fragment when it contains the token rather
@@ -41,7 +73,10 @@ const PATH_TOKEN = /(\/(?:i|trip)\/)[^/?#\s]+/g;
  */
 export function scrubUrl(input: string): string {
   if (typeof input !== "string" || input === "") return input;
-  const url = input.replace(PATH_TOKEN, "$1[redacted]");
+  const url = input
+    .replace(PLAN_LINK_FRAGMENT, "$1")
+    .replace(PLAN_SECRET, "[redacted]")
+    .replace(PATH_TOKEN, "$1[redacted]");
 
   const hashAt = url.indexOf("#");
   if (hashAt === -1) return url;

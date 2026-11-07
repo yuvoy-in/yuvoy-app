@@ -27,10 +27,14 @@ import type { ReservationContactInput } from "@/lib/booking/contact";
  *     for a number we already have would still be wrong, and booking somebody
  *     onto a boat with no name to call out is worse.
  *
- * The number is never editable while signed in. The API ignores
- * `contact.whatsapp` on an authenticated reservation and uses the session's
- * number, so an editable field would be a lie: whatever was typed would be
- * discarded silently.
+ * The number is never editable while signed in with a proven number. The API
+ * then ignores `contact.whatsapp` and uses the session's number, so an
+ * editable field would be a lie: whatever was typed would be discarded.
+ *
+ * An account with no proven number (signed in by email, yuvoy-app#229) is
+ * asked for one, as a guest is: the API needs `contact.whatsapp` from it to
+ * reach the traveller, the booking is still theirs, and the number signs
+ * nobody in (yuvoy-api `createReservation`, yuvoy-api#304).
  */
 
 export interface ContactFieldsProps {
@@ -44,7 +48,13 @@ export interface ContactFieldsProps {
   nameError?: string;
   /** The number is how the operator answers, so the hint differs per form. */
   phoneHint?: string;
+  /** Shown under the number field, from a `400` naming `contact.whatsapp`. */
+  phoneError?: string;
 }
+
+/** The hint for an account that has no number yet. */
+export const NO_NUMBER_HINT =
+  "Your account has no number yet. This is how we send your booking and reach you if the sea changes. It does not sign anyone in.";
 
 /**
  * `+919000003210` becomes `+91 ••••••3210`.
@@ -70,6 +80,7 @@ export function ContactFields({
   onEmailChange,
   nameError,
   phoneHint,
+  phoneError,
 }: ContactFieldsProps) {
   const { signedIn, signOut } = useTravellerSession();
   const account = useMyAccount(signedIn);
@@ -132,15 +143,17 @@ export function ContactFields({
       )}
 
       {/*
-        Hidden for anybody signed in, with or without a profile name. The
-        session's number is the number, and the API ignores whatever is sent.
+        Hidden for anybody signed in with a proven number, with or without a
+        profile name: that number is the number, and the API ignores whatever
+        is sent. Asked of a guest and of an account with no number yet.
       */}
-      {profile ? null : (
+      {profile?.phone ? null : (
         <PhoneField
           label="WhatsApp number"
           value={phone}
           onChange={onPhoneChange}
-          hint={phoneHint}
+          hint={profile ? NO_NUMBER_HINT : phoneHint}
+          error={phoneError}
           required
         />
       )}
@@ -172,6 +185,7 @@ export function useContactState(email: string) {
     signedIn === undefined || (signedIn === true && account.isPending);
   const profile = signedIn && account.data ? account.data : null;
   const hasProfileName = Boolean(profile?.name?.trim());
+  const provedNumber = Boolean(profile?.phone);
 
   return {
     /** Send must be disabled: we do not yet know which fields are required. */
@@ -180,8 +194,8 @@ export function useContactState(email: string) {
     authenticated: Boolean(profile),
     /** The form must still ask for a name. */
     needsName: !hasProfileName,
-    /** The form must still ask for a number. */
-    needsPhone: !profile,
+    /** The form must still ask for a number: a guest, or no number proven. */
+    needsPhone: !provedNumber,
     /** `email` prefilled from the profile, unless the traveller typed one. */
     emailValue: email || (profile?.email ?? ""),
     /**
@@ -195,7 +209,7 @@ export function useContactState(email: string) {
       email: string;
     }): ReservationContactInput => ({
       ...(hasProfileName ? {} : { name: typed.name.trim() }),
-      ...(profile ? {} : { whatsapp: typed.phone.trim() }),
+      ...(provedNumber ? {} : { whatsapp: typed.phone.trim() }),
       ...(typed.email.trim()
         ? { email: typed.email.trim() }
         : profile?.email

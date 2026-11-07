@@ -96,12 +96,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const listings: components["schemas"]["ExperienceSummary"][] = [];
     let cursor: string | undefined;
     for (let page = 0; page < MAX_LISTING_PAGES; page += 1) {
-      const { data, error } = await api.GET("/experiences", {
-        params: {
-          query: { limit: LISTINGS_PAGE, ...(cursor ? { cursor } : {}) },
-        },
-      });
-      if (error || !data) break;
+      // The client throws on any answer that is not 2xx, so a refused page
+      // lands here and keeps the pages already read.
+      const data = await api
+        .GET("/experiences", {
+          params: {
+            query: { limit: LISTINGS_PAGE, ...(cursor ? { cursor } : {}) },
+          },
+        })
+        .then((answer) => answer.data)
+        .catch(() => undefined);
+      if (!data) break;
       listings.push(...data.items);
       if (data.complete || !data.nextCursor) break;
       cursor = data.nextCursor;
@@ -111,5 +116,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Left empty on purpose. See above.
   }
 
-  return [...stat, ...guides, ...experiences, ...businesses];
+  /*
+    The found cards a search engine may index (yuvoy-app#179), from the
+    index the API keeps for exactly this: checked, live cards in places open
+    to everybody. Empty until `explore` is open to all, so today this adds
+    nothing, and each page it lists says `index` in its own tag, so the two
+    halves agree. The same rule again: a failure leaves them out.
+  */
+  let found: MetadataRoute.Sitemap = [];
+  try {
+    const { data, error } = await api.GET("/events/index", {});
+    if (!error && data) {
+      found = data.entries.map((entry) => ({
+        url: `${BASE}/f/${encodeURIComponent(entry.id)}`,
+        lastModified: new Date(entry.lastModified),
+        changeFrequency: "daily" as const,
+        priority: 0.6,
+      }));
+    }
+  } catch {
+    // Left empty on purpose. See above.
+  }
+
+  return [...stat, ...guides, ...experiences, ...businesses, ...found];
 }

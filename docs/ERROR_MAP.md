@@ -9,7 +9,7 @@ message breaks silently the first time somebody improves the wording.
 **Always show `requestId`.** Small and grey is fine. It is the difference between finding
 somebody's exact request in the logs and guessing.
 
-Implemented in `src/lib/api/errors.ts` and `src/components/states/index.tsx`.
+Implemented in `src/lib/api/errors.ts` and `src/components/states/describe-error.ts`.
 
 **This table is not the enforcement point.** `scripts/qa.mjs` check 17 fails the build when a code
 in the contract's `ErrorCode` enum is missing from `ERROR_CODES`, because that is the drift the
@@ -144,6 +144,16 @@ because the API's gate and this app's are two switches and the API's can be turn
 | `invite_code_unknown` | No such code, or one that was withdrawn (the two read alike on purpose). Check it, or ask for a new one. |
 | `invite_code_used`    | One code admits one person, once. Ask for another.                                                       |
 | `invite_code_expired` | Past its expiry. Ask for a new one.                                                                      |
+
+## Join a table
+
+The two codes the table page at `/tables/{id}` meets (yuvoy-app#194). The other four table codes
+belong to asking to join, which this app does not call yet.
+
+| Code                 | Treatment                                                                                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tables_unavailable` | 503 on every table route but the report: tables are paused, not broken. The page draws its own paused state with Try again and Report a problem. Not a deliberate stop: one read is all a retry costs, and the API client does not replay it. |
+| `table_closed`       | 409 from withdraw: the table has started, or it was cancelled. The page says the seat cannot be given back here and to write to us, then reads the table again. No retry.                                                                     |
 
 ## Reviewing a trip
 

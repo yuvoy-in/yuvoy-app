@@ -4,14 +4,14 @@ import {
   clearSessionCookie,
   touchSessionCookie,
 } from "@/lib/auth/session-cookie";
-import { allowedProxyPath, proxyPathOf } from "@/lib/auth/proxied-paths";
+import { proxiedRule, proxyPathOf } from "@/lib/auth/proxied-paths";
 import {
   callUpstream,
   sessionExpiryOf,
   unreachable,
   type UpstreamResult,
 } from "@/lib/auth/upstream";
-import { sameOriginOnly } from "@/lib/auth/same-origin";
+import { fromThisOrigin, refuse, sameOriginOnly } from "@/lib/auth/same-origin";
 
 /**
  * The traveller's authenticated calls, made by this app's own server
@@ -60,17 +60,31 @@ async function proxy(
   const path = proxyPathOf(segments ?? []);
   const method = request.method.toUpperCase();
 
-  if (path === null || !allowedProxyPath(method, path)) {
+  const rule = path === null ? null : proxiedRule(method, path);
+  if (path === null || rule === null) {
     return NextResponse.json(
       { error: { code: "not_found", message: "No such route." } },
       { status: 404 },
     );
   }
 
+  /*
+    A GET passes `sameOriginOnly` on the premise that it only reads. One the
+    API counts does more, so it is held to the write check: a sibling page on
+    `*.yuvoy.in` is same-site, gets the Lax cookie, and could otherwise spend
+    the traveller's three files a day with a no-cors fetch.
+  */
+  if (rule.counted && !fromThisOrigin(request)) return refuse();
+
   const token = await readSessionCookie();
   if (!token) {
     return NextResponse.json(
-      { error: { code: "unauthorized", message: "Sign in first." } },
+      {
+        error: {
+          code: "unauthorized",
+          message: rule.signedOut ?? "Sign in first.",
+        },
+      },
       { status: 401 },
     );
   }
@@ -140,9 +154,32 @@ async function proxy(
     lib/api/client.ts.
   */
   if (answer.apiDate) headers.set("x-api-date", answer.apiDate);
+  /*
+    And `Retry-After`, as the API sent it. On a 429 it is what tells a day's
+    limit from a report sent too fast, and the report sheet words the two
+    differently (yuvoy-app#179).
+  */
+  if (answer.retryAfter) headers.set("Retry-After", answer.retryAfter);
+  /*
+    And the file's name. `GET /me/export` names the download
+    `yuvoy-my-data-<date>.json` with the API's own UTC day, and the browser
+    saves under the name on this answer (yuvoy-app#221).
+  */
+  if (answer.contentDisposition) {
+    headers.set("Content-Disposition", answer.contentDisposition);
+  }
 
   if (answer.status === 204 || !answer.text) {
     return new NextResponse(null, { status: answer.status, headers });
+  }
+  /*
+    A file to save is passed on byte for byte, as the API wrote it. Parsing
+    and writing it out again would change it: digits past 2^53, `1.0`, and
+    the API's escaped characters (yuvoy-app#221).
+  */
+  if (answer.contentDisposition && answer.status === 200) {
+    headers.set("Content-Type", answer.contentType ?? "application/json");
+    return new NextResponse(answer.text, { status: answer.status, headers });
   }
   if (answer.body !== undefined) {
     return NextResponse.json(answer.body, { status: answer.status, headers });

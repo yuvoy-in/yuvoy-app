@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { createApiClient } from "@/lib/api/client";
+import { createApiClient, serverScenarioHeaders } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema.gen";
 
 /**
@@ -116,10 +116,21 @@ export const APP_CONFIG_REVALIDATE_SECONDS = 60;
 /** Whether the last read failed: an outage is logged when it starts. */
 let failing = false;
 
-async function readAppConfig(): Promise<AppConfig | null> {
+async function readAppConfig(scenario?: string): Promise<AppConfig | null> {
+  /*
+    A mocked build's `?__scenario=` moves the releases (yuvoy-app#180's
+    `checkedCities`), so a page that decides one passes its scenario, and
+    that read is never kept: the next page's scenario would be answered from
+    this one. Outside a mocked build there is no header and nothing changes.
+  */
+  const scenarioHeaders = serverScenarioHeaders(scenario);
+  const mocked = Object.keys(scenarioHeaders).length > 0;
   try {
     const { data, error } = await createApiClient().GET("/app-config", {
-      next: { revalidate: APP_CONFIG_REVALIDATE_SECONDS },
+      headers: scenarioHeaders,
+      ...(mocked
+        ? { cache: "no-store" as const }
+        : { next: { revalidate: APP_CONFIG_REVALIDATE_SECONDS } }),
       signal: AbortSignal.timeout(APP_CONFIG_TIMEOUT_MS),
     });
     if (error) throw error;
@@ -148,5 +159,6 @@ async function readAppConfig(): Promise<AppConfig | null> {
  * `GET /app-config` on the server, once per render however many parts of a
  * page ask (React's `cache`: a read with a deadline is not memoised by Next).
  * Null when it did not load, which every caller reads as "every release off".
+ * `scenario` is the page's own `?__scenario=`, read in a mocked build only.
  */
 export const getAppConfig = cache(readAppConfig);

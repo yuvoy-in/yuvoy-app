@@ -6,7 +6,6 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
-  type QueryClient,
 } from "@tanstack/react-query";
 import {
   api,
@@ -20,8 +19,15 @@ import { isDeadToken, YuvoyError, isErrorEnvelope } from "@/lib/api/errors";
 import { dedash } from "@/lib/format/dedash";
 import { anyUnread, type TripTab } from "@/lib/trips/tabs";
 import { forgetAllBookings } from "@/lib/booking/token-store";
-import { resetSavedSession } from "@/lib/feed/account-saved";
+import { forgetOrganisers } from "@/lib/organisers/use-organisers";
 import { oweSignOut } from "./sign-out-owed";
+import {
+  forgetMe,
+  forgetPeople,
+  forgetSaved,
+  forgetSupportRequests,
+  forgetTrigo,
+} from "./use-traveller-forget";
 
 /**
  * Twenty, the API's own default once paging is opted into.
@@ -56,39 +62,6 @@ export const TRIPS_PAGE_SIZE = 20;
 
 interface SessionAnswer {
   signedIn: boolean;
-}
-
-/**
- * Saves, on both sides of a change of who is signed in (yuvoy-api#192).
- *
- * REMOVED rather than invalidated, for the reason `refresh` gives below: the
- * account's set belongs to a number, and an invalidated entry would paint the
- * previous number's saves while the refetch ran. The device's set goes too,
- * because signing in moves it onto the account underneath its cache.
- */
-/**
- * Help requests, on both sides of a change of who is signed in
- * (yuvoy-api#196).
- *
- * REMOVED rather than invalidated, for the reason `refresh` gives: they belong
- * to a number, and an invalidated list would show the previous number's
- * messages to us, in their own words, while the refetch ran.
- */
-function forgetSupportRequests(qc: QueryClient): void {
-  qc.removeQueries({ queryKey: qk.supportRequests() });
-  qc.removeQueries({ queryKey: ["getSupportRequest"] });
-}
-
-function forgetSaved(qc: QueryClient): void {
-  /*
-    First, so nothing started for the previous number (an adoption, a queued
-    write) reaches the next one's account or cache. See `resetSavedSession`.
-  */
-  resetSavedSession();
-  qc.removeQueries({ queryKey: qk.savedIds("account") });
-  qc.removeQueries({ queryKey: qk.savedList("account") });
-  qc.removeQueries({ queryKey: qk.savedIds("device") });
-  qc.removeQueries({ queryKey: qk.savedList("device") });
 }
 
 async function readSession(signal?: AbortSignal): Promise<SessionAnswer> {
@@ -153,8 +126,33 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     // And each one opened: the invitation was the previous number's.
     qc.removeQueries({ queryKey: ["getInvitedTrip"] });
+    // A staff number's places are its own, never the next person's.
+    qc.removeQueries({ queryKey: ["listPlaces"] });
+    /*
+      And what it found there. The feed and card keys carry no session, and
+      while a release is open to staff only, a staff-only place's cards are
+      somebody's private view: dropped, so the next person reads them again
+      as themselves (a 404 while the place is closed to them).
+    */
+    qc.removeQueries({ queryKey: ["listEvents"] });
+    qc.removeQueries({ queryKey: ["getEvent"] });
+    // A table carries the reader's own request, the names and the venue.
+    qc.removeQueries({ queryKey: ["getTable"] });
+    // And share links are the number's own, with their counts.
+    qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    // So are the groups it follows and its plans (yuvoy-mobile#392).
+    qc.removeQueries({ queryKey: qk.myClubFollows() });
+    qc.removeQueries({ queryKey: ["listMyPlans"] });
+    // And its date alerts and trip drafts (yuvoy-app#220).
+    qc.removeQueries({ queryKey: qk.myDateAlerts() });
+    qc.removeQueries({ queryKey: qk.myTripDrafts() });
+    // So are People: friends, requests, the friend link (yuvoy-app#222).
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetTrigo(qc);
+    forgetOrganisers(qc);
+    forgetMe(qc);
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
@@ -224,14 +222,42 @@ export function useTravellerSession() {
     qc.removeQueries({ queryKey: qk.myAccount() });
     qc.removeQueries({ queryKey: ["listInvitedTrips"] });
     qc.removeQueries({ queryKey: ["getInvitedTrip"] });
+    // A staff number's places are its own, never the next person's, and so
+    // is what it found there: see `refresh`.
+    qc.removeQueries({ queryKey: ["listPlaces"] });
+    qc.removeQueries({ queryKey: ["listEvents"] });
+    qc.removeQueries({ queryKey: ["getEvent"] });
+    qc.removeQueries({ queryKey: ["getTable"] });
+    qc.removeQueries({ queryKey: qk.myCreatorLinks() });
+    qc.removeQueries({ queryKey: qk.myClubFollows() });
+    qc.removeQueries({ queryKey: ["listMyPlans"] });
+    qc.removeQueries({ queryKey: qk.myDateAlerts() });
+    qc.removeQueries({ queryKey: qk.myTripDrafts() });
+    forgetPeople(qc);
     forgetSaved(qc);
     forgetSupportRequests(qc);
+    forgetTrigo(qc);
+    forgetOrganisers(qc);
+    forgetMe(qc);
     qc.setQueryData(qk.session(), { signedIn: false });
     await qc.invalidateQueries({ queryKey: qk.session() });
   }, [qc]);
 
   return { signedIn, signIn, signOut, refresh, isLoading: query.isPending };
 }
+
+/** The way in a code is asked for and checked with: a number or an address. */
+export type SignInWayIn = { phone: string } | { email: string };
+
+/**
+ * What a sign-in code is checked with: the way in, the code and, once the API
+ * has asked a person no account holds yet, the year (yuvoy-app#229).
+ */
+export type SignInVerifyInput = SignInWayIn & {
+  code: string;
+  birthYear?: number;
+  birthdayPassed?: boolean;
+};
 
 /**
  * Asking for a sign-in code.
@@ -243,10 +269,17 @@ export function useTravellerSession() {
 export function useRequestSignInCode() {
   return useMutation({
     retry: false,
-    mutationFn: async (phone: string) => {
-      const { data, error } = await api.POST("/me/sign-in/request", {
-        body: { phone: phone.trim() },
-      });
+    /*
+      A number or an address, never both (yuvoy-app#229). A plain string is
+      a number, as every caller before the email door sent.
+    */
+    mutationFn: async (to: string | SignInWayIn) => {
+      const way = typeof to === "string" ? { phone: to } : to;
+      const body =
+        "email" in way
+          ? { email: way.email.trim() }
+          : { phone: way.phone.trim() };
+      const { data, error } = await api.POST("/me/sign-in/request", { body });
       if (error) throw error;
       return data;
     },
@@ -269,15 +302,23 @@ export function useRequestSignInCode() {
 export function useVerifySignInCode() {
   return useMutation({
     retry: false,
-    mutationFn: async (input: { phone: string; code: string }) => {
+    mutationFn: async (input: SignInVerifyInput) => {
       const response = await fetchWithin(
         "/api/session",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            phone: input.phone.trim(),
+            ...("email" in input
+              ? { email: input.email.trim() }
+              : { phone: input.phone.trim() }),
             code: input.code.trim(),
+            ...(input.birthYear !== undefined
+              ? { birthYear: input.birthYear }
+              : {}),
+            ...(input.birthdayPassed !== undefined
+              ? { birthdayPassed: input.birthdayPassed }
+              : {}),
           }),
         },
         WRITE_STALL_MS,
@@ -290,7 +331,7 @@ export function useVerifySignInCode() {
 }
 
 /** The envelope the route passed through, back into the typed error. */
-async function asYuvoyError(response: Response): Promise<YuvoyError> {
+export async function asYuvoyError(response: Response): Promise<YuvoyError> {
   let body: unknown;
   try {
     body = await response.json();

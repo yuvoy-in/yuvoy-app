@@ -273,3 +273,34 @@ describe("describeError: a sign-in door switched off", () => {
     expect(blank.canRetry).toBe(false);
   });
 });
+
+describe("describeError: one table", () => {
+  it("calls tables paused what it is, and offers a retry", () => {
+    /*
+      `tables_unavailable` (yuvoy-app#194): "paused, not broken". Kept out of
+      the deliberate stops, because the table page's Try again costs one read.
+    */
+    const d = describeError(
+      new YuvoyError({
+        code: "tables_unavailable",
+        message: "Tables are paused for now. Try again later.",
+        status: 503,
+        requestId: "01J",
+      }),
+    );
+    expect(d.title).toBe("Tables are paused right now");
+    expect(d.body).toBe("Tables are paused for now. Try again later.");
+    expect(d.canRetry).toBe(true);
+    expect(d.deliberate).toBe(false);
+  });
+
+  it("says a closed table is closed, with no retry", () => {
+    const d = describeError(err("table_closed", 409));
+    expect(d.title).toBe("This table is closed");
+    expect(d.canRetry).toBe(false);
+    const blank = describeError(
+      new YuvoyError({ code: "table_closed", message: " ", status: 409 }),
+    );
+    expect(blank.body).toBe("Requests for this table are closed.");
+  });
+});

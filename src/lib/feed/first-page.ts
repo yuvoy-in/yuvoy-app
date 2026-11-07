@@ -70,7 +70,7 @@ export async function firstReelsPage(options: {
       symptom is LCP (5.1s against an FCP of 0.8s when the feed was last
       measured without it), which nobody sees without a lab report against
       production. So it is logged: on Vercel this reaches the function log,
-      the only place the CAUSE is visible. `e2e/audit.spec.ts` fails the
+      the only place the CAUSE is visible. `e2e/audit-pages.spec.ts` fails the
       deploy on the symptom; this names the reason.
     */
     console.error(

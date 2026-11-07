@@ -4,6 +4,7 @@ import { Wordmark } from "@/components/ui/wordmark";
 import { BackButton } from "./back-button";
 import { TrailBackButton } from "./trail-back-button";
 import { LoginButton } from "@/components/auth/login-button";
+import { AskTrigoButton } from "@/components/trigo/ask-trigo-button";
 import { ViewTransition } from "@/lib/motion/view-transition";
 import { SHEET_MOTION, STAGE_MOTION } from "@/lib/motion/route-motion";
 
@@ -201,6 +202,8 @@ export function Screen({
               simply push Login 44px off the edge.
             */}
             <div className="flex items-center gap-2">
+              {/* Only while `releases.trigo` is open (yuvoy-app#223). */}
+              {focused ? null : <AskTrigoButton />}
               {focused ? null : <LoginButton />}
               {heroActions}
             </div>

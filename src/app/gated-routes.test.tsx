@@ -61,6 +61,10 @@ vi.mock("@/components/saved/saved-screen", () => ({
 vi.mock("@/components/checkout/book-screen", () => ({
   BookScreen: () => <p>CHECKOUT CONTENT</p>,
 }));
+vi.mock("@/components/found/found-item-page", () => ({
+  FoundItemPage: () => <p>FOUND CARD CONTENT</p>,
+  FoundItemUnavailable: () => <p>FOUND CARD UNAVAILABLE</p>,
+}));
 
 /** Counts the server-side first pages: the feed's and the search grid's. */
 function watchReels() {
@@ -238,6 +242,43 @@ describe("with the switch on", () => {
       if (previous !== 0) expect(level - previous).toBeLessThanOrEqual(1);
       previous = level;
     }
+  });
+
+  it("leaves a found card's page open to everybody, like a shared reel", async () => {
+    /*
+      `/f/[id]` is NOT a gated route (yuvoy-app#179). The app's Share sends
+      that link to people who have never signed in, so the card must open for
+      them with the gate on, as `/r/[id]` does: no landing, and no decision
+      asked for. The card is read with no credential at all.
+    */
+    decided.answer = { access: "signed-out", phone: null };
+    const asked: (string | null)[] = [];
+    server.use(
+      http.get(`${BASE}/events/:id`, ({ params, request }) => {
+        asked.push(request.headers.get("authorization"));
+        return HttpResponse.json({
+          id: String(params.id),
+          title: "A card",
+          indexable: false,
+        });
+      }),
+    );
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_INVITE_ONLY", "true");
+    const card = (await import("./f/[id]/page")).default;
+
+    const out = html(
+      await card({
+        params: Promise.resolve({ id: "card_1" }),
+        searchParams: noQuery(),
+      }),
+    );
+
+    expect(out).toContain("FOUND CARD CONTENT");
+    expect(out).not.toContain("data-invite-gate");
+    expect(out).not.toMatch(/Yuvoy is by invitation for now/);
+    expect(decided.asked).toEqual([]);
+    expect(asked).toEqual([null]);
   });
 
   it("hands a mocked build's scenario to the decision", async () => {

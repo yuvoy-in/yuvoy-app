@@ -8,7 +8,8 @@ import { test, expect } from "@playwright/test";
  * It was, for about an hour, and it broke the post-deploy production audit.
  *
  * `audit.spec.ts` is pointed at the LIVE origin after every production deploy
- * (`.github/workflows/audit.yml` runs that file and nothing else). These cases
+ * (`.github/workflows/audit.yml` runs that file and `audit-pages.spec.ts` and
+ * nothing else). These cases
  * depend on MOCK scan codes — `ISLAND-HAV-01`, `HAVELOCK-01` — which exist in
  * `mocks/handlers.ts` and nowhere else. Against production every one of them
  * resolves to `{"target":"/","known":false}`, the redirect lands on the feed,
@@ -84,5 +85,32 @@ test.describe("arriving from a QR code", () => {
     expect(url.pathname).toBe("/");
     expect(url.searchParams.get("destinationKey")).toBeNull();
     expect(url.searchParams.get("src")).toBe("qr");
+  });
+});
+
+/**
+ * A traveller's own link (R12-T2, yuvoy-mobile#389). The API answers
+ * `kind: creator` for a `C-` code, and the visit carries `src=creator` and
+ * the code to checkout, where the API decides whether it counts.
+ */
+test.describe("arriving from a creator's link", () => {
+  test("opens the listing as a creator arrival, and the visit keeps the code for checkout", async ({
+    page,
+  }) => {
+    await page.goto("/go/C-K7QM2XPA");
+    await page.waitForURL(/\/e\/try-dive-nemo-reef/);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("src")).toBe("creator");
+    expect(url.searchParams.get("code")).toBe("C-K7QM2XPA");
+    // What `readAttribution` hands checkout for `attribution`.
+    await expect
+      .poll(() =>
+        page.evaluate(() => sessionStorage.getItem("yuvoy.attribution")),
+      )
+      .not.toBeNull();
+    const kept = JSON.parse(
+      (await page.evaluate(() => sessionStorage.getItem("yuvoy.attribution")))!,
+    );
+    expect(kept).toMatchObject({ source: "creator", scanCode: "C-K7QM2XPA" });
   });
 });

@@ -42,6 +42,17 @@ export interface ProxiedPath {
    * slash, so `{id}` can never widen into a traversal.
    */
   pattern: string;
+  /**
+   * A read the API counts against the caller, so it is held to the same
+   * same-origin check as a write: a GET from another `*.yuvoy.in` page
+   * carries the Lax cookie and would spend the traveller's allowance.
+   */
+  counted?: true;
+  /**
+   * What the proxy says when there is no session cookie, where the issue
+   * gives a sentence of its own. Otherwise "Sign in first."
+   */
+  signedOut?: string;
 }
 
 export const PROXIED_PATHS: readonly ProxiedPath[] = [
@@ -153,6 +164,220 @@ export const PROXIED_PATHS: readonly ProxiedPath[] = [
   */
   { method: "PUT", pattern: "/me/stay" },
   { method: "DELETE", pattern: "/me/stay" },
+  /*
+    The places a signed-in number may pick (yuvoy-app#179). Proxied because
+    the answer depends on the session: a staff number sees places a visitor
+    does not. Signed out, `/places` answers instead, from the server with no
+    credential.
+  */
+  { method: "GET", pattern: "/me/places" },
+  /*
+    Download my data (yuvoy-app#221, R9-T4). A sign-in session only, which is
+    the only kind this proxy holds. GET only: nothing else lives under
+    `/me/export`. Counted: each file made is one of three a day.
+  */
+  {
+    method: "GET",
+    pattern: "/me/export",
+    counted: true,
+    signedOut: "Sign in to download your data.",
+  },
+  /*
+    A found feed's later pages, signed in (yuvoy-app#179). The session decides
+    which places this caller may read: with `explore` at `staff`, only a staff
+    number gets an answer. Signed out, the browser calls the API directly.
+  */
+  { method: "GET", pattern: "/events" },
+  /*
+    One found item, signed in, for the same reason as the feed: what the
+    caller may see depends on who they are (yuvoy-app#179).
+  */
+  { method: "GET", pattern: "/events/{id}" },
+  /*
+    Report a problem on a found item (yuvoy-app#179). Signed in, the API
+    counts the report against the number, so the day limit follows the
+    person rather than the browser. The body is `reason` and `note` only.
+  */
+  { method: "POST", pattern: "/events/{id}/reports" },
+  /*
+    One table at /tables/{id}, where every table email links (yuvoy-app#194,
+    R8-T1). `getTable` and `reportTable` also take no credential in the
+    contract, but this page only ever calls them signed in: the letter's link
+    must open nothing for whoever it is forwarded to, and a session is what
+    adds the caller's own request, the names and the venue. Withdraw is
+    session-only. Asking to join (`POST /tables/{id}/requests`) and the
+    traveller's list (`GET /me/tables`) are not here: no screen calls them yet.
+  */
+  { method: "GET", pattern: "/tables/{id}" },
+  { method: "DELETE", pattern: "/tables/{id}/requests/mine" },
+  { method: "POST", pattern: "/tables/{id}/reports" },
+  /*
+    The signed-in plan page (yuvoy-app#193). Session only in the contract,
+    and none of the four answers a credential. Planner tools (times, ideas,
+    items, costs, the decision, the link) are not built yet and are not here.
+  */
+  // Re-reading a plan in the browser after Try again; the page's first read
+  // is on the server.
+  { method: "GET", pattern: "/plans/{id}" },
+  // One whole reply: answers, claims and paid marks, complete sets.
+  { method: "PUT", pattern: "/plans/{id}/reply" },
+  // Leaving a plan. The planner is refused (409 `planner_leaves`).
+  { method: "DELETE", pattern: "/plans/{id}/reply" },
+  // Reporting the plan or somebody on it, to a person at Yuvoy.
+  { method: "POST", pattern: "/plans/{id}/reports" },
+  /*
+    Share links to something the traveller went on (yuvoy-app#207, R12-T2):
+    Your links on Account reads them, and Get my link on a past trip makes
+    one or gives back the one already made. Session only in the contract.
+  */
+  { method: "GET", pattern: "/me/creator-links" },
+  { method: "POST", pattern: "/me/creator-links" },
+  /*
+    People: friends on Yuvoy (yuvoy-app#222, the web half of
+    yuvoy-mobile#366). Session only in the contract, every one of them, and
+    each answers 404 while the `people` release is closed to the caller.
+    The People screen reads and changes the home, the friends list, the
+    requests and the friend link; `/add/{code}` looks a link up and asks.
+    The lookup takes its code in the body, so the code is never in a logged
+    path. `PUT /me/age` is the age step People opens with when the account
+    has no birth year yet. `GET /people/{id}` is not here: no screen opens
+    one person yet.
+  */
+  { method: "GET", pattern: "/me/people" },
+  { method: "PATCH", pattern: "/me/people" },
+  { method: "GET", pattern: "/me/friends" },
+  { method: "DELETE", pattern: "/me/friends/{personId}" },
+  { method: "POST", pattern: "/me/friend-requests" },
+  { method: "POST", pattern: "/me/friend-requests/{requestId}/answer" },
+  { method: "DELETE", pattern: "/me/friend-requests/{requestId}" },
+  { method: "PUT", pattern: "/me/friend-link" },
+  { method: "DELETE", pattern: "/me/friend-link" },
+  { method: "POST", pattern: "/friend-links/lookup" },
+  /*
+    Ask Trigo (yuvoy-app#223, R5-T5). Every Trigo call is session only in the
+    contract: the chat belongs to the account, and the team replies to the
+    account. `src/lib/trigo/api.ts` and `src/lib/trigo/actions.ts` call them.
+    Report and Trigo's memory have no screen yet and are not here.
+  */
+  // One typed message and its answer, with an Idempotency-Key per message.
+  { method: "POST", pattern: "/trigo/turns" },
+  // The traveller's chats, newest first, to pick the one to reopen.
+  { method: "GET", pattern: "/trigo/conversations" },
+  // One chat's messages, newest 50 first, then `after=<seq>` while it polls.
+  { method: "GET", pattern: "/trigo/conversations/{id}" },
+  // The highest seq on screen, so the chat stops counting as unread.
+  { method: "POST", pattern: "/trigo/conversations/{id}/read" },
+  // "Ask the team to check" under a reply to a link Trigo did not open: the
+  // team's line joins the chat (yuvoy-app#223 (c)).
+  { method: "POST", pattern: "/trigo/conversations/{id}/handoff" },
+  // Whether the person has accepted the current notice.
+  { method: "GET", pattern: "/trigo/consent" },
+  // Accepting the notice, with `surface: web`.
+  { method: "POST", pattern: "/trigo/consent" },
+  // Turn off Trigo, `?surface=web`.
+  { method: "DELETE", pattern: "/trigo/consent" },
+  // Yes on a card under a reply: a checkout to open, or an alert or draft made.
+  { method: "POST", pattern: "/trigo/actions/{id}/confirm" },
+  // Not now on a card: Trigo's line "Nothing has been booked or changed."
+  { method: "POST", pattern: "/trigo/actions/{id}/decline" },
+  /*
+    What Trigo keeps once the traveller says yes on a card (yuvoy-app#220):
+    the date alerts on Account and the trip drafts on Trips. Session only.
+    `src/lib/trigo/use-lists.ts` calls them.
+  */
+  // Every waiting alert and the 50 that most recently told them, newest first.
+  { method: "GET", pattern: "/me/date-alerts" },
+  // "Stop telling me" on a waiting alert.
+  { method: "DELETE", pattern: "/me/date-alerts/{id}" },
+  // The trip drafts, newest first, at most 20.
+  { method: "GET", pattern: "/me/trip-drafts" },
+  // "Delete draft".
+  { method: "DELETE", pattern: "/me/trip-drafts/{id}" },
+  /*
+    Organiser pages (yuvoy-app#224, the web half of yuvoy-mobile#393): the
+    signed-in traveller's own pages, their helpers, their events and the
+    numbers. Session only in the contract. The club routes
+    (`/organisers/{id}/club`) and claims (`/organisers/{id}/claims`) are not
+    built on the web and are not here.
+  */
+  { method: "GET", pattern: "/me/organisers" },
+  { method: "POST", pattern: "/organisers" },
+  { method: "GET", pattern: "/organisers/{id}" },
+  { method: "PATCH", pattern: "/organisers/{id}" },
+  { method: "GET", pattern: "/organisers/{id}/helpers" },
+  { method: "POST", pattern: "/organisers/{id}/helpers" },
+  { method: "DELETE", pattern: "/organisers/{id}/helpers/{travellerId}" },
+  { method: "GET", pattern: "/organisers/{id}/events" },
+  { method: "POST", pattern: "/organisers/{id}/events" },
+  { method: "PATCH", pattern: "/organisers/{id}/events/{eventPostId}" },
+  { method: "POST", pattern: "/organisers/{id}/events/{eventPostId}/cancel" },
+  { method: "GET", pattern: "/organisers/{id}/events/{eventPostId}/numbers" },
+  // Check people in at the door (yuvoy-app#226, the web half of yuvoy-mobile#394).
+  { method: "POST", pattern: "/organiser-check-ins" },
+  /*
+    The year a person was born, asked by Trigo's age check, by People's age
+    step and before the organiser pages (`403 adult_confirmation_required`)
+    for an account made before the year was asked. Listed once for all
+    three. Session only: a booking link cannot answer for a person's age.
+  */
+  { method: "PUT", pattern: "/me/age" },
+  /*
+    Crews (yuvoy-app#227, the web half of yuvoy-mobile#387): a traveller's
+    own named lists of their friends. Session only, and 404 while `people` is
+    closed, like the rest of People. There is no single-crew read: a crew's
+    page reads the list. Asking a crew along to a plan is listed below, with
+    following a group (yuvoy-mobile#392).
+  */
+  { method: "GET", pattern: "/me/crews" },
+  { method: "POST", pattern: "/me/crews" },
+  { method: "PATCH", pattern: "/me/crews/{crewId}" },
+  { method: "DELETE", pattern: "/me/crews/{crewId}" },
+  /*
+    Me on Account (yuvoy-mobile#444, R10-M1), behind the `me` release; every
+    one answers 404 while it is closed. Session only in the contract.
+  */
+  // The life list, a page at a time, with Did you go? on the first page.
+  { method: "GET", pattern: "/me/life-list" },
+  // Who sees a trip or a table entry. A went entry is changed by its event.
+  { method: "PATCH", pattern: "/me/life-list/{entryId}" },
+  // Did you go?, answered from Me.
+  { method: "POST", pattern: "/me/went/{eventId}" },
+  // Who sees a went entry: the one route that writes it.
+  { method: "PATCH", pattern: "/me/went/{eventId}" },
+  { method: "GET", pattern: "/me/badges" },
+  // "Nice" on a new badge.
+  { method: "POST", pattern: "/me/badges/seen" },
+  /*
+    Languages and Women-only tables. The same route holds the usage choice
+    and the email switches, and Me sends only the field that changed.
+  */
+  { method: "GET", pattern: "/me/settings" },
+  { method: "PATCH", pattern: "/me/settings" },
+  /*
+    Following a group and asking a crew along to a plan (yuvoy-mobile#392,
+    R10-T2). Follows are private and need the `people` release; the crew
+    invite needs `people` and `plans`. The plans list is the invite's picker:
+    the traveller's own plans, read for the ones they made. Session only in
+    the contract.
+  */
+  { method: "GET", pattern: "/me/club-follows" },
+  { method: "PUT", pattern: "/me/club-follows/{clubId}" },
+  { method: "DELETE", pattern: "/me/club-follows/{clubId}" },
+  { method: "POST", pattern: "/plans/{planId}/crew-invites" },
+  { method: "GET", pattern: "/me/plans" },
+  /*
+    The groups directory (yuvoy-mobile#386). Signed in, the directory and a
+    group's page read the `/me/` pair, which shows staff the groups of a
+    release still open to staff only. Claim and report are session only. A
+    removal takes the session when there is one and works without it. The
+    public pair (`GET /clubs`, `GET /clubs/{slug}`) needs no credential, so
+    it is not here: the browser calls the API for it.
+  */
+  { method: "GET", pattern: "/me/clubs" },
+  { method: "GET", pattern: "/me/clubs/{slug}" },
+  { method: "POST", pattern: "/clubs/{clubId}/claims" },
+  { method: "POST", pattern: "/clubs/{clubId}/removal-requests" },
+  { method: "POST", pattern: "/clubs/{clubId}/reports" },
 ];
 
 /*
@@ -212,11 +437,18 @@ export function proxyPathOf(segments: readonly string[]): string | null {
  * contains an id.
  */
 export function allowedProxyPath(method: string, path: string): string | null {
+  return proxiedRule(method, path)?.pattern ?? null;
+}
+
+/** The whole entry this method and path are allowed under, or `null`. */
+export function proxiedRule(method: string, path: string): ProxiedPath | null {
   if (!path.startsWith("/")) return null;
   // Refuse anything that could climb, before it reaches a URL constructor.
   if (path.includes("..") || path.includes("//") || path.includes("\\")) {
     return null;
   }
   const match = COMPILED.find((p) => p.method === method && p.re.test(path));
-  return match?.pattern ?? null;
+  if (!match) return null;
+  const { method: m, pattern, counted, signedOut } = match;
+  return { method: m, pattern, counted, signedOut };
 }

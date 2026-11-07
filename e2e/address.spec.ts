@@ -165,3 +165,47 @@ test.describe("a checkout writes its address in place", () => {
     expect(requests).toEqual([]);
   });
 });
+
+test.describe("an old checkout link that names only the departure", () => {
+  /*
+    The listing linked to `?slot=&guests=` with no day from 24 Aug to 15 Sep
+    2026 (yuvoy-app#245), and those links are still in bookmarks and chats.
+    Opened as a document load, the way such a link arrives.
+  */
+  test("opens with that departure chosen, and writes its day in", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/e/try-dive-nemo-reef/book?slot=slot_try-dive-nemo-reef_a&guests=2",
+    );
+
+    await expect(page.getByRole("button", { name: /^07:00/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      "07:00",
+    );
+    await expect.poll(() => query(page, "date")).not.toBeNull();
+    expect(query(page, "slot")).toBe("slot_try-dive-nemo-reef_a");
+    expect(query(page, "guests")).toBe("2");
+  });
+
+  test("a full departure opens the calendar instead", async ({ page }) => {
+    await page.goto(
+      "/e/try-dive-nemo-reef/book?slot=slot_try-dive-nemo-reef_b",
+    );
+
+    await expect(
+      page
+        .getByRole("region", { name: "Pick a day" })
+        .locator("button[aria-pressed]:not([disabled])")
+        .first(),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      "When would you like to go?",
+    );
+    await expect.poll(() => query(page, "slot")).toBeNull();
+    expect(query(page, "date")).toBeNull();
+  });
+});

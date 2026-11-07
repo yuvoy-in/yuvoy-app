@@ -182,7 +182,7 @@ describe("where a traveller types the code they were given", () => {
       for a number that already holds a booking.
     */
     expect(
-      await screen.findByText(/You are in\.|was already in/),
+      await screen.findByText(/You are in\.|were already in/),
     ).toBeVisible();
     const onward = await screen.findByRole("link", { name: "Start looking" });
     expect(onward).toHaveAttribute("href", "/");

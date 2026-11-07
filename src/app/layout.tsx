@@ -3,6 +3,7 @@ import { anek, anekBoard, anekDisplay, gotu } from "@/lib/fonts";
 import { Providers } from "@/components/providers";
 import { MswProvider } from "@/components/dev/msw-provider";
 import { AppShell } from "@/components/chrome/app-shell";
+import { TrigoProvider } from "@/components/trigo/trigo-provider";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { AttributionCapture } from "@/components/booking/attribution-capture";
 import { RouteTrail } from "@/components/chrome/route-trail";
@@ -10,6 +11,7 @@ import { AdoptStoredSession } from "@/components/auth/adopt-stored-session";
 import { InviteGuard } from "@/components/auth/invite-guard";
 import { InstallObservability } from "@/components/observability/install";
 import { ConsentBanner } from "@/components/analytics/consent-banner";
+import { SkipLink } from "@/components/chrome/skip-link";
 import { THEME_COLOR } from "@/lib/site/theme";
 import { robotsMeta } from "@/lib/site/indexing";
 import { verificationMeta } from "@/lib/site/verification";
@@ -85,13 +87,10 @@ export default function RootLayout({
             breadcrumb and article nodes, linked to these by @id. */}
         <JsonLd node={organizationJsonLd()} />
         <JsonLd node={webSiteJsonLd()} />
-        {/* First focusable element on every page. */}
-        <a
-          href="#main"
-          className="bg-paper text-forest sr-only text-xs font-bold focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-3"
-        >
-          Skip to content
-        </a>
+        {/* First focusable element on every page. On the plan link page it
+            moves focus without touching the fragment, which holds the plan's
+            token (yuvoy-mobile#373); see SkipLink. */}
+        <SkipLink />
         <InstallObservability />
         <RegisterServiceWorker />
         <AttributionCapture />
@@ -112,7 +111,13 @@ export default function RootLayout({
               its children and nothing else.
             */}
             <InviteGuard>
-              <AppShell>{children}</AppShell>
+              {/*
+                Trigo over every page: its sheet opens from the masthead, a
+                listing or a found item, and from `?trigo=` (yuvoy-app#223).
+              */}
+              <TrigoProvider>
+                <AppShell>{children}</AppShell>
+              </TrigoProvider>
             </InviteGuard>
             <ConsentBanner />
           </Providers>

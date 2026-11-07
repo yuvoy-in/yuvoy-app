@@ -97,6 +97,11 @@ export const FOCUSED_ROUTE_PREFIXES = [
     centred Decline sat under it (stability audit, 6 Oct 2026).
   */
   "/trips/invited/",
+  /*
+    One table (yuvoy-app#194). Every branch draws a Back to the feed, and
+    the bar would cover the foot of the sheet for the same reason as above.
+  */
+  "/tables/",
   "/guides/",
   "/offline",
   /*
@@ -128,6 +133,34 @@ export const FOCUSED_ROUTE_PREFIXES = [
     with its own way back. Not a tab, and not a tab root.
   */
   "/help",
+  /*
+    A plan (yuvoy-app#193). Opened from a link a friend sent, with a Back of
+    its own, and the reply button sits at the foot of a long form, where the
+    bar would float over it.
+  */
+  "/plans/",
+  /*
+    A crew and its editor (yuvoy-app#227). Each has a Back to People, and the
+    editor's Save sits at the foot of a list of up to fifty friends, where
+    the bar would float over it.
+  */
+  "/people/crews/",
+  /*
+    Organiser pages (yuvoy-app#224): the hub, the page form, one organiser,
+    its helpers and its events. A place a person goes INTO from Account, with
+    a Back on every screen, and the save buttons sit at the foot of long forms.
+  */
+  "/organiser",
+  /*
+    The door (yuvoy-app#226): checking people in, from the organiser pages,
+    with a Back to them. The field and its button would sit under the bar.
+  */
+  "/door",
+  /*
+    Date alerts (yuvoy-app#220): a place a traveller goes INTO from Account,
+    with a Back to it. `/account` itself is a tab root and keeps the bar.
+  */
+  "/account/date-alerts",
 ] as const;
 
 /**

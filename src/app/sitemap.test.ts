@@ -54,4 +54,71 @@ describe("sitemap", () => {
     expect(all.some((p) => p.startsWith("/e/"))).toBe(true);
     expect(all.some((p) => p.startsWith("/o/"))).toBe(false);
   });
+
+  it("keeps the businesses already read when a later page is refused", async () => {
+    const first = EXPERIENCES.find((e) => e.operator?.slug);
+    expect(first).toBeDefined();
+    server.use(
+      http.get(`${BASE}/experiences`, ({ request }) => {
+        if (!new URL(request.url).searchParams.get("cursor")) {
+          return HttpResponse.json({
+            items: [first],
+            nextCursor: "cGFnZTI=",
+            complete: false,
+          });
+        }
+        return HttpResponse.json(
+          { error: { code: "invalid_input", message: "bad cursor" } },
+          { status: 400 },
+        );
+      }),
+    );
+
+    const businesses = (await paths()).filter((p) => p.startsWith("/o/"));
+    expect(businesses).toEqual([`/o/${first?.operator?.slug}`]);
+  });
+
+  it("lists each found card the API calls indexable, daily at 0.6", async () => {
+    server.use(
+      http.get(`${BASE}/events/index`, () =>
+        HttpResponse.json({
+          entries: [
+            {
+              id: "0f6d2a52-6a77-4c39-9a52-6b1c3a8e2f10",
+              destinationKey: "karnataka/bengaluru",
+              lastModified: "2026-10-28T06:00:00Z",
+            },
+          ],
+        }),
+      ),
+    );
+
+    const found = (await sitemap()).filter((e) =>
+      new URL(e.url).pathname.startsWith("/f/"),
+    );
+    expect(found).toHaveLength(1);
+    expect(new URL(found[0].url).pathname).toBe(
+      "/f/0f6d2a52-6a77-4c39-9a52-6b1c3a8e2f10",
+    );
+    expect(found[0].changeFrequency).toBe("daily");
+    expect(found[0].priority).toBe(0.6);
+    expect(found[0].lastModified).toEqual(new Date("2026-10-28T06:00:00Z"));
+  });
+
+  it("lists no found card while the index is empty, or not answering", async () => {
+    for (const answer of [
+      () => HttpResponse.json({ entries: [] }),
+      () =>
+        HttpResponse.json(
+          { error: { code: "unavailable", message: "down" } },
+          { status: 503 },
+        ),
+    ]) {
+      server.use(http.get(`${BASE}/events/index`, answer));
+      const all = await paths();
+      expect(all.some((p) => p.startsWith("/f/"))).toBe(false);
+      // The rest of the sitemap stands either way.
+      expect(all).toContain("/");
+    }
+  });
 });

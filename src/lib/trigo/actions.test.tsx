@@ -1,0 +1,387 @@
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { renderWithQuery } from "@/test/render";
+import { qk } from "@/lib/query/policy";
+import {
+  useConfirmTrigoAction,
+  useDeclineTrigoAction,
+  type CardActionVars,
+  type TrigoActionCard,
+  type TrigoActionConfirmation,
+} from "./actions";
+import { useTrigoChat, type TrigoChatData, type TrigoMessage } from "./api";
+import { readTrigoCheckout } from "./checkout-prefill";
+import { server } from "../../../mocks/server";
+import { __signInAppRouteMock } from "../../../mocks/app-route-handlers";
+
+/**
+ * The card's yes and no (yuvoy-app#223 part 2): what each answer does to
+ * the chat's cache, the checkout prefill and the date alert and trip draft
+ * lists. What each failure means is in actions-classify.test.ts.
+ */
+
+const CONFIRM = "*/api/v1/trigo/actions/:id/confirm";
+const DECLINE = "*/api/v1/trigo/actions/:id/decline";
+const CHAT_READ = "*/api/v1/trigo/conversations/:id";
+
+const CHAT = "6f1c2d3e-4a5b-4c6d-8e7f-8091a2b3c4d5";
+const ACTION = "2b7e4c1a-9d3f-4e5a-8b6c-7d8e9f0a1b2c";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  sessionStorage.clear();
+});
+
+function envelope(status: number, code: string, message: string) {
+  return HttpResponse.json(
+    { error: { code, message, requestId: "01JTEST" } },
+    { status },
+  );
+}
+
+function card(kind: TrigoActionCard["kind"] = "book"): TrigoActionCard {
+  return {
+    actionId: ACTION,
+    kind,
+    state: "proposed",
+    expiresAt: "2026-11-02T05:00:00Z",
+    heading: "Book Try-dive at Nemo Reef",
+    lines: ["Saturday, 07:00", "2 people"],
+    confirmLabel: "Book",
+    declineLabel: "Not now",
+  };
+}
+
+function msg(seq: number, text: string, actionCard?: TrigoActionCard) {
+  const m: TrigoMessage = {
+    id: `00000000-0000-4000-8000-${String(seq).padStart(12, "0")}`,
+    seq,
+    role: seq % 2 === 1 ? "traveller" : "trigo",
+    text,
+    createdAt: "2026-11-02T04:30:00Z",
+    cards: [],
+    handoffOffer: false,
+    removed: false,
+    actionCard: actionCard ?? null,
+  };
+  return m;
+}
+
+function seed(
+  client: ReturnType<typeof renderWithQuery>["client"],
+  kind: TrigoActionCard["kind"] = "book",
+) {
+  client.setQueryDefaults(qk.trigoConversation(CHAT), { gcTime: Infinity });
+  const data: TrigoChatData = {
+    conversation: null,
+    messages: [
+      msg(1, "Beginner dive Saturday for two"),
+      msg(2, "Here.", card(kind)),
+    ],
+    remainingToday: 18,
+    resetsAt: null,
+    pollAfterSeconds: 0,
+  };
+  client.setQueryData(qk.trigoConversation(CHAT), data);
+}
+
+function chatOf(client: ReturnType<typeof renderWithQuery>["client"]) {
+  return client.getQueryData<TrigoChatData>(qk.trigoConversation(CHAT));
+}
+
+function Tap({
+  which,
+  kind = "book",
+}: {
+  which: "confirm" | "decline";
+  kind?: TrigoActionCard["kind"];
+}) {
+  const confirm = useConfirmTrigoAction();
+  const decline = useDeclineTrigoAction();
+  const vars: CardActionVars = { actionId: ACTION, kind, conversationId: CHAT };
+  const status = which === "confirm" ? confirm.status : decline.status;
+  function tap() {
+    if (which === "confirm") confirm.mutate(vars);
+    else decline.mutate(vars);
+  }
+  return (
+    <>
+      <button type="button" onClick={tap}>
+        Tap
+      </button>
+      <p>{status}</p>
+    </>
+  );
+}
+
+/** The chat on screen, so a read again of it is a real request. */
+function Chat() {
+  const chat = useTrigoChat(CHAT, true);
+  return <p>{chat.messages.length} held</p>;
+}
+
+function page(messages: TrigoMessage[]) {
+  return {
+    conversation: {
+      id: CHAT,
+      state: "open",
+      startedAt: "2026-11-02T04:30:00Z",
+      lastMessageAt: "2026-11-02T04:31:00Z",
+      team: { state: "none", openNow: true },
+      unread: 0,
+      textRemoved: false,
+    },
+    messages,
+    more: false,
+    hasOlder: false,
+    remainingToday: 18,
+    resetsAt: "2026-11-02T18:30:00Z",
+    pollAfterSeconds: 0,
+  };
+}
+
+const TRG_KEY = `trg_${ACTION.replace(/-/g, "")}`;
+
+const CHECKOUT: TrigoActionConfirmation = {
+  actionId: ACTION,
+  state: "confirmed",
+  next: {
+    checkout: {
+      experienceSlug: "try-dive-nemo-reef",
+      slotId: "slot_try-dive-nemo-reef_a",
+      localDate: "2026-08-20",
+      guests: 2,
+      expectTotalPaise: 900000,
+      idempotencyKey: TRG_KEY,
+      mode: "allotment",
+    },
+  },
+};
+
+describe("useConfirmTrigoAction", () => {
+  it("keeps a book card's checkout and marks the card confirmed", async () => {
+    __signInAppRouteMock();
+    let calls = 0;
+    server.use(
+      http.post(CONFIRM, ({ params }) => {
+        calls += 1;
+        expect(params.id).toBe(ACTION);
+        return HttpResponse.json(CHECKOUT);
+      }),
+    );
+    const { client } = renderWithQuery(<Tap which="confirm" />);
+    seed(client);
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
+    );
+
+    expect(calls).toBe(1);
+    expect(chatOf(client)?.messages[1].actionCard?.state).toBe("confirmed");
+    const prefill = readTrigoCheckout("try-dive-nemo-reef", Date.now());
+    expect(prefill).toMatchObject({
+      actionId: ACTION,
+      slotId: "slot_try-dive-nemo-reef_a",
+      guests: 2,
+      expectTotalPaise: 900000,
+      idempotencyKey: TRG_KEY,
+    });
+  });
+
+  it("reads the chat again in full, so the card's own older message comes back fresh", async () => {
+    __signInAppRouteMock();
+    const afters: (string | null)[] = [];
+    let booked = false;
+    server.use(
+      http.get(CHAT_READ, ({ request }) => {
+        const after = new URL(request.url).searchParams.get("after");
+        afters.push(after);
+        const held = [
+          msg(1, "Beginner dive Saturday for two"),
+          msg(
+            2,
+            "Here.",
+            booked
+              ? { ...card(), state: "used", bookingReference: "YV-7K2Q" }
+              : card(),
+          ),
+        ];
+        return HttpResponse.json(
+          page(held.filter((m) => m.seq > Number(after ?? 0))),
+        );
+      }),
+      http.post(CONFIRM, () => {
+        // Booked in another tab meanwhile: the server's card is used.
+        booked = true;
+        return HttpResponse.json(CHECKOUT);
+      }),
+    );
+    const { client } = renderWithQuery(
+      <>
+        <Chat />
+        <Tap which="confirm" />
+      </>,
+    );
+    await waitFor(() => expect(screen.getByText("2 held")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(chatOf(client)?.messages[1].actionCard?.state).toBe("used"),
+    );
+    expect(chatOf(client)?.messages[1].actionCard?.bookingReference).toBe(
+      "YV-7K2Q",
+    );
+    expect(afters).toEqual([null, null]);
+
+    // The next poll is the cheap one again.
+    await client.refetchQueries({ queryKey: qk.trigoConversation(CHAT) });
+    expect(afters).toEqual([null, null, "2"]);
+    expect(chatOf(client)?.messages.map((m) => m.seq)).toEqual([1, 2]);
+  });
+
+  it("keeps no checkout when the card was booked already", async () => {
+    __signInAppRouteMock();
+    server.use(
+      http.post(CONFIRM, () =>
+        HttpResponse.json({
+          ...CHECKOUT,
+          state: "used",
+        } satisfies TrigoActionConfirmation),
+      ),
+    );
+    const { client } = renderWithQuery(<Tap which="confirm" />);
+    seed(client);
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
+    );
+
+    expect(chatOf(client)?.messages[1].actionCard?.state).toBe("used");
+    expect(readTrigoCheckout("try-dive-nemo-reef", Date.now())).toBeNull();
+    expect(
+      client.getQueryState(qk.trigoConversation(CHAT))?.isInvalidated,
+    ).toBe(true);
+  });
+
+  it("marks a date alert card used and reads the alerts again", async () => {
+    __signInAppRouteMock();
+    server.use(
+      http.post(CONFIRM, () =>
+        HttpResponse.json({
+          actionId: ACTION,
+          state: "used",
+          next: { done: { alertId: "9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d" } },
+        } satisfies TrigoActionConfirmation),
+      ),
+    );
+    const { client } = renderWithQuery(
+      <Tap which="confirm" kind="date_alert" />,
+    );
+    seed(client, "date_alert");
+    client.setQueryDefaults(qk.myDateAlerts(), { gcTime: Infinity });
+    client.setQueryDefaults(qk.myTripDrafts(), { gcTime: Infinity });
+    client.setQueryData(qk.myDateAlerts(), { alerts: [] });
+    client.setQueryData(qk.myTripDrafts(), { drafts: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
+    );
+
+    expect(chatOf(client)?.messages[1].actionCard?.state).toBe("used");
+    expect(client.getQueryState(qk.myDateAlerts())?.isInvalidated).toBe(true);
+    expect(client.getQueryState(qk.myTripDrafts())?.isInvalidated).toBe(false);
+  });
+
+  it("reads the trip drafts again after a trip draft card", async () => {
+    __signInAppRouteMock();
+    server.use(
+      http.post(CONFIRM, () =>
+        HttpResponse.json({
+          actionId: ACTION,
+          state: "used",
+          next: { done: { draftId: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d" } },
+        } satisfies TrigoActionConfirmation),
+      ),
+    );
+    const { client } = renderWithQuery(
+      <Tap which="confirm" kind="trip_draft" />,
+    );
+    seed(client, "trip_draft");
+    client.setQueryDefaults(qk.myTripDrafts(), { gcTime: Infinity });
+    client.setQueryData(qk.myTripDrafts(), { drafts: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
+    );
+
+    expect(client.getQueryState(qk.myTripDrafts())?.isInvalidated).toBe(true);
+  });
+
+  it("is not retried, and a 401 asks the session again", async () => {
+    __signInAppRouteMock();
+    let calls = 0;
+    server.use(
+      http.post(CONFIRM, () => {
+        calls += 1;
+        return envelope(401, "unauthorized", "Sign in to ask Trigo.");
+      }),
+    );
+    const { client } = renderWithQuery(<Tap which="confirm" />);
+    seed(client);
+    client.setQueryDefaults(qk.session(), { gcTime: Infinity });
+    client.setQueryData(qk.session(), { signedIn: true });
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() => expect(screen.getByText("error")).toBeInTheDocument());
+
+    expect(calls).toBe(1);
+    expect(client.getQueryState(qk.session())?.isInvalidated).toBe(true);
+    expect(chatOf(client)?.messages[1].actionCard?.state).toBe("proposed");
+    expect(readTrigoCheckout("try-dive-nemo-reef", Date.now())).toBeNull();
+  });
+});
+
+describe("useDeclineTrigoAction", () => {
+  it("marks the card declined and adds Trigo's line by its seq", async () => {
+    __signInAppRouteMock();
+    server.use(
+      http.post(DECLINE, () =>
+        HttpResponse.json({
+          message: msg(3, "No problem. Nothing has been booked or changed."),
+        }),
+      ),
+    );
+    const { client } = renderWithQuery(<Tap which="decline" />);
+    seed(client);
+    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    await waitFor(() =>
+      expect(screen.getByText("success")).toBeInTheDocument(),
+    );
+
+    const chat = chatOf(client);
+    expect(chat?.messages.map((m) => m.seq)).toEqual([1, 2, 3]);
+    expect(chat?.messages[1].actionCard?.state).toBe("declined");
+    expect(chat?.messages[2].text).toBe(
+      "No problem. Nothing has been booked or changed.",
+    );
+  });
+
+  it.each(["action_expired", "action_changed"])(
+    "reads the chat again on a 409 %s, and leaves the card to that read",
+    async (code) => {
+      __signInAppRouteMock();
+      server.use(http.post(DECLINE, () => envelope(409, code, "Moved on.")));
+      const { client } = renderWithQuery(<Tap which="decline" />);
+      seed(client);
+      fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+      await waitFor(() =>
+        expect(screen.getByText("error")).toBeInTheDocument(),
+      );
+
+      expect(chatOf(client)?.messages[1].actionCard?.state).toBe("proposed");
+      expect(
+        client.getQueryState(qk.trigoConversation(CHAT))?.isInvalidated,
+      ).toBe(true);
+    },
+  );
+});

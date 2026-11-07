@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import { useReels } from "@/lib/feed/use-reels";
 import { playableReels, feedTail, type ReelsPage } from "@/lib/feed/reels";
 import {
@@ -15,6 +16,8 @@ import {
   Skeleton,
 } from "@/components/states";
 import { feedHeading } from "@/lib/site/places";
+import { IconButton } from "@/components/ui/icon-button";
+import { CloseIcon } from "@/components/ui/icons";
 
 /**
  * The reels feed — T2, the core of the product.
@@ -56,6 +59,8 @@ export function Feed({
   initialPage,
   initialFetchedAt,
   heading = feedHeading(null),
+  trigger,
+  gone,
 }: {
   /** The first answer, server-rendered. See app/page.tsx for why. */
   initialPage?: ReelsPage | null;
@@ -67,6 +72,17 @@ export function Feed({
    * in. A feed rendered without one names no place.
    */
   heading?: string;
+  /**
+   * The place trigger (yuvoy-app#179), passed by `/` only when the caller's
+   * list holds a place to find things in. Without it, and without `gone`,
+   * this is the feed exactly as it was.
+   */
+  trigger?: ReactNode;
+  /**
+   * "{place} isn't available right now, so here's ...": a remembered place
+   * the server will not show, said once over the reels (section 6 point 2).
+   */
+  gone?: string | null;
 }) {
   const {
     data,
@@ -106,12 +122,23 @@ export function Feed({
   */
   const tail = feedTail(data?.pages);
 
+  /*
+    One masthead for every state, so the place and the gone line are there
+    while the reels load, fail or come up empty, as the mark and Login are.
+  */
+  const chrome = (
+    <>
+      <ReelMasthead place={trigger} />
+      {gone ? <GoneNotice line={gone} /> : null}
+    </>
+  );
+
   /* ------------------------------------------------------------- loading */
   if (isPending) {
     return (
       <>
         <FeedHeading text={heading} />
-        <ReelFrame chrome={<ReelMasthead />}>
+        <ReelFrame chrome={chrome}>
           <LoadingState label="Loading experiences">
             <Skeleton className="absolute inset-0 rounded-none" />
             <div className="tabbar-clearance absolute inset-x-0 bottom-0 space-y-3 px-5">
@@ -129,7 +156,7 @@ export function Feed({
     return (
       <>
         <FeedHeading text={heading} />
-        <ReelFrame className={REEL_WELL_CENTRED} chrome={<ReelMasthead />}>
+        <ReelFrame className={REEL_WELL_CENTRED} chrome={chrome}>
           <ErrorState
             error={error}
             onRetry={() => void refetch()}
@@ -145,7 +172,7 @@ export function Feed({
     return (
       <>
         <FeedHeading text={heading} />
-        <ReelFrame className={REEL_WELL_CENTRED} chrome={<ReelMasthead />}>
+        <ReelFrame className={REEL_WELL_CENTRED} chrome={chrome}>
           <EmptyState
             tone="dark"
             title="Nothing bookable here yet"
@@ -167,9 +194,41 @@ export function Feed({
         isFetchingNextPage={isFetchingNextPage}
         isFetchNextPageError={isFetchNextPageError}
         fetchNextPage={() => void fetchNextPage()}
-        chrome={<ReelMasthead />}
+        chrome={chrome}
         surface="feed"
       />
     </>
+  );
+}
+
+/**
+ * The gone line over the reels (yuvoy-app#179): a remembered place the
+ * server will not show now. The browser forgets the place as the page comes
+ * up (`RememberPlace`), so it is said this once; Close takes it away sooner.
+ *
+ * Under the masthead's row on a phone, at the top of the well from `lg` up
+ * where the rail carries the mark, and a polite status so it is read out
+ * without taking the focus from wherever it was.
+ */
+function GoneNotice({ line }: { line: string }) {
+  const [shown, setShown] = useState(true);
+  if (!shown) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-16 z-20 px-4 lg:top-18">
+      <div
+        role="status"
+        className="bg-paper text-forest rounded-card pointer-events-auto flex items-start gap-2 py-2 pr-1.5 pl-4 shadow-lg"
+      >
+        <p className="text-label flex-1 py-1.5">{line}</p>
+        <IconButton
+          label="Close"
+          variant="onPaper"
+          size="sm"
+          onClick={() => setShown(false)}
+        >
+          <CloseIcon className="size-4" />
+        </IconButton>
+      </div>
+    </div>
   );
 }

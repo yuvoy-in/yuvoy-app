@@ -97,4 +97,12 @@ export const INDEXABLE_DYNAMIC_ROUTES = [
     this one can follow it the same way (the listings name the business).
   */
   "/o/[slug]/listings",
+  /*
+    A found card's page, yuvoy-app#179. Public, and indexable card by card:
+    the page says noindex unless the API calls the card `indexable` (a
+    checked, live card in a place open to everybody), and the sitemap lists
+    exactly those, from `GET /events/index`, which is empty until `explore`
+    is open to all.
+  */
+  "/f/[id]",
 ] as const;

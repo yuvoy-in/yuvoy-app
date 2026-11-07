@@ -4,6 +4,7 @@ import {
   YuvoyError,
   NetworkError,
   isErrorEnvelope,
+  parseRetryAfter,
   type ErrorCode,
 } from "./errors";
 import { fetchWithin } from "./deadline";
@@ -72,9 +73,22 @@ const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 const NEVER_RETRY: ReadonlySet<string> = new Set<ErrorCode>([
   "booking_disabled",
   "operator_not_bookable",
+  "host_not_bookable",
   "payments_unavailable",
   "media_unavailable",
   "rate_limited",
+  /*
+    Organiser pages paused (yuvoy-app#224): a switch somebody turned, so the
+    page shows its paused state at once and its own Try again asks again.
+  */
+  "organisers_paused",
+  /*
+    Tables paused (yuvoy-app#194): a switch somebody turned, so the table
+    page shows its paused state at once and its own Try again asks again.
+  */
+  "tables_unavailable",
+  // Plans paused (yuvoy-mobile#392): the same, for the plan picker and invites.
+  "plans_unavailable",
 ]);
 
 const MAX_GET_ATTEMPTS = 3;
@@ -211,6 +225,11 @@ const errorMiddleware: Middleware = {
       // A non-JSON error body is itself information — fall through.
     }
 
+    // How long the API asked a resend to wait, when it said (409, 429).
+    const retryAfterSeconds = parseRetryAfter(
+      response.headers.get("retry-after"),
+    );
+
     if (isErrorEnvelope(body)) {
       throw new YuvoyError({
         code: body.error.code,
@@ -218,6 +237,7 @@ const errorMiddleware: Middleware = {
         status: response.status,
         details: body.error.details,
         requestId: body.error.requestId ?? requestId ?? undefined,
+        retryAfterSeconds,
       });
     }
 
@@ -226,6 +246,7 @@ const errorMiddleware: Middleware = {
       message: `The server answered ${response.status}.`,
       status: response.status,
       requestId: requestId ?? undefined,
+      retryAfterSeconds,
     });
   },
 };
@@ -323,7 +344,7 @@ function retryingFetch(input: Request): Promise<Response> {
  * Compiled out of any build that does not enable mocking, because
  * NEXT_PUBLIC_* is inlined at build time.
  */
-function scenarioHeaders(): Record<string, string> {
+export function scenarioHeaders(): Record<string, string> {
   if (process.env.NEXT_PUBLIC_API_MOCKING !== "enabled") return {};
   if (typeof window === "undefined") return {};
   const scenario = new URLSearchParams(window.location.search).get(

@@ -22,7 +22,15 @@ describe("captureAttribution", () => {
     });
   });
 
-  it("only names a scan code on a QR arrival", () => {
+  it("reads a creator's link as its source and its code (R12-T2)", () => {
+    expect(captureAttribution("?src=creator&code=C-K7QM2XPA", "/")).toEqual({
+      source: "creator",
+      scanCode: "C-K7QM2XPA",
+      landingPath: "/",
+    });
+  });
+
+  it("only names a scan code on a QR or creator arrival", () => {
     expect(captureAttribution("?src=social&code=ABC123")).toEqual({
       source: "social",
     });

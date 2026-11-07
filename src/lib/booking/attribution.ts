@@ -42,6 +42,8 @@ const STORAGE_KEY = "yuvoy.attribution";
 */
 const SOURCES = [
   "qr",
+  // A traveller's own `/go/C-…` link (R12-T2): its code goes too, as a QR's does.
+  "creator",
   "direct",
   "search",
   "social",
@@ -70,7 +72,7 @@ function bounded(value: string | null, max: number): string | undefined {
  *
  * Pure, so the rule can be tested without a browser. `src` alone is enough —
  * `?src=social` from a shared post attributes a visit — and a QR arrival
- * additionally names its code.
+ * additionally names its code. So does a creator's (`src=creator`, R12-T2).
  */
 export function captureAttribution(
   search: string,
@@ -84,7 +86,9 @@ export function captureAttribution(
 
   const code = params.get("code")?.trim() ?? "";
   const out: Attribution = { source: src };
-  if (src === "qr" && CODE_PATTERN.test(code)) out.scanCode = code;
+  if ((src === "qr" || src === "creator") && CODE_PATTERN.test(code)) {
+    out.scanCode = code;
+  }
 
   const placement = bounded(params.get("placement"), 120);
   if (placement) out.placement = placement;

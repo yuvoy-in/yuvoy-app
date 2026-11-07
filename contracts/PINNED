@@ -570,6 +570,97 @@ repo=yuvoy-in/yuvoy-api
 # answers `releases.creator` and `releases.supply`, which this document does
 # not name; the app-config reader keeps only the keys it knows.
 
-ref=a2aec936c96dbd9d845e4feafda4a8a89e771ce6
+# 29 Oct 2026. Forward from a2aec936c96d to ad4fa894f967 (master 13afcecc
+# carries the same contract byte for byte). Read for removals first: no path
+# and no schema is removed. yuvoy-api#480 (D-049 P0) renamed the plan, table
+# and finder names with no compatibility window: plan host to planner
+# (`PlanView.planner`, role `planner`, `plannerName`, `planner_leaves`), table
+# host to `leader`, and bare web host to `domain`. This app reads none of them
+# (no plan, table or finder screen yet), so nothing here changes with them;
+# the plan and table pages are built on this pin (yuvoy-app#193, #194, #373).
+# The host rename's other names (`ExperienceSummary.host` beside `operator`,
+# `/host-applications`) are additive until the traveller cut-over (P7).
+#
+# Consumed in this change: nothing new. `pnpm codegen` regenerated
+# `schema.gen.ts`, and `tsc` passes against it unchanged.
+#
+# Checked with `gh api repos/yuvoy-in/yuvoy-api/commits/ad4fa894`.
+
+# 31 Oct 2026. Forward from ad4fa894f967 to d879826904b1, API master. Read for
+# removals first: no path and no schema is removed.
+#
+# Consumed in this change (yuvoy-app#180, #195): `foundFilters` on
+# `GET /catalog/vocabulary` (yuvoy-api#589). The Filters sheet draws its rows
+# and words from it, and the copied table in `found-words.ts` is gone.
+#
+# Named, not consumed: `sort` and `rankReason` on `listEvents` (the API orders
+# For you by itself once `going` is open), `googleSignIn` on `GET /me`, and the
+# new `Retry-After` on the event submission routes.
+#
+# Checked with `git ls-remote` immediately before pinning.
+
+# 2 Nov 2026. Forward from d879826904b1 to 53081d5df738, API master. Read for
+# removals first: nothing is removed.
+#
+# Consumed in this change (yuvoy-mobile#386): `Club.claimable` (yuvoy-api#594).
+# A group's page shows Claim while it is true, so a group whose holder erased
+# their account (still `onYuvoy`) can be claimed again. The On Yuvoy label
+# stays on `onYuvoy`.
+#
+# Checked with `git ls-remote` against the local yuvoy-api origin/master just
+# before pinning.
+
+# 3 Nov 2026. Forward from 53081d5df738 to 5f4bb498f6a5, the commit
+# yuvoy-app#230 names (yuvoy-api#601, live since 3 Nov 03:22 IST). Read for
+# removals first: no path and no schema is removed.
+#
+# Consumed in this change (yuvoy-app#230): `placeName` on each organiser and
+# on each `clubsToLink` group (yuvoy-api#596). The hub's group cards and a
+# group's fixed place line show it, so a place `GET /places` does not list
+# still has its name, and the `placeName()` lookup is gone. `Organiser.placeName`
+# is read only: no create or edit body sends it.
+#
+# Named, not consumed: the `Retry-After` on the Trigo 429s
+# (`RateLimitedRetryAfter`). `Club.claimable` is consumed since the 2 Nov pin
+# above (yuvoy-mobile#386).
+#
+# Master had moved on to 6e7c180d1633 by `git ls-remote` on pinning; this pin
+# stays on the commit the issue names.
+
+# 6 Nov 2026. Forward from 5f4bb498f6a5 to 84988635dfc0, API master. Read for
+# removals first: no path and no schema is removed; the lines that go are
+# prose rewritten in place and `429`s that now name `RateLimitedForTheDay`.
+#
+# Consumed in this change (yuvoy-app#278): `experienceId` on each
+# `MyBookingListItem` (yuvoy-api#669, #681, live as cdb1c556). Get my link
+# sends the trip's own id to `POST /me/creator-links` and no longer reads
+# `GET /experiences/{slug}` first, so a trip whose listing is unpublished
+# still gets its link.
+#
+# Named, not consumed: `RateLimitedForTheDay` (with `Retry-After`) on the
+# organiser and club writes' 429s; `contact.whatsapp` required on a
+# reservation from an email session with no number proved (yuvoy-api#304);
+# new 400 and 429 notes; the yuvoy-api#685, #686 and #224/#225 prose.
+#
+# Master had moved on to 63d7f1ef53b0 by `git ls-remote` on pinning; this pin
+# stays on the commit yuvoy-app#278 was given.
+#
+# Consumed on this same pin (yuvoy-app#223): `TrigoActionCard.liveReservation`
+# and `TrigoLiveReservation.kind`, from the squash of yuvoy-api#604
+# (30478d6a2fba, merged 3 Nov 04:44 IST), which 84988635 contains. A
+# confirmed book card with a live hold or request under its key offers no Go
+# to checkout, and says which one is live with the booking screen's own title
+# for it.
+#
+# Named, not consumed: `TrigoLiveReservation.expiresAt`. The card does not
+# show when the hold or request ends yet; that line waits on the copy in
+# yuvoy-app#223.
+#
+# Consumed on this same pin (yuvoy-app#279): `asText` words up to 40
+# characters, not 30 (yuvoy-api#649, 831e7151). `AS_TEXT_MAX_CHARS` is 40,
+# so removing a chip whose word is 31 to 40 characters long sends that word
+# back in `asText`.
+
+ref=84988635dfc0b3db6b9569113f6ba2374ccd9691
 branch=master
-pinned_on=2026-10-20
+pinned_on=2026-11-06
