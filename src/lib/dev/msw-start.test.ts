@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /**
  * Two regressions live here, both of which reached the owner's browser.
@@ -117,5 +117,73 @@ describe("environment separation", () => {
     // Reachable from both bundles, so anything it imports is pulled into both.
     const src = await code("mocks/once.ts");
     expect(src).not.toMatch(/^\s*import /m);
+  });
+});
+
+describe("a mock worker that never finished installing (yuvoy-app#256)", () => {
+  /*
+    jsdom has no service workers, so each test hands the page a container
+    of its own: who controls the page, and which registrations exist.
+  */
+  function registration(state: "installing" | "active", path: string) {
+    const worker = { scriptURL: `http://localhost:3000${path}` };
+    return {
+      installing: state === "installing" ? worker : null,
+      waiting: null,
+      active: state === "active" ? worker : null,
+      unregister: vi.fn(async () => true),
+    };
+  }
+
+  function serve(controller: object | null, registrations: object[]) {
+    const getRegistrations = vi.fn(async () => registrations);
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { controller, getRegistrations },
+    });
+    return getRegistrations;
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "serviceWorker");
+  });
+
+  it("unregisters it before the worker starts, when nothing is active", async () => {
+    const stalled = registration("installing", "/mockServiceWorker.js");
+    serve(null, [stalled]);
+    const { startBrowserMocks } = await fresh();
+    await startBrowserMocks();
+    expect(stalled.unregister).toHaveBeenCalledTimes(1);
+    expect(workerStart).toHaveBeenCalledTimes(1);
+    expect(stalled.unregister.mock.invocationCallOrder[0]).toBeLessThan(
+      workerStart.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("leaves an active worker to MSW's own reload, as after a hard reload", async () => {
+    const active = registration("active", "/mockServiceWorker.js");
+    serve(null, [active]);
+    const { startBrowserMocks } = await fresh();
+    await startBrowserMocks();
+    expect(active.unregister).not.toHaveBeenCalled();
+    expect(workerStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("looks at nothing while a worker controls the page", async () => {
+    const stalled = registration("installing", "/mockServiceWorker.js");
+    const getRegistrations = serve({}, [stalled]);
+    const { startBrowserMocks } = await fresh();
+    await startBrowserMocks();
+    expect(getRegistrations).not.toHaveBeenCalled();
+    expect(stalled.unregister).not.toHaveBeenCalled();
+  });
+
+  it("leaves a worker that is not the mock one alone", async () => {
+    const app = registration("installing", "/sw.js");
+    serve(null, [app]);
+    const { startBrowserMocks } = await fresh();
+    await startBrowserMocks();
+    expect(app.unregister).not.toHaveBeenCalled();
+    expect(workerStart).toHaveBeenCalledTimes(1);
   });
 });
