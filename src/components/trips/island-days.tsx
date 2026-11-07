@@ -11,11 +11,7 @@ import {
 import { clockOffsetMs } from "@/lib/booking/clock";
 import { bookingUrl } from "@/lib/booking/token-store";
 import { dateLabel } from "@/lib/search/labels";
-import {
-  MAX_RANGE_GAP_DAYS,
-  bookableRange,
-  filtersToParams,
-} from "@/lib/search/filters";
+import { filtersToParams } from "@/lib/search/filters";
 import {
   MAX_STAY_DAYS,
   planDays,
@@ -25,13 +21,13 @@ import {
 import { useStay, type StayHome } from "@/lib/trips/use-stay";
 import { YuvoyError } from "@/lib/api/errors";
 import { dedash } from "@/lib/format/dedash";
-import { cn } from "@/lib/cn";
 import { StateChip } from "@/components/booking/state-chip";
 import { LoadingState, Skeleton } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Panel } from "@/components/ui/panel";
 import { Sheet, SheetPresence } from "@/components/ui/sheet";
+import { KeptLine, SkeletonLine, StayLink } from "./island-days-parts";
 
 /**
  * Your island days (the approved redesign: traveller A with C's day plan in
@@ -468,58 +464,5 @@ function StaySheet({
         </p>
       </div>
     </Sheet>
-  );
-}
-
-/**
- * What runs on any day of the stay still to come, in one search
- * (yuvoy-api#258), beside the per-day links. Cut at the API's limit, and then
- * it says so rather than calling part of a stay the whole of it.
- */
-function StayLink({ stay, today }: { stay: Stay; today: string }) {
-  const start = today > stay.from ? today : stay.from;
-  const range = bookableRange(start, stay.to);
-  if (!range) return null;
-  const days = MAX_RANGE_GAP_DAYS + 1;
-  return (
-    <p className="mt-3 text-sm">
-      <Link
-        href={`/search?${filtersToParams({
-          bookableFrom: range.bookableFrom,
-          bookableTo: range.bookableTo,
-        }).toString()}`}
-        className="text-terra-deep tap-target font-bold underline"
-      >
-        {!range.cut
-          ? "See what runs during your stay"
-          : start === stay.from
-            ? `See what runs in your first ${days} days`
-            : `See what runs in your next ${days} days`}
-      </Link>
-    </p>
-  );
-}
-
-/**
- * Where the days are kept, said under them. On the account they follow the
- * traveller to any phone they sign in on; on this phone they do not, and a
- * traveller who changes phones should not find that out by losing them.
- */
-function KeptLine({ home, className }: { home: StayHome; className: string }) {
-  return (
-    <p className={cn("text-forest/70 text-xs", className)}>
-      {home === "account"
-        ? "Your dates are kept with your account."
-        : "Your dates are kept on this phone."}
-    </p>
-  );
-}
-
-/** One line of text still to come, at the height of the line it stands for. */
-function SkeletonLine({ width }: { width: string }) {
-  return (
-    <div className="flex h-[1lh] items-center">
-      <Skeleton className={cn("h-3 max-w-full", width)} />
-    </div>
   );
 }
