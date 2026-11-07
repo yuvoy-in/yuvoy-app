@@ -288,7 +288,7 @@ export function SignedIn({
       <DownloadMyData onSessionEnded={onSessionEnded} className="mt-10" />
 
       {/*
-        The standing place for the policy — yuvoy-app#15. The consent banner
+        The standing place for the policy: yuvoy-app#15. The consent banner
         carries it at the moment of asking and then never appears again; this
         is where somebody comes looking for it a week later. The answer itself
         sits above it, to change at any time (yuvoy-app#181).
