@@ -268,9 +268,9 @@ test.describe("case 18: the page itself", () => {
     const drawn = await page.evaluate((html) => {
       const doc = new DOMParser().parseFromString(html, "text/html");
       doc.querySelectorAll("script").forEach((s) => s.remove());
-      doc
-        .querySelectorAll("noscript")
-        .forEach((n) => n.replaceWith(...Array.from(n.childNodes)));
+      doc.querySelectorAll("noscript").forEach((n) =>
+        n.replaceWith(...Array.from(n.childNodes)),
+      );
       return `<!doctype html>${doc.documentElement.outerHTML}`;
     }, await response.text());
     await page.route("**/p/", (route) =>
