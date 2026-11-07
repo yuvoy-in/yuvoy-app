@@ -33,9 +33,9 @@ export function mayGetLink(trip: Pick<ServerTrip, "state">): boolean {
  * has no list of events a person went on, so there is no button for one, and
  * a link to an event made on the phone still shows in Your links.
  *
- * A trip names its listing by slug and the write takes the id, so the tap
- * reads the listing first (`useGetMyCreatorLink`). `201` is a link made now
- * and `200` the one they already had; both then show Copy link and Share.
+ * The tap sends the trip's own `experienceId` (`useGetMyCreatorLink`), with
+ * no read of the listing first. `201` is a link made now and `200` the one
+ * they already had; both then show Copy link and Share.
  *
  * ## A refusal is said in the API's words
  *
@@ -73,7 +73,7 @@ export function GetMyLink({ trip }: { trip: ServerTrip }) {
           aria-describedby={titleId}
           pending={get.isPending}
           pendingLabel={W.gettingLink}
-          onClick={() => get.mutate(trip.experienceSlug)}
+          onClick={() => get.mutate(trip.experienceId)}
         >
           {W.getMyLink}
         </Button>

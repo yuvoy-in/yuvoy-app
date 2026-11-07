@@ -9,8 +9,6 @@ import type { ClubToLink, Organiser } from "@/lib/organisers/types";
 import { useMyOrganisers } from "@/lib/organisers/use-organisers";
 import { ORGANISER_WORDS as W } from "@/lib/organisers/words";
 import { DoorLink } from "./door-screen-parts";
-import { usePlaceList } from "@/lib/site/use-place";
-import { placeName } from "./organiser-form-parts";
 import { OrganiserRefusalBlock } from "./organiser-gate";
 import {
   BACK_TO_ACCOUNT,
@@ -121,16 +119,10 @@ function OrganiserRow({ organiser }: { organiser: Organiser }) {
 
 /** One card per group held with no organiser: its name, its place, and the way to set it up. */
 function ClubCards({ clubs }: { clubs: ClubToLink[] }) {
-  const places = usePlaceList({
-    initial: null,
-    signedIn: true,
-    enabled: clubs.length > 0,
-  });
   if (clubs.length === 0) return null;
   return (
     <ul className="mt-6 space-y-3" data-testid="organiser-club-cards">
       {clubs.map((club) => {
-        const place = placeName(places.data, club.destinationKey);
         return (
           <li key={club.clubId}>
             <Panel
@@ -141,9 +133,7 @@ function ClubCards({ clubs }: { clubs: ClubToLink[] }) {
               <p className="font-bold text-pretty break-words">
                 {W.clubCard(club.name)}
               </p>
-              {place ? (
-                <p className="text-forest/75 mt-0.5 text-sm">{place}</p>
-              ) : null}
+              <p className="text-forest/75 mt-0.5 text-sm">{club.placeName}</p>
               <ButtonLink
                 href={`/organiser/new?club=${encodeURIComponent(club.clubId)}`}
                 block

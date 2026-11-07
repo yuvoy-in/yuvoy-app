@@ -78,6 +78,12 @@ describe("palette", () => {
       */
       "src/components/experience/gallery.tsx",
       /*
+        The same gallery's frames, clip badge and full-screen view, moved out
+        of `gallery.tsx` into their own file to keep it under 500 lines
+        (yuvoy-app#243). Same three grounds as above, nothing new.
+      */
+      "src/components/experience/gallery-parts.tsx",
+      /*
         The listing's picture over the top of checkout and of a booking (the
         approved redesign, 3 Oct 2026), and the ground it holds while either
         loads: the same media use as the gallery's, a ground behind a poster.
@@ -125,7 +131,7 @@ describe("palette", () => {
       "src/lib/site/theme.ts",
       // The fixture posters. Their literals are asserted to BE tokens below,
       // which is stronger than banning them.
-      "mocks/fixtures.ts",
+      "mocks/fixtures-listings.ts",
       // The OG card renders through Satori, outside the CSS pipeline, so a
       // custom property cannot reach it. Asserted to be tokens below.
       "src/app/opengraph-image.tsx",
@@ -153,7 +159,7 @@ describe("palette", () => {
     // comment explaining why it must never return. Reading comments would
     // flag the file for documenting its own rule.
     const fixtures = stripComments(
-      readFileSync(join(MOCKS, "fixtures.ts"), "utf8"),
+      readFileSync(join(MOCKS, "fixtures-listings.ts"), "utf8"),
     );
     const used = [...fixtures.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) =>
       m[0].toLowerCase(),
@@ -217,6 +223,29 @@ describe("palette", () => {
         read(f),
       ),
     ).map(rel);
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps labels at forest/75 or more", () => {
+    /*
+      The same ladder's second rung. A label is 13/18, smaller than body
+      text, so its floor is forest/75 (6.00:1), not body's forest/70. The
+      check reads each class string: one holding `label` or `text-label`
+      beside `text-forest/70` or less fails (yuvoy-app#223).
+    */
+    const offenders = FILES.flatMap((f) =>
+      (read(f).match(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g) ?? [])
+        .map((s) => s.slice(1, -1).split(/\s+/))
+        .filter(
+          (t) =>
+            t.some((c) => c === "label" || c === "text-label") &&
+            t.some((c) => {
+              const n = /^text-forest\/(\d+)$/.exec(c)?.[1];
+              return n !== undefined && Number(n) <= 70;
+            }),
+        )
+        .map((t) => `${rel(f)}: ${t.join(" ")}`),
+    );
     expect(offenders).toEqual([]);
   });
 

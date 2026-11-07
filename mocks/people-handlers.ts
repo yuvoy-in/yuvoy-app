@@ -431,7 +431,7 @@ export const peopleHandlers = [
       forgetPeople(request.headers.get("authorization")!, scenario);
       return envelope(
         "under_age_sign_up",
-        "Yuvoy is for people 18 and over, so we have closed your account. We have sent you an email about it.",
+        "Yuvoy accounts are for people 18 and over, so we have closed this one. If you think this is wrong, contact us.",
         403,
       );
     }

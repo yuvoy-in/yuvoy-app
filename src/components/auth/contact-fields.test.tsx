@@ -3,7 +3,12 @@ import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { renderWithQuery } from "@/test/render";
-import { ContactFields, maskPhone } from "./contact-fields";
+import {
+  ContactFields,
+  NO_NUMBER_HINT,
+  maskPhone,
+  useContactState,
+} from "./contact-fields";
 import { server } from "../../../mocks/server";
 import {
   __resetAppRouteMocks,
@@ -140,8 +145,69 @@ describe("a traveller who signed in by email and has no number", () => {
   it("is shown who they are, with no number and no empty bracket", async () => {
     const line = await screen.findByText(/Booking as/);
     expect(line).toHaveTextContent(/^Booking as Asha Menon$/);
-    // Still not asked for a number: the session books, and the API ignores one.
-    expect(screen.queryByLabelText("WhatsApp number")).toBeNull();
+  });
+
+  it("is asked for a number, told it signs nobody in (yuvoy-app#229)", async () => {
+    // The API needs `contact.whatsapp` from a session with no proven number.
+    expect(await screen.findByLabelText("WhatsApp number")).toBeInTheDocument();
+    expect(screen.getByText(NO_NUMBER_HINT)).toBeInTheDocument();
+  });
+
+  it("shows the API's refusal of the number on that field", async () => {
+    cleanup();
+    __signInAppRouteMock();
+    profile({ phone: null });
+    draw({ phoneError: "that does not look like a phone number" });
+    expect(
+      await screen.findByText("that does not look like a phone number"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("WhatsApp number")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+});
+
+describe("the contact sent from a session with no number", () => {
+  function Probe() {
+    const c = useContactState("");
+    return (
+      <output>
+        {c.loading
+          ? "loading"
+          : JSON.stringify({
+              needsPhone: c.needsPhone,
+              contact: c.contactFor({
+                name: "",
+                phone: "+919811122233",
+                email: "",
+              }),
+            })}
+      </output>
+    );
+  }
+
+  it("carries the typed number, and a proven number's session does not", async () => {
+    __signInAppRouteMock();
+    profile({ phone: null });
+    renderWithQuery(<Probe />);
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent('"needsPhone":true'),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      '"whatsapp":"+919811122233"',
+    );
+
+    cleanup();
+    __signInAppRouteMock();
+    profile();
+    renderWithQuery(<Probe />);
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        '"needsPhone":false',
+      ),
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent("whatsapp");
   });
 });
 

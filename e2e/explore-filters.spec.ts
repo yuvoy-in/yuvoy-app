@@ -70,7 +70,7 @@ test("with checkedCities off, there are no chips, search or Filters, and the fee
   for (const extra of ["", "&when=weekend&free=1&q=dive"]) {
     await page.goto(feedOf(BENGALURU, "explore-staff", extra));
     await expect(heading(page, "Bengaluru")).toBeVisible();
-    // R2's three Bengaluru cards (`mocks/found-fixtures.ts`).
+    // R2's three Bengaluru cards (`mocks/found-fixture-cards.ts`).
     await expectCards(page, [
       "Morning cycle ride round Cubbon Park",
       "Filter coffee tasting in Basavanagudi",

@@ -1,5 +1,6 @@
 import { civilInZone, dayMonth } from "@/lib/format/date";
 import type { components } from "@/lib/api/schema.gen";
+import { BIRTH_YEAR_WORDS } from "@/lib/auth/birth-year";
 
 export type PeopleHome = components["schemas"]["PeopleHome"];
 export type Friend = components["schemas"]["Friend"];
@@ -131,13 +132,13 @@ export const PEOPLE_WORDS = {
   age: {
     title: "Your birth year",
     body: "People is for adults, so we ask the year you were born. We ask once.",
-    year: "Year you were born",
-    yearHint: "Four digits, like 1994",
-    yearBad: "Write the year as four digits, like 1994.",
-    birthday: "Have you had your birthday this year?",
-    yes: "Yes",
-    no: "No",
-    birthdayMissing: "Say whether you have had your birthday this year.",
+    /* The field's own words are the sign-in year step's (yuvoy-app#229). */
+    year: BIRTH_YEAR_WORDS.label,
+    yearBad: BIRTH_YEAR_WORDS.needYear,
+    birthday: BIRTH_YEAR_WORDS.birthday,
+    yes: BIRTH_YEAR_WORDS.yes,
+    no: BIRTH_YEAR_WORDS.notYet,
+    birthdayMissing: BIRTH_YEAR_WORDS.needBirthday,
     action: "Continue",
     saving: "Saving",
     /** After `under_age_sign_up`: the account is closed and signed out. */
@@ -232,34 +233,8 @@ export function friendCode(raw: string): string | null {
   return /^[A-Za-z0-9-]{4,16}$/.test(code) ? code : null;
 }
 
-/** The year in India now, which is the year the API's 18 is counted in. */
-export function indiaYear(now: Date = new Date()): number {
-  return (
-    civilInZone(now.toISOString(), "Asia/Kolkata")?.year ?? now.getUTCFullYear()
-  );
-}
-
-/**
- * Whether the age step must also ask about this year's birthday: only for
- * the one year that straddles 18, as the API asks (`birthdayPassed`).
- */
-export function needsBirthday(
-  birthYear: number,
-  now: Date = new Date(),
-): boolean {
-  return birthYear === indiaYear(now) - 18;
-}
-
-/**
- * A birth year as typed, or null. Four digits, not in the future, and not
- * before 1900: anything else is a typing slip the API would refuse anyway.
- */
-export function birthYearOf(
-  typed: string,
-  now: Date = new Date(),
-): number | null {
-  const t = typed.trim();
-  if (!/^\d{4}$/.test(t)) return null;
-  const year = Number(t);
-  return year >= 1900 && year <= indiaYear(now) ? year : null;
-}
+/*
+  The year rules moved to lib/auth/birth-year.ts (yuvoy-app#229): the sign-in
+  doors ask the same question, and one copy keeps them from drifting.
+*/
+export { indiaYear, needsBirthday, birthYearOf } from "@/lib/auth/birth-year";

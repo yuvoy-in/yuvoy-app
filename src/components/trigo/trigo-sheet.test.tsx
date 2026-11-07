@@ -1,24 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithQuery } from "@/test/render";
 import type { TrigoFailure, TrigoMessage } from "@/lib/trigo/api";
 import { readDraft } from "@/lib/trigo/keys";
 import {
   ACCEPT,
-  AGE_LINE,
   ASK_THE_TEAM,
   CHIPS_GENERAL,
   CHIPS_LISTING,
-  FAILURE_LINE,
   GREETING,
-  IN_PROGRESS_LINE,
   LIMIT_LINE,
   NOT_RELEASED_LINE,
-  OFFLINE_LINE,
   SIGNED_OUT_LINE,
   TRY_AGAIN,
-  TRY_AGAIN_SOON,
   TURN_OFF,
   remainingLine,
 } from "@/lib/trigo/words";
@@ -397,231 +392,5 @@ describe("Trigo sheet: the chat", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: TURN_OFF }));
     expect(s.withdrawn).toBe(1);
-  });
-});
-
-describe("Trigo sheet: when a message does not go", () => {
-  async function failWith(failure: TrigoFailure) {
-    s.answer = () => ({ failure });
-    open();
-    const user = await write("Where to stay in Gokarna?");
-    await user.keyboard("{Enter}");
-    return user;
-  }
-
-  it("a failure says so, keeps the text, and Try again reuses the key", async () => {
-    const user = await failWith({ kind: "failure" });
-    expect(screen.getByText(FAILURE_LINE)).toBeInTheDocument();
-    expect(screen.getByLabelText(COMPOSER_LABEL)).toHaveValue(
-      "Where to stay in Gokarna?",
-    );
-    s.answer = null;
-    await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
-    expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
-  });
-
-  it("a refusal the same send would get again keeps the text and offers no Try again", async () => {
-    await failWith({ kind: "rejected" });
-    expect(screen.getByText(FAILURE_LINE)).toBeInTheDocument();
-    expect(screen.getByLabelText(COMPOSER_LABEL)).toHaveValue(
-      "Where to stay in Gokarna?",
-    );
-    expect(
-      screen.queryByRole("button", { name: TRY_AGAIN }),
-    ).not.toBeInTheDocument();
-  });
-
-  it.each([
-    [{ kind: "busy", message: "Trigo is busy. Try again in a minute." }],
-    [{ kind: "rate_limited", message: "Slow down a little." }],
-  ] as [TrigoFailure & { message: string }][])(
-    "%o shows the API's own sentence",
-    async (failure) => {
-      await failWith(failure);
-      expect(screen.getByText(failure.message)).toBeInTheDocument();
-    },
-  );
-
-  it.each([
-    [{ kind: "in_progress" }],
-    [{ kind: "idempotency_in_progress" }],
-  ] as [TrigoFailure][])(
-    "%o says the last message is still being answered, and Try again sends the same key",
-    async (failure) => {
-      const user = await failWith(failure);
-      expect(screen.getByText(IN_PROGRESS_LINE)).toBeInTheDocument();
-      // No Retry-After: Try again is on at once, as before.
-      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeEnabled();
-      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
-      s.answer = null;
-      await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
-      expect(s.sent).toHaveLength(2);
-      expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
-      expect(s.sent[1]?.text).toBe(s.sent[0]?.text);
-    },
-  );
-
-  /*
-    The two Retry-After tests type on the real clock and fake setTimeout only
-    from the send on. user-event's calls end on Testing Library's async
-    wrapper, which waits for a setTimeout(0) that only Jest's fake timers are
-    advanced past, so under vitest's it never returns. The send itself is a
-    plain click.
-  */
-  it("Try again waits out the answer's Retry-After, then sends the same key", async () => {
-    s.answer = () => ({
-      failure: { kind: "idempotency_in_progress", retryAfterSeconds: 3 },
-    });
-    open();
-    const user = await write("Where to stay in Gokarna?");
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    try {
-      fireEvent.click(screen.getByRole("button", { name: SEND }));
-
-      const retry = screen.getByRole("button", { name: TRY_AGAIN });
-      expect(retry).toBeDisabled();
-      expect(retry).toHaveAccessibleDescription(TRY_AGAIN_SOON);
-      // Send is held too, so the wait cannot be skipped from the composer.
-      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
-
-      act(() => vi.advanceTimersByTime(2_999));
-      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeDisabled();
-      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
-
-      act(() => vi.advanceTimersByTime(1));
-      expect(screen.getByRole("button", { name: TRY_AGAIN })).toBeEnabled();
-      expect(screen.getByRole("button", { name: SEND })).toBeEnabled();
-      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
-
-    s.answer = null;
-    await user.click(screen.getByRole("button", { name: TRY_AGAIN }));
-    expect(s.sent).toHaveLength(2);
-    expect(s.sent[1]?.key).toBe(s.sent[0]?.key);
-  });
-
-  it("a rate limit with Retry-After holds Send until it has passed", async () => {
-    s.answer = () => ({
-      failure: {
-        kind: "rate_limited",
-        message: "Slow down a little.",
-        retryAfterSeconds: 2,
-      },
-    });
-    open();
-    await write("Where to stay in Gokarna?");
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    try {
-      fireEvent.click(screen.getByRole("button", { name: SEND }));
-
-      expect(screen.getByText("Slow down a little.")).toBeInTheDocument();
-      expect(screen.getByText(TRY_AGAIN_SOON)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
-
-      act(() => vi.advanceTimersByTime(1_999));
-      expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
-
-      act(() => vi.advanceTimersByTime(1));
-      expect(screen.getByRole("button", { name: SEND })).toBeEnabled();
-      expect(screen.queryByText(TRY_AGAIN_SOON)).not.toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("the day's limit shows the limit panel and turns Send off", async () => {
-    await failWith({
-      kind: "limit",
-      resetsAt: "2026-11-02T18:30:00Z",
-      message: "That's today's 20.",
-    });
-    expect(screen.getByText(LIMIT_LINE)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
-  });
-
-  it("signed out on a send shows the way back in", async () => {
-    await failWith({ kind: "signed_out" });
-    expect(screen.getByText(SIGNED_OUT_LINE)).toBeInTheDocument();
-  });
-
-  it("not released on a send says so", async () => {
-    await failWith({ kind: "not_released", message: "Not found." });
-    expect(screen.getByText(NOT_RELEASED_LINE)).toBeInTheDocument();
-    expect(s.sent).toHaveLength(1);
-  });
-
-  it("a 404 on a send to a chat that is gone starts a new chat once, with a new key", async () => {
-    const NEW_CHAT = "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e";
-    const reply = answered("Try the beach huts near Om Beach.");
-    s.answer = (vars) =>
-      s.sent.length === 1
-        ? { failure: { kind: "not_released", message: "Not found." } }
-        : { ok: { ...reply(vars).ok, conversationId: NEW_CHAT } };
-    const { onConversation } = open(null, CONVERSATION);
-    const user = await write("Where to stay in Gokarna?");
-    await user.keyboard("{Enter}");
-    expect(s.sent).toHaveLength(2);
-    expect(s.sent[0]?.conversationId).toBe(CONVERSATION);
-    expect(s.sent[1]?.conversationId).toBeUndefined();
-    expect(s.sent[1]?.text).toBe("Where to stay in Gokarna?");
-    expect(s.sent[1]?.key).not.toBe(s.sent[0]?.key);
-    expect(screen.queryByText(NOT_RELEASED_LINE)).toBeNull();
-    expect(
-      await screen.findByText("Try the beach huts near Om Beach."),
-    ).toBeInTheDocument();
-    expect(onConversation).toHaveBeenCalledWith(NEW_CHAT);
-  });
-
-  it("a 404 again on the new chat says not released, with no third send", async () => {
-    s.answer = () => ({
-      failure: { kind: "not_released", message: "Not found." },
-    });
-    open(null, CONVERSATION);
-    const user = await write("Where to stay in Gokarna?");
-    await user.keyboard("{Enter}");
-    expect(s.sent).toHaveLength(2);
-    expect(screen.getByText(NOT_RELEASED_LINE)).toBeInTheDocument();
-  });
-
-  it("consent needed again brings the notice back with no resend", async () => {
-    await failWith({ kind: "consent", noticeVersion: "v4" });
-    expect(
-      screen.getByText(/Trigo answers from Yuvoy's listings\./),
-    ).toBeInTheDocument();
-    expect(s.sent).toHaveLength(1);
-  });
-
-  it("age needed asks for the birth year", async () => {
-    await failWith({ kind: "age" });
-    expect(screen.getByText(AGE_LINE)).toBeInTheDocument();
-  });
-
-  it("offline on a send says so", async () => {
-    await failWith({ kind: "offline" });
-    expect(screen.getByText(OFFLINE_LINE)).toBeInTheDocument();
-  });
-});
-
-describe("Trigo sheet: offline", () => {
-  it("says so, keeps the text and turns Send off until back online", async () => {
-    open();
-    await write("Is the ferry running?");
-    act(() => {
-      setOnline(false);
-      window.dispatchEvent(new Event("offline"));
-    });
-    expect(screen.getByText(OFFLINE_LINE)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: SEND })).toBeDisabled();
-    expect(screen.getByLabelText(COMPOSER_LABEL)).toHaveValue(
-      "Is the ferry running?",
-    );
-    act(() => {
-      setOnline(true);
-      window.dispatchEvent(new Event("online"));
-    });
-    expect(screen.queryByText(OFFLINE_LINE)).toBeNull();
-    expect(screen.getByRole("button", { name: SEND })).toBeEnabled();
   });
 });

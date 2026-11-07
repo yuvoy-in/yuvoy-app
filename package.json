@@ -35,14 +35,15 @@
     "hls.js": "^1.6.16",
     "idb-keyval": "^6.3.0",
     "motion": "^12.43.0",
-    "next": "16.3.0",
+    "next": "16.4.5",
     "next-mdx-remote": "^6.0.0",
     "openapi-fetch": "^0.17.0",
     "posthog-js": "^1.422.5",
+    "qrcode-generator": "2.0.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "^3.6.0",
-    "zod": "^4.4.3",
+    "zod": "^4.6.6",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -57,7 +58,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.4",
     "eslint": "^9.8.0",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "16.4.5",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
@@ -69,7 +70,7 @@
     "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   },
   "msw": {
     "workerDirectory": [

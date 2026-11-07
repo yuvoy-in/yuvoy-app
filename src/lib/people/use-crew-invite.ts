@@ -9,11 +9,7 @@ import { peopleShutByFollows } from "@/lib/groups/use-follows";
 import { plansShutByList } from "@/lib/plans/use-my-plans";
 import { qk } from "@/lib/query/policy";
 import { PlansShutError } from "./crew-invite";
-import {
-  PeopleShutError,
-  readCrewsAgain,
-  releasesReadAgain,
-} from "./people-stand-ins";
+import { PeopleShutError, releasesReadAgain } from "./people-stand-ins";
 
 /**
  * Invite a crew to a plan, `POST /plans/{planId}/crew-invites`
@@ -63,7 +59,7 @@ export function useInviteCrewToPlan(crewId: string) {
       } catch (error) {
         if (error instanceof YuvoyError && error.status === 404) {
           void qc.invalidateQueries({ queryKey: ["listMyPlans"] });
-          void readCrewsAgain(qc);
+          void qc.invalidateQueries({ queryKey: qk.myCrews() });
           // The config can lag the API by minutes, so the follows list (404 only
           // while People is closed) and the plans list (404 only while plans is
           // closed) are asked too. The order of the checks is the order of trust.
