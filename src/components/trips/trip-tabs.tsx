@@ -3,10 +3,21 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { ChipButton, chipVariants } from "@/components/ui/chip";
 import { DURATION, prefersReducedMotion } from "@/lib/motion";
-import { TRIP_TABS, TAB_LABEL, type TripTab } from "@/lib/trips/tabs";
+import { TRIP_TABS, TAB_LABEL, type TripsView } from "@/lib/trips/tabs";
+import { TRIGO_LISTS_WORDS } from "@/lib/trigo/lists-words";
+
+/** The tabs in order, with Drafts last when it is shown (yuvoy-app#220). */
+function tabsOf(drafts: boolean): readonly TripsView[] {
+  return drafts ? [...TRIP_TABS, "drafts"] : TRIP_TABS;
+}
+
+function labelOf(name: TripsView): string {
+  return name === "drafts" ? TRIGO_LISTS_WORDS.draftsTab : TAB_LABEL[name];
+}
 
 /**
- * Upcoming, Past, Cancelled: one fill that slides to the tab tapped (T07 A,
+ * Upcoming, Past, Cancelled, and Drafts while the `trigo` release is open
+ * (yuvoy-app#220): one fill that slides to the tab tapped (T07 A,
  * approved 4 Oct 2026).
  *
  * The tabs were three chips whose colours faded while the whole screen under
@@ -34,10 +45,14 @@ import { TRIP_TABS, TAB_LABEL, type TripTab } from "@/lib/trips/tabs";
 export function TripTabs({
   tab,
   onChange,
+  drafts = false,
 }: {
-  tab: TripTab;
-  onChange: (tab: TripTab) => void;
+  tab: TripsView;
+  onChange: (tab: TripsView) => void;
+  /** Show the Drafts tab. */
+  drafts?: boolean;
 }) {
+  const names = tabsOf(drafts);
   const row = useRef<HTMLDivElement | null>(null);
   const fill = useRef<HTMLDivElement | null>(null);
 
@@ -60,7 +75,7 @@ export function TripTabs({
         easing: "linear",
       });
     }
-  }, [tab]);
+  }, [tab, drafts]);
 
   /*
     A row laid out again without a change (a font arriving, a rotation)
@@ -73,7 +88,9 @@ export function TripTabs({
     if (!list || !layer || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       const chosen = list.querySelector<HTMLElement>('[aria-selected="true"]');
-      const clip = chosen ? clipFor(list, chosen.dataset.tab as TripTab) : null;
+      const clip = chosen
+        ? clipFor(list, chosen.dataset.tab as TripsView)
+        : null;
       if (clip && layer.style.clipPath !== clip) place(layer, clip);
     });
     observer.observe(list);
@@ -87,7 +104,7 @@ export function TripTabs({
       aria-label="Which trips"
       className="relative flex gap-2"
     >
-      {TRIP_TABS.map((name) => (
+      {names.map((name) => (
         <ChipButton
           key={name}
           role="tab"
@@ -96,7 +113,7 @@ export function TripTabs({
           pressed={tab === name}
           onClick={() => onChange(name)}
         >
-          {TAB_LABEL[name]}
+          {labelOf(name)}
         </ChipButton>
       ))}
       <div
@@ -104,9 +121,9 @@ export function TripTabs({
         aria-hidden="true"
         className="trip-tab-fill pointer-events-none absolute inset-0 flex gap-2"
       >
-        {TRIP_TABS.map((name) => (
+        {names.map((name) => (
           <span key={name} className={chipVariants({ tone: "selected" })}>
-            {TAB_LABEL[name]}
+            {labelOf(name)}
           </span>
         ))}
       </div>
@@ -115,7 +132,7 @@ export function TripTabs({
 }
 
 /** The chosen chip, as an inset of the row the fill covers, round as a pill. */
-function clipFor(list: HTMLElement, tab: TripTab): string | null {
+function clipFor(list: HTMLElement, tab: TripsView): string | null {
   const chip = list.querySelector<HTMLElement>(`[data-tab="${tab}"]`);
   if (!chip) return null;
   const top = chip.offsetTop;

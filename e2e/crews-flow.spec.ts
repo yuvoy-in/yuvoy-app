@@ -159,7 +159,9 @@ test("a crew with nobody in it says so on People and on its page", async ({
   await openCrew(page, OLD_FLATMATES.crewId, scenario);
   await expect(heading(page, OLD_FLATMATES.name)).toBeVisible();
   await expect(members(page)).toHaveCount(0);
-  await expect(page.getByText(W.nobody, { exact: true }).first()).toBeVisible();
+  // Once, in the count line: the empty crew has no Friends in this crew list.
+  await expect(page.getByText(W.nobody, { exact: true })).toHaveCount(1);
+  await expect(page.getByText(W.nobody, { exact: true })).toBeVisible();
   await expect(
     page.getByRole("link", { name: W.edit, exact: true }),
   ).toBeVisible();

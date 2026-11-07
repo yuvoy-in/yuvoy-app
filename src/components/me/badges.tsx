@@ -115,7 +115,7 @@ function EarnedRow({
       )}
       {hasEvidence ? (
         <div id={evidenceId} hidden={!open} className="mt-2">
-          <p className="label text-forest/70">{ME_WORDS.earnedFrom}</p>
+          <p className="label text-forest/75">{ME_WORDS.earnedFrom}</p>
           <ul className="mt-1 space-y-0.5">
             {badge.evidence.map((entry) => (
               <li key={entry.entryId} className="text-xs">
