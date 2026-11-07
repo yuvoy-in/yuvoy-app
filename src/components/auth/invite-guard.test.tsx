@@ -201,7 +201,7 @@ describe("with the switch on", () => {
     await user.type(await screen.findByLabelText("Sign-in code"), "123456");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    // Signed in, and this number is not admitted: the code screen, in place.
+    // Signed in, and this traveller is not admitted: the code screen, in place.
     const code = await screen.findByLabelText("Invite code");
     meSays(true);
     await user.type(code, MOCK_INVITE_CODES.valid);

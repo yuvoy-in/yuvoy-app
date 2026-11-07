@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { crewMissing, useDeleteCrew } from "@/lib/people/use-crews";
+import { usePeopleHome } from "@/lib/people/use-people";
 import {
   CREWS_WORDS as W,
   crewCountLine,
@@ -10,6 +11,7 @@ import {
   type Crew,
 } from "@/lib/people/crews-words";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { CrewInvite } from "./crew-invite";
 import { Initial, Refusal } from "./people-parts";
 import {
   CrewBody,
@@ -82,6 +84,11 @@ function CrewView({
 }) {
   const [asking, setAsking] = useState(false);
   const membersId = useId();
+  // Paused or ended People keeps the crew in view and Delete, but not the
+  // ways to invite or change it, as on the phone. Until the read answers the
+  // page shows them; the API still refuses a paused caller with a 403.
+  const standing = usePeopleHome(true).data?.standing;
+  const paused = standing === "restricted" || standing === "removed";
 
   return (
     <>
@@ -93,18 +100,15 @@ function CrewView({
         </p>
       ) : null}
 
-      <section aria-labelledby={membersId} className="mt-8">
-        <h2
-          id={membersId}
-          className="label text-forest/75 border-paper-line border-b pb-2"
-        >
-          {W.pickHead}
-        </h2>
-        {crew.members.length === 0 ? (
-          <p className="text-forest/70 text-body mt-3 text-pretty">
-            {W.nobody}
-          </p>
-        ) : (
+      {/* The count line above already says an empty crew has nobody in it. */}
+      {crew.members.length > 0 ? (
+        <section aria-labelledby={membersId} className="mt-8">
+          <h2
+            id={membersId}
+            className="label text-forest/75 border-paper-line border-b pb-2"
+          >
+            {W.pickHead}
+          </h2>
           <ul className="divide-paper-line divide-y">
             {crew.members.map((m) => (
               <li
@@ -117,13 +121,24 @@ function CrewView({
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
+
+      {/* Under the members and before the ways to change the crew, as on the
+          phone. It shows only while People and plans are open and the crew
+          has someone in it. */}
+      {paused ? null : (
+        <div className="mt-8 empty:hidden">
+          <CrewInvite crewId={crew.crewId} memberCount={crew.members.length} />
+        </div>
+      )}
 
       <div className="mt-8 flex flex-wrap gap-3">
-        <ButtonLink href={`/people/crews/${crew.crewId}/edit`} size="lg">
-          {W.edit}
-        </ButtonLink>
+        {paused ? null : (
+          <ButtonLink href={`/people/crews/${crew.crewId}/edit`} size="lg">
+            {W.edit}
+          </ButtonLink>
+        )}
         {asking ? null : (
           <Button variant="outline" size="lg" onClick={() => setAsking(true)}>
             {W.delete}

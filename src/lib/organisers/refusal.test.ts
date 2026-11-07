@@ -258,7 +258,7 @@ describe("a group's setup (yuvoy-app#225)", () => {
     expect(
       organiserRefusal(
         refused(403, "people_paused", "Your use of People is paused for now.", {
-          standing: "paused",
+          standing: "restricted",
         }),
       ),
     ).toEqual({
@@ -267,12 +267,12 @@ describe("a group's setup (yuvoy-app#225)", () => {
     });
     expect(
       organiserRefusal(
-        refused(403, "people_paused", "", { standing: "paused" }),
+        refused(403, "people_paused", "", { standing: "restricted" }),
       ),
     ).toEqual({ kind: "other", message: W.peoplePaused });
     expect(
       organiserRefusal(
-        refused(403, "people_paused", "", { standing: "ended" }),
+        refused(403, "people_paused", "", { standing: "removed" }),
       ),
     ).toEqual({ kind: "other", message: W.peopleEnded });
   });
