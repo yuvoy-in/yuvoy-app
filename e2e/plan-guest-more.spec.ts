@@ -265,14 +265,17 @@ test.describe("case 18: the page itself", () => {
     */
     const response = await request.get("/p/");
     expect(response.ok()).toBe(true);
-    const drawn = await page.evaluate((html) => {
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      doc.querySelectorAll("script").forEach((s) => s.remove());
-      doc.querySelectorAll("noscript").forEach((n) =>
-        n.replaceWith(...Array.from(n.childNodes)),
-      );
-      return `<!doctype html>${doc.documentElement.outerHTML}`;
-    }, await response.text());
+    const drawn = await page.evaluate(
+      (html) => {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        doc.querySelectorAll("script").forEach((s) => s.remove());
+        doc
+          .querySelectorAll("noscript")
+          .forEach((n) => n.replaceWith(...Array.from(n.childNodes)));
+        return `<!doctype html>${doc.documentElement.outerHTML}`;
+      },
+      await response.text(),
+    );
     await page.route("**/p/", (route) =>
       route.fulfill({ contentType: "text/html; charset=utf-8", body: drawn }),
     );
