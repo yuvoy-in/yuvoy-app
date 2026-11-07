@@ -78,6 +78,12 @@ describe("palette", () => {
       */
       "src/components/experience/gallery.tsx",
       /*
+        The same gallery's frames, clip badge and full-screen view, moved out
+        of `gallery.tsx` into their own file to keep it under 500 lines
+        (yuvoy-app#243). Same three grounds as above, nothing new.
+      */
+      "src/components/experience/gallery-parts.tsx",
+      /*
         The listing's picture over the top of checkout and of a booking (the
         approved redesign, 3 Oct 2026), and the ground it holds while either
         loads: the same media use as the gallery's, a ground behind a poster.
