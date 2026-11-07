@@ -6,7 +6,7 @@ import { Panel } from "@/components/ui/panel";
 import type { components } from "@/lib/api/schema.gen";
 import { CheckoutFields } from "./checkout-fields";
 
-export { policyLines } from "./checkout-fields";
+export { policyLines } from "./checkout-terms";
 
 type Experience = components["schemas"]["Experience"];
 type Slot = components["schemas"]["Slot"];
