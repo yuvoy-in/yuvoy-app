@@ -23,6 +23,7 @@ import { startOnce, BROWSER_KEY } from "./once";
  */
 export function startBrowserMocks(): Promise<void> {
   return startOnce(BROWSER_KEY, async () => {
+    await dropStalledMockWorker();
     const { worker } = await import("./browser");
     await worker.start({
       onUnhandledRequest: "bypass",
@@ -30,4 +31,42 @@ export function startBrowserMocks(): Promise<void> {
       serviceWorker: { url: "/mockServiceWorker.js" },
     });
   });
+}
+
+/** The path `worker.start` registers, as `serviceWorker.url` above says. */
+const MOCK_WORKER_PATH = "/mockServiceWorker.js";
+
+/**
+ * Unregisters a mock worker that never finished installing, before MSW
+ * looks (yuvoy-app#256).
+ *
+ * MSW 2.15 reloads the page whenever no worker controls it and a mock
+ * registration exists, and it counts an installing or waiting worker as one
+ * (`get-worker-instance.ts`, `get-worker-by-registration.ts`). A page left
+ * while its first install was still running hands the next page exactly
+ * that. On WebKit the install seems never to finish, so every load reloads:
+ * the iPhone motion spec saw 112 commits in one test. With the stalled
+ * registration gone, MSW takes its first-visit path and registers afresh.
+ *
+ * Only when nothing is active. A hard reload also leaves the page with no
+ * controller, but with an active worker, and that is the case MSW's own
+ * reload is for, so it is left alone. Reached only from a build with
+ * mocking on: both callers check `NEXT_PUBLIC_API_MOCKING` first.
+ */
+export async function dropStalledMockWorker(): Promise<void> {
+  const container =
+    typeof navigator === "undefined" ? undefined : navigator.serviceWorker;
+  if (!container || container.controller) return;
+  const registrations = await container.getRegistrations();
+  await Promise.all(
+    registrations
+      .filter((r) => !r.active && isMockWorker(r))
+      .map((r) => r.unregister()),
+  );
+}
+
+function isMockWorker(registration: ServiceWorkerRegistration): boolean {
+  return [registration.installing, registration.waiting].some(
+    (w) => !!w && new URL(w.scriptURL).pathname === MOCK_WORKER_PATH,
+  );
 }
