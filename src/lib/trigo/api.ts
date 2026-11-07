@@ -211,7 +211,7 @@ function fromPage(
 /**
  * Whether the tab is in front. Polling stops behind another tab: a reply
  * that lands meanwhile is read on the next poll after the tab comes back.
- * (The same hook as `message-thread.tsx`'s.)
+ * (The same hook as `message-thread-parts.tsx`'s.)
  */
 function useTabVisible(): boolean {
   return useSyncExternalStore(
