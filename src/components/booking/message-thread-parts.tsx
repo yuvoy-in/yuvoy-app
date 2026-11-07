@@ -101,7 +101,9 @@ export function MessageComposer({
         generic panel, which would offer a retry that cannot work.
       */}
       {refusal ? (
-        <p role="alert" className="text-terra-deep mt-3 text-sm">{refusal}</p>
+        <p role="alert" className="text-terra-deep mt-3 text-sm">
+          {refusal}
+        </p>
       ) : null}
       {otherFailure ? (
         <FailurePanel failure={otherFailure} className="mt-3" />
