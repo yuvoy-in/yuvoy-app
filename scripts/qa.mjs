@@ -1963,8 +1963,8 @@ for (const f of files) {
       "drawn once the booking has loaded in the browser",
     ],
     [
-      "src/components/checkout/checkout-form.tsx",
-      "drawn once the departures have loaded in the browser",
+      "src/components/checkout/checkout-terms.tsx",
+      "inside checkout, drawn once the departures have loaded in the browser",
     ],
     [
       "src/components/checkout/question-fields.tsx",
