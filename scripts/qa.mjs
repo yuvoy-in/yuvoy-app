@@ -1955,7 +1955,7 @@ for (const f of files) {
       "the year step and People's age step, drawn after the API asks in the browser",
     ],
     [
-      "src/components/booking/message-thread.tsx",
+      "src/components/booking/message-thread-parts.tsx",
       "drawn once the booking has loaded in the browser",
     ],
     [
