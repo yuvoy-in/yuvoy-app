@@ -43,7 +43,6 @@ import {
   PlacePicker,
   handOverLinked,
   missing,
-  placeName,
   withoutKey,
 } from "./organiser-form-parts";
 
@@ -195,11 +194,7 @@ export function OrganiserFormBody({
       data-testid="organiser-form"
     >
       {fixed ? (
-        <FixedPage
-          name={fixed.name}
-          place={placeName(places.data, fixed.destinationKey)}
-          errors={errors}
-        />
+        <FixedPage name={fixed.name} place={fixed.placeName} errors={errors} />
       ) : (
         <>
           <Field

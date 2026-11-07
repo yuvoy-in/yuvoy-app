@@ -45,6 +45,7 @@ export const ORG_IDS = {
 
 const base = {
   destinationKey: "andaman/havelock",
+  placeName: "Havelock (Swaraj Dweep)",
   links: [],
   selfPublish: false,
   role: "owner",
@@ -115,6 +116,7 @@ export const ORG_HELPER_OF: Organiser = {
   name: "Sample Reef Cleanup",
   departments: ["nature_wildlife"],
   destinationKey: "andaman/port_blair",
+  placeName: "Port Blair",
   state: "verified",
   selfPublish: true,
   role: "helper",
@@ -304,12 +306,14 @@ export const CLUBS_HELD: ClubToLink[] = [
     clubId: CLUB_IDS.runners,
     name: "Sample Lagoon Runners",
     destinationKey: "andaman/havelock",
+    placeName: "Havelock (Swaraj Dweep)",
     category: "sports",
   },
   {
     clubId: CLUB_IDS.quiz,
     name: "Sample Sunset Quiz",
     destinationKey: "andaman/port_blair",
+    placeName: "Port Blair",
     category: null,
   },
 ];

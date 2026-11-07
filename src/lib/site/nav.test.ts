@@ -48,6 +48,8 @@ describe("focused routes", () => {
     ["/organiser/6f1c2a10-1b2c-4d3e-8f40-0a1b2c3d4e02/helpers", true],
     // The door (yuvoy-app#226), reached from the organiser pages.
     ["/door", true],
+    // Date alerts (yuvoy-app#220): a Back to Account, which keeps the bar.
+    ["/account/date-alerts", true],
   ])("%s → focused: %s", (pathname, focused) => {
     expect(isFocusedRoute(pathname)).toBe(focused);
   });

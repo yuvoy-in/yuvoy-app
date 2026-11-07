@@ -119,15 +119,28 @@ describe("Save to Photos", () => {
       }),
     );
 
-    renderWithQuery(<KeepBooking status={status()} token="tok_secret" />);
+    // With a check-in code on the booking (yuvoy-app#218): the pass is drawn
+    // from the token alone, so the code cannot reach the image.
+    renderWithQuery(
+      <KeepBooking
+        status={status({
+          checkIn: {
+            code: "K7QM-2XPA",
+            link: "https://operators.yuvoy.in/check-in#YV-4K2M9P7Q.K7QM2XPA",
+            validOn: "2026-09-20",
+          },
+        })}
+        token="tok_secret"
+      />,
+    );
 
     await user.click(
       await screen.findByRole("button", { name: "Save to Photos" }),
     );
 
     await waitFor(() => expect(shared).toHaveLength(1));
-    // The token travelled in the BODY. A URL is in history, in a referrer and
-    // in any screenshot of the browser.
+    // The token travelled in the BODY, and nothing else did. A URL is in
+    // history, in a referrer and in any screenshot of the browser.
     expect(body).toEqual({ token: "tok_secret" });
   });
 

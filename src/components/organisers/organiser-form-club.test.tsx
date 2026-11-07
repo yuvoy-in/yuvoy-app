@@ -45,6 +45,7 @@ const HIDDEN = {
   clubId: "3d8b6f10-6c7d-4e8f-a0b1-4e5f6a7b8c04",
   name: "Sample Hidden Walkers",
   destinationKey: "andaman/port_blair",
+  placeName: "Port Blair",
   category: null,
 };
 
@@ -436,6 +437,27 @@ describe("The plain setup for a person who holds groups (review point 7)", () =>
       runners.clubId,
       quiz.clubId,
     ]);
+  });
+});
+
+describe("A group's place (yuvoy-app#230)", () => {
+  it("shows the API's placeName, also for a place GET /places has not listed", async () => {
+    const unlisted = { ...runners, destinationKey: "andaman/long_island" };
+    server.use(
+      http.get(`${BASE}/me/organisers`, () =>
+        HttpResponse.json({
+          items: [],
+          clubsToLink: [{ ...unlisted, placeName: "Long Island" }],
+        }),
+      ),
+    );
+    nav.search = `club=${unlisted.clubId}`;
+    newForm();
+
+    expect(
+      (await screen.findByTestId("organiser-form-fixed-place")).textContent,
+    ).toBe("Long Island");
+    expect(screen.queryByTestId("organiser-form-fixed-place-error")).toBeNull();
   });
 });
 

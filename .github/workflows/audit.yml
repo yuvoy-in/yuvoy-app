@@ -7,11 +7,12 @@
 # `pnpm verify` on the pre-push hook is the correctness gate.
 #
 # This is the one exception, and it earns it by checking something a pre-push
-# hook structurally cannot: the DEPLOYED configuration. Half of what
-# `e2e/audit.spec.ts` asserts — that robots.txt and the meta tag agree, that
-# the sitemap's URLs actually resolve, that the share image serves — depends on
-# environment values that exist only in the Vercel dashboard. A local run
-# proves the code is right; only this proves the deployment is.
+# hook structurally cannot: the DEPLOYED configuration. Half of what the two
+# specs assert depends on environment values that exist only in the Vercel
+# dashboard: that robots.txt and the meta tag agree (`e2e/audit-pages.spec.ts`),
+# that the sitemap's URLs actually resolve and that the share image serves
+# (`e2e/audit.spec.ts`). A local run proves the code is right; only this
+# proves the deployment is.
 #
 # It cost three deploys to learn that distinction: `NEXT_PUBLIC_SITE_URL` was
 # marked Sensitive, the build received a placeholder, and every local build was
@@ -25,9 +26,10 @@
 #
 # ## Read-only, and enforced by which file it runs
 #
-# It runs `e2e/audit.spec.ts` and nothing else. That spec is GET-only by
-# construction — it may never create a reservation or touch a booking, because
-# it is pointed at production. `money-loop.spec.ts` is never run here.
+# It runs `e2e/audit.spec.ts` and `e2e/audit-pages.spec.ts` and nothing else.
+# Both specs are GET-only by construction: they may never create a
+# reservation or touch a booking, because they are pointed at production.
+# `money-loop.spec.ts` is never run here.
 name: Production audit
 
 on:
@@ -86,7 +88,7 @@ jobs:
       # running the identical HTML checks twice on two viewports pays double
       # for one answer.
       - name: Audit
-        run: pnpm exec playwright test e2e/audit.spec.ts --project=mobile
+        run: pnpm exec playwright test e2e/audit.spec.ts e2e/audit-pages.spec.ts --project=mobile
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.target.outputs.url }}
           CI: "1"
